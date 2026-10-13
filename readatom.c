@@ -543,7 +543,7 @@ void readAtom(Atom *atom, char *atom_file)
 
     /* --- Allocate space for thread dependent quantities -- -------- */
 
-    atom->rhth = (rhthread *) malloc(input.Nthreads * sizeof(rhthread));
+    atom->rhth = (rhthread *) calloc(input.Nthreads, sizeof(rhthread));
 
     /* --- Store the offset to allow pointing back to the start of the
            collisional data in the atomic input file, and allocate
