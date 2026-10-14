@@ -33,6 +33,7 @@
  
 #include <stdlib.h>
 #include <math.h>
+#include <pthread.h>
 
 #include "rh.h"
 #include "error.h"
@@ -448,6 +449,26 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 
 /* ------- begin -------------------------- alloc_as.c -------------- */
 
+/* --- Background/active opacity buffers are pooled per thread slot
+       (nt = nspect % Nthreads), not per wavelength: a slot's buffers
+       are only live between one alloc_as()/free_as() pair, and a
+       thread handles one wavelength at a time, so Nthreads sets are
+       enough. Pooling per wavelength would grow memory as
+       Nspect * Nspace.  --                            -------------- */
+
+typedef struct {
+  double *chi_c, *eta_c, *sca_c, *chip_c, *chi, *eta, *chip;
+  int     Nrec_c, Nrec_as;
+} AsPool;
+
+static AsPool        *as_pool = NULL;
+static pthread_once_t as_pool_once = PTHREAD_ONCE_INIT;
+
+static void init_as_pool(void)
+{
+  as_pool = (AsPool *) calloc(input.Nthreads, sizeof(AsPool));
+}
+
 void alloc_as(int nspect, bool_t crosscoupling)
 {
   register int n, m, nact;
@@ -456,47 +477,67 @@ void alloc_as(int nspect, bool_t crosscoupling)
   Atom *atom;
   Molecule *molecule;
   ActiveSet *as;
+  AsPool *pool;
 
   as = &spectrum.as[nspect];
   nt = nspect % input.Nthreads;
 
-  /* --- Allocate space for background opacities and emissivity.
+  pthread_once(&as_pool_once, init_as_pool);
+  pool = &as_pool[nt];
 
-		 The sizes needed here are fixed for the lifetime of the run:
-		 NrecStokes only depends on atmos.backgrflags[nspect], which is set
-		 once during background setup, so each wavelength's ActiveSet buffers
-		 are allocated on first use and then simply reused on every later call.
+  /* --- Space for background opacities and emissivity. The pooled
+         buffers only grow, when a wavelength needs more Stokes
+         records than any earlier one in this slot.
          --                                             -------------- */
 
   if (atmos.backgrflags[nspect].ispolarized &&
       input.StokesMode == FULL_STOKES) {
     NrecStokes = 4;
 
-    if (input.magneto_optical && as->chip_c == NULL)
-      as->chip_c = (double *) malloc(3*atmos.Nspace * sizeof(double));
+    if (input.magneto_optical) {
+      if (pool->chip_c == NULL)
+	pool->chip_c = (double *) malloc(3*atmos.Nspace * sizeof(double));
+      as->chip_c = pool->chip_c;
+    }
   } else
     NrecStokes = 1;
 
-  if (as->chi_c == NULL) {
-    as->chi_c = (double *) malloc(NrecStokes*atmos.Nspace * sizeof(double));
-    as->eta_c = (double *) malloc(NrecStokes*atmos.Nspace * sizeof(double));
-    as->sca_c = (double *) malloc(atmos.Nspace * sizeof(double));
+  if (NrecStokes > pool->Nrec_c) {
+    free(pool->chi_c);
+    free(pool->eta_c);
+    pool->chi_c = (double *) malloc(NrecStokes*atmos.Nspace * sizeof(double));
+    pool->eta_c = (double *) malloc(NrecStokes*atmos.Nspace * sizeof(double));
+    pool->Nrec_c = NrecStokes;
   }
+  if (pool->sca_c == NULL)
+    pool->sca_c = (double *) malloc(atmos.Nspace * sizeof(double));
+
+  as->chi_c = pool->chi_c;
+  as->eta_c = pool->eta_c;
+  as->sca_c = pool->sca_c;
 
   /* --- Now for the active part --                    -------------- */
 
   if (input.StokesMode == FULL_STOKES  && containsPolarized(as)) {
     NrecStokes_as = 4;
 
-    if (input.magneto_optical && as->chip == NULL)
-      as->chip = (double *) malloc(3*atmos.Nspace * sizeof(double));
+    if (input.magneto_optical) {
+      if (pool->chip == NULL)
+	pool->chip = (double *) malloc(3*atmos.Nspace * sizeof(double));
+      as->chip = pool->chip;
+    }
   } else
     NrecStokes_as = 1;
 
-  if (as->chi == NULL) {
-    as->chi = (double *) malloc(NrecStokes_as*atmos.Nspace * sizeof(double));
-    as->eta = (double *) malloc(NrecStokes_as*atmos.Nspace * sizeof(double));
+  if (NrecStokes_as > pool->Nrec_as) {
+    free(pool->chi);
+    free(pool->eta);
+    pool->chi = (double *) malloc(NrecStokes_as*atmos.Nspace * sizeof(double));
+    pool->eta = (double *) malloc(NrecStokes_as*atmos.Nspace * sizeof(double));
+    pool->Nrec_as = NrecStokes_as;
   }
+  as->chi = pool->chi;
+  as->eta = pool->eta;
 
   /* --- Allocate memory for the emissivity in each active
          atom seperately. The contributions are needed individually
@@ -506,9 +547,16 @@ void alloc_as(int nspect, bool_t crosscoupling)
     atom = atmos.activeatoms[nact];
 
     if (as->Nactiveatomrt[nact] > 0) {
+      /* --- The record count can change between calls: FIELD_FREE
+             iterations use 1 record, the final FULL_STOKES solution
+             needs 4 at wavelengths with polarized lines. Size for the
+             maximum whenever a magnetic field is present.
+             --                                         -------------- */
+
       if (atom->rhth[nt].eta == NULL)
 	atom->rhth[nt].eta =
-	  (double *) malloc(NrecStokes_as * atmos.Nspace * sizeof(double));
+	  (double *) malloc((atmos.Stokes ? 4 : 1) * atmos.Nspace *
+			    sizeof(double));
 
       /* --- Vij/gij/wla are sized by the number of this atom's
              transitions active AT THIS WAVELENGTH, which varies from
@@ -583,10 +631,14 @@ void alloc_as(int nspect, bool_t crosscoupling)
 
 void free_as(int nspect, bool_t crosscoupling)
 {
-  /* --- alloc_as now allocates each wavelength's/thread's buffers once
-         and reuses them for the rest of the run (see alloc_as above),
-         so there is nothing left to free after each call. Everything
-         is released when the process exits.              -------------- */
+  ActiveSet *as = &spectrum.as[nspect];
+
+  /* --- The buffers belong to the per-thread pools in alloc_as() and
+         are reused for the rest of the run; only detach them here so
+         nothing can touch them between calls.  --      -------------- */
+
+  as->chi_c  = as->eta_c = as->sca_c = as->chip_c = NULL;
+  as->chi    = as->eta   = as->chip  = NULL;
 }
 /* ------- end ---------------------------- free_as.c --------------- */
 
