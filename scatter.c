@@ -21,6 +21,9 @@
  
 #include <stdlib.h>
 #include <math.h>
+#include <unistd.h>
+#include <errno.h>
+#include <sys/types.h>
 
 #include "rh.h"
 #include "atom.h"
@@ -30,6 +33,7 @@
 #include "constant.h"
 #include "error.h"
 #include "statistics.h"
+#include "parallel.h"
 
 #define TENSION  8.0
 #define PRD_FILE_TEMPLATE "PRD_%s_%d-%d.dat"
@@ -48,32 +52,338 @@ extern char messageStr[];
 
 /* ------- begin -------------------------- PRDScatter.c ------------ */
 
+/* --- The loop over spatial locations is parallelized: the scattering
+       integral at one location uses only that location's data and
+       writes only rho_prd[.][k] for that k. The redistribution weights
+       live in a scratch file with one block per location (all emission
+       wavelengths of the line, in order), so each worker reads or
+       writes the block of its own locations at a known offset with
+       pread/pwrite instead of sharing a file position. The file layout
+       is the same as before: subordinate line, then location, then
+       emission wavelength.  --                        -------------- */
+
+typedef struct {
+  Atom       *atom;
+  AtomicLine *PRDline, *XRDline;
+  enum Interpolation representation;
+  bool_t      initialize;
+  int         fd;
+  double      waveratio, *Pj, *adamp;
+  long       *blocksize;      /* number of doubles in each block      */
+  off_t      *kstart;         /* byte offset of each location's block */
+} PRDjob;
+
+/* ------- begin -------------------------- prdGrid.c --------------- */
+
+static int prdGrid(double q_emit, double waveratio, double *q0, double *qN)
+{
+  /* --- Establish integration limits over absorption wavelength,
+         using only regions where the redistribution function is
+         non-zero, and the number of points of the fine grid.
+         (See also function GII.) --                   -------------- */
+
+  if (fabs(q_emit) < PRD_QCORE) {
+    *q0 = -PRD_QWING;
+    *qN =  PRD_QWING;
+  } else {
+    if (fabs(q_emit) < PRD_QWING) {
+      if (q_emit > 0.0) {
+	*q0 = -PRD_QWING;
+	*qN = waveratio * (q_emit + PRD_QSPREAD);
+      } else {
+	*q0 = waveratio * (q_emit - PRD_QSPREAD);
+	*qN = PRD_QWING;
+      }
+    } else {
+      *q0 = waveratio * (q_emit - PRD_QSPREAD);
+      *qN = waveratio * (q_emit + PRD_QSPREAD);
+    }
+  }
+  return (int) ((*qN - *q0) / PRD_DQ) + 1;
+}
+/* ------- end ---------------------------- prdGrid.c --------------- */
+
+/* ------- begin -------------------------- prdFileIO.c ------------- */
+
+static bool_t prdFileIO(int fd, double *buf, size_t Ndouble, off_t offset,
+			bool_t write_it)
+{
+  char   *p = (char *) buf;
+  size_t  left = Ndouble * sizeof(double);
+  ssize_t n;
+
+  while (left > 0) {
+
+    /* --- A single call may not take more than INT_MAX bytes on
+           some systems, and may be interrupted --     -------------- */
+
+    size_t chunk = (left < (size_t) 1 << 30) ? left : (size_t) 1 << 30;
+
+    n = (write_it) ? pwrite(fd, p, chunk, offset) :
+                     pread(fd, p, chunk, offset);
+    if (n < 0  &&  errno == EINTR) continue;
+    if (n <= 0) return FALSE;
+    p += n;  offset += n;  left -= n;
+  }
+  return TRUE;
+}
+/* ------- end ---------------------------- prdFileIO.c ------------- */
+
+/* --- The weights are read and written in windows of consecutive
+       locations, several MB at a time, instead of one small block per
+       location. The blocks follow each other in the file, and large
+       requests are what the disk and the OS cache handle well: with
+       small ones, runs whose weight files do not stay in the cache
+       became limited by disk latency. --              -------------- */
+
+#define PRD_IO_WINDOW  (2*1024*1024)
+
+static int prdWindowEnd(PRDjob *job, int k, int kend)
+{
+  size_t bytes = 0;
+  int    ke = k;
+
+  while (ke < kend  &&
+	 (ke == k  ||
+	  bytes + job->blocksize[ke]*sizeof(double) <= PRD_IO_WINDOW)) {
+    bytes += job->blocksize[ke] * sizeof(double);
+    ke++;
+  }
+  return ke;
+}
+
+static size_t prdWindowSize(PRDjob *job, int k, int ke)
+{
+  return (job->kstart[ke-1] - job->kstart[k]) / sizeof(double) +
+    job->blocksize[ke-1];
+}
+
+/* ------- begin -------------------------- prdBlockSizes.c --------- */
+
+static void prdBlockSizes(int kbeg, int kend, int nt, void *arg)
+{
+  PRDjob     *job = (PRDjob *) arg;
+  AtomicLine *PRDline = job->PRDline;
+  int         la, k;
+  long        n;
+  double      q_emit, q0, qN;
+
+  for (k = kbeg;  k < kend;  k++) {
+    n = 0;
+    for (la = 0;  la < PRDline->Nlambda;  la++) {
+      q_emit = (PRDline->lambda[la] - PRDline->lambda0) * CLIGHT /
+	(PRDline->lambda0 * job->atom->vbroad[k]);
+      n += prdGrid(q_emit, job->waveratio, &q0, &qN);
+    }
+    job->blocksize[k] = n;
+  }
+}
+/* ------- end ---------------------------- prdBlockSizes.c --------- */
+
+/* ------- begin -------------------------- prdIntegrate.c ---------- */
+
+static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
+{
+  const char routineName[] = "PRDScatter";
+
+  PRDjob     *job = (PRDjob *) arg;
+  Atom       *atom = job->atom;
+  AtomicLine *PRDline = job->PRDline, *XRDline = job->XRDline;
+  register int la, k, lap;
+  bool_t  hunt;
+  int     Np;
+  long    pos;
+  int     kwin_start = kbeg, kwin_end = kbeg;
+  size_t  Nwin = 0, wincap = 0;
+  double  q_emit, q0, qN, *q_abs = NULL, *qp = NULL, *wq = NULL,
+         *qpp = NULL, *gii, *win = NULL, *wbuf, *J = NULL, *J_k = NULL,
+          Jbar, scatInt, gnorm, gamma;
+
+  /* --- Every worker has its own scratch arrays --    -------------- */
+
+  J_k   = (double *) malloc(XRDline->Nlambda * sizeof(double));
+  q_abs = (double *) malloc(XRDline->Nlambda * sizeof(double));
+
+  for (k = kbeg;  k < kend;  k++) {
+
+    /* --- Start a new window of weights when the previous one is
+           used up (writing the finished one out first when the weights
+           are being computed for the first time) --   -------------- */
+
+    if (k == kwin_end) {
+      if (job->initialize  &&  k > kbeg) {
+	if (!prdFileIO(job->fd, win, Nwin, job->kstart[kwin_start], TRUE)) {
+	  sprintf(messageStr,
+		  "Unable to write proper number of redistribution weights\n"
+		  " Line %d -> %d, locations %d to %d",
+		  XRDline->j, XRDline->i, kwin_start, kwin_end - 1);
+	  Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+      }
+      kwin_start = k;
+      kwin_end   = prdWindowEnd(job, k, kend);
+      Nwin       = prdWindowSize(job, kwin_start, kwin_end);
+
+      /* --- One buffer per worker, sized for a full window and kept:
+             growing it window by window, with sizes that differ a
+             little each time, made the allocator hold on to several
+             windows' worth of freed blocks. --        -------------- */
+
+      if (Nwin > wincap) {
+	wincap = (Nwin > PRD_IO_WINDOW/sizeof(double)) ?
+	  Nwin : PRD_IO_WINDOW/sizeof(double);
+	win = (double *) realloc(win, wincap * sizeof(double));
+      }
+      if (!job->initialize) {
+	if (!prdFileIO(job->fd, win, Nwin, job->kstart[kwin_start], FALSE)) {
+	  sprintf(messageStr,
+		  "Unable to read proper number of redistribution weights\n"
+		  " Line %d -> %d, locations %d to %d",
+		  XRDline->j, XRDline->i, kwin_start, kwin_end - 1);
+	  Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+      }
+    }
+    wbuf = win + (job->kstart[k] - job->kstart[kwin_start]) / sizeof(double);
+
+    gamma = atom->n[XRDline->i][k] / atom->n[PRDline->j][k] *
+      XRDline->Bij / job->Pj[k];
+    Jbar = XRDline->Rij[k] / XRDline->Bij;
+
+    /* --- Get local mean intensity and wavelength in Doppler units - */
+
+    if (input.PRD_angle_dep == PRD_ANGLE_APPROX) {
+      for (la = 0;  la < XRDline->Nlambda;  la++) {
+	J_k[la] = spectrum.Jgas[XRDline->Nblue + la][k];
+	q_abs[la] = (XRDline->lambda[la] - XRDline->lambda0) * CLIGHT /
+	  (XRDline->lambda0 * atom->vbroad[k]);
+      }
+    } else if (input.PRD_angle_dep == PRD_ANGLE_AVER) {
+      for (la = 0;  la < XRDline->Nlambda;  la++) {
+	J_k[la] = spectrum.J[XRDline->Nblue + la][k];
+	q_abs[la] = (XRDline->lambda[la] - XRDline->lambda0) * CLIGHT /
+	  (XRDline->lambda0 * atom->vbroad[k]);
+      }
+    }
+    switch (job->representation) {
+    case LINEAR:
+      break;
+    case SPLINE:
+      splineCoef(XRDline->Nlambda, q_abs, J_k);
+      break;
+    case EXP_SPLINE:
+      exp_splineCoef(XRDline->Nlambda, q_abs, J_k, TENSION);
+      break;
+    }
+
+    /* --- Outer wavelength loop over emission wavelengths -- ----- */
+
+    pos = 0;
+    for (la = 0;  la < PRDline->Nlambda;  la++) {
+      q_emit = (PRDline->lambda[la] - PRDline->lambda0) * CLIGHT /
+	(PRDline->lambda0 * atom->vbroad[k]);
+      Np = prdGrid(q_emit, job->waveratio, &q0, &qN);
+
+      qp = (double *) realloc(qp,  Np * sizeof(double));
+      for (lap = 1, qp[0] = q0;  lap < Np;  lap++)
+	qp[lap] = qp[lap - 1] + PRD_DQ;
+
+      /* --- Fold interpolation of J for symmetric lines. -- ------ */
+
+      if (XRDline->symmetric) {
+	qpp = (double *) realloc(qpp,  Np * sizeof(double));
+	for (lap = 0;  lap < Np;  lap++) qpp[lap] = fabs(qp[lap]);
+      }
+
+      /* --- Interpolate mean intensity onto fine grid. Choose linear,
+	     spline or exponential spline interpolation -- -------- */
+
+      J = (double *) realloc(J,  Np * sizeof(double));
+      switch (job->representation) {
+      case LINEAR:
+	Linear(XRDline->Nlambda, q_abs, J_k, Np,
+	       (XRDline->symmetric) ? qpp : qp, J, hunt=TRUE);
+	break;
+      case SPLINE:
+	splineEval(Np, (XRDline->symmetric) ? qpp : qp, J, hunt=TRUE);
+	break;
+      case EXP_SPLINE:
+	exp_splineEval(Np, (XRDline->symmetric) ? qpp : qp, J, hunt=TRUE);
+	break;
+      }
+
+      /* --- The redistribution weights: computed and kept in this
+             location's block on the first call, read from it on later
+             calls --                                  -------------- */
+
+      gii = wbuf + pos;
+      if (job->initialize) {
+
+	/* --- Integration weights (See: Press et al. Numerical Recipes,
+	       p. 107, eq. 4.1.12) --                  -------------- */
+
+	wq = (double *) realloc(wq,  Np * sizeof(double));
+	wq[0] = 5.0/12.0  * PRD_DQ;
+	wq[1] = 13.0/12.0 * PRD_DQ;
+	for (lap = 2;  lap < Np-2;  lap++) wq[lap] = PRD_DQ;
+	wq[Np-1] = 5.0/12.0  * PRD_DQ;
+	wq[Np-2] = 13.0/12.0 * PRD_DQ;
+
+	for (lap = 0;  lap < Np;  lap++)
+	  gii[lap] = GII(job->adamp[k], job->waveratio, q_emit, qp[lap]) *
+	    wq[lap];
+      }
+
+      /* --- Inner wavelength loop doing actual wavelength integration
+             over absorption wavelengths --            -------------- */
+
+      gnorm   = 0.0;
+      scatInt = 0.0;
+      for (lap = 0;  lap < Np;  lap++) {
+	gnorm   += gii[lap];
+	scatInt += J[lap] * gii[lap];
+      }
+      PRDline->rho_prd[la][k] += gamma*(scatInt/gnorm - Jbar);
+      pos += Np;
+    }
+  }
+  if (job->initialize  &&  kend > kbeg) {
+    if (!prdFileIO(job->fd, win, Nwin, job->kstart[kwin_start], TRUE)) {
+      sprintf(messageStr,
+	      "Unable to write proper number of redistribution weights\n"
+	      " Line %d -> %d, locations %d to %d",
+	      XRDline->j, XRDline->i, kwin_start, kend - 1);
+      Error(ERROR_LEVEL_2, routineName, messageStr);
+    }
+  }
+  free(J_k);    free(q_abs);  free(qp);   free(qpp);
+  free(wq);     free(J);      free(win);
+}
+/* ------- end ---------------------------- prdIntegrate.c ---------- */
+
 void PRDScatter(AtomicLine *PRDline, enum Interpolation representation)
 {
   const char routineName[] = "PRDScatter";
-  register int  la, k, lap, kr, ip, kxrd;
-
+  register int  la, k, kr, ip, kxrd;
   char    filename[MAX_LINE_SIZE];
-  bool_t  hunt, initialize;
-  int     Np, Nread, Nwrite, ij, Nsubordinate;
-  double  q_emit, q0, qN, *q_abs = NULL, *qp = NULL, *wq = NULL,
-         *qpp = NULL, *gii = NULL, *adamp, cDop, gnorm, *J = NULL,
-          Jbar, scatInt, *J_k = NULL, *Pj, gamma, waveratio;
+  bool_t  initialize;
+  int     ij, Nsubordinate, nthreads;
+  off_t   offset;
+  double  cDop, *adamp, *Pj;
   Atom *atom;
-  AtomicLine *line, **XRD, *XRDline;
+  AtomicLine *line, **XRD;
   AtomicContinuum *continuum;
+  PRDjob  job;
 
   /* --- Routine for angle-averaged and hybrid angle-dependent
          approximation. In the latter Jgas is used instead of J -- -- */ 
 
   atom = PRDline->atom;
-
   if (!PRDline->PRD) {
     sprintf(messageStr, "Line %d -> %d of %2s is not a PRD line",
 	    PRDline->j, PRDline->i, atom->ID);
     Error(ERROR_LEVEL_2, routineName, messageStr);
   }
-
   getCPU(3, TIME_START, NULL);
 
   /* --- Open temporary file for storage of redistribution weights when
@@ -84,15 +394,13 @@ void PRDScatter(AtomicLine *PRDline, enum Interpolation representation)
     sprintf(filename,
 	    (atom->ID[1] == ' ') ? "PRD_%.1s_%d-%d.dat" : "PRD_%s_%d-%d.dat",
 	    atom->ID, PRDline->j, PRDline->i);
-
     initialize = TRUE;
     if ((PRDline->fp_GII = fopen(filename, "w+")) == NULL) {
       sprintf(messageStr, "Unable to open temporary file %s", filename);
       Error(ERROR_LEVEL_2, routineName, messageStr);
     }
   }
-  if (!initialize) rewind(PRDline->fp_GII);
-  
+
   /* --- Set XRD line array --                         -------------- */
 
   if (input.XRD)
@@ -106,6 +414,7 @@ void PRDScatter(AtomicLine *PRDline, enum Interpolation representation)
     for (kxrd = 0;  kxrd < PRDline->Nxrd;  kxrd++) 
       XRD[kxrd + 1] = PRDline->xrd[kxrd];
   }
+
   /* --- Initialize the emission profile ratio rho --  -------------- */
 
   for (la = 0; la < PRDline->Nlambda; la++) {
@@ -138,163 +447,44 @@ void PRDScatter(AtomicLine *PRDline, enum Interpolation representation)
       if (continuum->i == PRDline->j) Pj[k] += continuum->Rij[k];
     }
   }
+
+  /* --- The spline interpolators keep their coefficients in static
+         storage, so only the linear representation runs in parallel - */
+
+  nthreads = (representation == LINEAR) ? input.Nthreads : 1;
+
+  job.atom           = atom;
+  job.PRDline        = PRDline;
+  job.representation = representation;
+  job.initialize     = initialize;
+  job.fd             = fileno(PRDline->fp_GII);
+  job.Pj             = Pj;
+  job.adamp          = adamp;
+  job.blocksize      = (long *)  malloc(atmos.Nspace * sizeof(long));
+  job.kstart         = (off_t *) malloc(atmos.Nspace * sizeof(off_t));
+
   /* --- Loop over subordinate lines --                -------------- */
 
+  offset = 0;
   for (kxrd = 0;  kxrd < Nsubordinate;  kxrd++) {
-    XRDline = XRD[kxrd];
-    waveratio = XRDline->lambda0 / PRDline->lambda0;
+    job.XRDline   = XRD[kxrd];
+    job.waveratio = job.XRDline->lambda0 / PRDline->lambda0;
 
-    J_k   = realloc(J_k, XRDline->Nlambda * sizeof(double));
-    q_abs = realloc(q_abs, XRDline->Nlambda * sizeof(double));
+    /* --- Where each location's block of weights sits in the file -- */
+
+    parallelFor(atmos.Nspace, nthreads, prdBlockSizes, &job);
+    for (k = 0;  k < atmos.Nspace;  k++) {
+      job.kstart[k] = offset;
+      offset += job.blocksize[k] * sizeof(double);
+    }
 
     /* --- Loop over all spatial locations --          -------------- */
 
-    for (k = 0;  k < atmos.Nspace;  k++) {
-      gamma = atom->n[XRDline->i][k] / atom->n[PRDline->j][k] *
-	XRDline->Bij / Pj[k];
-      Jbar = XRDline->Rij[k] / XRDline->Bij;
-
-      /* --- Get local mean intensity and wavelength in Doppler units */
-
-      if (input.PRD_angle_dep == PRD_ANGLE_APPROX) {
-	for (la = 0;  la < XRDline->Nlambda;  la++) {
-	  J_k[la] = spectrum.Jgas[XRDline->Nblue + la][k];
-	  q_abs[la] = (XRDline->lambda[la] - XRDline->lambda0) * CLIGHT /
-	    (XRDline->lambda0 * atom->vbroad[k]);
-	}
-      } else if (input.PRD_angle_dep == PRD_ANGLE_AVER) {
-	for (la = 0;  la < XRDline->Nlambda;  la++) {
-	  J_k[la] = spectrum.J[XRDline->Nblue + la][k];
-	  q_abs[la] = (XRDline->lambda[la] - XRDline->lambda0) * CLIGHT /
-	    (XRDline->lambda0 * atom->vbroad[k]);
-	}
-      }
-
-      switch (representation) {
-      case LINEAR:
-	break;
-      case SPLINE:
-	splineCoef(XRDline->Nlambda, q_abs, J_k);
-	break;
-      case EXP_SPLINE:
-	exp_splineCoef(XRDline->Nlambda, q_abs, J_k, TENSION);
-	break;
-      }
-      /* --- Outer wavelength loop over emission wavelengths -- ----- */
-
-      for (la = 0;  la < PRDline->Nlambda;  la++) {
-	q_emit = (PRDline->lambda[la] - PRDline->lambda0) * CLIGHT /
-	  (PRDline->lambda0 * atom->vbroad[k]);
-
-	/* --- Establish integration limits over absorption wavelength,
-	       using only regions where the redistribution function is
-	       non-zero. (See also function GII.) --   -------------- */
- 
-	if (fabs(q_emit) < PRD_QCORE) {
-	  q0 = -PRD_QWING;
-	  qN =  PRD_QWING;
-	} else {
-	  if (fabs(q_emit) < PRD_QWING) {
-	    if (q_emit > 0.0) {
-	      q0 = -PRD_QWING;
-	      qN = waveratio * (q_emit + PRD_QSPREAD);
-	    } else {
-	      q0 = waveratio * (q_emit - PRD_QSPREAD);
-	      qN = PRD_QWING;
-	    }
-	  } else {
-	    q0 = waveratio * (q_emit - PRD_QSPREAD);
-	    qN = waveratio * (q_emit + PRD_QSPREAD);
-	  }
-	}
-	Np = (int) ((qN - q0) / PRD_DQ) + 1;
-	qp = (double *) realloc(qp,  Np * sizeof(double));
-	for (lap = 1, qp[0] = q0;  lap < Np;  lap++)
-	  qp[lap] = qp[lap - 1] + PRD_DQ;
-
-	/* --- Fold interpolation of J for symmetric lines. -- ------ */
-
-	if (XRDline->symmetric) {
-	  qpp = (double *) realloc(qpp,  Np * sizeof(double));
-	  for (lap = 0;  lap < Np;  lap++) qpp[lap] = fabs(qp[lap]);
-	}
-
-	/* --- Interpolate mean intensity onto fine grid. Choose linear,
-	       spline or exponential spline interpolation -- -------- */
-
-	J = (double *) realloc(J,  Np * sizeof(double));
-	switch (representation) {
-	case LINEAR:
-	  Linear(XRDline->Nlambda, q_abs, J_k, Np,
-		 (XRDline->symmetric) ? qpp : qp, J, hunt=TRUE);
-	  break;
-	case SPLINE:
-	  splineEval(Np, (XRDline->symmetric) ? qpp : qp, J, hunt=TRUE);
-	  break;
-	case EXP_SPLINE:
-	  exp_splineEval(Np, (XRDline->symmetric) ? qpp : qp, J, hunt=TRUE);
-	  break;
-	}
-	/* --- Compute the redistribution weights --   -------------- */
-
-	gii = (double *) realloc(gii, Np * sizeof(double));
-	if (initialize) {
-
-	  /* --- Integration weights (See: Press et al. Numerical Recipes,
-	         p. 107, eq. 4.1.12) --                -------------- */
-
-	  wq = (double *) realloc(wq,  Np * sizeof(double));
-	  wq[0] = 5.0/12.0  * PRD_DQ;
-	  wq[1] = 13.0/12.0 * PRD_DQ;
-	  for (lap = 2;  lap < Np-2;  lap++) wq[lap] = PRD_DQ;
-	  wq[Np-1] = 5.0/12.0  * PRD_DQ;
-	  wq[Np-2] = 13.0/12.0 * PRD_DQ;
-
-	  for (lap = 0;  lap < Np;  lap++)
-	    gii[lap] = GII(adamp[k], waveratio, q_emit, qp[lap]) * wq[lap];
-
-	  if ((Nwrite =
-	       fwrite(gii, sizeof(double), Np, PRDline->fp_GII)) != Np) {
-	    sprintf(messageStr,
-		  "Unable to write proper number of redistribution weights\n"
-		  " Wrote %d instead of %d.\n Line %d -> %d, la = %d, k = %d",
-		    Nwrite, Np, XRDline->j, XRDline->i, la, k);
-	    Error(ERROR_LEVEL_2, routineName, messageStr);
-	  }
-	} else {
-	  if ((Nread =
-	       fread(gii, sizeof(double), Np, PRDline->fp_GII)) != Np) {
-	    sprintf(messageStr,
-		  "Unable to read proper number of redistribution weights\n"
-		  " Read %d instead of %d.\n Line %d -> %d, la = %d, k = %d",
-		  Nread, Np, XRDline->j, XRDline->i, la, k);
-	    Error(ERROR_LEVEL_2, routineName, messageStr);
-	  }
-	}
-	/* --- Inner wavelength loop doing actual wavelength integration
-               over absorption wavelengths --          -------------- */
-
-	gnorm   = 0.0;
-	scatInt = 0.0;
-	for (lap = 0;  lap < Np;  lap++) {
-	  gnorm   += gii[lap];
-	  scatInt += J[lap] * gii[lap];
-	}
-	PRDline->rho_prd[la][k] += gamma*(scatInt/gnorm - Jbar);
-      }
-    }
+    parallelFor(atmos.Nspace, nthreads, prdIntegrate, &job);
   }
-  /* --- Clean temporary variable space --             -------------- */
 
-  for (kxrd = 0;  kxrd < Nsubordinate;  kxrd++) {
-    if (XRD[kxrd]->symmetric) {
-      free(qpp);
-      break;
-    }
-  }
-  free(J_k);    free(q_abs);  free(gii);
-  free(qp);     free(wq);     free(J);
-  free(XRD);    free(Pj);     free(adamp);
+  free(job.blocksize);  free(job.kstart);
+  free(XRD);  free(Pj);  free(adamp);
 
   sprintf(messageStr, "Scatter Int %5.1f", PRDline->lambda0);
   getCPU(3, TIME_POLL, messageStr);
