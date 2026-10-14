@@ -156,7 +156,7 @@ void readKuruczLines(char *inputFile)
 
     Nline = 0;
     while (fgets(inputLine, RLK_RECORD_LENGTH+1, fp_linelist) != NULL)
-      if (*inputLine != *commentChar) Nline++;
+      if (*inputLine != *commentChar && *inputLine != '\n') Nline++;
     rewind(fp_linelist);
 
     if (atmos.Nrlk == 0) atmos.rlk_lines = NULL;
@@ -167,7 +167,7 @@ void readKuruczLines(char *inputFile)
 
     rlk = atmos.rlk_lines + atmos.Nrlk;
     while (fgets(inputLine, RLK_RECORD_LENGTH+1, fp_linelist) != NULL) {
-      if (*inputLine != *commentChar) {
+      if (*inputLine != *commentChar && *inputLine != '\n') {
 
         initRLK(rlk);
 
