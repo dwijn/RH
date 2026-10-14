@@ -43,7 +43,7 @@
 
 #include "rh.h"
 #include "constant.h"
-#include "complex.h"
+#include <complex.h>
 #include "error.h"
 
 #define  TINY 1.0E-08
@@ -61,13 +61,13 @@ double VoigtK2(double a, double v);
 double VoigtK3(double a, double v);
 
 #if defined(HAVE_F90)
-void humlicek_(double *a, double *v, complex *W);
-void hui_(complex *z, complex *W);
+void humlicek_(double *a, double *v, double complex *W);
+void hui_(double complex *z, double complex *W);
 #else
-complex Humlicek1(complex z);
-complex Humlicek2(complex z);
-complex Humlicek3(complex z);
-complex Humlicek4(complex z);
+double complex Humlicek1(double complex z);
+double complex Humlicek2(double complex z);
+double complex Humlicek3(double complex z);
+double complex Humlicek4(double complex z);
 #endif
 
 double VoigtLookup(double a, double v);
@@ -324,7 +324,7 @@ double VoigtHui(double a, double v, double *F)
          348.703917719495792, 170.354001821091472,  53.992906912940207,
           10.479857114260399};
 
-  complex W1 = {0.0, 0.0}, W2;
+  double complex W1 = 0.0, W2;
 
   /* --- Voigt function generator using rational approximation of
          the complex error function W(a - iv).
@@ -335,13 +335,13 @@ double VoigtHui(double a, double v, double *F)
 
          --                                            -------------- */
 #endif
-  complex z, W;
+  double complex z, W;
 
-  z  = cmplx(a, -v);
+  z = a - v*I;
 
 #if defined(HAVE_F90)
 
-  /* --- If a FORTRAN 90 compiler is available then FORTRAN's intrinsic 
+  /* --- If a FORTRAN 90 compiler is available then FORTRAN's intrinsic
          complex arithmatic can be used. This will give a factor of
          two to three improvement in speed (with the SUN compilers).
 
@@ -355,14 +355,14 @@ double VoigtHui(double a, double v, double *F)
 
   W2 = z;
   for (n = NHUI;  n >= 0;  n--) {
-    W1 = cmplx_mult(cmplx_addr(W1, ah[n]), z);
-    W2 = cmplx_mult(cmplx_addr(W2, bh[n]), z);
+    W1 = (W1 + ah[n]) * z;
+    W2 = (W2 + bh[n]) * z;
   }
-  W = cmplx_div(W1, W2);
+  W = W1 / W2;
 #endif
 
-  if (F != NULL) *F = W.i;
-  return W.r;
+  if (F != NULL) *F = cimag(W);
+  return creal(W);
 }
 /* ------- end ---------------------------- VoigtHui.c -------------- */
 
@@ -382,9 +382,9 @@ double VoigtHumlicek(double a, double v, double *F)
 {
 #if defined(HAVE_F90)
 
-  complex W;
+  double complex W;
 
-  /* --- If a FORTRAN 90 compiler is available then FORTRAN's intrinsic 
+  /* --- If a FORTRAN 90 compiler is available then FORTRAN's intrinsic
          complex arithmatic can be used. This will give a factor of
          two to three improvement in speed (with the SUN compilers).
 
@@ -395,7 +395,7 @@ double VoigtHumlicek(double a, double v, double *F)
 
 #else
 
-  complex W, z = cmplx(a, -v);
+  double complex W, z = a - v*I;
   double s = fabs(v) + a;
 
   /* --- C versions are called otherwise
@@ -414,8 +414,8 @@ double VoigtHumlicek(double a, double v, double *F)
 
 #endif
 
-  if (F != NULL) *F = W.i;
-  return W.r;
+  if (F != NULL) *F = cimag(W);
+  return creal(W);
 }
 /* ------- end ---------------------------- VoigtHumlicek.c --------- */
 

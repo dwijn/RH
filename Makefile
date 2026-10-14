@@ -57,7 +57,6 @@ librh.a: \
  librh.a(chemequil.o) \
  librh.a(cocollisions.o) \
  librh.a(collision.o) \
- librh.a(complex.o) \
  librh.a(cubeconvol.o) \
  librh.a(duplicate.o) \
  librh.a(error.o) \
@@ -165,7 +164,6 @@ librh.a(brs_xdr.o):       rh.h  atom.h  atmos.h  spectrum.h  error.h  xdr.h
 librh.a(chemequil.o):     rh.h  atom.h  atmos.h  background.h  accelerate.h  constant.h  error.h  statistics.h  inputs.h
 librh.a(cocollisions.o):  rh.h  atom.h  atmos.h  error.h  constant.h
 librh.a(collision.o):     rh.h  atom.h  atmos.h  constant.h  error.h  inputs.h  statistics.h
-librh.a(complex.o):       rh.h  complex.h
 librh.a(cubeconvol.o):    rh.h
 librh.a(duplicate.o):     rh.h  atom.h  background.h  error.h
 librh.a(error.o):         rh.h  error.h  inputs.h
@@ -181,7 +179,18 @@ librh.a(getlambda.o):     rh.h  atom.h  atmos.h  constant.h  error.h  inputs.h
 librh.a(getline.o):       rh.h  error.h  inputs.h
 librh.a(giigen.o):        rh.h  atom.h  constant.h
 librh.a(cocollisions.o):  rh.h  atom.h  atmos.h  error.h  constant.h
-librh.a(humlicek.o):      rh.h  complex.h
+librh.a(humlicek.o):      rh.h
+
+# humlicek.o and voigt.o do complex arithmetic in a tight loop (Voigt
+# function evaluation). -fcx-limited-range tells the compiler it may
+# use the textbook complex multiply/divide formulas instead of the
+# IEEE-robust (but markedly slower) ones C99 Annex G mandates by
+# default; our inputs are ordinary physical magnitudes, nowhere near
+# overflow range, so the robustness isn't needed here. Measured with a
+# standalone microbenchmark: ~1.3-2.4x faster than the old hand-rolled
+# complex struct this replaced, vs. a ~2x *slowdown* from switching to
+# native `double complex` without this flag.
+librh.a(humlicek.o): CFLAGS += -fcx-limited-range
 librh.a(hunt.o):          rh.h
 librh.a(hydrogen.o):      rh.h  atom.h  atmos.h  constant.h  background.h  error.h
 librh.a(initial_xdr.o):   rh.h  atom.h  atmos.h  spectrum.h  accelerate.h  constant.h  statistics.h  error.h  inputs.h  xdr.h
@@ -223,7 +232,8 @@ librh.a(stokesopac.o):    rh.h  atom.h  atmos.h  spectrum.h  inputs.h
 librh.a(stopreq.o):       rh.h  error.h
 librh.a(thomson.o):       rh.h  atom.h  atmos.h  constant.h  background.h
 librh.a(vacuumtoair.o):   rh.h  atom.h  spectrum.h
-librh.a(voigt.o):         rh.h  constant.h  complex.h  error.h
+librh.a(voigt.o):         rh.h  constant.h  error.h
+librh.a(voigt.o): CFLAGS += -fcx-limited-range
 librh.a(w3.o):            rh.h
 librh.a(wigner.o):        rh.h
 librh.a(writeatmos_xdr.o):rh.h  atom.h  atmos.h  error.h  inputs.h  xdr.h
