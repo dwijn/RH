@@ -215,7 +215,7 @@ librh.a(parse.o):         rh.h  error.h  inputs.h
 librh.a(paschen.o):       rh.h  error.h
 librh.a(planck.o):        rh.h  atom.h  spectrum.h  constant.h
 librh.a(pops_xdr.o):      rh.h  atom.h  atmos.h  error.h  xdr.h
-librh.a(profile.o):       rh.h  atom.h  atmos.h  inputs.h  constant.h  statistics.h  error.h
+librh.a(profile.o):       rh.h  atom.h  atmos.h  inputs.h  constant.h  statistics.h  error.h  parallel.h
 librh.a(radrate_xdr.o):   rh.h  atom.h  atmos.h  error.h  inputs.h  xdr.h
 librh.a(rayleigh.o):      rh.h  atom.h  atmos.h  constant.h  background.h  error.h
 librh.a(readatom.o):      rh.h  atom.h  atmos.h  spectrum.h  background.h  constant.h  error.h  inputs.h  statistics.h
