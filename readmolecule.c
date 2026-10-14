@@ -377,7 +377,7 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
     /* --- Allocate space for thread dependent quantities -- -------- */
 
     molecule->rhth =
-      (rhthread *) malloc(input.Nthreads * sizeof(rhthread));
+      (rhthread *) calloc(input.Nthreads, sizeof(rhthread));
   }
 
   fclose(fp_molecule);
