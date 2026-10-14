@@ -558,6 +558,20 @@ void alloc_as(int nspect, bool_t crosscoupling)
 	  (double *) malloc((atmos.Stokes ? 4 : 1) * atmos.Nspace *
 			    sizeof(double));
 
+      /* --- Per-thread rate-matrix accumulator. addtoGamma() writes
+             only here (no locking needed, each thread owns its own
+             slot); the per-thread contributions get merged into
+             atom->Gamma once per iteration, after the wavelength
+             sweep completes (see iterate.c). Replaces a shared
+             atom->Gamma protected by a mutex that was the dominant
+             cost of threaded runs: profiling showed threads spending
+             far more time waiting for that lock than doing the work
+             it protected. With a single thread there is no copy: the
+             shared Gamma is accumulated into directly. --  -------- */
+
+      if (input.Nthreads > 1  &&  atom->rhth[nt].Gamma == NULL)
+	atom->rhth[nt].Gamma = matrix_double(SQ(atom->Nlevel), atmos.Nspace);
+
       /* --- Vij/gij/wla are sized by the number of this atom's
              transitions active AT THIS WAVELENGTH, which varies from
              wavelength to wavelength, unlike everything else here.
@@ -609,6 +623,10 @@ void alloc_as(int nspect, bool_t crosscoupling)
       if (molecule->rhth[nt].eta == NULL)
 	molecule->rhth[nt].eta =
 	  (double *) malloc(atmos.Nspace * sizeof(double));
+
+      if (input.Nthreads > 1  &&  molecule->rhth[nt].Gamma == NULL)
+	molecule->rhth[nt].Gamma =
+	  matrix_double(SQ(molecule->Nv), atmos.Nspace);
 
       Nrt = as->Nactivemolrt[nact];
       if (Nrt > molecule->rhth[nt].Nrt_alloc) {
