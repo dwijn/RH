@@ -240,7 +240,8 @@ void readKuruczLines(char *inputFile)
 
         /* --- Line broadening --                      -------------- */
 
-	strncpy(Gvalues, inputLine+79, 20); // JdlCR: read 3 more characters from the vdW label 
+	strncpy(Gvalues, inputLine+79, 20); // JdlCR: read 3 more characters from the vdW label
+	Gvalues[20] = '\0';
 	Nread += sscanf(Gvalues, "%lf %lf %lf", &Grad, &GStark, &GvdWaals);
 
 	if (GStark != 0.0) 
