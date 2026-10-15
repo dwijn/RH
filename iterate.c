@@ -129,7 +129,30 @@ void Iterate(int NmaxIter, double iterLimit)
     sprintf(messageStr, "Total Iteration %3d", niter);
     getCPU(2, TIME_POLL, messageStr);
 
-    if (dpopsmax < iterLimit) break;
+    /* --- With collisional relaxation the collision rates are scaled
+           up until iteration CR_Nstep, so populations close to LTE
+           change little and are not converged. Test for convergence
+           only from iteration CR_Nstep on, where the scaling factor is
+           1, and restart Ng acceleration after every scaled iteration
+           so that it only extrapolates from iterations of the actual
+           problem --                                   ------------ */
+
+    if (niter < input.CR_Nstep) {
+      for (nact = 0;  nact < atmos.Nactiveatom;  nact++) {
+	atom = atmos.activeatoms[nact];
+	NgFree(atom->Ng_n);
+	atom->Ng_n = NgInit(atom->Nlevel*atmos.Nspace, input.Ngdelay,
+			    input.Ngorder, input.Ngperiod, atom->n[0]);
+      }
+      for (nact = 0;  nact < atmos.Nactivemol;  nact++) {
+	molecule = atmos.activemols[nact];
+	Ngorder  = (input.accelerate_mols) ? input.Ngorder : 0;
+	NgFree(molecule->Ng_nv);
+	molecule->Ng_nv = NgInit(molecule->Nv*atmos.Nspace, input.Ngdelay,
+				 Ngorder, input.Ngperiod, molecule->nv[0]);
+      }
+    } else if (dpopsmax < iterLimit)
+      break;
     niter++;
 
     if (input.solve_ne == ITERATION)
