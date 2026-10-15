@@ -31,9 +31,8 @@ endif
 ARCHINC  = 
 
 
-## --- If no FORTRAN compiler is available remove -lrh_f90 in following
 
-      LIBS = -lrh -lrh_f90 $(ARCHLIBS)
+      LIBS = -lrh $(ARCHLIBS)
 
 ## ---                                                 -------------- ##
 

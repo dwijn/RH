@@ -74,10 +74,9 @@ readtrujillo:  readtrujillo.o writemulti.o
 ##	$(CC) -o $@  $(LDFLAGS) lande.o rawatom.o $(LIBS)
 
 
-## --- If no FORTRAN compiler is available remove librh_f90.a in following
 
 librh:
-	cd ..; $(MAKE) librh.a librh_f90.a
+	cd ..; $(MAKE) librh.a
 
 
 ## --- Clean up --                                     -------------- ##
