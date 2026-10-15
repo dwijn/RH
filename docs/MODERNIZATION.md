@@ -161,10 +161,10 @@ many-level atoms) go here (pending)._
 
 | ID | Sev | Issue | Where | Evidence | Status |
 |---|---|---|---|---|---|
-| [B-1](https://github.com/dwijn/RH/issues/2) | high | `SOLVE_NE = ITERATION` aborts on the second `Background()` call ("Reached end of datafile"): collision data re-read from an open file without rewinding; `offset_coll` saved but never used; `atom->C` reallocated (leak) | `ltepops.c:239`, `readatom.c:568-569`, `collision.c:482` | crashes upstream and WIP | open |
-| [B-2](https://github.com/dwijn/RH/issues/3) | high | `PRD_NG_ORDER > 0` with default `PRD_NG_PERIOD = 0` divides by zero | `readinput.c:99`, `accelerate.c:88` | SIGFPE | open |
-| [B-3](https://github.com/dwijn/RH/issues/4) | high | Collisional relaxation (`COLL_RELAX_NSTEP/FACTOR`) stops after one iteration with LTE populations: convergence test fires during the relaxation phase while collisions are scaled by up to 1e38 | `iterate.c:132`, `fillgamma.c:59` | FALXCO H_6: 1 iteration, delta 1.4e-12, LTE result | open |
-| [B-4](https://github.com/dwijn/RH/issues/5) | high | `CaII_large` crashes at setup (SIGFPE in `splineCoef` from `SortLambda`) | `sortlambda.c:387` | upstream and WIP | open |
+| [B-1](https://github.com/dwijn/RH/issues/2) | high | `SOLVE_NE = ITERATION` aborts on the second `Background()` call ("Reached end of datafile"): collision data re-read from an open file without rewinding; `offset_coll` saved but never used; `atom->C` reallocated (leak) | `ltepops.c:239`, `readatom.c:568-569`, `collision.c:482` | crashes upstream and WIP | fixed |
+| [B-2](https://github.com/dwijn/RH/issues/3) | high | `PRD_NG_ORDER > 0` with default `PRD_NG_PERIOD = 0` divides by zero | `readinput.c:99`, `accelerate.c:88` | SIGFPE | fixed |
+| [B-3](https://github.com/dwijn/RH/issues/4) | high | Collisional relaxation (`COLL_RELAX_NSTEP/FACTOR`) stops after one iteration with LTE populations: convergence test fires during the relaxation phase while collisions are scaled by up to 1e38 | `iterate.c:132`, `fillgamma.c:59` | FALXCO H_6: 1 iteration, delta 1.4e-12, LTE result | fixed |
+| [B-4](https://github.com/dwijn/RH/issues/5) | high | `CaII_large` crashes at setup (SIGFPE in `splineCoef` from `SortLambda`) | `sortlambda.c:387` | upstream and WIP | fixed |
 | [B-5](https://github.com/dwijn/RH/issues/6) | medium | Linear short-characteristics end point uses stale weights (`w2` not recomputed) | `rhf1d/piecewise_1D.c:126` | flux changes up to 1e-3 when fixed | open |
 | [B-6](https://github.com/dwijn/RH/issues/7) | medium | Possible double counting of the cross-coupling term for multi-ion atoms (added once per transition sharing an upper level) | `fillgamma.c:279` | MgI+II converged populations shift 3e-3 at level 70 when changed; correct form not yet established | open — verify against an independent code (e.g. Lightweaver) |
 | [B-7](https://github.com/dwijn/RH/issues/8) | medium | 3-D: `Jgas` accumulated with `wmu` inside the to_obs loop, looks double counted | `rhsc3d/formal.c:370-374` | code reading | open |
@@ -290,6 +290,79 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-10-15 — SOLVE_NE = ITERATION works with active atoms (B-1)
+
+Two bugs, the second hidden by the first, made every run with
+`SOLVE_NE = ITERATION` and an active atom fail when the background was
+recomputed after the first iteration:
+
+- `SetLTEQuantities()` re-read the collisional data from the atom file
+  without rewinding it, so the second read hit end of file ("Reached end of
+  datafile"). It now seeks back to `atom->offset_coll`, which `readAtom()`
+  saved for this but nothing used. `CollisionRate()` also allocated a new
+  `atom->C` (Nlevel² × Nspace) on every call although `readAtom()` had
+  already allocated it; it now reuses it, which removes that leak.
+- `Background()` freed the Kurucz partition-function tables at the end of
+  every call, but `Solve_ne()` needs them on the next one: segfault in
+  `getKuruczpf()`. They are now kept when `Background()` will run again
+  (electron density iteration or hydrostatic equilibrium), as the passive
+  atoms already were.
+
+Verified: stress case `1d_falc_solvene` (FALC, H_6 + CaII,
+`SOLVE_NE = ITERATION`) converges in 29 iterations; before, it crashed after
+the first. Hydrostatic runs give the same result as upstream. 1-D regression
+cases are byte-identical to upstream.
+
+### 2026-10-15 — PRD Ng acceleration no longer divides by zero (B-2)
+
+- `PRD_NG_PERIOD` now defaults to 1, like `NG_PERIOD`; it defaulted to 0, so
+  setting only `PRD_NG_ORDER` crashed with SIGFPE in `Accelerate()`.
+- `readInput()` rejects `NG_PERIOD` or `PRD_NG_PERIOD` below 1 when the
+  matching order is positive, with a clear message instead of a crash.
+- Verified: stress case `1d_falc_prdng` (CaII, `PRD_NG_ORDER = 2`) now
+  converges in 12 iterations instead of crashing after 1; an explicit
+  `PRD_NG_PERIOD = 0` stops with the new message. 1-D regression cases are
+  byte-identical to upstream (default runs do not use PRD Ng).
+
+### 2026-10-15 — Collisional relaxation runs its full schedule (B-3)
+
+- With `COLL_RELAX_NSTEP`/`COLL_RELAX_FACTOR` the collision rates are scaled
+  by up to `factor^(1 - Nstep)` (1e38 for 0.01 and 20 steps) in the first
+  iterations, so populations stay near LTE and hardly change. The convergence
+  test fired at iteration 1 and the run "converged" to LTE. The test now
+  starts at iteration `COLL_RELAX_NSTEP`, the first unscaled one.
+- Ng acceleration restarts after every scaled iteration, so it only
+  extrapolates from iterations of the actual problem.
+- Verified: stress case `1d_falxco_collrel` (FALXCO, H_6, 20 steps, factor
+  0.01) converges in 124 iterations; before, it stopped after 1 with LTE
+  populations. The same problem without relaxation does not converge in 200
+  iterations, so relaxation now rescues this case. Restarting the unrelaxed
+  problem from the relaxed solution reconverges in 30 iterations to
+  populations within 2.7 % and intensities within 0.27 % (PRD ρ and J start
+  over on a restart; see N-3 for what the 1e-3 criterion guarantees). Default
+  runs are byte-identical to upstream.
+
+### 2026-10-15 — Clear errors instead of SIGFPE for bad atom data (B-4)
+
+`CaII_large.atom` crashed RH at setup with a bare SIGFPE. It has two kinds
+of bad data, and each one crashed a spline:
+
+- Four bound-free continua list a cross-section row twice (same wavelength,
+  same value). `readAtom()` now drops exact repeats with a warning, stops
+  with a clear message if a repeated wavelength has a different cross
+  section, and checks for strictly increasing wavelengths (the old check
+  let equal neighbours through to a zero-width spline interval).
+- 13 `OMEGA` collision records hold `Inf` at every temperature.
+  `CollisionRate()` now checks all tabulated rates and stops with a message
+  naming the atom, record and levels.
+
+Verified: `1d_falc_cail` now stops at once with "Atom CA: collision record
+OMEGA 11 10 has a non-finite value (inf) at T = 1264.9 K" instead of
+SIGFPE. No other shipped atom file has repeated continuum wavelengths or
+non-finite rates (CI-VI_Judge's are commented out). 1-D regression cases are
+byte-identical to upstream. The atom file itself still needs its 13 `OMEGA`
+records fixed before CaII_large can be used.
 
 ### 2026-10-15 — Fortran removed (Q-2, #53)
 
