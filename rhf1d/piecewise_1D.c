@@ -138,7 +138,7 @@ void Piecewise_1D(int nspect, int mu, bool_t to_obs,
   register int k;
 
   int    k_start, k_end, dk, Ndep = geometry.Ndep;
-  double dtau_uw, dtau_dw, dS_uw, I_uw, dS_dw, c1, c2, w[3],
+  double dtau_uw, dtau_dw, dS_uw, I_uw, dS_dw, c1, c2, w[3], Psi_num, Psi_den,
          zmu, Bnu[2];
 
   zmu = 0.5 / geometry.muz[mu];
@@ -221,18 +221,30 @@ void Piecewise_1D(int nspect, int mu, bool_t to_obs,
 	(w[1]*c1 + w[2]*c2) / (dtau_uw + dtau_dw);
 
       /* --- Try piecewise linear if quadratic gives negative
-             monochromatic intensity --                -------------- */ 
+             monochromatic intensity --                -------------- */
 
       if (I[k] < 0.0) {
 	c1   = dS_uw;
 	I[k] = (1.0 - w[0])*I_uw + w[0]*S[k] + w[1]*c1;
 
 	if (Psi) Psi[k] = w[0] - w[1]/dtau_uw;
-      } else {
-	if (Psi) {
-	  c1 = dtau_uw - dtau_dw;
-	  Psi[k] = w[0] + (w[1]*c1 - w[2]) / (dtau_uw * dtau_dw);
-	}
+      } else if (Psi) {
+
+        /* --- The quadratic approximate operator grows like
+               1/dtau_dw for a thin downwind interval and then
+               destabilizes the iteration. Where it falls outside
+               [0, 1] use the linear one. Only the convergence
+               rate depends on Psi*, not the converged solution,
+               so the intensity keeps the quadratic form. The test
+               avoids dividing by a product that can underflow -- */
+
+        Psi_den = dtau_uw * dtau_dw;
+        Psi_num = w[1]*(dtau_uw - dtau_dw) - w[2];
+        if (Psi_den > 0.0  &&  Psi_num >= -w[0]*Psi_den  &&
+            Psi_num <= (1.0 - w[0])*Psi_den)
+          Psi[k] = w[0] + Psi_num / Psi_den;
+        else
+          Psi[k] = w[0] - w[1]/dtau_uw;
       }
     } else {
 	

@@ -222,7 +222,7 @@ void Piecewise_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 		  double *chi, double *S, double *I, double *Psi)
 {
   int    local;
-  double chi_uw, chi_dw, S_uw, S_dw, dS_dw, dS_uw,
+  double chi_uw, chi_dw, S_uw, S_dw, dS_dw, dS_uw, Psi_num, Psi_den,
          dtau_uw, dtau_dw, w[3], c1, c2; 
 
   local = k*geometry->Nplane + m*geometry->Nx + l;
@@ -261,17 +261,29 @@ void Piecewise_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
       (w[1]*c1 + w[2]*c2) / (dtau_uw + dtau_dw);
 
     /* --- Try piecewise linear if quadratic gives negative
-           monochromatic intensity --                  -------------- */ 
+           monochromatic intensity --                -------------- */
 
     if (I[local] < 0.0) {
       I[local] = (1.0 - w[0])*I_uw + w[0]*S[local] + w[1]*dS_uw;
 
       if (Psi) Psi[local] = w[0] - w[1]/dtau_uw;
-    } else {
-      if (Psi) {
-	c1 = dtau_uw - dtau_dw;
-	Psi[local] = w[0] + (w[1]*c1 - w[2]) / (dtau_uw * dtau_dw);
-      }
+    } else if (Psi) {
+
+      /* --- The quadratic approximate operator grows like
+             1/dtau_dw for a thin downwind interval and then
+             destabilizes the iteration. Where it falls outside
+             [0, 1] use the linear one. Only the convergence
+             rate depends on Psi*, not the converged solution,
+             so the intensity keeps the quadratic form. The test
+             avoids dividing by a product that can underflow -- */
+
+      Psi_den = dtau_uw * dtau_dw;
+      Psi_num = w[1]*(dtau_uw - dtau_dw) - w[2];
+      if (Psi_den > 0.0  &&  Psi_num >= -w[0]*Psi_den  &&
+          Psi_num <= (1.0 - w[0])*Psi_den)
+        Psi[local] = w[0] + Psi_num / Psi_den;
+      else
+        Psi[local] = w[0] - w[1]/dtau_uw;
     }
   }
 }

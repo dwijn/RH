@@ -81,6 +81,7 @@ CASES=(
 "1d_falc_prdng     |conv|1d|FALC_82.atmos  |CaII              |$L;PRD_NG_ORDER=2"
 "1d_falxco_collrel |conv|1d|FALXCO_80.atmos|H_6               |$L;COLL_RELAX_NSTEP=20;COLL_RELAX_FACTOR=0.01"
 # Multi-D
+"2d_falc_ca_par    |conv|2d|FALC_03x82.atmos|CaII             |$L;N_THREADS=8;S_INTERPOLATION=S_PARABOLIC"
 "2d_pert_h6_ca_mg  |conv|2d|gen:2d:32      |H_6,CaII,MgII     |$L;N_THREADS=8;S_INTERPOLATION=S_BEZIER3;@NOMOL=MgH"
 "3d_pert_h6_ca     |conv|3d|gen:3d:8:8     |H_6,CaII          |$L;N_THREADS=8"
 "2d_perf_many      |perf|2d|gen:2d:128     |H_6,CaII,MgII,Fe33|N_MAX_ITER=5;N_THREADS=16;S_INTERPOLATION=S_BEZIER3;@NOMOL=MgH"

@@ -158,7 +158,12 @@
 
  VACUUM_TO_AIR = TRUE
 
- S_INTERPOLATION = S_PARABOLIC
+# Interpolation of the source function in the short-characteristics
+# formal solver: S_BEZIER3 (default, monotonic), S_LINEAR or S_PARABOLIC.
+# S_PARABOLIC can overshoot where the opacity or source function varies
+# steeply (dynamic atmospheres, transition region) and then fail to converge.
+
+ S_INTERPOLATION = S_BEZIER3
 
 # Input file for the magnetic field (KEYWORD_OPTIONAL). Default is "none".
 

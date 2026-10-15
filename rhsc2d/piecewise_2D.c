@@ -135,6 +135,7 @@ void Piecewise_2D(Geometry *geometry, int nspect, int mu,
   int     Nx = geometry->Nx, Nz = geometry->Nz, local, dl, lstart,
           Nrow, row_left, row_right, dk, kstart, kend;
   double  mux = geometry->mux[mu], I_uw, *Iboundary, dtau_uw, dtau_dw,
+          Psi_num, Psi_den,
           c1, c2, dS_uw, dS_dw, S_uw, chi_uw, S_dw, chi_dw, w[3],
           Sc, Bnu_uw, Bnu, T_uw, psi_uw, psi_dw, psi_0;
   Stencil  *st;
@@ -297,17 +298,29 @@ void Piecewise_2D(Geometry *geometry, int nspect, int mu,
 	  (w[1]*c1 + w[2]*c2) / (dtau_uw + dtau_dw);
 
 	/* --- Try piecewise linear if quadratic gives negative
-	       monochromatic intensity --              ------------ */ 
+	       monochromatic intensity --                -------------- */
 
 	if (I[local] < 0.0) {
 	  I[local] = (1.0 - w[0])*I_uw + w[0]*S[local] + w[1]*dS_uw;
 
 	  if (Psi) Psi[local] = w[0] - w[1]/dtau_uw;
-	} else {
-	  if (Psi) {
-	    c1 = dtau_uw - dtau_dw;
-	    Psi[local] = w[0] + (w[1]*c1 - w[2]) / (dtau_uw * dtau_dw);
-	  }
+	} else if (Psi) {
+
+	  /* --- The quadratic approximate operator grows like
+	         1/dtau_dw for a thin downwind interval and then
+	         destabilizes the iteration. Where it falls outside
+	         [0, 1] use the linear one. Only the convergence
+	         rate depends on Psi*, not the converged solution,
+	         so the intensity keeps the quadratic form. The test
+	         avoids dividing by a product that can underflow -- */
+
+	  Psi_den = dtau_uw * dtau_dw;
+	  Psi_num = w[1]*(dtau_uw - dtau_dw) - w[2];
+	  if (Psi_den > 0.0  &&  Psi_num >= -w[0]*Psi_den  &&
+	      Psi_num <= (1.0 - w[0])*Psi_den)
+	    Psi[local] = w[0] + Psi_num / Psi_den;
+	  else
+	    Psi[local] = w[0] - w[1]/dtau_uw;
 	}
       }
     }
