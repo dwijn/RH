@@ -6,6 +6,7 @@ usage: make_tiled_2d_atmos.py IN.atmos OUT.atmos NCOLS
 Only used to get a grid large enough for memory-scaling checks from the
 small atmosphere shipped in Atmos/. Handles the layout read by
 rhsc2d/readatmos_xdr.c when no irradiated boundary data trails the file.
+2-D arrays are stored with x fastest (index k*Nx + l), i.e. as [Nz][Nx].
 """
 import struct
 import sys
@@ -23,13 +24,13 @@ dx = np.frombuffer(b, ">f8", Nx, pos); pos += 8 * Nx
 z = np.frombuffer(b, ">f8", Nz, pos); pos += 8 * Nz
 fields = []
 for _ in range(5):                              # T, ne, vturb, vx, vz
-    fields.append(np.frombuffer(b, ">f8", Nx * Nz, pos).reshape(Nx, Nz)); pos += 8 * Nx * Nz
-nH = np.frombuffer(b, ">f8", NH * Nx * Nz, pos).reshape(NH, Nx, Nz); pos += 8 * NH * Nx * Nz
+    fields.append(np.frombuffer(b, ">f8", Nx * Nz, pos).reshape(Nz, Nx)); pos += 8 * Nx * Nz
+nH = np.frombuffer(b, ">f8", NH * Nx * Nz, pos).reshape(NH, Nz, Nx); pos += 8 * NH * Nx * Nz
 if pos != len(b):
     sys.exit(f"unexpected {len(b) - pos} trailing bytes in {src}")
 
 reps = -(-ncols // Nx)
-tile = lambda a: np.tile(a, (reps,) + (1,) * (a.ndim - 1))[:ncols]
+tile = lambda a: np.tile(a, (1,) * (a.ndim - 1) + (reps,))[..., :ncols]   # along x
 with open(dst, "wb") as f:
     f.write(struct.pack(">3i", ncols, Nz, NH))
     f.write(struct.pack(">3i", *bc))
