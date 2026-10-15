@@ -43,7 +43,7 @@ body = re.sub(r"<td>(open — [^<]*)</td>",
 # Wrap tables so wide ones scroll inside their own box
 body = body.replace("<table>", '<div class="tbl"><table>').replace("</table>", "</table></div>")
 # Issue IDs as anchors-to-be: make B-1 etc. monospace in the first column
-body = re.sub(r"<td>([BNPMTQ]-\d+)</td>", r'<td class="id">\1</td>', body)
+body = re.sub(r'<td>((?:<a href="[^"]+">)?[BNPMTQ]-\d+(?:</a>)?)</td>', r'<td class="id">\1</td>', body)
 
 # Section navigation from h2 headings
 navs = re.findall(r'<h2 id="([^"]+)">(.*?)</h2>', body)
