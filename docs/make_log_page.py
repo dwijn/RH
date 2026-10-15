@@ -1,12 +1,25 @@
 #!/usr/bin/env python3
 """Render docs/MODERNIZATION.md as a self-contained HTML page.
 
-usage: make_log_page.py [IN.md] [OUT.html]
+usage: make_log_page.py [--sync-md] [IN.md] [OUT.html]
 
 The Markdown file is the source of truth; the HTML is what gets published as
 the shared "RH modernization log" page. Severity (high/medium/low) and status
 (open/fixed/wontfix/in progress) cells in the issue tables become chips.
+
+Changelog fragments: each change adds docs/changes/<ID>.md instead of editing
+MODERNIZATION.md, so that pull requests do not conflict. A fragment starts
+with "key: value" header lines and a blank line, then the entry text:
+
+    ids: B-2            IDs the change fixes (comma- or space-separated)
+    date: 2026-10-15
+    title: One-line summary
+
+The page shows every fragment at the top of the changelog and marks its IDs
+fixed. --sync-md folds the fragments into MODERNIZATION.md (changelog entry,
+status cells) and deletes them; run it on the integration branch now and then.
 """
+import glob
 import html
 import os
 import re
@@ -15,10 +28,49 @@ import sys
 import markdown
 
 here = os.path.dirname(os.path.abspath(__file__))
-src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(here, "MODERNIZATION.md")
-dst = sys.argv[2] if len(sys.argv) > 2 else os.path.join(here, "MODERNIZATION.html")
+args = [a for a in sys.argv[1:] if a != "--sync-md"]
+sync_md = "--sync-md" in sys.argv
+src = args[0] if len(args) > 0 else os.path.join(here, "MODERNIZATION.md")
+dst = args[1] if len(args) > 1 else os.path.join(here, "MODERNIZATION.html")
+frag_dir = os.path.join(os.path.dirname(os.path.abspath(src)), "changes")
 
-text = open(src).read()
+
+def read_fragments():
+    """[(path, {ids, date, title}, body)], newest first."""
+    out = []
+    for f in sorted(glob.glob(os.path.join(frag_dir, "*.md"))):
+        head, _, body = open(f).read().partition("\n\n")
+        meta = dict(l.split(":", 1) for l in head.splitlines() if ":" in l)
+        meta = {k.strip(): v.strip() for k, v in meta.items()}
+        meta["ids"] = re.split(r"[,\s]+", meta.get("ids", "").strip())
+        out.append((f, meta, body.strip()))
+    return sorted(out, key=lambda x: x[1].get("date", ""), reverse=True)
+
+
+def apply_fragments(text, frags):
+    """Changelog entries for the fragments, and their IDs marked fixed."""
+    entries = []
+    for _, m, body in frags:
+        ids = ", ".join(i for i in m["ids"] if i)
+        heading = f"### {m.get('date', '')} — {m.get('title', ids)} ({ids})"
+        if heading not in text:
+            entries.append(f"{heading}\n\n{body}\n")
+        for i in m["ids"]:
+            text = re.sub(rf"^(\| \[?{re.escape(i)}\]?[^\n]*\| )open( \|)$",
+                          r"\1fixed\2", text, flags=re.M)
+    if entries:
+        text = text.replace("## 5. Changelog\n\n",
+                            "## 5. Changelog\n\n" + "\n".join(entries) + "\n", 1)
+    return text
+
+
+frags = read_fragments()
+text = apply_fragments(open(src).read(), frags)
+if sync_md:
+    open(src, "w").write(text)
+    for f, _, _ in frags:
+        os.remove(f)
+    print(f"folded {len(frags)} fragment(s) into {src}")
 title_md, body_md = text.split("\n", 1)
 body = markdown.markdown(body_md, extensions=["tables", "sane_lists", "toc"],
                          extension_configs={"toc": {"permalink": False}})
