@@ -240,7 +240,7 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | ID | Sev | Issue | Status |
 |---|---|---|---|
 | [Q-1](https://github.com/dwijn/RH/issues/52) | high | Hand-written makefiles with archive-member rules: not safe under `make -j`; hand-maintained, partly wrong dependencies; four ~90 % identical geometry makefiles | open |
-| [Q-2](https://github.com/dwijn/RH/issues/53) | high | Fortran still required by rhsc2d/rhsc3d/rhsphere/tools makefiles (`librh_f90.a`) after the WIP dropped it at top level | open |
+| [Q-2](https://github.com/dwijn/RH/issues/53) | high | Fortran still required by rhsc2d/rhsc3d/rhsphere/tools makefiles (`librh_f90.a`) after the WIP dropped it at top level | fixed |
 | [Q-3](https://github.com/dwijn/RH/issues/54) | medium | 354 warnings with `-Wall -Wextra -std=c11 -pedantic` (138 maybe-uninitialized, 140 unused variables, 32 set-but-unused, 30 unused parameters, 8 sign-compare, 5 implicit declarations — pread/pwrite/fileno need `_POSIX_C_SOURCE`) | open |
 | [Q-4](https://github.com/dwijn/RH/issues/55) | medium | Pervasive global state: 315 `extern` declarations in .c files; `atmos` referenced 2145 times in 108 files | open |
 | [Q-5](https://github.com/dwijn/RH/issues/56) | medium | ~25 % of code in duplicated blocks; rhsc2d 53 %, rhsc3d 52 %, rhf1d 42 %, rhsphere 38 % | open |
@@ -290,6 +290,19 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-10-15 — Fortran removed (Q-2, #53)
+
+- Deleted `humlicek_.f90`, `hui_.f90`, the `HAVE_F90` branches in
+  `voigt.c`, `librh_f90.a` and the gfortran rules; no makefile builds or
+  links Fortran any more.
+- Verified: `run_tests.sh --exact` against upstream built without
+  `HAVE_F90` passes 34/34, byte-identical including full-Stokes and
+  field-free. Against the default (Fortran) upstream build, Stokes Q/U
+  differ by up to 1.5e-6 of the peak, which is the Fortran/C rounding
+  difference.
+- Code map: the "Files in and out" and drivers sections no longer need to
+  mention `librh_f90.a`.
 
 ### 2026-10-15 — Baseline and analysis
 
