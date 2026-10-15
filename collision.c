@@ -681,6 +681,20 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 	!strcmp(keyword, "CH0")   || !strcmp(keyword, "CH+")||
 	!strcmp(keyword, "CH") ) {
 
+      /* --- Tabulated rates must be finite: a record with Inf or NaN
+             (e.g. a failed van Regemorter evaluation when the file was
+             made) would otherwise crash the spline with no hint of
+             where the problem is --                   -------------- */
+
+      for (n = 0;  n < Nitem;  n++) {
+	if (!isfinite(coeff[n])) {
+	  sprintf(messageStr, "Atom %s: collision record %s %d %d has a"
+		  " non-finite value (%g) at T = %g K.\n Fix or remove"
+		  " this record in the atom file", atom->ID, keyword,
+		  i1, i2, coeff[n], T[n]);
+	  Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+      }
       if (Nitem > 2) {
 	splineCoef(Nitem, T, coeff);
 	splineEval(Nspace, atmos.T, C, hunt=TRUE);

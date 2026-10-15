@@ -69,7 +69,7 @@ void readAtom(Atom *atom, char *atom_file)
   bool_t  Debeye, exit_on_EOF, match;
   int     i, j, Nlevel, Nrad, Nline, Ncont, Nfixed, 
           Nspace = atmos.Nspace,
-          Nread, Nrequired, checkPoint, L, nq, status;
+          Nread, Nrequired, checkPoint, L, nq, status, Ndup;
   double  f, C, lambda0, lambdamin, vtherm, S, Ju, Jl,
     c_sum, waveratio, lambda_air;
 
@@ -387,12 +387,37 @@ void readAtom(Atom *atom, char *atom_file)
 		        &continuum->lambda[la], &continuum->alpha[la]);
 	checkNread(Nread, Nrequired=2, routineName, checkPoint=6);
       }
+      /* --- The table is splined in SortLambda, which needs strictly
+             increasing wavelengths. Drop repeated entries (a duplicated
+             row is a common slip in atom files) and reject anything
+             else that is out of order --              -------------- */
+
+      Ndup = 0;
       for (la = 1;  la < continuum->Nlambda;  la++) {
-	if (continuum->lambda[la] < continuum->lambda[la-1]) {
-	  sprintf(messageStr, "Wavelength for continuum %d - %d"
-		  " is not monotonous", i, j);
+	n = la - Ndup;
+	if (continuum->lambda[la] == continuum->lambda[n-1]) {
+	  if (continuum->alpha[la] != continuum->alpha[n-1]) {
+	    sprintf(messageStr, "Continuum %d - %d lists wavelength %f nm"
+		    " twice with different cross sections", j, i,
+		    continuum->lambda[la]);
+	    Error(ERROR_LEVEL_2, routineName, messageStr);
+	  }
+	  Ndup++;
+	  continue;
+	}
+	if (continuum->lambda[la] < continuum->lambda[n-1]) {
+	  sprintf(messageStr, "Wavelengths for continuum %d - %d"
+		  " are not monotonic", j, i);
 	  Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
+	continuum->lambda[n] = continuum->lambda[la];
+	continuum->alpha[n]  = continuum->alpha[la];
+      }
+      if (Ndup > 0) {
+	continuum->Nlambda -= Ndup;
+	sprintf(messageStr, "Continuum %d - %d: ignoring %d repeated"
+		" wavelength(s) in the cross-section table", j, i, Ndup);
+	Error(WARNING, routineName, messageStr);
       }
     } else if (strstr(nuDepStr, "HYDROGENIC")) {
       continuum->hydrogenic = TRUE;
