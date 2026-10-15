@@ -67,7 +67,12 @@ def summary(rundir, iter_limit):
         m = re.search(r"Maximum resident set size \(kbytes\): (\d+)", t)
         if m:
             rss = int(m.group(1)) / 1024
-        if re.search(r"Command terminated by signal|Exit status: [1-9]", t) and status == "ok":
+        # Exit status 1-63 means the run completed (bits, e.g. 1 = not
+        # converged, which "converged" already reports); 64 and up is a
+        # failure, as is a signal
+        m = re.search(r"Exit status: (\d+)", t)
+        if (re.search(r"Command terminated by signal", t) or
+                (m and int(m.group(1)) >= 64)) and status == "ok":
             status = "nonzero exit: " + " ".join(re.findall(r"(?:signal \d+|Exit status: \d+)", t))
     print(json.dumps(dict(iters=iters, delta=delta,
                           converged=bool(delta < iter_limit) if not math.isnan(delta) else False,

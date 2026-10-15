@@ -36,6 +36,7 @@
 #include "spectrum.h"
 #include "background.h"
 #include "statistics.h"
+#include "error.h"
 #include "inputs.h"
 #include "xdr.h"
 
@@ -138,5 +139,7 @@ int main(int argc, char *argv[])
  
   getCPU(1, TIME_POLL, "Write output");
   printTotalCPU();
+
+  return ExitStatus();
 }
 /* ------- end ---------------------------- main.c ------------------ */

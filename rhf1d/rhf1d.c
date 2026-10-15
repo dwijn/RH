@@ -135,5 +135,7 @@ int main(int argc, char *argv[])
 
   getCPU(1, TIME_POLL, "Write output");
   printTotalCPU();
+
+  return ExitStatus();
 }
 /* ------- end ---------------------------- rhf1d.c ----------------- */
