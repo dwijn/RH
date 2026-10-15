@@ -15,6 +15,8 @@
              pread_rh and pwrite_rh read/write chunks of PWRITE_SLICE
              sequentially to overcome this. --         -------------- */
 
+#include <errno.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "rh.h"
@@ -55,12 +57,12 @@ void readJlambda(int nspect, double *J)
   recordsize = atmos.Nspace * sizeof(double);
   offset     = recordsize * nspect;
 
-  result &= (pread(spectrum.fd_J, J, recordsize, offset) == recordsize);
+  result &= (pread_rh(spectrum.fd_J, J, recordsize, offset) == recordsize);
 
   if (!result) {
     sprintf(messageStr,
-	    "Error reading file: offset = %lld, recordsize = %zu",
-	    (long long) offset, recordsize);
+	    "Error reading file: offset = %lld, recordsize = %zu (%s)",
+	    (long long) offset, recordsize, strerror(errno));
     Error(ERROR_LEVEL_2, routineName, messageStr);
   }
 }
@@ -79,12 +81,12 @@ void writeJlambda(int nspect, double *J)
   recordsize = atmos.Nspace * sizeof(double);
   offset     = recordsize * nspect;
 
-  result &= (pwrite(spectrum.fd_J, J, recordsize, offset) == recordsize);
+  result &= (pwrite_rh(spectrum.fd_J, J, recordsize, offset) == recordsize);
 
   if (!result) {
     sprintf(messageStr,
-	    "Error writing file: offset = %lld, recordsize = %zu",
-	    (long long) offset, recordsize);
+	    "Error writing file: offset = %lld, recordsize = %zu (%s)",
+	    (long long) offset, recordsize, strerror(errno));
     Error(ERROR_LEVEL_2, routineName, messageStr);
   }
 }
@@ -99,11 +101,18 @@ void readJgas(double **Jgas)
 
   size_t recordsize;
   FILE  *fp;
-  int    result;
-  
-  recordsize = atmos.Nspace * spectrum.Nspect;
-  fp         = fopen("Jgas.dat", "r");
-  result     = fread(&(Jgas[0][0]), sizeof(double), recordsize, fp);
+
+  recordsize = (size_t) atmos.Nspace * spectrum.Nspect;
+  if ((fp = fopen("Jgas.dat", "r")) == NULL) {
+    sprintf(messageStr, "Cannot open Jgas.dat for reading (%s)",
+	    strerror(errno));
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
+  if (fread(&(Jgas[0][0]), sizeof(double), recordsize, fp) != recordsize) {
+    sprintf(messageStr, "Error reading Jgas.dat (%zu values expected)",
+	    recordsize);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
 
   fclose(fp);
 }
@@ -118,14 +127,21 @@ void writeJgas(double **Jgas)
 
   size_t recordsize;
   FILE  *fp;
-  int    result;
-  
-  recordsize = atmos.Nspace * spectrum.Nspect;
-  fp         = fopen("Jgas.dat", "w");
-  result     = fwrite(&(Jgas[0][0]), sizeof(double), recordsize, fp);
+
+  recordsize = (size_t) atmos.Nspace * spectrum.Nspect;
+  if ((fp = fopen("Jgas.dat", "w")) == NULL) {
+    sprintf(messageStr, "Cannot open Jgas.dat for writing (%s)",
+	    strerror(errno));
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
+  if (fwrite(&(Jgas[0][0]), sizeof(double), recordsize, fp) != recordsize) {
+    sprintf(messageStr, "Error writing Jgas.dat (%zu values expected)",
+	    recordsize);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
   
   fclose(fp);
-  } 
+}
 /* ------- end ------------------------------- writeJgas.c ---------- */
 
 
@@ -142,13 +158,13 @@ void readJ20lambda(int nspect, double *J20)
   recordsize = atmos.Nspace * sizeof(double);
   offset     = recordsize * nspect;
 
-  result &= (pread(spectrum.fd_J20, J20,
+  result &= (pread_rh(spectrum.fd_J20, J20,
 		   recordsize, offset) == recordsize);
 
   if (!result) {
     sprintf(messageStr,
-	    "Error reading file: offset = %lld, recordsize = %zu",
-	    (long long) offset, recordsize);
+	    "Error reading file: offset = %lld, recordsize = %zu (%s)",
+	    (long long) offset, recordsize, strerror(errno));
     Error(ERROR_LEVEL_2, routineName, messageStr);
   }
 }
@@ -167,13 +183,13 @@ void writeJ20lambda(int nspect, double *J20)
   recordsize = atmos.Nspace * sizeof(double);
   offset     = recordsize * nspect;
 
-  result &= (pwrite(spectrum.fd_J20, J20,
+  result &= (pwrite_rh(spectrum.fd_J20, J20,
 		    recordsize, offset) == recordsize);
 
   if (!result) {
     sprintf(messageStr,
-	    "Error writing file: offset = %lld, recordsize = %zu",
-	    (long long) offset, recordsize);
+	    "Error writing file: offset = %lld, recordsize = %zu (%s)",
+	    (long long) offset, recordsize, strerror(errno));
     Error(ERROR_LEVEL_2, routineName, messageStr);
   }
 }
@@ -196,13 +212,13 @@ void readImu(int nspect, int mu, bool_t to_obs, double *I)
   offset = 2*(index*atmos.Nrays + mu) * recordsize;
   if (to_obs)  offset += recordsize;
 
-  result &= (pread(spectrum.fd_Imu, I, 
+  result &= (pread_rh(spectrum.fd_Imu, I, 
 		    recordsize, offset) == recordsize);
 
  if (!result) {
     sprintf(messageStr,
-	    "Error reading file: offset = %lld, recordsize = %zu",
-	    (long long) offset, recordsize);
+	    "Error reading file: offset = %lld, recordsize = %zu (%s)",
+	    (long long) offset, recordsize, strerror(errno));
     Error(ERROR_LEVEL_2, routineName, messageStr);
   }
 }
@@ -225,13 +241,13 @@ void writeImu(int nspect, int mu, bool_t to_obs, double *I)
   offset = 2*(index*atmos.Nrays + mu) * recordsize;
   if (to_obs)  offset += recordsize;
 
-  result &= (pwrite(spectrum.fd_Imu, I, 
+  result &= (pwrite_rh(spectrum.fd_Imu, I, 
 		    recordsize, offset) == recordsize);
 
  if (!result) {
     sprintf(messageStr,
-	    "Error writing file: offset = %lld, recordsize = %zu",
-	    (long long) offset, recordsize);
+	    "Error writing file: offset = %lld, recordsize = %zu (%s)",
+	    (long long) offset, recordsize, strerror(errno));
     Error(ERROR_LEVEL_2, routineName, messageStr);
   }
 }
@@ -410,7 +426,7 @@ void readProfile(AtomicLine *line, int lamu, double *phi)
   recordsize = Nrecphi * atmos.Nspace * sizeof(double);
   offset     = NrecSkip * atmos.Nspace * sizeof(double) * lamu;
 
-  result &= (pread(line->fd_profile, phi, recordsize, offset) ==
+  result &= (pread_rh(line->fd_profile, phi, recordsize, offset) ==
 	     recordsize);
 
   if (!result) Error(ERROR_LEVEL_2, routineName, "Error reading file");
@@ -439,36 +455,45 @@ void writeProfile(AtomicLine *line, int lamu, double *phi)
   recordsize = Nrecphi * atmos.Nspace * sizeof(double);
   offset     = recordsize * lamu;
 
-  result &= (pwrite(line->fd_profile, phi, recordsize, offset) ==
+  result &= (pwrite_rh(line->fd_profile, phi, recordsize, offset) ==
 	     recordsize);
 
   if (!result) Error(ERROR_LEVEL_2, routineName, "Error writing file");
 }
 /* ------- end ---------------------------- writeProfile.c ---------- */
 
+/* ------- begin -------------------------- fullIO.c ---------------- */
+
+static size_t fullIO(int fd, char *buf, size_t count, off_t offset,
+		     bool_t write_it)
+{
+  /* --- Transfer count bytes, in pieces of at most PWRITE_SLICE, and
+         retry partial transfers and interrupted calls. Returns count
+         on success and 0 on failure, with errno set --  ------------ */
+
+  size_t  left = count, chunk;
+  ssize_t n;
+
+  while (left > 0) {
+    chunk = MIN(left, (size_t) PWRITE_SLICE);
+    n = (write_it) ? pwrite(fd, buf, chunk, offset) :
+                     pread(fd, buf, chunk, offset);
+    if (n < 0  &&  errno == EINTR) continue;
+    if (n <= 0) {
+      if (n == 0) errno = EIO;              /* unexpected end of file */
+      return 0;
+    }
+    buf += n;  offset += n;  left -= n;
+  }
+  return count;
+}
+/* ------- end ---------------------------- fullIO.c ---------------- */
+
 /* ------- begin -------------------------- pread_rh.c -------------- */
 
 size_t pread_rh(int fd, const void *buffer, size_t count, off_t offset)
 {
-  register int i;
-
-  int    Nslice;
-  size_t Nread = 0, remainder;
-  off_t  offs = offset;
-  char  *buf = (char *) buffer;
-
-  Nslice    = count / PWRITE_SLICE;
-  remainder = count % PWRITE_SLICE;
-
-  for (i = 0;  i < Nslice;  i++) {
-    Nread += pread(fd, buf, PWRITE_SLICE, offs);
-    offs  += PWRITE_SLICE;
-    buf   += PWRITE_SLICE;
-   }
-  if (remainder > 0)
-    Nread += pread(fd, buf, remainder, offs);
-
-  return Nread;
+  return fullIO(fd, (char *) buffer, count, offset, FALSE);
 }
 /* ------- end ---------------------------- pread_rh.c -------------- */
 
@@ -476,24 +501,6 @@ size_t pread_rh(int fd, const void *buffer, size_t count, off_t offset)
 
 size_t pwrite_rh(int fd, const void *buffer, size_t count, off_t offset)
 {
-  register int i;
-
-  int    Nslice;
-  size_t Nwrite = 0, remainder;
-  off_t  offs = offset;
-  char  *buf = (char *) buffer;
-
-  Nslice    = count / PWRITE_SLICE;
-  remainder = count % PWRITE_SLICE;
-
-  for (i = 0;  i < Nslice;  i++) {
-    Nwrite += pwrite(fd, buf, PWRITE_SLICE, offs);
-    offs += PWRITE_SLICE;
-    buf  += PWRITE_SLICE;
-   }
-  if (remainder > 0)
-    Nwrite += pwrite(fd, buf, remainder, offs);
-
-  return Nwrite;
+  return fullIO(fd, (char *) buffer, count, offset, TRUE);
 }
 /* ------- end ---------------------------- pwrite_rh.c ------------- */
