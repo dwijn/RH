@@ -96,7 +96,7 @@ void readInput()
      setintValue},
     {"PRD_NG_ORDER",  "0", FALSE, KEYWORD_OPTIONAL, &input.PRD_Ngorder,
      setintValue},
-    {"PRD_NG_PERIOD", "0", FALSE, KEYWORD_OPTIONAL, &input.PRD_Ngperiod,
+    {"PRD_NG_PERIOD", "1", FALSE, KEYWORD_OPTIONAL, &input.PRD_Ngperiod,
      setintValue},
     {"PRD_ANGLE_DEP", "FALSE", FALSE, KEYWORD_DEFAULT,
      &input.PRD_angle_dep, setPRDangle},
@@ -284,6 +284,16 @@ void readInput()
 	    "Ignoring value of keyword NRAYS in multi-D plane geometry");
     break;
   }
+
+  /* --- Ng acceleration is applied every N_PERIOD iterations, so the
+         period must be at least 1 --                  -------------- */
+
+  if (input.Ngorder > 0  &&  input.Ngperiod < 1)
+    Error(ERROR_LEVEL_2, routineName,
+	  "Value of NG_PERIOD should be at least 1 when NG_ORDER > 0");
+  if (input.PRD_Ngorder > 0  &&  input.PRD_Ngperiod < 1)
+    Error(ERROR_LEVEL_2, routineName,
+	  "Value of PRD_NG_PERIOD should be at least 1 when PRD_NG_ORDER > 0");
 
   /* --- Lambda_ref should be positive since it is used for the conversion
          of depth scales in routine convertScales --    ------------- */
