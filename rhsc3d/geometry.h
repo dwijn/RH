@@ -70,9 +70,6 @@ void   ShortChar(Geometry *geometry, int nspect, int mu,
 void   ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 			bool_t to_observer, double *chi,
 			double **S, double **I, double *Psi);
-void Piecewise_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
-		  int k, int kend, int l, int m, double I_uw,
-		  double *chi, double *S, double *I, double *Psi);
 void Piecewise_Linear_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 			 int k, int kend, int l, int m, double I_uw,
 			 double *chi, double *S, double *I, double *Psi);
@@ -80,10 +77,6 @@ void Piecewise_Bezier3_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 			  int k, int kend, int l, int m, double I_uw,
 			  double *chi, double *S, double *I, double *Psi);
 
-void Piece_Stokes_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
-		     int nspect, int k, int kend, int l, int m,
-		     double *I_uw,
-		     double *chi, double **S, double **I, double *Psi);
 void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 			     Stencil *st_dw,
 			     int nspect, int k, int kend, int l, int m,

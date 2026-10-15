@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
   commandline.logfile = stderr;
   input.Eddington = FALSE;
 
-  input.S_interpolation = S_PARABOLIC;
+  input.S_interpolation = S_BEZIER3;
 
   getCPU(0, TIME_START, NULL);
   SetFPEtraps();
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
   fillMesh(&geometry);
   getCPU(1, TIME_START, NULL);
 
-  Piecewise_2D(&geometry, nspect=0, mu, to_observer=FALSE, chi, S, I, Psi);
+  Piecewise_Bezier3_2D(&geometry, nspect=0, mu, to_observer=FALSE, chi, S, I, Psi);
 
   getCPU(1, TIME_POLL, "Formal Solution down");
   Nwrite = fwrite(I, sizeof(double), Nspace, stdout);
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 
   getCPU(1, TIME_START, NULL);
 
-  Piecewise_2D(&geometry, nspect=0, mu, to_observer=TRUE, chi, S, I, Psi);
+  Piecewise_Bezier3_2D(&geometry, nspect=0, mu, to_observer=TRUE, chi, S, I, Psi);
 
   getCPU(1, TIME_POLL, "Formal Solution up");
   Nwrite = fwrite(I, sizeof(double), Nspace, stdout);

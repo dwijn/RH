@@ -368,13 +368,17 @@ void setInterpolate_3D(char *value, void *pointer)
 
 void set_S_Interpolation(char *value, void *pointer)
 {
-  const char routineName[] = "setInterpolate_3D";
+  const char routineName[] = "set_S_Interpolation";
 
   enum S_interpol interpolation;
 
-  if (!strcmp(value, "S_PARABOLIC"))
-    interpolation = S_PARABOLIC;
-  else if (!strcmp(value, "S_LINEAR"))
+  if (!strcmp(value, "S_PARABOLIC")) {
+    sprintf(messageStr, "\n  S_INTERPOLATION = S_PARABOLIC has been removed:"
+	    " the quadratic\n  interpolation is not monotonic and makes the"
+	    " iteration unstable\n  in dynamic atmospheres. Use S_BEZIER3"
+	    " (monotonic, higher order)\n  or S_LINEAR");
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  } else if (!strcmp(value, "S_LINEAR"))
     interpolation = S_LINEAR;
   else if (!strcmp(value, "S_BEZIER3"))
     interpolation = S_BEZIER3;
@@ -398,9 +402,12 @@ void set_S_interpolation_stokes(char *value, void *pointer)
 
   if (!strcmp(value, "DELO_BEZIER3"))
     interpolation = DELO_BEZIER3;
-  else if (!strcmp(value, "DELO_PARABOLIC"))
-    interpolation = DELO_PARABOLIC;
-  else {
+  else if (!strcmp(value, "DELO_PARABOLIC")) {
+    sprintf(messageStr, "S_INTERPOLATION_STOKES = DELO_PARABOLIC has been"
+	    " removed:\n  the quadratic interpolation is not monotonic. Use"
+	    " DELO_BEZIER3");
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  } else {
     sprintf(messageStr,
 	     "Invalid value for keyword S_INTERPOLATION_STOKES: %s", value);
     Error(ERROR_LEVEL_2, routineName, messageStr);

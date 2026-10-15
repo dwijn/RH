@@ -203,10 +203,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	  }
 	  /* --- Polarized transfer --                 -------------- */
 	  
-	  if (input.S_interpolation_stokes == DELO_PARABOLIC) {
-	    Piece_Stokes_2D(&geometry, nspect, mu, to_obs,
-			    chi, Spol, Ipol, Psi);
-	  } else if (input.S_interpolation_stokes == DELO_BEZIER3) {
+	  if (input.S_interpolation_stokes == DELO_BEZIER3) {
 	    Piece_Stokes_Bezier3_2D(&geometry, nspect, mu, to_obs,
 			    chi, Spol, Ipol, Psi);
 	  } else {sprintf(messageStr,
@@ -222,9 +219,6 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	  if (input.S_interpolation == S_LINEAR) {
 	    Piecewise_Linear_2D(&geometry, nspect, mu, to_obs,
 				chi, S, I, Psi);
-	  } else if (input.S_interpolation == S_PARABOLIC) {
-	    Piecewise_2D(&geometry, nspect, mu, to_obs,
-			 chi, S, I, Psi);
 	  } else if (input.S_interpolation == S_BEZIER3) {
 	    Piecewise_Bezier3_2D(&geometry, nspect, mu, to_obs,
 				chi, S, I, Psi);
@@ -400,9 +394,6 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	  if (input.S_interpolation == S_LINEAR) {
 	    Piecewise_Linear_2D(&geometry, nspect, mu, to_obs,
 				chi, S, I, Psi);
-	  } else if (input.S_interpolation == S_PARABOLIC) {
-	    Piecewise_2D(&geometry, nspect, mu, to_obs,
-			 chi, S, I, Psi);
 	  } else if (input.S_interpolation == S_BEZIER3) {
 	    Piecewise_Bezier3_2D(&geometry, nspect, mu, to_obs,
 				chi, S, I, Psi);

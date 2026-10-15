@@ -71,8 +71,9 @@ CASES=(
 "1d_falc_helarge   |conv|1d|FALC_82.atmos  |He_large          |$L"
 "1d_falc_h6_tight  |conv|1d|FALC_82.atmos  |H_6               |ITER_LIMIT=1e-8;N_MAX_ITER=300;NG_ORDER=0"
 "1d_falc_civi      |conv|1d|FALC_82.atmos  |CI-VI_Judge       |$L"
-# Moving atmospheres: parabolic short-characteristics Psi* unbounded
-"1d_v10_ca_par     |conv|1d|FALC_v10.atmos |CaII              |$L;S_INTERPOLATION=S_PARABOLIC"
+# Moving atmospheres: linear vs Bezier (they differ by 5-16 % in the
+# chromosphere on this 82-point grid: depth resolution, not the scheme)
+"1d_v10_ca_lin     |conv|1d|FALC_v10.atmos |CaII              |$L;S_INTERPOLATION=S_LINEAR"
 "1d_v10_ca_bez     |conv|1d|FALC_v10.atmos |CaII              |$L;S_INTERPOLATION=S_BEZIER3"
 "1d_shock_h6       |conv|1d|FALC_shock.atmos|H_6              |$L"
 # Crashes / wrong answers from options
