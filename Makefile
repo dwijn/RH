@@ -8,15 +8,9 @@
 
 OS := $(shell uname -s)
 
-## --- If no f90 compiler is available comment out -DHAVE_F90
-
 CC       = gcc
-CFLAGS   = -O2  -DHAVE_F90
-##CFLAGS   = -g  -DHAVE_F90
-
-F90C     = gfortran
-F90FLAGS = -O2
-##F90FLAGS = -g
+CFLAGS   = -O2
+##CFLAGS   = -g
 
 ifneq ("$(wildcard /usr/include/tirpc)","")
     CFLAGS += -I/usr/include/tirpc
@@ -32,15 +26,7 @@ else
 endif
 
 
-.SUFFIXES: .f90
-
-.f90.o:
-	$(F90C) -c $(F90FLAGS) $<
-
-
-## --- If no f90 compiler is available comment out librh_f90.a
-
-all: librh.a librh_f90.a
+all: librh.a
 
 
 ## --- Rules for the library --                        -------------- ##
@@ -138,13 +124,6 @@ librh.a(fpehandler.o):  fpehandler.c
 	rm -f $%
 
 
-## FORTRAN 90 alternatives --                          -------------- ##
-
-librh_f90.a: \
- librh_f90.a(hui_.o) \
- librh_f90.a(humlicek_.o)
-
-
 ## --- Clean up --                                     -------------- ##
 
 clean:
@@ -181,16 +160,6 @@ librh.a(getline.o):       rh.h  error.h  inputs.h
 librh.a(giigen.o):        rh.h  atom.h  constant.h
 librh.a(cocollisions.o):  rh.h  atom.h  atmos.h  error.h  constant.h
 librh.a(humlicek.o):      rh.h
-
-# humlicek.o and voigt.o do complex arithmetic in a tight loop (Voigt
-# function evaluation). -fcx-limited-range tells the compiler it may
-# use the textbook complex multiply/divide formulas instead of the
-# IEEE-robust (but markedly slower) ones C99 Annex G mandates by
-# default; our inputs are ordinary physical magnitudes, nowhere near
-# overflow range, so the robustness isn't needed here. Measured with a
-# standalone microbenchmark: ~1.3-2.4x faster than the old hand-rolled
-# complex struct this replaced, vs. a ~2x *slowdown* from switching to
-# native `double complex` without this flag.
 librh.a(humlicek.o): CFLAGS += -fcx-limited-range
 librh.a(hunt.o):          rh.h
 librh.a(hydrogen.o):      rh.h  atom.h  atmos.h  constant.h  background.h  error.h

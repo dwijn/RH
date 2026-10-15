@@ -30,11 +30,6 @@
 
        -- Lookup table. 
 
-    Note: If a FORTRAN 90 compiler is available FORTRAN's builtin
-          complex arithmatic can be used by defining HAVE_F90 and
-          linking with humlicek_.f90, hui_.f90, and libf90 at the final
-          linking step that makes the executable.
-
        --                                              -------------- */
 
  
@@ -60,15 +55,10 @@ double VoigtK1(double a, double v);
 double VoigtK2(double a, double v);
 double VoigtK3(double a, double v);
 
-#if defined(HAVE_F90)
-void humlicek_(double *a, double *v, double complex *W);
-void hui_(double complex *z, double complex *W);
-#else
 double complex Humlicek1(double complex z);
 double complex Humlicek2(double complex z);
 double complex Humlicek3(double complex z);
 double complex Humlicek4(double complex z);
-#endif
 
 double VoigtLookup(double a, double v);
 
@@ -311,7 +301,6 @@ double VoigtRybicki(double a, double v)
 
 double VoigtHui(double a, double v, double *F)
 {
-#if !defined(HAVE_F90)
   register int n;
 
   static double ah[NHUI+1] = 
@@ -334,24 +323,10 @@ double VoigtHui(double a, double v, double *F)
          Faraday - Voigt: 2*F(a, v) = Im[W(v + ia)]
 
          --                                            -------------- */
-#endif
+
   double complex z, W;
 
   z = a - v*I;
-
-#if defined(HAVE_F90)
-
-  /* --- If a FORTRAN 90 compiler is available then FORTRAN's intrinsic
-         complex arithmatic can be used. This will give a factor of
-         two to three improvement in speed (with the SUN compilers).
-
-    See: hui_.f90
-         --                                            -------------- */
-
-  hui_(&z, &W);
-#else
-
-  /* --- C version is used otherwise --                -------------- */
 
   W2 = z;
   for (n = NHUI;  n >= 0;  n--) {
@@ -359,7 +334,6 @@ double VoigtHui(double a, double v, double *F)
     W2 = (W2 + bh[n]) * z;
   }
   W = W1 / W2;
-#endif
 
   if (F != NULL) *F = cimag(W);
   return creal(W);
@@ -380,28 +354,10 @@ double VoigtHui(double a, double v, double *F)
 
 double VoigtHumlicek(double a, double v, double *F)
 {
-#if defined(HAVE_F90)
-
-  double complex W;
-
-  /* --- If a FORTRAN 90 compiler is available then FORTRAN's intrinsic
-         complex arithmatic can be used. This will give a factor of
-         two to three improvement in speed (with the SUN compilers).
-
-    See: humlicek_.f90
-         --                                            -------------- */
-
-  humlicek_(&a, &v, &W);
-
-#else
-
   double complex W, z = a - v*I;
   double s = fabs(v) + a;
 
-  /* --- C versions are called otherwise
-
-    See: humlicek.c
-         --                                            -------------- */
+  /* --- See: humlicek.c --                          -------------- */
 
   if (s >= 15.0)
     W = Humlicek1(z);
@@ -411,8 +367,6 @@ double VoigtHumlicek(double a, double v, double *F)
     W = Humlicek3(z);
   else
     W = Humlicek4(z);
-
-#endif
 
   if (F != NULL) *F = cimag(W);
   return creal(W);

@@ -45,10 +45,9 @@ formal3d:  $(FORMOBJS)  librh
 	$(LD) -o $@  $(LDFLAGS) $(FORMOBJS)  $(LIBS)
 
 
-## --- If no FORTRAN compiler is available remove librh_f90.a in following
 
 librh:
-	cd ..; $(MAKE) librh.a  librh_f90.a
+	cd ..; $(MAKE) librh.a
 
 
 ## --- Clean up --                                     -------------- ##

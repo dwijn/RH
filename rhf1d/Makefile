@@ -47,10 +47,9 @@ backgrcontr:  $(BACKGROPAC) librh
 	$(LD) -o $@  $(LDFLAGS) $(BACKGROPAC) $(LIBS)
 
 
-## --- If no FORTRAN compiler is available remove librh_f90.a in following
 
 librh:
-	cd ..; $(MAKE) librh.a  librh_f90.a
+	cd ..; $(MAKE) librh.a
 
 
 ## --- Clean up --                                     -------------- ##
