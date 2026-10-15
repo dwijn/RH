@@ -50,9 +50,10 @@ void Iterate(int NmaxIter, double iterLimit)
   const char routineName[] = "Iterate";
   register int niter, nact;
 
-  bool_t    eval_operator, write_analyze_output, equilibria_only;
+  bool_t    eval_operator, write_analyze_output, equilibria_only,
+            converged = FALSE;
   int       Ngorder;
-  double    dpopsmax, PRDiterlimit;
+  double    dpopsmax = 0.0, PRDiterlimit;
   Atom     *atom;
   Molecule *molecule;
 
@@ -129,7 +130,10 @@ void Iterate(int NmaxIter, double iterLimit)
     sprintf(messageStr, "Total Iteration %3d", niter);
     getCPU(2, TIME_POLL, messageStr);
 
-    if (dpopsmax < iterLimit) break;
+    if (dpopsmax < iterLimit) {
+      converged = TRUE;
+      break;
+    }
     niter++;
 
     if (input.solve_ne == ITERATION)
@@ -143,6 +147,22 @@ void Iterate(int NmaxIter, double iterLimit)
       }
       Hydrostatic(N_MAX_HSE_ITER, HSE_ITER_LIMIT);
     }
+  }
+
+  /* --- Say whether the populations converged. A run that stops at
+         N_MAX_ITER still writes its output, so make it clear that
+         this output is not a converged solution --   -------------- */
+
+  if (converged) {
+    sprintf(messageStr, "\n -- Converged in %d iterations: max change"
+	    " %.4E < ITER_LIMIT = %.4E\n", niter, dpopsmax, iterLimit);
+    Error(MESSAGE, routineName, messageStr);
+  } else {
+    sprintf(messageStr, "NOT CONVERGED after %d iterations: max change"
+	    " %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"
+	    " solution; increase N_MAX_ITER or see what limits convergence",
+	    niter - 1, dpopsmax, iterLimit);
+    Error(WARNING, routineName, messageStr);
   }
 
   for (nact = 0;  nact < atmos.Nactiveatom;  nact++) {
