@@ -56,7 +56,7 @@ def apply_fragments(text, frags):
         if heading not in text:
             entries.append(f"{heading}\n\n{body}\n")
         for i in m["ids"]:
-            text = re.sub(rf"^(\| \[?{re.escape(i)}\]?[^\n]*\| )open( \|)$",
+            text = re.sub(rf"^(\| \[?{re.escape(i)}(?![0-9])\]?[^\n]*\| )open( \|)$",
                           r"\1fixed\2", text, flags=re.M)
     if entries:
         text = text.replace("## 5. Changelog\n\n",
