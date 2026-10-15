@@ -260,7 +260,11 @@ double calcDistance(double frac1, double frac2, enum intersect plane,
   case XZ:
     return sqrt(SQ(dy) + SQ(frac1*dx) + SQ(frac2*dz));
   case YZ:
-    return sqrt(SQ(dx) + SQ(frac1*dy) + SQ(frac2*dz));  
+    return sqrt(SQ(dx) + SQ(frac1*dy) + SQ(frac2*dz));
+  default:
+    sprintf(messageStr, "Invalid intersection plane: %d", plane);
+    Error(ERROR_LEVEL_2, "calcDistance", messageStr);
+    return 0.0;
   }
 }
 /* ------- end ---------------------------- calcDistance.c ---------- */
