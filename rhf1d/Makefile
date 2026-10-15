@@ -16,7 +16,7 @@ include ../makefiles/rhmakefile
 
 ONE_D_OBJS = anglequad.o  bezier_1D.o feautrier.o  formal.o  hydrostat.o \
              multiatmos.o \
-             rhf1d.o  piecestokes_1D.o  piecewise_1D.o  project.o \
+             rhf1d.o  piecewise_1D.o  project.o \
              riiplane.o  writeflux_xdr.o  writegeom_xdr.o 
 
    ONEDOBJ = bezier_1D.o  solve1d.o  iter_1d.o  feautrier.o \
@@ -24,7 +24,7 @@ ONE_D_OBJS = anglequad.o  bezier_1D.o feautrier.o  formal.o  hydrostat.o \
 
   RAY_OBJS = anglequad.o  bezier_1D.o  feautrier.o  formal.o  hydrostat.o \
              multiatmos.o \
-             project.o  piecestokes_1D.o  piecewise_1D.o  riiplane.o \
+             project.o  piecewise_1D.o  riiplane.o \
              solveray.o  writegeom_xdr.o
 
 BACKGROPAC = anglequad.o  backgrcontr.o  multiatmos.o  project.o
@@ -92,8 +92,6 @@ multiatmos.o:           ../rh.h  ../atom.h  ../atmos.h  \
                         ../constant.h  ../error.h  ../inputs.h  \
                         ../statistics.h  ../xdr.h
 
-piecestokes_1D.o:       ../rh.h  ../error.h  ../atom.h  ../atmos.h  \
-                        geometry.h  ../spectrum.h
 
 piecewise_1D.o:         ../rh.h  ../error.h  ../atom.h  ../atmos.h  \
                         geometry.h  ../spectrum.h

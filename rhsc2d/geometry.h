@@ -76,9 +76,6 @@ double Feautrier(int nspect, int lx, double *chi, double *S,
                  enum FeautrierOrder order, double *P, double *Psi);
 
 
-void   Piecewise_2D(Geometry *geometry, int nspect, int mu,
-		    bool_t to_observer, double *chi, double *S,
-		    double *I, double *Psi);
 void   Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
 			   bool_t to_observer, double *chi, double *S,
 			   double *I, double *Psi);
@@ -95,9 +92,6 @@ void   Piecewise_Hermite_2D(Geometry *geometry, int nspect, int mu,
 
 void   SolveLongStokes(int nspect, LongChar *lc, int local, double *chi,
 		       double **S, double **I, double *I_uw);
-void   Piece_Stokes_2D(Geometry *geometry,
-		       int nspect, int mu, bool_t to_obs, double *chi,
-		       double **S_pol, double **I_pol, double *Psi);
 
 
 

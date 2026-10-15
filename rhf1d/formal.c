@@ -204,8 +204,6 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	  if (input.S_interpolation_stokes == DELO_BEZIER3) {
 	    Piece_Stokes_Bezier3_1D(nspect, mu, to_obs,
 				    chi, Spol, Ipol, Psi);
-	  } else if (input.S_interpolation_stokes == DELO_PARABOLIC) {
-	    Piece_Stokes_1D(nspect, mu, to_obs, chi, Spol, Ipol, Psi);
 	  } else { sprintf(messageStr,
 		    "Unknown polarization solver: %d",
 		    input.S_interpolation_stokes);
@@ -220,8 +218,6 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	  
 	  if (input.S_interpolation == S_LINEAR) {
 	    Piecewise_Linear_1D(nspect, mu, to_obs, chi, S, I, Psi);
-	  } else if (input.S_interpolation == S_PARABOLIC) {
-	    Piecewise_1D(nspect, mu, to_obs, chi, S, I, Psi);
 	  } else if (input.S_interpolation == S_BEZIER3) {
 	    Piecewise_Bezier3_1D(nspect, mu, to_obs, chi, S, I, Psi);
 	  } else {

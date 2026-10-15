@@ -22,7 +22,7 @@ TWO_D_OBJS = anglequad.o  bezier_2D.o  formal.o  geometry.o \
              piecewise_2D.o  piecestokes_2D.o  solve2d.o  \
              solvelong.o  project.o
 
-  FORMOBJS = anglequad.o  formal2d.o  geometry.o \
+  FORMOBJS = anglequad.o  bezier_2D.o  formal2d.o  geometry.o \
              piecewise_2D.o  piecestokes_2D.o  solvelong.o  project.o
 
   RAY_OBJS = anglequad.o  bezier_2D.o  formal.o  geometry.o  rii.o \

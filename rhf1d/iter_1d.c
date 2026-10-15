@@ -91,9 +91,6 @@ void Iterate(int NmaxIter, double iterLimit)
 	    if (input.S_interpolation == S_LINEAR) {
 	      Piecewise_Linear_1D(la, mu, to_obs, chi_la, Sny,
 				  I[lamu], Psi_sc[lamu]);
-	    } else if (input.S_interpolation == S_PARABOLIC) {
-	      Piecewise_1D(la, mu, to_obs, chi_la, Sny, I[lamu],
-			   Psi_sc[lamu]);
 	    } else if (input.S_interpolation == S_BEZIER3) {
 	      Piecewise_Bezier3_1D(la, mu, to_obs, chi_la, Sny,
 				   I[lamu], Psi_sc[lamu]);

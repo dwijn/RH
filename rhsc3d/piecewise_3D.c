@@ -167,9 +167,6 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 	  if (input.S_interpolation == S_LINEAR) {
 	    Piecewise_Linear_3D(geometry, st_uw, st_dw,
 				k, kend, l, m, I_uw, chi, S, I, Psi);
-	  } else if (input.S_interpolation == S_PARABOLIC) {
-	    Piecewise_3D(geometry, st_uw, st_dw,
-			 k, kend, l, m, I_uw, chi, S, I, Psi);
 	  } else if (input.S_interpolation == S_BEZIER3) {
 	    Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
 				k, kend, l, m, I_uw, chi, S, I, Psi);
@@ -196,9 +193,6 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 	  if (input.S_interpolation == S_LINEAR) {
 	    Piecewise_Linear_3D(geometry, st_uw, st_dw,
 				k, kend, l, m, I_uw, chi, S, I, Psi);
-	  } else if (input.S_interpolation == S_PARABOLIC) {
-	    Piecewise_3D(geometry, st_uw, st_dw,
-			 k, kend, l, m, I_uw, chi, S, I, Psi);
 	  } else if (input.S_interpolation == S_BEZIER3) {
 	    Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
 				k, kend, l, m, I_uw, chi, S, I, Psi);
@@ -214,68 +208,6 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
   }
 }
 /* ------- end ---------------------------- ShortChar.c ------------- */
-
-/* ------- begin -------------------------- Piecewise_3D.c ---------- */
-
-void Piecewise_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
-		  int k, int kend, int l, int m, double I_uw,
-		  double *chi, double *S, double *I, double *Psi)
-{
-  int    local;
-  double chi_uw, chi_dw, S_uw, S_dw, dS_dw, dS_uw,
-         dtau_uw, dtau_dw, w[3], c1, c2; 
-
-  local = k*geometry->Nplane + m*geometry->Nx + l;
-
-  /* --- The upwind quantities --                      -------------- */
-
-  chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
-  S_uw    = Interpolate_3D(S, geometry, st_uw, l, m);
-  dtau_uw = 0.5 * (chi_uw + chi[local]) * st_uw->ds;
-  dS_uw   = (S_uw - S[local]) / dtau_uw;
-
-  if (k == kend) {
-    w2(dtau_uw, w);
-
-    /* --- Piecewise linear integration in last layer -- ------------ */
-
-    I[local] = I_uw*(1.0 - w[0]) + w[0]*S[local] + w[1]*dS_uw;
-
-    if (Psi) Psi[local] = w[0] - w[1]/dtau_uw;
-  } else {
-    w3(dtau_uw, w);
-
-    /* --- The downwind quantities --                  -------------- */
-
-    chi_dw  = Interpolate_3D(chi, geometry, st_dw, l, m);
-    dtau_dw = 0.5 * (chi[local] + chi_dw) * st_dw->ds;
-    S_dw    = Interpolate_3D(S, geometry, st_dw, l, m);
-    dS_dw   = (S[local] - S_dw) / dtau_dw;
-
-    /* --- Piecewise quadratic integration --          -------------- */
-
-    c1 = (dS_uw*dtau_dw + dS_dw*dtau_uw);
-    c2 = (dS_uw - dS_dw);
-
-    I[local] = I_uw*(1.0 - w[0]) + w[0]*S[local] + 
-      (w[1]*c1 + w[2]*c2) / (dtau_uw + dtau_dw);
-
-    /* --- Try piecewise linear if quadratic gives negative
-           monochromatic intensity --                  -------------- */ 
-
-    if (I[local] < 0.0) {
-      I[local] = (1.0 - w[0])*I_uw + w[0]*S[local] + w[1]*dS_uw;
-
-      if (Psi) Psi[local] = w[0] - w[1]/dtau_uw;
-    } else {
-      if (Psi) {
-	c1 = dtau_uw - dtau_dw;
-	Psi[local] = w[0] + (w[1]*c1 - w[2]) / (dtau_uw * dtau_dw);
-      }
-    }
-  }
-}
-/* ------- end ---------------------------- Piecewise_3D.c ---------- */
 
 
 /* ------- begin -------------------------- Piecewise_Linear_3D.c --- */

@@ -158,7 +158,11 @@
 
  VACUUM_TO_AIR = TRUE
 
- S_INTERPOLATION = S_PARABOLIC
+# Interpolation of the source function in the short-characteristics
+# formal solver (KEYWORD_DEFAULT): S_BEZIER3 (default; monotonic cubic
+# Bezier) or S_LINEAR.
+
+ S_INTERPOLATION = S_BEZIER3
 
 # Input file for the magnetic field (KEYWORD_OPTIONAL). Default is "none".
 

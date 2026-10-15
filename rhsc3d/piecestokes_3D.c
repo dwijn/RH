@@ -176,10 +176,7 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 	    for (n = 0;  n < 4;  n++)
 	      I_uw[n] = Interpolate_3D(I[n], geometry, st_uw, l, m);
 	  }
-	  if (input.S_interpolation_stokes == DELO_PARABOLIC) {
-	    Piece_Stokes_3D(geometry, st_uw, st_dw, nspect,
-			    k, kend, l, m, I_uw, chi, S, I, Psi);
-	  } else if (input.S_interpolation_stokes == DELO_BEZIER3) {
+	  if (input.S_interpolation_stokes == DELO_BEZIER3) {
 	    Piece_Stokes_Bezier3_3D(geometry, st_uw, st_dw, nspect,
 				    k, kend, l, m, I_uw, chi, S, I, Psi);
 	  } else {
@@ -203,10 +200,7 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 	    for (n = 0;  n < 4;  n++)
 	      I_uw[n] = Interpolate_3D(I[n], geometry, st_uw, l, m);
 	  }
-	  if (input.S_interpolation_stokes == DELO_PARABOLIC) {
-	    Piece_Stokes_3D(geometry, st_uw, st_dw, nspect,
-			    k, kend, l, m, I_uw, chi, S, I, Psi);
-	  } else if (input.S_interpolation_stokes == DELO_BEZIER3) {
+	  if (input.S_interpolation_stokes == DELO_BEZIER3) {
 	    Piece_Stokes_Bezier3_3D(geometry, st_uw, st_dw, nspect,
 				    k, kend, l, m, I_uw, chi, S, I, Psi);
 	  } else {
@@ -221,103 +215,6 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
   }
 }
 /* ------- end ---------------------------- ShortChar_Stokes.c ------ */
-
-/* ------- begin -------------------------- Piece_Stokes_3D.c ------- */
-
-void Piece_Stokes_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
-		     int nspect, int k, int kend, int l, int m,
-		     double *I_uw,
-		     double *chi, double **S, double **I, double *Psi)
-{
-  /* --- Piecewise integration of the coupled Stokes transfer equations
-         in two dimensions. Method is quasi-parabolic DELO method.
-
-    See: - D. E. Rees, G. A. Murphy and C. J. Durrant 1989, ApJ 339,
-           1093-1106.
-
-         - H. Socas Navarro, J. Trujillo Bueno and B. Ruiz Cobo 2000,
-           "Non-LTE Inversion of Stokes Profiles", ApJ 530, 977.
-      --                                               -------------- */
-
-  register int n, j;
-
-  int    local;
-  double chi_uw, chi_dw, S_uw[4], S_dw[4], dS_dw[4], dS_uw[4],
-         dtau_uw, dtau_dw, w[3], c1, c2, P[4], Q[4][4], **R,
-         K[4][4], K_uw[4][4]; 
-
-  R = matrix_double(4, 4);
-
-  local = k*geometry->Nplane + m*geometry->Nx + l;
-
-  /* --- The upwind quantities --                      -------------- */
-
-  chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
-  dtau_uw = 0.5 * (chi_uw + chi[local]) * st_uw->ds;
-  StokesK_3D(nspect, geometry, st_uw, l, m, chi_uw, K_uw);
-
-  for (n = 0;  n < 4;  n++) {
-    S_uw[n]  = Interpolate_3D(S[n], geometry, st_uw, l, m);
-    dS_uw[n] = (S_uw[n] - S[n][local]) / dtau_uw;
-  }
-  StokesK(nspect, local, chi[local], K);
-
-  if (k == kend) {
-    w2(dtau_uw, w);
-
-    /* --- Piecewise linear integration in last layer -- ------------ */
-
-    for (n = 0;  n < 4;  n++) {
-      c1 = (S_uw[n] - S[n][local]) / dtau_uw;
-      P[n] = w[0]*S[n][local] + w[1]*dS_uw[n];
-    }
-    if (Psi) Psi[local] = w[0] - w[1]/dtau_uw;
-  } else {
-    w3(dtau_uw, w);
-
-    /* --- The downwind quantities --                  -------------- */
-
-    chi_dw  = Interpolate_3D(chi, geometry, st_dw, l, m);
-    dtau_dw = 0.5 * (chi[local] + chi_dw) * st_dw->ds;
-
-    /* --- Piecewise quadratic integration --          -------------- */
-
-    for (n = 0;  n < 4;  n++) {
-      S_dw[n]  = Interpolate_3D(S[n], geometry, st_dw, l, m);
-      dS_dw[n] = (S[n][local] - S_dw[n]) / dtau_dw;
-      c1 = dS_uw[n]*dtau_dw + dS_dw[n]*dtau_uw;
-      c2 = dS_uw[n] - dS_dw[n];
-      P[n] = w[0]*S[n][local] + (w[1]*c1 + w[2]*c2) /
-	(dtau_uw + dtau_dw);
-    }
-    if (Psi) {
-      c1 = dtau_uw - dtau_dw;
-      Psi[local] = w[0] + (w[1]*c1 - w[2]) / (dtau_uw * dtau_dw);
-    }
-  }
-  for (n = 0;  n < 4;  n++) {
-    for (j = 0;  j < 4;  j++) {
-      Q[n][j] = -w[1]/dtau_uw * K_uw[n][j];
-      R[n][j] = (w[0] - w[1]/dtau_uw) * K[n][j];
-    }
-    Q[n][n] = 1.0 - w[0];
-    R[n][n] = 1.0;
-  }
-  for (n = 0;  n < 4;  n++) {
-    for (j = 0;  j < 4;  j++) 
-      P[n] += Q[n][j] * I_uw[j];
-  }
-  /* --- Solve linear equations for I --               -------------- */
-      
-  SolveLinearEq(4, R, P, TRUE);
-      
-  /* --- Store results for Stokes vector --            -------------- */
-      
-  for (n = 0;  n < 4;  n++) I[n][local] = P[n];
-
-  freeMatrix((void **) R);
-}
-/* ------- end ---------------------------- Piece_Stokes_3D.c ------- */
 
 /* ------- begin -------------------------- StokesK_3D.c ------------ */
 
