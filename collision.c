@@ -479,7 +479,10 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
   C0 = ((E_RYDBERG/sqrt(M_ELECTRON)) * PI*SQ(RBOHR)) *
     sqrt(8.0/(PI*KBOLTZMANN));
 
-  atom->C = matrix_double(SQ(Nlevel), Nspace);
+  /* --- atom->C is allocated in readAtom; this routine is called
+         again when the electron density changes, so reuse it -- --- */
+
+  if (atom->C == NULL) atom->C = matrix_double(SQ(Nlevel), Nspace);
   for (ij = 0;  ij < SQ(Nlevel);  ij++) {
     for (k = 0;  k < Nspace;  k++) {
       atom->C[ij][k] = 0.0;

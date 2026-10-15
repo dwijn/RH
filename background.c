@@ -655,7 +655,12 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 	freeMolecule(&atmos.molecules[n]);
   }
 
-  if (strcmp(input.KuruczData, "none")) {
+  /* --- The partition functions are needed again when Background is
+         called again (electron density iteration, hydrostatic
+         equilibrium), like the passive atoms above --  ------------- */
+
+  if (strcmp(input.KuruczData, "none")  &&
+      !atmos.hydrostatic  &&  input.solve_ne < ITERATION) {
     free(atmos.Tpf);  atmos.Tpf = NULL;
     for (n = 0;  n < atmos.Nelem;  n++) {
       free(atmos.elements[n].ionpot);

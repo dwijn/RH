@@ -233,9 +233,16 @@ void SetLTEQuantities(void)
     if (atom->active) {
       
       /* --- Read the collisional data (in MULTI's GENCOL format).
-             After this we can close the input file for the active
-             atom. --                                  -------------- */
+             The input file of an active atom stays open, and this is
+             called again whenever the electron density changes
+             (SOLVE_NE = ITERATION), so rewind to the start of the
+             collisional data first --                 -------------- */
 
+      if (fseek(atom->fp_input, atom->offset_coll, SEEK_SET) != 0) {
+	sprintf(messageStr, "Cannot rewind to the collisional data of atom %s",
+		atom->ID);
+	Error(ERROR_LEVEL_2, "SetLTEQuantities", messageStr);
+      }
       CollisionRate(atom, atom->fp_input);
 
       /* --- Compute the fixed rates and store in Cij -- ------------ */
