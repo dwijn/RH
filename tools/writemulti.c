@@ -10,6 +10,7 @@
        atmos and geometry --                           -------------- */
 
 #include <math.h>
+#include <stdlib.h>
 
 #include "rh.h"
 #include "atom.h"
@@ -116,6 +117,10 @@ void writeMULTIatmos(Geometry *geometry, Atmosphere *atmos,
 			 sizeof(double), (xdrproc_t) xdr_double);
     result &= xdr_vector(&xdrs, (char *) atmos->chi_B, atmos->Nspace,
 			 sizeof(double), (xdrproc_t) xdr_double);
+    if (!result) {
+      fprintf(stderr, "Unable to write magnetic field to file %s\n", fileName);
+      exit(1);
+    }
 
     xdr_destroy(&xdrs);
     fclose(fp_MULTI);

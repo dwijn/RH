@@ -128,6 +128,11 @@ void writeOpacity(void)
 	as_rn[nspect] = -1;
     }
   }
+  if (!result) {
+    sprintf(messageStr, "Unable to write opacities to file %s",
+	    input.opac_output);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
   xdr_destroy(&xdrs);
   fclose(fp_out);
 
@@ -141,6 +146,11 @@ void writeOpacity(void)
   result &= xdr_vector(&xdrs, (char *) as_rn, Nrecord,
 		       sizeof(int), (xdrproc_t) xdr_int);
   free(as_rn);
+  if (!result) {
+    sprintf(messageStr, "Unable to write record numbers to file %s",
+	    ASRS_DOT_OUT);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
   xdr_destroy(&xdrs);
   fclose(fp_out);
 }

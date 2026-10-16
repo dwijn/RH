@@ -36,7 +36,7 @@ void LTEpops(Atom *atom, bool_t Debeye)
   register int k, i, m;
 
   char    labelStr[MAX_LINE_SIZE];
-  int     Z, dZ, *nDebeye, Nspace = atmos.Nspace;
+  int     Z, dZ, *nDebeye = NULL, Nspace = atmos.Nspace;
   double  cNe_T, dE_kT, dEion, dE, gi0, c1, sum, c2;
 
   /* --- Computes LTE populations of a given atom.

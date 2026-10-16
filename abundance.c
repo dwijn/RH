@@ -217,6 +217,11 @@ void readAbundance(Atmosphere *atmos)
   atmos->wght_per_H = avgWeight;
   atmos->avgMolWght = avgWeight / totalAbund;
 
+  if (!result) {
+    sprintf(messageStr, "Unable to read partition function data from %s",
+	    input.pfData);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
   xdr_destroy(&xdrs);
   fclose(fp_pf);
 }

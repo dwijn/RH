@@ -53,7 +53,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 
   char    scaleStr[21], inputLine[MAX_LINE_SIZE], *filename;
   bool_t  exit_on_EOF, enhanced_atmos_ID = FALSE;
-  int     Nread, Nradius, Nrequired, checkPoint;
+  int     Nread, Nradius, Nradius_in, Nrequired, checkPoint;
   double  *dscale, turbpress, nbaryon;
   struct  stat statBuffer;
 
@@ -111,9 +111,15 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
   getLine(atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF=TRUE);
   Nread += sscanf(inputLine, "%lf %lf", &atmos->gravity, &geometry->Radius);
   getLine(atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF=TRUE);
-  Nread += sscanf(inputLine, "%d %d %d", &Nradius,
+  Nread += sscanf(inputLine, "%d %d %d", &Nradius_in,
 		  &geometry->Ncore, &geometry->Ninter);
   checkNread(Nread, Nrequired=7, routineName, checkPoint=1);
+  if (Nradius_in < 2) {
+    sprintf(messageStr, "Invalid number of radial points %d in file %s",
+	    Nradius_in, input.atmos_input);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
+  Nradius = Nradius_in;
 
   /* --- Keep duplicates of some of the geometrical quantities in
          Atmos structure --                            -------------- */

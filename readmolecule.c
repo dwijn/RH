@@ -797,8 +797,8 @@ void readMolecularLines(struct Molecule *molecule, char *line_data)
 
 	/* --- Electronic configuration --             -------------- */
 
-	strncpy(mrt->configi, inputLine+52, 2);
-	strncpy(mrt->configj, inputLine+60, 2);
+	snprintf(mrt->configi, 3, "%.2s", inputLine+52);
+	snprintf(mrt->configj, 3, "%.2s", inputLine+60);
 	mrt->configi[2] = '\0';
 	mrt->configj[2] = '\0';
 
@@ -823,8 +823,8 @@ void readMolecularLines(struct Molecule *molecule, char *line_data)
 
 	/* --- Electronic configuration --             -------------- */
 
-	strncpy(mrt->configi, inputLine+50, 2);
-	strncpy(mrt->configj, inputLine+59, 2);
+	snprintf(mrt->configi, 3, "%.2s", inputLine+50);
+	snprintf(mrt->configj, 3, "%.2s", inputLine+59);
 	mrt->configi[2] = '\0';
 	mrt->configj[2] = '\0';
 
