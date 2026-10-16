@@ -8,6 +8,7 @@
 
 #include "rh.h"
 #include <complex.h>
+#include "cdiv.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -34,7 +35,7 @@ double complex Humlicek1(double complex z)
   z1 = 0.5641896 * z;
   z2 = z*z + 0.5;
 
-  return z1 / z2;
+  return cdiv(z1, z2);
 }
 /* ------- end ---------------------------- Humlicek1.c ------------- */
 
@@ -49,7 +50,7 @@ double complex Humlicek2(double complex z)
   z1 = z * (0.5641896*u + 1.410474);
   z2 = u*(u + 3.0) + 0.75;
 
-  return z1 / z2;
+  return cdiv(z1, z2);
 }
 /* ------- end ---------------------------- Humlicek2.c ------------- */
 
@@ -78,7 +79,7 @@ double complex Humlicek3(double complex z)
     z2 = z2*z + b[n];
   }
 
-  return z1 / z2;
+  return cdiv(z1, z2);
 }
 /* ------- end ---------------------------- Humlicek3.c ------------- */
 
@@ -110,6 +111,6 @@ double complex Humlicek4(double complex z)
   }
   expu = cexp(-u);
 
-  return expu - (z*z1) / z2;
+  return expu - cdiv(z*z1, z2);
 }
 /* ------- end ---------------------------- Humlicek4.c ------------- */

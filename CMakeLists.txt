@@ -148,9 +148,10 @@ if(RH_HAVE_EXECINFO_H)
   set_property(SOURCE fpehandler.c APPEND PROPERTY COMPILE_DEFINITIONS
                HAVE_EXECINFO_H)
 endif()
-# The Voigt routines divide complex numbers whose magnitudes stay far from
-# overflow, so the textbook formula (as in the Fortran originals) is safe
-# and several times faster than the C default with its range checks.
+# Complex arithmetic in the Voigt routines without the NaN/infinity
+# recovery of C99 Annex G, which the arguments there never need: faster
+# multiplication. (Division uses cdiv() from cdiv.h, so results do not
+# depend on this flag; Apple clang, for one, does not have it.)
 check_c_compiler_flag(-fcx-limited-range RH_HAVE_CX_LIMITED_RANGE)
 if(RH_HAVE_CX_LIMITED_RANGE)
   set_property(SOURCE voigt.c humlicek.c APPEND PROPERTY COMPILE_OPTIONS
