@@ -39,7 +39,6 @@
 #include "rh.h"
 #include "constant.h"
 #include <complex.h>
-#include "cdiv.h"
 #include "error.h"
 
 #define  TINY 1.0E-08
@@ -334,7 +333,7 @@ double VoigtHui(double a, double v, double *F)
     W1 = (W1 + ah[n]) * z;
     W2 = (W2 + bh[n]) * z;
   }
-  W = cdiv(W1, W2);
+  W = W1 / W2;
 
   if (F != NULL) *F = cimag(W);
   return creal(W);

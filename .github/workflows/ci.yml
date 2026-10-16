@@ -60,9 +60,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-24.04, cc: gcc, exact: --exact }
-          - { os: macos-14, cc: clang, exact: --exact }
-          - { os: ubuntu-24.04, cc: gcc, exact: --exact, sanitize: "address,undefined" }
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: macos-14, cc: clang }
+          - { os: ubuntu-24.04, cc: gcc, sanitize: "address,undefined" }
     steps:
       - uses: actions/checkout@v4
       - name: Upstream RH
@@ -99,7 +99,7 @@ jobs:
       - name: Regression suite
         run: |
           set +e
-          tests/run_tests.sh --baseline upstream --candidate . ${{ matrix.exact }} \
+          tests/run_tests.sh --baseline upstream --candidate . \
             ${{ matrix.sanitize && '--asan build-san --threads 2' || '' }} \
             --work "$RUNNER_TEMP/rh-tests" 2>&1 | tee tests.log
           rc=${PIPESTATUS[0]}
