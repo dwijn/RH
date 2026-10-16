@@ -286,6 +286,14 @@ Output formats are a contract: the Python (`python/rhanalyze`) and IDL readers
 unpack the XDR files field by field, and `rhopacity.py` seeks into raw
 native-endian files by record. Layout changes must update or version them.
 
+
+### 3.7 Wishlist
+
+New capabilities, not problems with the existing code.
+
+| ID | Sev | Item | Status |
+|---|---|---|---|
+| [F-1](https://github.com/dwijn/RH/issues/109) | medium | Tool for building RH model atoms from standard data sources: choosing the right model atom is one of the hard parts of running RH well. Assemble levels, lines, photoionization cross-sections and collisional data from standard sources (NIST, Kurucz, TOPbase/Opacity Project, CHIANTI, collision databases), with options to reduce a large model (level/line selection, superlevels) and checks of completeness. Replaces the removed `constructatom` (Kurucz lines only, levels and lines, Si only) | open |
 ---
 
 ## 4. Plan
