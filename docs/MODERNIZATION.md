@@ -150,8 +150,26 @@ Earlier profile (code map, Bifrost 2-D slice, Ca II PRD, 250 s at 1 thread):
 capped near 2.5×. With the WIP threading the same run went 124 s → 69 s at 8
 threads; writing `opacity.out` is 26 s of the 69 s.
 
-_Perf-set results (2-D 128 columns and 3-D 24×24 / 16×16 with several
-many-level atoms) go here (pending)._
+Perf set (`run_stress.sh --set perf`, 2026-10-15/16, idle 48-core node,
+16 threads, fixed iteration count). Upstream is c95bdf6 built without
+Fortran; modernize is 2868d18. Atoms H_6, CaII, MgII (PRD) and Fe33 active,
+on perturbed FAL-C (82 depths):
+
+| Case | Upstream | modernize | Speedup | Peak RSS upstream / modernize |
+|---|---|---|---|---|
+| 2-D 128×82, 5 iterations | 1776 s | 1005 s | 1.77× | 15.1 / 17.4 GB (+15 %) |
+| 3-D 24×24×82, 3 iterations | 13350 s | 7865 s | 1.70× | 127 / 137 GB (+8 %) |
+| 3-D 16×16×82 MgI_66, 3 iterations | — | — | — | not run (time cap) |
+
+- Both trees follow identical iteration histories, so the speedup is pure
+  threading.
+- The extra memory in modernize is the per-thread Γ and rate copies (M-3).
+- Output is a large serial share in 3-D. Writing took about 21 minutes,
+  mostly `opacity.out` at 109 GB of the 136 GB run directory. That is 9 % of
+  the upstream wall time and 16 % of modernize's (P-10, M-7).
+- The 3-D case is far from converging, with population changes of 1.6e8,
+  5.6e5 and 3.1e4 over its three iterations (N-10). The timing is still
+  representative per iteration.
 
 ---
 
