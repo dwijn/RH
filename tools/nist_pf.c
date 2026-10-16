@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
       spectrum = strtok(NULL, " ");
       label    = strtok(NULL, " ");
       UpperCase(atomID);
-      for (i = 0;  i < strlen(label);  i++)
+      for (i = 0;  i < (int) strlen(label);  i++)
 	if (*(label+i) == '.') *(label+i) = ' ';
       UpperCase(label);
 

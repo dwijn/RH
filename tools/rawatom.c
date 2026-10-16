@@ -66,7 +66,7 @@ void rawAtom(Atom *atom, char *atomFileName)
  
   /* --- Get the atomic weight --                      -------------- */
 
-  for (n = 0;  n < sizeof(atomweight)/sizeof(struct AtomWeight);  n++) {
+  for (n = 0;  n < (int) (sizeof(atomweight)/sizeof(struct AtomWeight));  n++) {
     if ((match = strstr(atom->ID, atomweight[n].ID))) {
       atom->weight = atomweight[n].weight;
       break;

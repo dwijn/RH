@@ -98,7 +98,7 @@ void writeModelAtom(Atom *atom, FILE *fp_out)
       }
       for (kf = 0;  kf < atom->Nfixed;  kf++) {
         fixed = atom->ft + kf;
-	if ((fixed->type == ATOMIC_LINE) && (fixed->j == j)) {
+	if ((fixed->type == FIXED_LINE) && (fixed->j == j)) {
 	  line->Grad += C / SQ(fixed->lambda0) *
 	    (atom->g[fixed->i] / atom->g[fixed->j]) * fixed->strength;
 	}

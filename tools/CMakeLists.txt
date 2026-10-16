@@ -4,8 +4,6 @@
 rh_program(addgrad addgrad addgrad.c modelatom.c rawatom.c)
 rh_program(convertatom convertatom convertatom.c modelatom.c)
 rh_program(topbase topbase topbase.c modelatom.c)
-rh_program(listincl listincl listincl.c)
-rh_program(listincl_f listincl_f listincl_f.c)
 rh_program(printneff printneff printneff.c rawatom.c)
 rh_program(impact impact impact.c rawatom.c laguerre.c bessel.c)
 rh_program(hcollisions hcollisions hcollisions.c laguerre.c)
