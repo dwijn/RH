@@ -107,7 +107,7 @@ fi
 NAMES=(); DIRS=(); SRCS=()      # DIRS: programs, SRCS: source trees
 for t in "${TREES[@]}"; do
   NAMES+=("${t%%=*}"); d=$(cd "${t#*=}" && pwd) || exit 1
-  DIRS+=("$(tree_bin "$d")"); SRCS+=("$(tree_src "$d")"); d=${DIRS[-1]}
+  SRCS+=("$(tree_src "$d")"); d=$(tree_bin "$d"); DIRS+=("$d")
   for g in rhf1d rhsc2d rhsc3d rhsphere; do
     [ -x "$d/$g/$g" ] || { echo "missing binary: $d/$g/$g"; exit 1; }
   done

@@ -63,7 +63,11 @@ done
 BASE=$(cd "$BASE" && pwd); CAND=$(cd "$CAND" && pwd)
 [ -z "$ASAN" ] || ASAN=$(cd "$ASAN" && pwd)
 BASE_BIN=$(tree_bin "$BASE"); CAND_BIN=$(tree_bin "$CAND")
-[ -z "$ASAN" ] || ASAN_BIN=$(tree_bin "$ASAN")
+if [ -n "$ASAN" ]; then
+  ASAN_BIN=$(tree_bin "$ASAN")
+  tree_sanitized "$ASAN" || [ ! -f "$ASAN_BIN/CMakeCache.txt" ] ||
+    { echo "--asan $ASAN: $ASAN_BIN is not configured with -DRH_SANITIZE"; exit 1; }
+fi
 BASE=$(tree_src "$BASE"); CAND=$(tree_src "$CAND")
 mkdir -p "$WORK/runs"; WORK=$(cd "$WORK" && pwd)
 for d in Atoms Atmos Molecules; do ln -sfn "$CAND/$d" "$WORK/$d"; done

@@ -42,8 +42,10 @@ add_library(rh_options INTERFACE)
 # RH relies on IEEE semantics (exact comparisons in the wavelength grid,
 # FP exception traps). Intel compilers default to value-changing
 # optimizations, so ask for precise floating point there.
-if(CMAKE_C_COMPILER_ID MATCHES "^Intel")
+if(CMAKE_C_COMPILER_ID STREQUAL "IntelLLVM")
   target_compile_options(rh_options INTERFACE -fp-model=precise)
+elseif(CMAKE_C_COMPILER_ID STREQUAL "Intel")
+  target_compile_options(rh_options INTERFACE "SHELL:-fp-model precise")
 endif()
 
 if(RH_NATIVE)
@@ -85,8 +87,10 @@ if(TIRPC_FOUND)
   target_link_libraries(rh_xdr INTERFACE PkgConfig::TIRPC)
   message(STATUS "XDR: libtirpc ${TIRPC_VERSION}")
 else()
-  find_path(TIRPC_INCLUDE_DIR rpc/xdr.h PATH_SUFFIXES tirpc
-            PATHS /usr/include NO_DEFAULT_PATH)
+  find_path(TIRPC_INCLUDE_DIR tirpc/rpc/xdr.h)
+  if(TIRPC_INCLUDE_DIR)
+    set(TIRPC_INCLUDE_DIR ${TIRPC_INCLUDE_DIR}/tirpc)
+  endif()
   find_library(TIRPC_LIBRARY tirpc)
   if(TIRPC_INCLUDE_DIR AND TIRPC_LIBRARY)
     target_include_directories(rh_xdr INTERFACE ${TIRPC_INCLUDE_DIR})
@@ -105,7 +109,9 @@ endif()
 
 # Floating-point exception traps and backtraces (fpehandler.c)
 set(CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
-set(CMAKE_REQUIRED_LIBRARIES ${RH_MATH_LIBRARY})
+if(RH_MATH_LIBRARY)
+  set(CMAKE_REQUIRED_LIBRARIES ${RH_MATH_LIBRARY})
+endif()
 check_symbol_exists(feenableexcept fenv.h RH_HAVE_FEENABLEEXCEPT)
 unset(CMAKE_REQUIRED_DEFINITIONS)
 unset(CMAKE_REQUIRED_LIBRARIES)
@@ -187,7 +193,8 @@ foreach(prog rhf1d rhsc2d rhsc3d rhsphere)
   add_test(NAME start_${prog} COMMAND ${prog}
            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
   set_tests_properties(start_${prog} PROPERTIES
-    PASS_REGULAR_EXPRESSION "TERMINATING_ERROR")
+    PASS_REGULAR_EXPRESSION "TERMINATING_ERROR"
+    FAIL_REGULAR_EXPRESSION "Sanitizer|runtime error|Segmentation|FATAL ERROR")
 endforeach()
 
 message(STATUS "RH ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, "

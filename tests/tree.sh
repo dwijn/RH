@@ -12,6 +12,11 @@ tree_bin() {   # DIR -> directory holding rhf1d/rhf1d etc.
   else echo "$1"; fi
 }
 
+tree_sanitized() {   # DIR -> true if a CMake build with RH_SANITIZE set
+  local c="$(tree_bin "$1")/CMakeCache.txt"
+  [ -f "$c" ] && grep -Eq '^RH_SANITIZE:STRING=.+' "$c"
+}
+
 tree_src() {   # DIR -> source tree
   if [ -f "$1/CMakeCache.txt" ]; then
     sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' "$1/CMakeCache.txt"
