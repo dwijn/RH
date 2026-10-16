@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     {"-help",  FALSE, 2, "Print this message          "},
     {"-full",  FALSE, 2, "Print all wavelengths       "},
     {"-air",   FALSE, 2, "Convert to wavelength in air"},
-    NULL
+    {NULL}
   };
   if (argc <= 1) ShowUsage(argv[0], theOpt);
 

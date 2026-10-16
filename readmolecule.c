@@ -250,7 +250,8 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
   }
   /* --- Sort transitions within each molecule in wavelength -- ----- */
 
-  qsort(molecule->mrt, molecule->Nrt, sizeof(MolecularLine), mrt_ascend);
+  if (molecule->Nrt > 0)
+    qsort(molecule->mrt, molecule->Nrt, sizeof(MolecularLine), mrt_ascend);
 
   if (active) {
     if (molecule->Nrt == 0) {

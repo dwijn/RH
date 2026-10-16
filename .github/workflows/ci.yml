@@ -1,0 +1,106 @@
+# Build RH on Linux and macOS with several compilers, and compare its
+# results with upstream RH (c95bdf6) built on the same runner.
+
+name: CI
+
+on:
+  push:
+    branches: [modernize]
+  pull_request:
+    branches: [modernize]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  UPSTREAM_REPO: han-uitenbroek/RH
+  UPSTREAM_REF: c95bdf66ff6bc1c6cea0ed04dc688100170e8ee6
+
+defaults:
+  run:
+    shell: bash       # -eo pipefail: a failing command before | tee fails the step
+
+jobs:
+  build:
+    name: build (${{ matrix.os }}, ${{ matrix.cc }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: ubuntu-24.04, cc: clang }
+          - { os: macos-14, cc: clang }       # Apple silicon
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libtirpc-dev ninja-build
+      - name: Dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_C_COMPILER=${{ matrix.cc }} -DRH_WARNINGS=ON
+      - name: Build
+        run: cmake --build build 2>&1 | tee build.log
+      - name: Warnings
+        run: |
+          n=$(grep -c 'warning:' build.log || true)
+          echo "$n compiler warnings"
+          echo "### ${{ matrix.os }} ${{ matrix.cc }}: $n compiler warnings" >> "$GITHUB_STEP_SUMMARY"
+      - name: Smoke tests
+        run: ctest --test-dir build --output-on-failure
+
+  regression:
+    name: regression vs upstream (${{ matrix.os }}${{ matrix.sanitize && ', with sanitizers' || '' }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc, sanitize: "address,undefined" }
+          - { os: macos-14, cc: clang }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upstream RH
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.UPSTREAM_REPO }}
+          ref: ${{ env.UPSTREAM_REF }}
+          path: upstream
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y libtirpc-dev ninja-build time
+          pip install numpy
+      - name: Dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja
+          pip install numpy
+      - name: Build upstream baseline
+        run: CC=${{ matrix.cc }} tests/build_upstream.sh upstream
+      - name: Build
+        run: |
+          cmake -B build -G Ninja -DCMAKE_C_COMPILER=${{ matrix.cc }}
+          cmake --build build
+      - name: Build with sanitizers
+        if: matrix.sanitize
+        run: |
+          cmake -B build-san -G Ninja -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+                -DRH_SANITIZE=${{ matrix.sanitize }}
+          cmake --build build-san
+      - name: Regression suite
+        run: |
+          set +e
+          tests/run_tests.sh --baseline upstream --candidate . \
+            ${{ matrix.sanitize && '--asan build-san' || '' }} \
+            --work "$RUNNER_TEMP/rh-tests" 2>&1 | tee tests.log
+          rc=${PIPESTATUS[0]}
+          { echo '```'; grep -E '^(passed|FAILED|\[FAIL\])' tests.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc

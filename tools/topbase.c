@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
   char    input[MAX_LINE_SIZE], parity[2], config1[10], config2[10],
           state[4], orbital[2], spectrumID[5];
   bool_t  exit_on_EOF, readphoto = FALSE, hunt, lines = FALSE;
-  int     Nlevel, Nl, Nread, itb, *islp, *ilv, ln, ll, multiplicity,
+  int     Nlabel, Nlevel, Nl, Nread, itb, *islp, *ilv, ln, ll, multiplicity,
           islp_p, ilv_p, i_p, nz, ne, Nlamb,
           stage, i_l, islp_l, ilv_l, jslp_l, jlv_l, Nrad, ntoken;
   double  gi, *te, e, rl, abundance, weight, Eion, *alpha,
@@ -181,19 +181,22 @@ int main(int argc, char *argv[])
     atom.label[i] = (char *) calloc(ATOM_LABEL_WIDTH+1, sizeof(char)); 
     switch (ntoken) {
     case 10:
-      sprintf(atom.label[i], "%s %s %s %1d%s%s",
-	      atom.ID, spectrumID, config1,
-	      multiplicity, orbital, parity);  break;
+      Nlabel = snprintf(atom.label[i], ATOM_LABEL_WIDTH+1, "%s %s %s %1d%s%s",
+	       atom.ID, spectrumID, config1,
+	       multiplicity, orbital, parity);  break;
     case 11:
-      sprintf(atom.label[i], "%s %s %s %s %1d%s%s",
-	      atom.ID, spectrumID, config1, config2,
-	      multiplicity, orbital, parity);  break;
+      Nlabel = snprintf(atom.label[i], ATOM_LABEL_WIDTH+1, "%s %s %s %s %1d%s%s",
+	       atom.ID, spectrumID, config1, config2,
+	       multiplicity, orbital, parity);  break;
     case 12:
-      sprintf(atom.label[i], "%s %s %s %s %s %1d%s%s",
-	      atom.ID, spectrumID, config1, config2, state,
-	      multiplicity, orbital, parity);  break;
-    default: ;
+      Nlabel = snprintf(atom.label[i], ATOM_LABEL_WIDTH+1, "%s %s %s %s %s %1d%s%s",
+	       atom.ID, spectrumID, config1, config2, state,
+	       multiplicity, orbital, parity);  break;
+    default: Nlabel = 0;
     }
+    if (Nlabel > ATOM_LABEL_WIDTH)
+      fprintf(stderr, "Warning: level label truncated to %d characters:"
+	      " %s\n", ATOM_LABEL_WIDTH, atom.label[i]);
     strupcase(atom.label[i]); 
   }
   /* --- Finally, the continuum level --               -------------- */

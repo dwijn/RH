@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
       Nread = sscanf(inputLine, "%2s %s %s",
 		     atomID, spectrum, label);
       UpperCase(atomID);
-      for (i = 0;  i < strlen(label);  i++)
+      for (i = 0;  i < (int) strlen(label);  i++)
 	if (*(label+i) == '.') *(label+i) = ' ';
       UpperCase(label);
       sscanf(inputLine+37, "%2s", term);
@@ -97,6 +97,7 @@ int main(int argc, char *argv[])
           COMMENT_CHAR);
 
   strncpy(label, levels[0].label, ATOM_LABEL_WIDTH);
+  label[ATOM_LABEL_WIDTH] = '\0';
   g = E = 0.0;
   n = 0;
   for (i = 0;  i < Nlevel-1;  i++) {
