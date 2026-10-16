@@ -10,6 +10,7 @@
        atmos and geometry --                           -------------- */
 
 #include <math.h>
+#include <stdlib.h>
 
 #include "rh.h"
 #include "atom.h"

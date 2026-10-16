@@ -274,6 +274,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 
 void getBoundary(Atmosphere *atmos, Geometry *geometry)
 {
+  const char routineName[] = "getBoundary";
   bool_t result = TRUE;
   int    Nplane = geometry->Nplane, Nspect = spectrum.Nspect;
 
@@ -300,6 +301,11 @@ void getBoundary(Atmosphere *atmos, Geometry *geometry)
     break;
   default:
     geometry->Ibottom = NULL;
+  }
+  if (!result) {
+    sprintf(messageStr, "Unable to read boundary irradiation from file %s",
+	    input.atmos_input);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
   }
 
   xdr_destroy(&xdrs);
