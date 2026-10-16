@@ -18,6 +18,7 @@
 #include "constant.h"
 #include "statistics.h"
 #include "inputs.h"
+#include "error.h"
 
 
 /* --- Function prototypes --                          -------------- */
@@ -72,30 +73,82 @@ int main(int argc, char *argv[])
   setbuf(stdout, NULL);
 
   Nread = fread(&NmaxIter, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read NmaxIter from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(&iterLimit, sizeof(double), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read iterLimit from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(&Ngdelay, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read Ngdelay from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(&Ngorder, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read Ngorder from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(&Ngperiod, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read Ngperiod from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   
   Nread = fread(&geometry.Nrays, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read geometry.Nrays from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nrays = geometry.Nrays;
   Nread = fread(&Nlambda, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read Nlambda from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(&geometry.Ndep, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read geometry.Ndep from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Ndep  = geometry.Ndep;
   
   Nread = fread(&btop, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read btop from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   geometry.vboundary[TOP] = btop;
   Nread = fread(&bbot, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read bbot from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   geometry.vboundary[BOTTOM] = bbot;
   
   geometry.height = (double *) malloc(Ndep * sizeof(double));
   Nread = fread(geometry.height, sizeof(double), Ndep, stdin);
+  if (Nread != Ndep) {
+    sprintf(messageStr, "Unable to read geometry.height from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   for (l = 0;  l < Ndep;  l++) geometry.height[l] *= KM_TO_M;
 
   lambda  = (double *) malloc(Nlambda * sizeof(double));
   phi     = (double *) malloc(Nlambda * sizeof(double));
   Nread = fread(&Adamp, sizeof(double), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read Adamp from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(lambda, sizeof(double), Nlambda, stdin);
+  if (Nread != Nlambda) {
+    sprintf(messageStr, "Unable to read lambda from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   wlamb  = (double *) malloc(Nlambda * sizeof(double));
   wlamb[0] = (lambda[1] - lambda[0]);
   for (la = 1;  la < Nlambda-1;  la++)
@@ -113,10 +166,30 @@ int main(int argc, char *argv[])
   Bp      = (double *) malloc(Ndep * sizeof(double));
   epsilon = (double *) malloc(Ndep * sizeof(double));
   Nread = fread(chi, sizeof(double), Ndep, stdin);
+  if (Nread != Ndep) {
+    sprintf(messageStr, "Unable to read chi from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(Bp, sizeof(double), Ndep, stdin);
+  if (Nread != Ndep) {
+    sprintf(messageStr, "Unable to read Bp from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(epsilon, sizeof(double), Ndep, stdin);
+  if (Nread != Ndep) {
+    sprintf(messageStr, "Unable to read epsilon from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(&Itop, sizeof(double), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read Itop from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(&Ibot, sizeof(double), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read Ibot from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   geometry.Itop    = matrix_double(Nlambda, Nrays);
   geometry.Ibottom = matrix_double(Nlambda, Nrays);
@@ -147,9 +220,25 @@ int main(int argc, char *argv[])
   /* --- Write output --                           ------------------ */
 
   Nwrite = fwrite(phi, sizeof(double), Nlambda, stdout);
+  if (Nwrite != Nlambda) {
+    sprintf(messageStr, "Unable to write phi to standard output");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nwrite = fwrite(&wphi, sizeof(double), 1, stdout);
+  if (Nwrite != 1) {
+    sprintf(messageStr, "Unable to write wphi to standard output");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nwrite = fwrite(Sny, sizeof(double), Ndep, stdout);
+  if (Nwrite != Ndep) {
+    sprintf(messageStr, "Unable to write Sny to standard output");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nwrite = fwrite(Iemerge[0], sizeof(double), Nrays*Nlambda, stdout);
+  if (Nwrite != Nrays*Nlambda) {
+    sprintf(messageStr, "Unable to write Iemerge[0] to standard output");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   printTotalCPU();
 }

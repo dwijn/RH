@@ -58,11 +58,15 @@ void writeGeometry(Geometry *geometry)
   xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
   result = xdr_enum(&xdrs, (enum_t *) &topology);
-  result = xdr_int(&xdrs, &geometry->Nrays);
-  result = xdr_int(&xdrs, &geometry->Nradius);
-  result = xdr_int(&xdrs, &geometry->Ncore);
+  result &= xdr_int(&xdrs, &geometry->Nrays);
+  result &= xdr_int(&xdrs, &geometry->Nradius);
+  result &= xdr_int(&xdrs, &geometry->Ncore);
 
-  result = xdr_double(&xdrs, &geometry->Radius);
+  result &= xdr_double(&xdrs, &geometry->Radius);
+  if (!result) {
+    sprintf(messageStr, "Unable to write geometry parameters to file %s", input.geometry_output);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
   xmu0 = (double *) malloc(Nrays * sizeof(double));
   wmu0 = (double *) malloc(Nrays * sizeof(double));
   for (mu = 0;  mu < Nrays;  mu++) {
@@ -71,16 +75,20 @@ void writeGeometry(Geometry *geometry)
   }
   result = xdr_vector(&xdrs, (char *) xmu0, Nrays,
 		      sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) wmu0, Nrays,
+  result &= xdr_vector(&xdrs, (char *) wmu0, Nrays,
 		      sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) geometry->r, Nradius,
+  result &= xdr_vector(&xdrs, (char *) geometry->r, Nradius,
 		      sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) geometry->cmass, Nradius,
+  result &= xdr_vector(&xdrs, (char *) geometry->cmass, Nradius,
 		      sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) geometry->tau_ref, Nradius,
+  result &= xdr_vector(&xdrs, (char *) geometry->tau_ref, Nradius,
 		      sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) geometry->vel, Nradius,
+  result &= xdr_vector(&xdrs, (char *) geometry->vel, Nradius,
 		       sizeof(double),  (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to write geometry arrays to file %s", input.geometry_output);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
 
   xdr_destroy(&xdrs);
   fclose(fp_out);

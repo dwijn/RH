@@ -111,12 +111,20 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
   /* --- Read size of horizontal and vertical grids, --  ------------ */
 
   result = xdr_int(&xdrs, &Nx);
-  result = xdr_int(&xdrs, &Nz);
+  result &= xdr_int(&xdrs, &Nz);
+  if (!result) {
+    sprintf(messageStr, "Unable to read grid size from file %s", input.atmos_input);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
   Nspace = Nx * Nz;
 
   /* --- Number of hydrogen levels to be used in background -- ------ */
 
   result = xdr_int(&xdrs, &atmos->NHydr);
+  if (!result) {
+    sprintf(messageStr, "Unable to read NHydr from file %s", input.atmos_input);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
   if (atmos->NHydr < 2  &&  !atmos->H_LTE) {
     sprintf(messageStr, "NHydr has to be at least 2, not %d to run with\n"
 	    " NLTE hydrogen populations in background\n", atmos->NHydr);
@@ -136,6 +144,10 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 
   result = xdr_vector(&xdrs, (char *) bc, 3,
 		       sizeof(int), (xdrproc_t) xdr_int);
+  if (!result) {
+    sprintf(messageStr, "Unable to read boundary conditions from file %s", input.atmos_input);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
   geometry->hboundary = (enum boundary) bc[0];
   for (n = 0;  n < 2;  n++)
     geometry->bvalue[n] = (enum boundval) bc[1+n];
@@ -178,6 +190,10 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
   geometry->dx = (double *) malloc(Nx * sizeof(double));
   result = xdr_vector(&xdrs, (char *) geometry->dx, Nx,
 		      sizeof(double), (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to read x grid from file %s", input.atmos_input);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
 
   for (l = 0;  l < ((geometry->hboundary == PERIODIC) ? Nx : Nx-1);  l++) {
     geometry->dx[l] *= KM_TO_M;
@@ -197,6 +213,10 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
   geometry->z = (double *) malloc(Nz * sizeof(double));
   result = xdr_vector(&xdrs, (char *) geometry->z, Nz,
 		       sizeof(double), (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to read z grid from file %s", input.atmos_input);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
   for (k = 0;  k < Nz;  k++) geometry->z[k] *= KM_TO_M;
 
   geometry->dz = (double *) malloc(Nz * sizeof(double));
@@ -222,14 +242,18 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 
   result = xdr_vector(&xdrs, (char *) atmos->T, Nspace,
 		       sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) atmos->ne, Nspace,
+  result &= xdr_vector(&xdrs, (char *) atmos->ne, Nspace,
 		       sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) atmos->vturb, Nspace,
+  result &= xdr_vector(&xdrs, (char *) atmos->vturb, Nspace,
 		       sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) geometry->vx, Nspace,
+  result &= xdr_vector(&xdrs, (char *) geometry->vx, Nspace,
 		       sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) geometry->vz, Nspace,
+  result &= xdr_vector(&xdrs, (char *) geometry->vz, Nspace,
 		       sizeof(double), (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to read atmospheric quantities from file %s", input.atmos_input);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
 
   /* --- Convert input velocities from km/s to m/s --    ------------ */
 
@@ -254,6 +278,10 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
   atmos->nH = matrix_double(atmos->NHydr, Nspace);
   result = xdr_vector(&xdrs, (char *) atmos->nH[0], atmos->NHydr*Nspace,
 		      sizeof(double), (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to read hydrogen density from file %s", input.atmos_input);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
   atmos->nHtot = (double *) calloc(Nspace, sizeof(double));
   for (n = 0;  n < atmos->NHydr;  n++) {
     for (k = 0;  k < Nspace;  k++) {

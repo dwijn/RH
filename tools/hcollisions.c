@@ -290,6 +290,10 @@ void Whelan(int Ntemp, double *temp)
   while (getLine(fp_data, "*", line, exit_on_EOF=FALSE) != EOF) {
     nread = sscanf(line, "%2s-%2s %lf %lf %lf %lf %lf %lf",
 		   labeli, labelj, cs, cs+1, cs+2, cs+3, cs+4, cs+5);
+    if (nread != 8) {
+      sprintf(messageStr, "Malformed input line:\n %.200s", line);
+      Error(ERROR_LEVEL_2, "Whelan", messageStr);
+    }
 
     j = get_ilevel(labelj);
     i = get_ilevel(labeli);
