@@ -9,6 +9,17 @@ cmake -B build-asan -DRH_SANITIZE=address,undefined && cmake --build build-asan 
 tests/run_tests.sh --baseline /path/to/upstream-tree --candidate . [--asan build-asan] [--exact]
 ```
 
+The usual baseline is upstream RH at c95bdf6, built without Fortran by
+`tests/build_upstream.sh` (this is also what CI does). Against upstream use
+tolerance mode: the Stokes cases differ by ~1e-10 because the Voigt code
+uses the compiler's complex arithmetic. `--exact` is for refactors, with a
+build of the branch's base (e.g. `modernize`) as the baseline:
+
+```
+git clone https://github.com/han-uitenbroek/RH upstream && git -C upstream checkout c95bdf6
+tests/build_upstream.sh upstream
+```
+
 A build is given as a source tree with a CMake build in `build/`, as a CMake
 build directory, or as a source tree built in place with the old makefiles
 (upstream RH, the usual baseline). `rhf1d`, `rhsc2d`, `rhsc3d` and

@@ -6,7 +6,6 @@
 
        --------------------------                      ----------RH-- */
 
-#include <malloc.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,7 +38,7 @@ char messageStr[MAX_MESSAGE_LENGTH];
 
 /* ------- begin -------------------------- readTrujillo.c ---------- */
 
-void main(int argc, void *argv[])
+int main(int argc, char *argv[])
 {
   register int k;
 
@@ -55,12 +54,12 @@ void main(int argc, void *argv[])
   commandline.logfile = stdout;
   if (argc < 3) {
     fprintf(stderr, "Usage : %s  Trujillo.model  MULTI_name\n\n", argv[0]);
-    exit(0);
+    exit(1);
   }
 
   if ((fp_Trujillo = fopen(argv[1], "r")) == NULL) {
     sprintf(messageStr, "Unable to open input file %s", argv[1]);
-    Error(ERROR_LEVEL_2, argv[0], argv[1]);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
   }
 
   strncpy(atmos.ID, "Atmospheric model from Javier Trujillo Bueno",
@@ -105,5 +104,6 @@ void main(int argc, void *argv[])
 
   fclose(fp_Trujillo);
   writeMULTIatmos(&geometry, &atmos, argv[2]);
+  return 0;
 }
 /* ------- end ---------------------------- readTrujillo.c ---------- */
