@@ -194,6 +194,9 @@ on perturbed FAL-C (82 depths):
 | [B-13](https://github.com/dwijn/RH/issues/14) | low | `ERROR_LEVEL_1` for an unknown solver leaves I and Psi undefined and continues. **Not a bug:** `ERROR_LEVEL_1` terminates the run (see Q-16), and the keyword parser already rejects unknown solvers | `rhf1d/formal.c:209-231` | code reading | wontfix |
 | [B-14](https://github.com/dwijn/RH/issues/15) | low | `error.c` `sprintf`s a 512-byte message plus routine name into a 512-byte buffer | `error.c:51` | code reading | open |
 | [B-15](https://github.com/dwijn/RH/issues/80) | low | `Atoms/CaII_large.atom` has 13 `OMEGA` collision records equal to `Inf`; since B-4 the run stops at setup with a clear error instead of a SIGFPE | `Atoms/CaII_large.atom` | `1d_falc_cail`: "collision record OMEGA 11 10 has a non-finite value (inf)" | open |
+| [B-16](https://github.com/dwijn/RH/issues/93) | medium | Collision data must follow a `TEMP` line, but this is not enforced: a tabulated keyword (OMEGA, CE, CI, CP, CH0, CH+, CH) before any `TEMP` reads an uninitialized item count and a NULL temperature grid (crash); after a fixed-size keyword (AR85-*, BURGESS, SHULL82, BADNELL, SUMMERS) without a new `TEMP` it inherits that keyword's item count, so a line with that many numbers gives silently wrong rates | `collision.c:469` | -Wmaybe-uninitialized triage; no shipped atom file is affected | open |
+| [B-17](https://github.com/dwijn/RH/issues/94) | low | `writeMULTIatmos()` writes an uninitialized `height` for a GEOMETRIC depth scale (no branch for it); latent, both callers use other scales | `tools/writemulti.c:89` | -Wmaybe-uninitialized triage | open |
+| [B-18](https://github.com/dwijn/RH/issues/95) | low | `solve1d` reads the boundary-condition codes `btop`/`bbot` from stdin without validating them; an out-of-range code now gives a zero boundary intensity | `rhf1d/solve1d.c` | -Wmaybe-uninitialized triage | open |
 
 ### 3.2 Numerics and convergence
 
@@ -276,6 +279,7 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | [Q-14](https://github.com/dwijn/RH/issues/65) | — | No unit tests (Voigt, LU, splines, w3j, formal solvers on analytic slabs), no CI | open |
 | [Q-15](https://github.com/dwijn/RH/issues/83) | low | Default `CFLAGS` lack `-g`, so N-11 backtraces resolve to function names only, without file and line | open |
 | [Q-16](https://github.com/dwijn/RH/issues/84) | medium | `Error(ERROR_LEVEL_1, …)` prints "Trying to continue" but terminates (exit status 2): the continue branch in `error.c` is unreachable. 74 call sites are written to recover afterwards (return FALSE, fall back, skip an output file), so their recovery code is dead, and `ERROR_LEVEL_1` and `_2` differ only in exit status (2 vs 3). Decide per site between a warning with recovery and a fatal error; define the exit statuses together with N-1 | open |
+| [Q-17](https://github.com/dwijn/RH/issues/96) | medium | ~30 unchecked I/O results: `fread`/`fwrite`, `xdr_*`, `fscanf`/`fgets` return values assigned and never tested (e.g. a truncated Barklem table goes unnoticed) | open |
 
 Output formats are a contract: the Python (`python/rhanalyze`) and IDL readers
 unpack the XDR files field by field, and `rhopacity.py` seeks into raw
