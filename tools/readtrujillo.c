@@ -41,7 +41,7 @@ char messageStr[MAX_MESSAGE_LENGTH];
 
 void main(int argc, void *argv[])
 {
-  register int n, k;
+  register int k;
 
   char   line[MAX_LINE_SIZE];
   bool_t exit_on_EOF;
@@ -50,7 +50,7 @@ void main(int argc, void *argv[])
 
   Atmosphere atmos;
   Geometry geometry;
-  FILE  *fp_Trujillo, *fp_MULTI;
+  FILE  *fp_Trujillo;
 
   commandline.logfile = stdout;
   if (argc < 3) {

@@ -63,15 +63,15 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
   enum    boundval bvalue;
   enum    direction upwind, downwind;
   enum    sweep sweep;
-  int     Nx = geometry->Nx, Nz = geometry->Nz;
+  int     Nz = geometry->Nz;
   int     local, dl, lstart, row_left, row_right, dk, kstart, kend;
   double  mux = geometry->mux[mu], I_uw[4], dtau_uw, dtau_dw, c1, c2;
-  double  chi_uw, chi_dw, w[2], Bnu_uw, Bnu, T_uw, *Iboundary;
+  double  chi_uw, chi_dw, Bnu_uw, Bnu, T_uw;
   double  dchi_uw, dchi_c, dchi_dw, ds03, dt03;
   double  eps = 0, alpha = 0, beta = 0, gamma = 0, theta = 0;
   double  K_uw[4][4], K_loc[4][4], K_dw[4][4];
   double  dK_uw[4][4], dK_c[4][4];
-  double  S_uw[4], S_loc[4], S_dw[4], dS_uw[4], dS_c[4], dS_dw[4];
+  double  S_uw[4], S_loc[4], S_dw[4], dS_uw[4], dS_c[4];
   double  A[4][4], Ma[4][4], Mb[4][4], Mc[4][4], V0[4];
   double  M_dw[4][4];
   
@@ -316,7 +316,7 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
   int     Nx = geometry->Nx, Nz = geometry->Nz, local, dl, lstart;
   int     Nrow, row_left, row_right, dk, kstart, kend;
   double  mux = geometry->mux[mu], I_uw, *Iboundary, dtau_uw, dtau_dw;
-  double  c1, c2, dS_uw, dS_dw, S_uw, chi_uw, S_dw, chi_dw, dt03, w[2];
+  double  c1, c2, dS_uw, S_uw, chi_uw, S_dw, chi_dw, dt03;
   double  eps = 0, alpha = 0, beta = 0, gamma = 0, theta = 0;
   double  dchi_dw, dchi_uw, dchi_c, dS_c, ds03;
   double  Bnu_uw, Bnu, T_uw;

@@ -49,7 +49,7 @@ extern char messageStr[];
 void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 {
   const char routineName[] = "MULTIatmos";
-  register int k, n, mu;
+  register int k, n;
 
   char    scaleStr[21], inputLine[MAX_LINE_SIZE], *filename;
   bool_t  exit_on_EOF, enhanced_atmos_ID = FALSE;
@@ -336,7 +336,6 @@ void convertScales(Atmosphere *atmos, Geometry *geometry)
 void getBoundary(Geometry *geometry)
 {
   const char routineName[] = "getBoundary";
-  register int la;
 
   bool_t result = TRUE;
   FILE  *fp_Itop;

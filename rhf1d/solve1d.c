@@ -53,6 +53,9 @@ int main(int argc, char *argv[])
   int     Ndep, Nrays, NmaxIter, Ngdelay, Ngorder, Ngperiod, Nread,
     Nwrite, btop, bbot;
   double *lambda, Adamp, iterLimit;
+
+  (void) argc;
+  (void) argv;
   
   commandline.quiet = FALSE;
   commandline.logfile = stderr;

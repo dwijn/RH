@@ -65,7 +65,7 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
   register int n, p, i, j;
 
   int    local;
-  double chi_uw, chi_dw, S_uw[4], S_dw[4], dS_dw[4], dS_uw[4], w[2];
+  double chi_uw, chi_dw, S_uw[4], S_dw[4], dS_uw[4];
   double eps = 0, alpha = 0, beta = 0, gamma = 0, theta = 0;
   double dtau_uw, dtau_dw, S_loc[4], dS_c[4], dchi_uw, dchi_dw, dchi_c;
   double K_loc[4][4], K_uw[4][4], K_dw[4][4], c1, c2, ds03, dt03;
@@ -203,7 +203,7 @@ void Piecewise_Bezier3_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
   
   int    local;
   double  dtau_uw, dtau_dw;
-  double  c1, c2, dS_uw, dS_dw, S_uw, chi_uw, S_dw, chi_dw, dt03, w[2];
+  double  c1, c2, dS_uw, S_uw, chi_uw, S_dw, chi_dw, dt03;
   double  eps = 0, alpha = 0, beta = 0, gamma = 0, theta = 0;
   double  dchi_dw, dchi_uw, dchi_c, dS_c, ds03;
 

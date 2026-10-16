@@ -383,7 +383,6 @@ void impactParam(AtomicLine *line, bool_t flag,
 
   int    i = line->i, j = line->j;
   double Ri, Rj, n_eff_min;
-  Atom *atom = line->atom;
 
   /* --- Determine the radius of the orbital --   ------------------- */
 
@@ -431,7 +430,7 @@ double findbeta1(double righthand, double *zeta1)
  */
 
   int    Ntry;
-  double beta, beta1, beta2, y, y_old, delta;
+  double beta, beta1, beta2, y, delta;
 
   beta1 = BETA_START;
   y = square(Bessel_K0(beta1)) + square(Bessel_K1(beta1)) - righthand;

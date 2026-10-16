@@ -53,7 +53,6 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
   int      Nspace = atmos.Nspace, Nrays = atmos.Nrays, lamuk;
   long int idx, idx0;
   double  *I, *chi, *S, **Ipol, **Spol, *Psi, *Jdag, wmu, dJmax, dJ,
-          *eta_Q, *eta_U, *eta_V, *eta_c_Q, *eta_c_U, *eta_c_V,
           *J20dag, musq, threemu1, threemu2, *J, *J20, *lambda, sign,
            lambda_gas, lambda_prv, lambda_nxt, fac, dl, frac;
   ActiveSet *as;
@@ -655,6 +654,9 @@ void Feautrier_2D(int nspect, double *chi, double *S,
 void Hydrostatic(int NmaxIter, double iterLimit)
 {
   const char routineName[] = "Hydrostatic";
+
+  (void) NmaxIter;
+  (void) iterLimit;
 
   if (atmos.hydrostatic) {
     sprintf(messageStr,

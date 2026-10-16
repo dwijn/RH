@@ -39,9 +39,9 @@ void rawAtom(Atom *atom, char *atomFileName)
   register int kr, kf, la, n;
 
   char    inputLine[MAX_LINE_SIZE], shapeStr[20], vdWstr[20], nuDepStr[20],
-          errorStr[80], symmStr[20], optionStr[20], *match;
+          symmStr[20], optionStr[20], *match;
   bool_t  exit_on_EOF;
-  int     i, j, Nlevel, Nrad, Nline, Ncont, Nfixed, Nread, Nrequired,
+  int     i, j, Nlevel, Nline, Ncont, Nfixed, Nread, Nrequired,
           checkPoint;
   double  f, C, lambda0, lambdamin, dlamb;
   FILE   *atomFile;
@@ -84,7 +84,6 @@ void rawAtom(Atom *atom, char *atomFileName)
   checkNread(Nread, Nrequired=4, routineName, checkPoint=2);
   Nlevel = atom->Nlevel;
   Nline  = atom->Nline;  Ncont  = atom->Ncont;  Nfixed = atom->Nfixed;
-  Nrad   = Nline + Ncont;
 
   atom->E = (double *) malloc(Nlevel * sizeof(double));
   atom->g = (double *) malloc(Nlevel * sizeof(double));

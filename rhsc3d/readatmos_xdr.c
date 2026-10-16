@@ -242,11 +242,8 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 
 void getBoundary(Atmosphere *atmos, Geometry *geometry)
 {
-  const char routineName[] = "getBoundary";
-
   bool_t result = TRUE;
-  int    Nx = geometry->Nx, Ny = geometry->Ny, Nz = geometry->Nz,
-         Nplane = geometry->Nplane, Nspect = spectrum.Nspect;
+  int    Nplane = geometry->Nplane, Nspect = spectrum.Nspect;
 
   /* --- Read boundary conditions and irradiation. First VERTICAL
          boundary conditions --                        -------------- */

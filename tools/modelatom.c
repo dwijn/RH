@@ -169,6 +169,8 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
   int     nread, Ntemp, i1, i2, i, j;
   double *temp = NULL;
 
+  (void) atom;
+
   /* --- Transforms collisional input for GENCOL routine in MULTI
          to new format. Currently only OHM, CI, CE, and CP entries are
          supported --                                 --------------- */

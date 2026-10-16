@@ -41,16 +41,13 @@ extern char messageStr[];
 
 double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 {
-  const char routineName[] = "Formal";
   register int k, l, mu, n;
 
   bool_t   initialize, boundbound, polarized_as, polarized_c,
            PRD_angle_dep, to_obs, solveStokes, angle_dep;
-  enum     FeautrierOrder F_order;     
   int      Nspace = atmos.Nspace, Nrays = atmos.Nrays, lamuk;
   long int idx, idx0;
   double  *I, *chi, *S, **Ipol, **Spol, *Psi, *Jdag, wmu, dJmax, dJ,
-          *eta_Q, *eta_U, *eta_V, *eta_c_Q, *eta_c_U, *eta_c_V,
           *J20dag, musq, threemu1, threemu2, *J, *J20, *lambda, sign,
            lambda_gas, lambda_prv, lambda_nxt, fac, dl, frac;
   ActiveSet *as;
@@ -423,6 +420,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 void Hydrostatic(int NmaxIter, double iterLimit)
 {
   const char routineName[] = "Hydrostatic";
+
+  (void) NmaxIter;
+  (void) iterLimit;
 
   if (atmos.hydrostatic) {
     sprintf(messageStr,

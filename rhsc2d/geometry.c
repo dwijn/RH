@@ -391,7 +391,6 @@ void fillMesh(Geometry *geometry)
 void setVertStencil(Geometry *geometry, Stencil *stencil,
 		    enum direction direction, double ds, int l, int k)
 {
-  const char routineName[] = "setVertStencil";
   register int n;
 
   int Nx = geometry->Nx;
