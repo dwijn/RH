@@ -42,6 +42,10 @@ itself (about 1e-11 in 1-D/3-D/spherical, 2e-9 in the ill-conditioned 2-D
 example), since floating-point sums depend on thread count. Use `--exact`
 for changes that must not alter a single bit (memory management).
 
+The log, `keyword.input` and timing of every failed run are kept in
+`WORK/failed/` (CI uploads them as an artifact), since run directories are
+reused by later cases.
+
 Running the suite with the same unmodified tree as baseline and candidate is
 a useful self-test: everything passes except `1d/kurucz_blank`, which exposes
 the upstream segfault.
