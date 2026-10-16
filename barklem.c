@@ -61,7 +61,7 @@ bool_t determinate_abo(char *label,  int *l)
   const char routineName[] = "determinate";
 
   char multiplet[ATOM_LABEL_WIDTH+1], *ptr, **words, orbit[3];
-  int  count, multiplicity, length, off;
+  int  count, multiplicity;
 
   /* --- Get the principal, spin, orbital, and angular quantum numbers
          from the atomic label --                      -------------- */
@@ -78,7 +78,6 @@ bool_t determinate_abo(char *label,  int *l)
   }
 
   words = getWords(multiplet, " ", &count);
-  length = strlen(words[count-2]);
 
   // ---JdlCR: get the level l from the level configuration, not from the spectral term! --- //
   sscanf(words[count-2], "%d%s", &multiplicity, orbit); 
@@ -178,8 +177,6 @@ bool_t readBarklemTable(enum Barklemtype type, Barklemstruct *bs)
 
 bool_t getBarklemcross(Barklemstruct *bs, RLK_Line *rlk)
 {
-  const char routineName[] = "getBarklemcross";
-
   int index;
   double Z, neff1, neff2, findex1, findex2, reducedmass, meanvelocity,
          crossmean, E_Rydberg, deltaEi, deltaEj;
@@ -243,8 +240,7 @@ bool_t getBarklemcross(Barklemstruct *bs, RLK_Line *rlk)
 bool_t getBarklemactivecross(AtomicLine *line)
 {
   bool_t determined = TRUE, useBarklem = FALSE;
-  int index, Ll, Lu, nq, i, j, ic;
-  double Sl, Su, Jl, Ju;
+  int index, Ll, Lu, i, j, ic;
   double Z, neff1, neff2, findex1, findex2, reducedmass, meanvelocity,
          crossmean, E_Rydberg, deltaEi, deltaEj;
   Atom *atom;

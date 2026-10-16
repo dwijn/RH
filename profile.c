@@ -96,6 +96,8 @@ static void profileWorker(int kbeg, int kend, int nt, void *arg)
   double  H, F, wlamu, vk, phi_pi, phi_sm, phi_sp, phi_delta, phi_sigma,
           psi_pi, psi_sm, psi_sp, psi_delta, psi_sigma, sign, sin2_gamma;
 
+  (void) nt;
+
   if (atmos.moving || job->polarized) {
 
     /* --- Angle-dependent case, with a ray (mu) and direction

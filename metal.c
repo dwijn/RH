@@ -161,7 +161,7 @@ flags passive_bb(double lambda, int nspect, int mu, bool_t to_obs,
   static int Nlist;
   static struct Linelist *linelist[N_MAX_OVERLAP];
 
-  bool_t   add_to_list, linepresent;
+  bool_t   add_to_list;
   int      i, j, entry;
   double   dlambda, phi, v, twohnu3_c2, hc, fourPI, hc_4PI,
            gij, Vij, **n;

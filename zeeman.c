@@ -200,8 +200,6 @@ double ZeemanStrength(double Ju, double Mu, double Jl, double Ml)
 
 void Zeeman(AtomicLine *line)
 {
-  const char routineName[] = "Zeeman";
-
   register int n;
 
   bool_t result = TRUE;

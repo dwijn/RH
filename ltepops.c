@@ -174,7 +174,7 @@ void LTEmolecule(Molecule *molecule)
   register int k, v, J, kr;
 
   char    labelStr[MAX_LINE_SIZE];
-  double  kT, gJ, **E;
+  double  gJ, **E;
   MolecularLine *mrt;
 
   if (!molecule->active) {

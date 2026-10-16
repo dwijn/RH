@@ -62,7 +62,7 @@ void Solve_ne(double *ne, bool_t fromscratch)
 
   int     Nmaxstage, niter;
   double *fjk, *dfjk, error, ne_old, akj, sum, PhiH, C1, Uk,
-    dne, dnemax, *np, PhiHmin;
+    dne, *np, PhiHmin;
 
   getCPU(3, TIME_START, NULL);
 

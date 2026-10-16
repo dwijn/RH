@@ -66,14 +66,14 @@ void readAtom(Atom *atom, char *atom_file)
 
   char    inputLine[MAX_LINE_SIZE], shapeStr[20], vdWstr[20], nuDepStr[20],
           symmStr[20], optionStr[20], labelStr[MAX_LINE_SIZE];
-  bool_t  Debeye, exit_on_EOF, match;
-  int     i, j, Nlevel, Nrad, Nline, Ncont, Nfixed, 
+  bool_t  exit_on_EOF, match;
+  int     i, j, Nlevel, Nline, Ncont, Nfixed, 
           Nspace = atmos.Nspace,
           Nread, Nrequired, checkPoint, L, nq, status, Ndup;
   double  f, C, lambda0, lambdamin, vtherm, S, Ju, Jl,
     c_sum, waveratio, lambda_air;
 
-  AtomicLine *line, *line1;
+  AtomicLine *line;
   AtomicContinuum *continuum;
   FixedTransition *fixed;
 
@@ -134,7 +134,7 @@ void readAtom(Atom *atom, char *atom_file)
 		 &atom->Nlevel, &atom->Nline, &atom->Ncont, &atom->Nfixed);
   checkNread(Nread, Nrequired=4, routineName, checkPoint=2);
   Nlevel = atom->Nlevel;
-  Nline  = atom->Nline;  Ncont  = atom->Ncont;  Nrad = Nline + Ncont;
+  Nline  = atom->Nline;  Ncont  = atom->Ncont;
   Nfixed = atom->Nfixed;
 
   atom->E = (double *) malloc(Nlevel * sizeof(double));
@@ -853,7 +853,7 @@ void freeAtomicContinuum(AtomicContinuum *continuum)
 void readAtomicModels(void)
 {
   const char routineName[] = "readAtomicModels";
-  register int n, m, i;
+  register int n, m;
 
   char    filename[MAX_LINE_SIZE],
           actionKey[MAX_KEYWORD_SIZE], popsKey[MAX_KEYWORD_SIZE],
@@ -862,7 +862,6 @@ void readAtomicModels(void)
   int     Nread, Nrequired, checkPoint;
   FILE   *fp_atoms;
   Atom   *atom;
-  Element *element;
 
   getCPU(2, TIME_START, NULL);
 

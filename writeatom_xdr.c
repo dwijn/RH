@@ -43,7 +43,7 @@ void writeAtom(struct Atom *atom)
   const  char routineName[] = "writeAtom";
 
   char  atomoutfile[12];
-  FILE  *fp_out, *fp_adamp;
+  FILE  *fp_out;
   XDR    xdrs;
 
   sprintf(atomoutfile, (atom->ID[1] == ' ') ?

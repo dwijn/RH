@@ -67,7 +67,7 @@ void w3(double dtau, double *w)
 
 void U3(double dtau, double *U)
 {
-  double expdt, delta;
+  double delta;
 
   if (dtau < 2.0E-4) {
     U[0]   = dtau*(1.0 - 0.5*dtau);

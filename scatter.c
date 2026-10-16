@@ -168,6 +168,8 @@ static void prdBlockSizes(int kbeg, int kend, int nt, void *arg)
   long        n;
   double      q_emit, q0, qN;
 
+  (void) nt;
+
   for (k = kbeg;  k < kend;  k++) {
     n = 0;
     for (la = 0;  la < PRDline->Nlambda;  la++) {
@@ -198,6 +200,8 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
   double  q_emit, q0, qN, *q_abs = NULL, *qp = NULL, *wq = NULL,
          *qpp = NULL, *gii, *win = NULL, *wbuf, *J = NULL, *J_k = NULL,
           Jbar, scatInt, gnorm, gamma;
+
+  (void) nt;
 
   /* --- Every worker has its own scratch arrays --    -------------- */
 
