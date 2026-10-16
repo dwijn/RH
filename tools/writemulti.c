@@ -38,7 +38,7 @@ void writeMULTIatmos(Geometry *geometry, Atmosphere *atmos,
 
   char    fileName[MAX_LINE_SIZE];
   bool_t  result = TRUE;
-  double *heightscale = NULL, height, vturb, *np;
+  double *heightscale = NULL, height, *np;
   FILE   *fp_MULTI;
   XDR     xdrs;
 
@@ -84,11 +84,13 @@ void writeMULTIatmos(Geometry *geometry, Atmosphere *atmos,
   }
 
   for (k = 0;  k < geometry->Ndep;  k++) {
-    if (geometry->scale == COLUMN_MASS || geometry->scale == TAU500)
+    if (geometry->scale == GEOMETRIC)
+      height = heightscale[k] / KM_TO_M;
+    else
       height = log10(heightscale[k]);
-    vturb = atmos->vturb[k] / KM_TO_M;
     fprintf(fp_MULTI, "%17.8E %14.6E %14.6E %14.6E %14.6E\n",
-	    height, atmos->T[k], atmos->ne[k], geometry->vel[k], vturb);
+	    height, atmos->T[k], atmos->ne[k],
+	    geometry->vel[k] / KM_TO_M, atmos->vturb[k] / KM_TO_M);
   }
   fprintf(fp_MULTI, "%s\n%s Hydrogen populations\n", COMMENT_CHAR, COMMENT_CHAR);
   if (atmos->H_LTE) {
