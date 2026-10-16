@@ -42,7 +42,6 @@ extern char messageStr[];
 void readInput()
 {
   const char routineName[] = "readInput";
-  static char atom_input[MAX_VALUE_LENGTH], molecule_input[MAX_VALUE_LENGTH];
   char errorStr[MAX_MESSAGE_LENGTH];
   
   int   Nkeyword;

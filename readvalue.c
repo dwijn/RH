@@ -196,7 +196,7 @@ void setboolValue(char *value, void *pointer)
 
 void setAngleSet(char *value, void *pointer)
 {
-  int  Nread, Ninclination, Nazimuth;
+  int  Ninclination, Nazimuth;
   AngleSet angleSet;
 
   initAngleSet(&angleSet);

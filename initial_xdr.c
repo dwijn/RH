@@ -65,19 +65,18 @@ void initSolution(void)
   register int k, i, ij, nspect, n, kr, nact, mu;
 
   char     permission[3];
-  bool_t   result, openJfile;
-  int      la, j, niter, Nsr, Nplane, index, status, oflag,
+  bool_t   openJfile;
+  int      la, j, Nsr, Nplane, index, status, oflag,
            to_obs, lamuk, sign, ncoef, ilow, Nlamu, lamu;
   double   gijk, wla, twohnu3_c2, hc_k, twoc, fourPI, *J, *J20,
            *lambda, fac, lambda_prv, lambda_gas, lambda_nxt, dl,
-           frac, lag;
+           lag;
   long int idx, lc;
   Atom     *atom;
   Molecule *molecule;
   ActiveSet *as;
   AtomicLine *line;
   AtomicContinuum *continuum;
-  XDR xdrs;
   FILE *fp;
 
   getCPU(2, TIME_START, NULL);

@@ -183,6 +183,8 @@ double updatePopulations(int niter)
   Atom *atom;
   Molecule *molecule;
 
+  (void) niter;
+
   /* --- Update active atoms --                        -------------- */
 
   for (nact = 0;  nact < atmos.Nactiveatom;  nact++) {

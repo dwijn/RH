@@ -223,6 +223,8 @@ double ar85cea(int i, int j, int k, struct Atom *atom)
   char    cseq[ATOM_ID_WIDTH+1];
   int     iz, ichrge, isoseq;
   double  zz, cup, bkt, b, zeff, iea, y, f1y, a, g;
+
+  (void) j;
   
   /* --- Initialize output to zero --                  -------------- */
 

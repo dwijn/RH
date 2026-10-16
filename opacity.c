@@ -471,9 +471,9 @@ static void init_as_pool(void)
 
 void alloc_as(int nspect, bool_t crosscoupling)
 {
-  register int n, m, nact;
+  register int nact;
 
-  int i, j, NrecStokes, NrecStokes_as, Nactive, nt, Nrt;
+  int i, NrecStokes, NrecStokes_as, nt, Nrt;
   Atom *atom;
   Molecule *molecule;
   ActiveSet *as;
@@ -651,6 +651,8 @@ void free_as(int nspect, bool_t crosscoupling)
 {
   ActiveSet *as = &spectrum.as[nspect];
 
+  (void) crosscoupling;
+
   /* --- The buffers belong to the per-thread pools in alloc_as() and
          are reused for the rest of the run; only detach them here so
          nothing can touch them between calls.  --      -------------- */
@@ -708,7 +710,7 @@ bool_t containsBoundBound(ActiveSet *as)
 
 bool_t containsActive(ActiveSet *as)
 {
-  register int n, nact;
+  register int nact;
 
   for (nact = 0;  nact < atmos.Nactiveatom;  nact++) {
     if (as->Nactiveatomrt[nact] > 0)
@@ -818,6 +820,8 @@ flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
   Molecule        *molecule;
   MolecularLine   *mrt;
   flags            backgrflags;
+
+  (void) nspect;
 
   backgrflags.hasline     = FALSE;
   backgrflags.ispolarized = FALSE;

@@ -122,7 +122,7 @@ void readKuruczLines(char *inputFile)
   bool_t swap_levels, determined, useBarklem;
   int    Nline, Nread, Nrequired, checkPoint, hfs_i, hfs_j, gL_i, gL_j,
     iso_dl, Li, Lj, tmp;
-  double lambda0, Ji, Jj, Grad, GStark, GvdWaals, pti,
+  double lambda0, Ji, Jj, Grad, GStark, GvdWaals,
          Ei, Ej, gf, lambda_air;
   RLK_Line *rlk;
   Barklemstruct bs_SP, bs_PD, bs_DF;
@@ -429,7 +429,7 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 
   bool_t contributes, hunt;
   int    Nwhite, Nblue, Nred, NrecStokes;
-  double dlamb_wing, *pf, dlamb_char, hc_la, ni_gi, nj_gj, lambda0, kT,
+  double dlamb_wing, *pf, dlamb_char, hc_la, ni_gi, nj_gj, kT,
          Bijhc_4PI, twohnu3_c2, hc, fourPI, hc_4PI,
         *eta_Q, *eta_U, *eta_V, eta_l,
         *chi_Q, *chi_U, *chi_V, chi_l, *chip_Q, *chip_U, *chip_V,
@@ -440,6 +440,8 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
   Element *element;
   RLK_Line *rlk;
   flags backgrflags;
+
+  (void) nspect;
 
   /* --- Calculate the LTE opacity at wavelength lambda due to atomic
          transitions stored in atmos.rlk_lines --      -------------- */
@@ -737,8 +739,6 @@ double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
 
 void RLKZeeman(RLK_Line *rlk)
 {
-  const char routineName[] = "RLKZeeman";
-
   register int n;
 
   double Jl, Ju, Mu, Ml, norm[3], gLu, gLl, g_eff;
@@ -826,7 +826,6 @@ bool_t RLKdet_level(char* label, RLK_level *level)
   char *ptr_i, *ptr_f, *quanta_str;
   bool_t counterror;
   int  count, multiplicity, length, Nread, M1;
-  double J1, j1, j2;
 
   /* --- Get spin and orbital quantum numbers from level labels --
 

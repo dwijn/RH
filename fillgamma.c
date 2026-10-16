@@ -525,14 +525,16 @@ void addtoRates(int nspect, int mu, bool_t to_obs, double wmu,
 {
   register int nact, n, k;
 
-  int    la, lamu, nt;
-  double twohnu3_c2, twohc, hc_4PI, Bijxhc_4PI, wlamu, *Rij, *Rji,
-         up_rate, *Stokes_Q, *Stokes_U, *Stokes_V;
+  int    nt;
+  double twohnu3_c2, twohc, wlamu, *Rij, *Rji;
 
   ActiveSet *as;
   Atom *atom;
   AtomicLine *line;
   AtomicContinuum *continuum;
+
+  (void) mu;
+  (void) to_obs;
 
   /* --- Calculate the radiative rates for atomic transitions.
 

@@ -49,7 +49,6 @@ bool_t readB(Atmosphere *atmos)
 
   bool_t  result = TRUE;
   size_t  recordsize;
-  off_t   offset;
   FILE   *fp_stokes;
   XDR     xdrs;
 
