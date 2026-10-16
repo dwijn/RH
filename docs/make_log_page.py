@@ -11,7 +11,8 @@ Changelog fragments: each change adds docs/changes/<ID>.md instead of editing
 MODERNIZATION.md, so that pull requests do not conflict. A fragment starts
 with "key: value" header lines and a blank line, then the entry text:
 
-    ids: B-2            IDs the change fixes (comma- or space-separated)
+    ids: B-2            IDs the change fixes (comma- or space-separated;
+                        empty for a change that closes no issue)
     date: 2026-10-15
     title: One-line summary
 
@@ -53,7 +54,8 @@ def read_fragments():
         head, _, body = open(f).read().partition("\n\n")
         meta = dict(l.split(":", 1) for l in head.splitlines() if ":" in l)
         meta = {k.strip(): v.strip() for k, v in meta.items()}
-        meta["ids"] = re.split(r"[,\s]+", meta.get("ids", "").strip())
+        meta["ids"] = [i for i in re.split(r"[,\s]+", meta.get("ids", "").strip())
+                       if i]       # no ids: a change that closes no issue
         out.append((f, meta, body.strip()))
     return sorted(out, key=lambda x: x[1].get("date", ""), reverse=True)
 
@@ -63,7 +65,7 @@ def apply_fragments(text, frags):
     entries = []
     for _, m, body in frags:
         ids = ", ".join(i for i in m["ids"] if i)
-        heading = f"### {m.get('date', '')} — {m.get('title', ids)} ({ids})"
+        heading = f"### {m.get('date', '')} — {m.get('title', ids)}" + (f" ({ids})" if ids else "")
         if heading not in text:
             entries.append(f"{heading}\n\n{body}\n")
         for i in m["ids"]:
