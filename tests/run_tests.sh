@@ -4,13 +4,15 @@
 #
 # usage: run_tests.sh --baseline DIR --candidate DIR [options]
 #
-#   --baseline DIR   source tree of the reference build (e.g. a checkout of
-#                    upstream master) with rhf1d/rhf1d, rhsc2d/rhsc2d and
-#                    rhsc3d/rhsc3d already built
-#   --candidate DIR  source tree under test, built the same way. Example
-#                    inputs, Atoms/, Atmos/ and Molecules/ are taken from here.
+#   --baseline DIR   the reference build (e.g. upstream RH built with its
+#                    makefiles). DIR is a source tree with the programs built
+#                    in place or in build/, or a CMake build directory.
+#   --candidate DIR  the build under test, given the same way. Example
+#                    inputs, Atoms/, Atmos/ and Molecules/ are taken from its
+#                    source tree.
 #   --asan DIR       also run the candidate cases with an AddressSanitizer
-#                    build of the candidate (create it with build_asan.sh)
+#                    build, e.g. a CMake build directory configured with
+#                    -DRH_SANITIZE=address
 #   --exact          require byte-identical output between baseline and
 #                    candidate at 1 thread. Use for pure refactors / memory
 #                    management; leave off when summation order may change.
@@ -57,13 +59,21 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$BASE" ] && [ -n "$CAND" ] || { sed -n '2,6p' "$0"; exit 1; }
+. "$HERE/tree.sh"
 BASE=$(cd "$BASE" && pwd); CAND=$(cd "$CAND" && pwd)
 [ -z "$ASAN" ] || ASAN=$(cd "$ASAN" && pwd)
+BASE_BIN=$(tree_bin "$BASE"); CAND_BIN=$(tree_bin "$CAND")
+if [ -n "$ASAN" ]; then
+  ASAN_BIN=$(tree_bin "$ASAN")
+  tree_sanitized "$ASAN" || [ ! -f "$ASAN_BIN/CMakeCache.txt" ] ||
+    { echo "--asan $ASAN: $ASAN_BIN is not configured with -DRH_SANITIZE"; exit 1; }
+fi
+BASE=$(tree_src "$BASE"); CAND=$(tree_src "$CAND")
 mkdir -p "$WORK/runs"; WORK=$(cd "$WORK" && pwd)
 for d in Atoms Atmos Molecules; do ln -sfn "$CAND/$d" "$WORK/$d"; done
 THREADS_MAX=$(echo $THREADS | tr ' ' '\n' | sort -n | tail -1)
 
-for t in "$BASE" "$CAND" ${ASAN:+"$ASAN"}; do
+for t in "$BASE_BIN" "$CAND_BIN" ${ASAN:+"$ASAN_BIN"}; do
   for g in rhf1d rhsc2d rhsc3d rhsphere; do
     [ -x "$t/$g/$g" ] || { echo "missing binary: $t/$g/$g"; exit 1; }
   done
@@ -167,13 +177,13 @@ CASES=(
 run_case() {
   local geom=$1 name=$2 mods=$3 id="$1/$2" n rc why
   prepare $geom $name base 1 "$mods"; local B1=$RUNDIR
-  execute "$BASE" $geom; rc=$?
+  execute "$BASE_BIN" $geom; rc=$?
   if [ $rc -ne 0 ]; then
     record SKIP "$id" "baseline itself failed (rc=$rc), nothing to compare against"; return
   fi
 
   prepare $geom $name cand 1 "$mods"; local C1=$RUNDIR
-  execute "$CAND" $geom; rc=$?; why=$(log_problem)
+  execute "$CAND_BIN" $geom; rc=$?; why=$(log_problem)
   if [ $rc -ne 0 ] || [ -n "$why" ]; then
     record FAIL "$id candidate N=1" "rc=$rc $why"; return
   fi
@@ -183,7 +193,7 @@ run_case() {
 
   for n in $THREADS; do
     prepare $geom $name cand $n "$mods"; local CN=$RUNDIR
-    execute "$CAND" $geom; rc=$?; why=$(log_problem)
+    execute "$CAND_BIN" $geom; rc=$?; why=$(log_problem)
     if [ $rc -ne 0 ] || [ -n "$why" ]; then
       record FAIL "$id candidate N=$n" "rc=$rc $why"; continue
     fi
@@ -195,7 +205,7 @@ run_case() {
   [ -n "$ASAN" ] || return
   for n in 1 $THREADS_MAX; do
     prepare $geom $name asan $n "$mods"
-    execute "$ASAN" $geom; rc=$?; why=$(log_problem)
+    execute "$ASAN_BIN" $geom; rc=$?; why=$(log_problem)
     [ $rc -eq 0 ] && [ -z "$why" ] && record PASS "$id ASan N=$n" "clean" \
                                    || record FAIL "$id ASan N=$n" "rc=$rc $why"
   done
@@ -208,9 +218,9 @@ run_mem_case() {
   python3 -I "$HERE/make_tiled_2d_atmos.py" "$CAND/Atmos/FALC_03x82.atmos" \
           "$WORK/tiled_2d.atmos" 192 >/dev/null || { record FAIL "2d/mem" "tiling failed"; return; }
   local mods="ATMOS_FILE=$WORK/tiled_2d.atmos;N_MAX_ITER=1" rc why bm cm
-  prepare 2d mem base 1 "$mods"; local B=$RUNDIR; execute "$BASE" 2d; rc=$?
+  prepare 2d mem base 1 "$mods"; local B=$RUNDIR; execute "$BASE_BIN" 2d; rc=$?
   [ $rc -eq 0 ] || { record SKIP "2d/mem" "baseline failed (rc=$rc)"; return; }
-  prepare 2d mem cand 1 "$mods"; local C=$RUNDIR; execute "$CAND" 2d; rc=$?; why=$(log_problem)
+  prepare 2d mem cand 1 "$mods"; local C=$RUNDIR; execute "$CAND_BIN" 2d; rc=$?; why=$(log_problem)
   [ $rc -eq 0 ] && [ -z "$why" ] || { record FAIL "2d/mem candidate" "rc=$rc $why"; return; }
   bm=$(rss_mb "$B"); cm=$(rss_mb "$C")
   if awk -v c="$cm" -v b="$bm" -v t="$MEMTOL" 'BEGIN{exit !(c <= b*t)}'; then
@@ -226,12 +236,12 @@ run_kurucz_blank_case() {
   local mods="STOKES_MODE=NO_STOKES;STOKES_INPUT=none" rc why
   prepare 1d kurucz cand 1 "$mods"; local A=$RUNDIR
   echo "../../Atoms/Kurucz/gf0400.10" > "$A/kurucz.input"
-  execute "$CAND" 1d; rc=$?; why=$(log_problem)
+  execute "$CAND_BIN" 1d; rc=$?; why=$(log_problem)
   [ $rc -eq 0 ] && [ -z "$why" ] || { record FAIL "1d/kurucz_blank reference" "rc=$rc $why"; return; }
   prepare 1d kurucz_blank cand 1 "$mods"; local B=$RUNDIR
   { echo; cat "$CAND/Atoms/Kurucz/gf0400.10"; } > "$B/kurucz_blank.dat"
   echo "./kurucz_blank.dat" > "$B/kurucz.input"
-  execute "$CAND" 1d; rc=$?; why=$(log_problem)
+  execute "$CAND_BIN" 1d; rc=$?; why=$(log_problem)
   [ $rc -eq 0 ] && [ -z "$why" ] || { record FAIL "1d/kurucz_blank" "rc=$rc $why"; return; }
   compare "$A" "$B" 1d exact
   [ $? -eq 0 ] && record PASS "1d/kurucz_blank" "same as without the blank line" \
@@ -240,8 +250,8 @@ run_kurucz_blank_case() {
 
 selected() { [ -z "$ONLY" ] || [[ "$1" == *"$ONLY"* ]]; }
 
-echo "baseline : $BASE"
-echo "candidate: $CAND${ASAN:+   (ASan: $ASAN)}"
+echo "baseline : $BASE_BIN"
+echo "candidate: $CAND_BIN${ASAN:+   (ASan: $ASAN_BIN)}"
 echo "mode     : $([ $EXACT -eq 1 ] && echo byte-identical || echo "tolerance ${TOL:-per geometry}"), threads: $THREADS"
 echo
 

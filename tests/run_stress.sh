@@ -6,8 +6,10 @@
 #
 # usage: run_stress.sh --tree NAME=DIR [--tree NAME=DIR ...] [options]
 #
-#   --tree NAME=DIR  source tree with rhf1d, rhsc2d, rhsc3d, rhsphere built.
-#                    The first tree is the reference for comparisons.
+#   --tree NAME=DIR  a build of RH: a source tree with rhf1d, rhsc2d, rhsc3d
+#                    and rhsphere built in place or in build/, or a CMake
+#                    build directory. The first tree is the reference for
+#                    comparisons.
 #   --only PATTERN   only run cases whose name contains PATTERN (grep -E)
 #   --set conv|perf|all   which group of cases to run (default conv)
 #   --jobs N         run up to N cases at the same time (default 4). Timing
@@ -101,14 +103,16 @@ if [ $LIST -eq 1 ]; then
 fi
 
 [ ${#TREES[@]} -ge 1 ] || { sed -n '2,10p' "$0"; exit 1; }
-NAMES=(); DIRS=()
+. "$HERE/tree.sh"
+NAMES=(); DIRS=(); SRCS=()      # DIRS: programs, SRCS: source trees
 for t in "${TREES[@]}"; do
-  NAMES+=("${t%%=*}"); d=$(cd "${t#*=}" && pwd) || exit 1; DIRS+=("$d")
+  NAMES+=("${t%%=*}"); d=$(cd "${t#*=}" && pwd) || exit 1
+  SRCS+=("$(tree_src "$d")"); d=$(tree_bin "$d"); DIRS+=("$d")
   for g in rhf1d rhsc2d rhsc3d rhsphere; do
     [ -x "$d/$g/$g" ] || { echo "missing binary: $d/$g/$g"; exit 1; }
   done
 done
-REF=${DIRS[0]}
+REF=${SRCS[0]}
 mkdir -p "$WORK/runs"; WORK=$(cd "$WORK" && pwd)
 for d in Atoms Atmos Molecules; do ln -sfn "$REF/$d" "$WORK/$d"; done
 [ -x /usr/bin/time ] || { echo "need GNU /usr/bin/time"; exit 1; }
