@@ -40,6 +40,7 @@ The default build type is `RelWithDebInfo` (`-O2 -g`). Options, given as
 | `RH_NATIVE=ON` | tune for the build machine's CPU (`-march=native`); the programs may not run on other machines |
 | `RH_SANITIZE=address,undefined` | AddressSanitizer and UndefinedBehaviorSanitizer, for debugging |
 | `RH_WARNINGS=ON` | compile with `-Wall -Wextra` |
+| `RH_WERROR=ON` | treat warnings as errors (CI builds with both) |
 | `RH_BUILD_TOOLS=OFF` | skip the tools in `tools/` |
 
 Intel compilers are run with `-fp-model=precise`: RH needs IEEE
