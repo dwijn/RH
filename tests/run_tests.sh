@@ -84,12 +84,22 @@ if [ "$(uname)" = Darwin ]; then TIMEFLAG=-l; else TIMEFLAG=-v; fi
 
 NPASS=0; NFAIL=0; NSKIP=0; FAILED=()
 record() {   # PASS|FAIL|SKIP  name  detail
+  local keep
   case "$1" in
     PASS) NPASS=$((NPASS+1));;
     FAIL) NFAIL=$((NFAIL+1)); FAILED+=("$2");;
     SKIP) NSKIP=$((NSKIP+1));;
   esac
   printf '[%s] %-34s %s\n' "$1" "$2" "$3"
+  # Keep the log of a failed run (the run directory is reused by later
+  # cases), so that intermittent failures can be looked at afterwards
+  if [ "$1" = FAIL ] && [ -n "$RUNDIR" ] && [ -f "$RUNDIR/log.log" ]; then
+    keep="$WORK/failed/$(echo "$2" | tr ' /=' '___')_$(date +%H%M%S)"
+    mkdir -p "$keep"
+    cp "$RUNDIR/log.log" "$RUNDIR/keyword.input" "$keep/" 2>/dev/null
+    cp "$RUNDIR/time.txt" "$keep/" 2>/dev/null
+    printf '       log kept in %s\n' "$keep"
+  fi
 }
 
 # setkw FILE KEY VALUE: set a keyword.input entry, appending it if absent
