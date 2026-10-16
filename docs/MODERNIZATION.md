@@ -168,8 +168,8 @@ many-level atoms) go here (pending)._
 | [B-5](https://github.com/dwijn/RH/issues/6) | medium | Linear short-characteristics end point uses stale weights (`w2` not recomputed) | `rhf1d/piecewise_1D.c:126` | flux changes up to 1e-3 when fixed | open |
 | [B-6](https://github.com/dwijn/RH/issues/7) | medium | Possible double counting of the cross-coupling term for multi-ion atoms (added once per transition sharing an upper level) | `fillgamma.c:279` | MgI+II converged populations shift 3e-3 at level 70 when changed; correct form not yet established | open — verify against an independent code (e.g. Lightweaver) |
 | [B-7](https://github.com/dwijn/RH/issues/8) | medium | 3-D: `Jgas` accumulated with `wmu` inside the to_obs loop, looks double counted | `rhsc3d/formal.c:370-374` | code reading | open |
-| [B-8](https://github.com/dwijn/RH/issues/9) | medium | `calcDistance()` falls off the end without a return value | `rhsc3d/geometry.c:265` | -Wreturn-type | open |
-| [B-9](https://github.com/dwijn/RH/issues/10) | medium | `pread`/`pwrite` results compared as `int` against `size_t`; -1 error mishandled | `readj.c:58,82,146,171,200,229,413,442` | -Wsign-compare | open |
+| [B-8](https://github.com/dwijn/RH/issues/9) | medium | `calcDistance()` falls off the end without a return value | `rhsc3d/geometry.c:265` | -Wreturn-type | fixed |
+| [B-9](https://github.com/dwijn/RH/issues/10) | medium | `pread`/`pwrite` results compared as `int` against `size_t`; -1 error mishandled | `readj.c:58,82,146,171,200,229,413,442` | -Wsign-compare | fixed |
 | [B-10](https://github.com/dwijn/RH/issues/11) | medium | 32-bit overflow of `Nlambda*Nspace` sizes (`NgInit(int N)`, `Nlamu`) once > 2³¹ (e.g. >163 PRD wavelengths at 13 M points) | `accelerate.c:34`, `redistribute.c` | code reading | open |
 | [B-11](https://github.com/dwijn/RH/issues/12) | low | Leaks: `backgrflags`/`backgrrecno` re-malloc'd every `Background()`; `spectrum.I` allocated twice in 3-D with Stokes | `background.c:300,312`, `initial_xdr.c:386,392` | code reading | open |
 | [B-12](https://github.com/dwijn/RH/issues/13) | low | AR85-CHP collisions hard-code `atmos.H->n[5]` as protons (wrong unless H has 6 levels; no shipped atom uses it) | `collision.c:883` | code reading | open |
@@ -184,13 +184,13 @@ many-level atoms) go here (pending)._
 | [N-2](https://github.com/dwijn/RH/issues/17) | high | Ng acceleration without safeguards: one global coefficient set for all levels/depths weighted by 1/n; no positivity, residual or conditioning check; history not reset after relaxation, ne or HSE updates | `accelerate.c:88-122` | He_large Ng jump 0.34 → 20.7; FALC_shock H_6 SIGFPE with Ng, converges in 115 without | open |
 | [N-3](https://github.com/dwijn/RH/issues/18) | high | Convergence criterion is not an accuracy guarantee: max relative change over all levels/depths, dominated by trace levels, measures Ng jumps, ignores PRD ρ, background J and ne | `maxchange.c:43`, `iterate.c:132` | He_large "converged" to 1e-3 at 1 thread (108 iterations) and 4 threads (48) differ by 1.4 %; MgI+II at 1e-6 vs 1e-9 differ by 2e-5 | open |
 | [N-4](https://github.com/dwijn/RH/issues/19) | high | PRD ρ iteration is Λ-iteration with populations fixed; early exit at `PRD_ITER_LIMIT` makes the map discontinuous → limit cycles; ρ never clipped (ρ < 0 possible after Ng) | `redistribute.c:74-105`, `scatter.c:346,765` | H_6 FALC at 1e-8 stalls at 3–9e-4 for 600 iterations; converges in 142 with fixed 3 sub-iterations; FALXCO H_6 (PRD) no convergence, H_6_CRD converges in 17 | open |
-| [N-5](https://github.com/dwijn/RH/issues/20) | high | Parabolic short-characteristics Ψ* unbounded (≈ 1 + 1/Δτ_d when Δτ_u ≫ Δτ_d); fallback to linear only on I < 0. `S_PARABOLIC` is the shipped 2-D default | `rhf1d/piecewise_1D.c:234`, `rhsc2d/piecewise_2D.c:309`, `rhsc2d/run/keyword.input:161` | Ψ* up to 12 (> 4000 before blow-up), 11 % of points outside [0,1]; CaII/MgII on FALC_v10 SIGFPE in 3–8 iterations; Bezier/linear converge in 14–28 | open |
+| [N-5](https://github.com/dwijn/RH/issues/20) | high | Parabolic short-characteristics Ψ* unbounded (≈ 1 + 1/Δτ_d when Δτ_u ≫ Δτ_d); fallback to linear only on I < 0. `S_PARABOLIC` is the shipped 2-D default | `rhf1d/piecewise_1D.c:234`, `rhsc2d/piecewise_2D.c:309`, `rhsc2d/run/keyword.input:161` | Ψ* up to 12 (> 4000 before blow-up), 11 % of points outside [0,1]; CaII/MgII on FALC_v10 SIGFPE in 3–8 iterations; Bezier/linear converge in 14–28 | fixed |
 | [N-6](https://github.com/dwijn/RH/issues/21) | high | No ne preconditioning: `SOLVE_NE` couples ne by plain iteration (dfjk = 0 for NLTE elements); Newton tolerance 1e-2 | `solvene.c:40,165` | (with B-1 patched) H_6_CRD period-2 oscillation at 0.22 after 80 iterations; 2-cycle on FALC_shock | open |
 | [N-7](https://github.com/dwijn/RH/issues/22) | medium | Rate-matrix conditioning: LU with row scaling only; iterative improvement in the same precision; LTE relative to the neutral ground level (overflow for high stages); n* clipped to DBL_MIN | `ludcmp.c:73,142`, `ltepops.c:98` | CI–VI Judge (115 levels): 230 negative populations after 4 iterations, b up to 1e307, divergence, SIGFPE | open |
 | [N-8](https://github.com/dwijn/RH/issues/23) | medium | No positivity enforcement or damping anywhere | — | grep | open |
 | [N-9](https://github.com/dwijn/RH/issues/24) | medium | Starting solutions: `ZERO_RADIATION` has no photoionization (over-recombined start); no J = B or escape-probability option | `initial_xdr.c:21,588-640` | LTE start 40 iterations vs 22 (H_6 FALC) | open |
 | [N-10](https://github.com/dwijn/RH/issues/25) | high | Multi-D atmospheres with a horizontally corrugated transition region do not converge: 3-D diverges and crashes, 2-D with the same gradients locks into a period-3 cycle | — | 3-D 8×8×82, H_6+CaII, upstream and WIP. Unperturbed and velocity-only variants converge. With the height/temperature perturbation alone it diverges (SIGFPE) with bicubic or linear 3-D interpolation, Bezier or linear S, PRD or CRD atoms, Ng on or off, and even with 4× gentler gradients (crash at iteration 28). 2-D with equally steep gradients: no crash, deltas cycle 23 → 1 → 2 with period 3 = `NG_PERIOD` for 40 iterations; 4× gentler 2-D converges slowly (1e-2 after 40). Cause not yet isolated: candidates are the 3-D short-characteristics Ψ*, Ng (N-2) and the lack of positivity safeguards (N-8) | open |
-| [N-11](https://github.com/dwijn/RH/issues/26) | medium | FPE traps on with no handler: any overflow kills the run with no output or diagnostic | `fpehandler.c:37` | all SIGFPE cases | open |
+| [N-11](https://github.com/dwijn/RH/issues/26) | medium | FPE traps on with no handler: any overflow kills the run with no output or diagnostic | `fpehandler.c:37` | all SIGFPE cases | fixed |
 | [N-12](https://github.com/dwijn/RH/issues/27) | low | Collisions with H/protons use H populations frozen at setup; spline interpolation of rates can overshoot negative and clamps outside the table | `collision.c:685,726-746` | code reading | open |
 | [N-13](https://github.com/dwijn/RH/issues/28) | low | `w3` uses `1 − exp(−x)` instead of `expm1` (rel. error ~1e-9 near x = 5e-4); Bezier Ψ* ignores dS/dS_k in the derivative | `w3.c`, `bezier_*.c` | code reading | open |
 
@@ -250,7 +250,7 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | [Q-9](https://github.com/dwijn/RH/issues/60) | medium | Headers not self-contained; reserved include-guard names; `rh.h` has none and pulls in `<rpc/types.h>` and `<pthread.h>` everywhere | open |
 | [Q-10](https://github.com/dwijn/RH/issues/61) | low | Dead or bit-rotted code: `collision_15d.c` (does not compile), `collision_Oslo.c`, `rhsphere/readinput.c`, `rhsphere/solveplane.c`, `tools/constructatom.c` (does not compile upstream either), `tools/adjustbf.c` | open |
 | [Q-11](https://github.com/dwijn/RH/issues/62) | low | Five Voigt algorithms plus Fortran variants | open |
-| [Q-12](https://github.com/dwijn/RH/issues/63) | low | `tests/make_tiled_2d_atmos.py` uses the wrong array order | open |
+| [Q-12](https://github.com/dwijn/RH/issues/63) | low | `tests/make_tiled_2d_atmos.py` uses the wrong array order | fixed |
 | [Q-13](https://github.com/dwijn/RH/issues/64) | low | Python readers depend on `xdrlib` (removed in Python 3.13) | open |
 | [Q-14](https://github.com/dwijn/RH/issues/65) | — | No unit tests (Voigt, LU, splines, w3j, formal solvers on analytic slabs), no CI | open |
 
@@ -290,6 +290,80 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-10-15 — calcDistance always returns a value (B-8)
+
+`calcDistance()` (3-D stencils) had no return for an unexpected
+intersection plane (-Wreturn-type). All three planes were handled, so this
+could not happen in practice; an invalid plane now stops with an error
+instead of returning garbage. Verified: the warning is gone; the 3-D
+regression case is byte-identical.
+
+### 2026-10-15 — Scratch-file I/O checks every transfer (B-9)
+
+The issue as logged (an `int`/`size_t` comparison mishandling -1) turned out
+to be benign: -1 converts to SIZE_MAX and never matched the record size. The
+real problems in `readj.c` were elsewhere:
+
+- `pread_rh()`/`pwrite_rh()` (the chunked I/O used for the background
+  opacity file) summed the return values, so an error (-1) wrapped the
+  unsigned total, and partial transfers were never retried. They now share
+  one loop that retries partial and interrupted transfers and reports
+  failure, and all J, J20, Imu and profile records go through it too.
+- Error messages now include the system error text.
+- `readJgas()`/`writeJgas()` (hybrid PRD) did not check that `Jgas.dat`
+  opened or that the full array was transferred.
+
+Verified: `readj.c` has no warnings under `-Wall -Wextra` (12 before); the
+regression suite is byte-identical to upstream.
+
+### 2026-10-15 — Floating-point exceptions are reported with a backtrace (N-11)
+
+On Linux RH traps division by zero, invalid operations and overflow, but a
+trapped exception killed the run with only "Floating point exception". A
+SIGFPE handler now prints the kind of exception, the faulting address and a
+backtrace (resolve with `addr2line -f -e <program> <address>`), then
+re-raises the signal so the exit status is unchanged. The handler only uses
+async-signal-safe output.
+
+Verified: the PRD_NG_PERIOD = 0 crash (B-2) now reports "integer division
+by zero" with a backtrace that addr2line resolves to
+Accelerate ← Redistribute ← Iterate; the regression suite is
+byte-identical. File and line numbers need `-g` in the default compiler
+flags (to be added with the build-system work, Q-1).
+
+### 2026-10-15 — Parabolic interpolation removed (S_PARABOLIC, DELO_PARABOLIC) (N-5)
+
+**Breaking change.** `S_INTERPOLATION = S_PARABOLIC` and
+`S_INTERPOLATION_STOKES = DELO_PARABOLIC` are removed; either value now stops
+the run with a message naming `S_BEZIER3`/`S_LINEAR` and `DELO_BEZIER3`.
+
+- Why: the quadratic interpolation is not monotonic. It overshoots near steep
+  gradients (transition region, shocks, velocity-shifted line cores), and its
+  approximate operator grows like 1/dtau_dw, which makes the iteration
+  diverge: CaII on a ±10 km/s FAL-C crashed with SIGFPE in 3 iterations, and
+  bounding Psi* alone (PR #73, closed) did not cure it because the intensity
+  itself overshoots. Monotonic cubic Bezier (de la Cruz Rodríguez & Piskunov
+  2013) is the higher-order option, linear the robust one.
+- Removed `Piecewise_1D/2D/3D` and `Piece_Stokes_1D/2D/3D` (the file
+  `rhf1d/piecestokes_1D.c`); kept the shared helpers `Quadr`, `StokesK_2D`
+  and `StokesK_3D`. `formal2d` and `chartflow` now use the 2-D Bezier solver.
+  The 2-D example input uses `S_BEZIER3` (the default).
+- Verified: all programs of all geometries build; the regression suite is
+  byte-identical to upstream (the 2-D example now uses Bezier in both);
+  stress case `1d_v10_ca_par` replaced by `1d_v10_ca_lin`, which converges
+  in 19 iterations (Bezier: 14).
+
+### 2026-10-15 — Memory test uses a valid tiled atmosphere (Q-12)
+
+- `tests/make_tiled_2d_atmos.py` read the 2-D arrays as [Nx][Nz], but RH
+  stores them with x fastest ([Nz][Nx]), so every tiled column mixed heights
+  from different depths. The resulting atmosphere gave negative opacities, and
+  whether a build survived the `2d/mem` case depended on luck: upstream itself
+  crashed with SIGFPE on it once the 2-D example used Bezier.
+- It now tiles along x; all 192 columns are proper FAL-C columns.
+- Verified: `run_tests.sh --only 2d/mem` passes for this tree against upstream
+  (208 MB vs 206 MB) and for upstream against itself.
 
 ### 2026-10-15 — SOLVE_NE = ITERATION works with active atoms (B-1)
 
