@@ -6,8 +6,9 @@
 
        --------------------------                      ----------RH-- */
 
-/* --- Print warning, or print error string and exit when error level
-       is above preset treshold --                     -------------- */
+/* --- Messages and warnings (ErrorMessage), and errors that end the
+       run (ErrorExit). Code calls them through Error() in error.h --
+                                                       -------------- */
 
 #include <stdlib.h>
 #include <errno.h>
@@ -24,39 +25,35 @@
 extern CommandLine commandline;
 
 
-/* ------- begin -------------------------- Error.c ----------------- */
+/* ------- begin -------------------------- ErrorMessage.c ---------- */
 
-void Error(enum errorlevel level, const char *routineName,
-	   const char *messageStr)
+void ErrorMessage(enum errorlevel level, const char *routineName,
+		  const char *messageStr)
 {
-  char errorStr[MAX_MESSAGE_LENGTH];
-  enum errorlevel defaultLevel = ERROR_LEVEL_1;
-
-  switch (level) {
-  case MESSAGE:
+  if (level == MESSAGE) {
     if (!commandline.quiet)
       fprintf(commandline.logfile, "%s", (messageStr) ? messageStr : "");
-    return;
-  case WARNING:
+  } else {
     fprintf(commandline.logfile, "\n-WARNING in routine %s\n %s\n",
 	    routineName, (messageStr) ? messageStr : " (Undocumented)\n");
-    return;
-  default:
-    if (level < defaultLevel) {
-      fprintf(commandline.logfile, "\a\n-ERROR in routine %s\n %s \n %s\n",
-	      routineName,(messageStr) ? messageStr : " (Undocumented)\n",
-	      "Trying to continue.....");
-      return;
-    } else {
-      sprintf(errorStr, "\a\n\n-TERMINATING_ERROR in routine %s\n %s \n %s\n",
-	      routineName,(messageStr) ? messageStr : " (Undocumented)\n",
-	      "Exiting.....");
-
-      fprintf(commandline.logfile, "%s", errorStr);
-      if (commandline.logfile != stderr) fprintf(stderr, "%s", errorStr);
-
-      exit(level);
-    }
   }
 }
-/* ------- end ---------------------------- Error.c ----------------- */
+/* ------- end ---------------------------- ErrorMessage.c ---------- */
+
+/* ------- begin -------------------------- ErrorExit.c ------------- */
+
+void ErrorExit(enum errorlevel level, const char *routineName,
+	       const char *messageStr)
+{
+  char errorStr[MAX_MESSAGE_LENGTH];
+
+  sprintf(errorStr, "\a\n\n-TERMINATING_ERROR in routine %s\n %s \n %s\n",
+	  routineName,(messageStr) ? messageStr : " (Undocumented)\n",
+	  "Exiting.....");
+
+  fprintf(commandline.logfile, "%s", errorStr);
+  if (commandline.logfile != stderr) fprintf(stderr, "%s", errorStr);
+
+  exit(level);
+}
+/* ------- end ---------------------------- ErrorExit.c ------------- */
