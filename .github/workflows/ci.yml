@@ -12,7 +12,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   UPSTREAM_REPO: han-uitenbroek/RH
@@ -54,15 +54,14 @@ jobs:
         run: ctest --test-dir build --output-on-failure
 
   regression:
-    name: regression vs upstream (${{ matrix.os }}${{ matrix.sanitize && ', sanitizers' || '' }})
+    name: regression vs upstream (${{ matrix.os }}${{ matrix.sanitize && ', with sanitizers' || '' }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-24.04, cc: gcc }
-          - { os: macos-14, cc: clang }
           - { os: ubuntu-24.04, cc: gcc, sanitize: "address,undefined" }
+          - { os: macos-14, cc: clang }
     steps:
       - uses: actions/checkout@v4
       - name: Upstream RH
@@ -100,7 +99,7 @@ jobs:
         run: |
           set +e
           tests/run_tests.sh --baseline upstream --candidate . \
-            ${{ matrix.sanitize && '--asan build-san --threads 2' || '' }} \
+            ${{ matrix.sanitize && '--asan build-san' || '' }} \
             --work "$RUNNER_TEMP/rh-tests" 2>&1 | tee tests.log
           rc=${PIPESTATUS[0]}
           { echo '```'; grep -E '^(passed|FAILED|\[FAIL\])' tests.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

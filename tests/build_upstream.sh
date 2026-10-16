@@ -2,8 +2,10 @@
 # Build an upstream RH checkout (han-uitenbroek/RH, which still uses its
 # hand-written makefiles) as the baseline for run_tests.sh and
 # run_stress.sh: rhf1d, rhsc2d, rhsc3d and rhsphere, built in place,
-# without the Fortran Voigt routines so that no Fortran compiler is needed
-# and the results compare exactly with the C code of this tree.
+# without the Fortran Voigt routines so that no Fortran compiler is needed.
+# Compare against it in tolerance mode: the Stokes cases differ by ~1e-10
+# (complex arithmetic in the Voigt code). For byte-identical checks of a
+# refactor, use a build of the branch's base as the baseline instead.
 #
 # usage: build_upstream.sh UPSTREAM_DIR
 #
@@ -13,6 +15,8 @@
 # The makefiles are not safe under make -j, so this builds serially (about
 # a minute).
 set -e
+[ -f "$1/Makefile" ] && [ -d "$1/rhf1d" ] ||
+  { echo "usage: $0 UPSTREAM_DIR   (an upstream RH checkout)"; exit 1; }
 cd "$1"
 cc=${CC:-gcc}
 cflags="-O2"; libs="-lrh -lm -lpthread"
