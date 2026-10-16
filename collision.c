@@ -441,7 +441,7 @@ double summers(int i, int j, double nne, struct Atom *atom){
 
 /* ------- begin --------------------------- atomnr.c --------------- */
 
-int atomnr(char ID[ATOM_ID_WIDTH+1])
+int atomnr(char *ID)
 {
   /* --- Returns atomic number of element with name id -- ----------- */  
 

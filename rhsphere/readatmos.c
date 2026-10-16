@@ -114,6 +114,11 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
   Nread += sscanf(inputLine, "%d %d %d", &Nradius,
 		  &geometry->Ncore, &geometry->Ninter);
   checkNread(Nread, Nrequired=7, routineName, checkPoint=1);
+  if (Nradius < 2) {
+    sprintf(messageStr, "Invalid number of radial points %d in file %s",
+	    Nradius, input.atmos_input);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
 
   /* --- Keep duplicates of some of the geometrical quantities in
          Atmos structure --                            -------------- */
