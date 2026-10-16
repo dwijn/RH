@@ -45,6 +45,12 @@ double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2)
 {
   const char routineName[] = "RII";
 
+  (void) v_emit;
+  (void) v_abs;
+  (void) adamp;
+  (void) mu1;
+  (void) mu2;
+
   Error(ERROR_LEVEL_2, routineName,
 	"Not yet implemented for SPHERICAL_SYMMETRY");
 

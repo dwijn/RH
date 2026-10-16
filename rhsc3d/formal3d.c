@@ -39,12 +39,15 @@ char messageStr[MAX_LINE_SIZE];
 
 int main(int argc, char *argv[])
 {
-  register int l, k;
+  register int k;
 
   bool_t  to_observer;
   int     mu, Nread, Nwrite, Nspace, Nspect = 1, nspect, Nx, Ny, Nz,
-          Nplane, bc[2];
+          Nplane;
   double *chi, *S, *I, *Psi;
+
+  (void) argc;
+  (void) argv;
 
   stats.printCPU      = TRUE;
   commandline.quiet   = FALSE;

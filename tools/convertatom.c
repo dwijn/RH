@@ -97,12 +97,12 @@ int main(int argc, char *argv[])
  
 void MULTIatom(FILE *atomFile, Atom *atom)
 {
-  register int n, kr, kf, la, krp;
+  register int n, kr, kf, la;
 
   char   input[MAX_LINE_SIZE];
   bool_t exit_on_EOF;
-  int    i, j, Nrad, Nread, phot, Trad_option, iw, lap, Nbb;
-  double C, f, A0, Trad, lambda0, lambdaMin;
+  int    i, j, Nread, phot, Trad_option, iw, lap;
+  double C, f, A0, lambda0, lambdaMin;
   AtomicLine *line;
   AtomicContinuum *continuum;
   FixedTransition *fixed;
@@ -126,8 +126,6 @@ void MULTIatom(FILE *atomFile, Atom *atom)
   getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF=TRUE);
   Nread = sscanf(input, "%d %d %d %d",
 		 &atom->Nlevel, &atom->Nline, &atom->Ncont, &atom->Nfixed);
-
-  Nrad = atom->Nline + atom->Ncont;
 
   /* --- Read in the level energies, statistical weights, labels,
          and ionization stage --                       -------------- */

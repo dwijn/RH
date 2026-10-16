@@ -54,7 +54,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
   char    scaleStr[21], inputLine[MAX_LINE_SIZE], *filename;
   bool_t  exit_on_EOF, enhanced_atmos_ID = FALSE;
   int     Nread, Nradius, Nrequired, checkPoint;
-  double  *dscale, *r, *cmass, *tau_ref, turbpress, nbaryon;
+  double  *dscale, turbpress, nbaryon;
   struct  stat statBuffer;
 
   getCPU(2, TIME_START, NULL);
@@ -129,9 +129,9 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 
   /* --- Allocate space for arrays that define structure -- --------- */
 
-  tau_ref = geometry->tau_ref = (double *) malloc(Nradius * sizeof(double));
-  cmass  = geometry->cmass  = (double *) malloc(Nradius * sizeof(double));
-  r = geometry->r = (double *) malloc(Nradius * sizeof(double));
+  geometry->tau_ref = (double *) malloc(Nradius * sizeof(double));
+  geometry->cmass  = (double *) malloc(Nradius * sizeof(double));
+  geometry->r = (double *) malloc(Nradius * sizeof(double));
   atmos->T      = (double *) malloc(Nradius * sizeof(double));
   atmos->ne     = (double *) malloc(Nradius * sizeof(double));
   atmos->vturb  = (double *) malloc(Nradius * sizeof(double));
@@ -317,7 +317,6 @@ void convertScales(Atmosphere *atmos, Geometry *geometry)
 void getBoundary(Geometry *geometry)
 {
   const char routineName[] = "getBoundary";
-  register int la;
 
   bool_t result = TRUE;
   FILE  *fp_Itop;

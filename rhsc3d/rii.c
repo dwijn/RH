@@ -50,9 +50,7 @@ extern Geometry geometry;
 
 double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2)
 {
-  const char routineName[] = "RII";
-
-  double vmin, vplus, rii, mu12,
+  double vmin, vplus, rii,
          sin_theta, cos_theta, sec_theta, csc_theta2;
 
   if (mu1 == mu2) return 0.0;

@@ -60,19 +60,17 @@ char messageStr[MAX_LINE_SIZE];
 
 int main(int argc, char *argv[])
 {
-  register int k, mu, n, m;
+  register int k, mu, n;
 
   char    chartFileName[10], inputLine[MAX_LINE_SIZE];
   bool_t  result, exit_on_EOF, crosscoupling, to_obs, initialize,
-          boundbound, solve_Stokes, PRD_angle_dep, polarized_as,
+          boundbound, PRD_angle_dep, polarized_as,
           polarized_c, angle_dep, analyze_output, equilibria_only;
   int     Nspect, Nread, *wave_index, checkPoint;
   double  wmux, wmuz, *I, *J, *Psi, *S, *chi, *chi_as, *eta_as,
          *Fx, *Fz;
   FILE   *fp_out = NULL, *fp_flow = NULL;
   XDR     xdrs;
-  Atom *atom;
-  Molecule *molecule;
   ActiveSet *as;
 
   setOptions(argc, argv);
@@ -178,8 +176,6 @@ int main(int argc, char *argv[])
     PRD_angle_dep = (containsPRDline(as) && input.PRD_angle_dep);
     polarized_as  = containsPolarized(as);
     polarized_c   = atmos.backgrflags[wave_index[n]].ispolarized;
-    solve_Stokes  = (input.StokesMode == FULL_STOKES &&
-		     (polarized_as || polarized_c));
     angle_dep     = (polarized_as || polarized_c || PRD_angle_dep ||
 		     (atmos.moving &&
 	     (boundbound || atmos.backgrflags[wave_index[n]].hasline)));

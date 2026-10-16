@@ -67,13 +67,13 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
   register int k, n, m, i, j;
   
   int    Ndep = geometry.Ndep, k_start, k_end, dk, k_last;
-  double dtau_uw, dtau_dw = 0.0, c1, c2, w[3], dsdn2, dchi_dn,
+  double dtau_uw, dtau_dw = 0.0, c1, c2, dsdn2, dchi_dn,
          I_upw[4], Bnu[2];
   double dchi_up,dchi_c,dt03;
   double dsup,dsdn,dt,eps=0,alpha=0,beta=0,gamma=0,theta=0;
   double Ku[4][4], K0[4][4], Kd[4][4], dKu[4][4], dK0[4][4];
   double Su[4], S0[4], Sd[4], dSu[4], dS0[4];
-  double A[4][4], Ma[4][4], Mb[4][4], Mc[4][4], V0[4], V1[4];
+  double A[4][4], Ma[4][4], Mb[4][4], Mc[4][4], V0[4];
   double imu = 1.0 / geometry.muz[mu];
   double *z = geometry.height;
   double Md[4][4];
@@ -302,7 +302,7 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
   const char routineName[] = "Piecewise_Bezier3_1D";
 
   int    k_start, k_end, dk, Ndep = geometry.Ndep;
-  double dtau_uw, dtau_dw, dS_uw, I_upw, c1, c2, w[3], zmu, Bnu[2];
+  double dtau_uw, dtau_dw, I_upw, c1, c2, zmu, Bnu[2];
   double dsup, dsdn, dt03, eps=0, alpha=0, beta=0, gamma=0, theta=0;
   double dS_up, dS_c, dchi_up, dchi_c, dchi_dn, dsdn2;
 

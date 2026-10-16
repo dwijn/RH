@@ -50,7 +50,6 @@ void ShowUsage(char *programName, struct Option *theOpt)
 int main(int argc, char *argv[])
 {
   register int i;
-  const char routineName[] = "waveinfo";
 
   char    format[] = "%9.3f   %9.3f   %9.3f   %9.3f   %9.3f\n",
            messageStr[132];

@@ -36,7 +36,7 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
                double *I, double *Psi)
 {
   const char routineName[] = "ShortChar";
-  register int k, l, m, ml;
+  register int k, l, m;
 
   int     Nz = geometry->Nz, Nplane = geometry->Nplane, quadrant,
           dl, lstart, lend, dm, mstart, mend, dk, kstart, kend, local;
@@ -217,7 +217,10 @@ void Piecewise_Linear_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 			 double *chi, double *S, double *I, double *Psi)
 {
   int    local;
-  double chi_uw, S_uw, dS_uw, dtau_uw, w[2], c1, c2; 
+  double chi_uw, S_uw, dS_uw, dtau_uw, w[2]; 
+
+  (void) st_dw;
+  (void) kend;
 
   local = k*geometry->Nplane + m*geometry->Nx + l;
 

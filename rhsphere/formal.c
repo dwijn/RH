@@ -44,10 +44,9 @@ extern char messageStr[];
 double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 {
   const char routineName[] = "Formal";
-  register int k, l, mu;
+  register int k, mu;
 
-  bool_t   initialize, boundbound, PRD_angle_dep, to_obs, polarized,
-           solve_Stokes;
+  bool_t   initialize, boundbound, PRD_angle_dep, polarized;
   enum     FeautrierOrder F_order;     
   int      Nspace = atmos.Nspace, Nrays = atmos.Nrays;
   double  *I, *chi, *S, *Psi, *Jdag, dJ, dJmax, *J;
@@ -66,7 +65,6 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
   boundbound    = containsBoundBound(as);
   PRD_angle_dep = (containsPRDline(as) && input.PRD_angle_dep);
   polarized     = containsPolarized(as);
-  solve_Stokes  = (polarized && input.StokesMode == FULL_STOKES);
 
   /* --- Allocate temporary space --                   -------------- */
 
@@ -422,6 +420,9 @@ void addtoGamma_sphere(int nspect, Ray *ray, double *P, double *Psi)
 void Hydrostatic(int NmaxIter, double iterLimit)
 {
   const char routineName[] = "Hydrostatic";
+
+  (void) NmaxIter;
+  (void) iterLimit;
 
   if (atmos.hydrostatic) {
     sprintf(messageStr,

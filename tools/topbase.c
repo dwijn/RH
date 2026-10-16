@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
           state[4], orbital[2], spectrumID[5];
   bool_t  exit_on_EOF, readphoto = FALSE, hunt, lines = FALSE;
   int     Nlevel, Nl, Nread, itb, *islp, *ilv, ln, ll, multiplicity,
-          islp_p, ilv_p, i_p, nz, ne, nprint, Nlamb,
+          islp_p, ilv_p, i_p, nz, ne, Nlamb,
           stage, i_l, islp_l, ilv_l, jslp_l, jlv_l, Nrad, ntoken;
   double  gi, *te, e, rl, abundance, weight, Eion, *alpha,
          *E, hERc, Econt, fdum, gf, f, lambda0, C, Ecorr, E0;
@@ -181,17 +181,17 @@ int main(int argc, char *argv[])
     atom.label[i] = (char *) calloc(ATOM_LABEL_WIDTH+1, sizeof(char)); 
     switch (ntoken) {
     case 10:
-      nprint = sprintf(atom.label[i], "%s %s %s %1d%s%s",
-		       atom.ID, spectrumID, config1,
-		       multiplicity, orbital, parity);  break;
+      sprintf(atom.label[i], "%s %s %s %1d%s%s",
+	      atom.ID, spectrumID, config1,
+	      multiplicity, orbital, parity);  break;
     case 11:
-      nprint = sprintf(atom.label[i], "%s %s %s %s %1d%s%s",
-		       atom.ID, spectrumID, config1, config2,
-		       multiplicity, orbital, parity);  break;
+      sprintf(atom.label[i], "%s %s %s %s %1d%s%s",
+	      atom.ID, spectrumID, config1, config2,
+	      multiplicity, orbital, parity);  break;
     case 12:
-      nprint = sprintf(atom.label[i], "%s %s %s %s %s %1d%s%s",
-		       atom.ID, spectrumID, config1, config2, state,
-		       multiplicity, orbital, parity);  break;
+      sprintf(atom.label[i], "%s %s %s %s %s %1d%s%s",
+	      atom.ID, spectrumID, config1, config2, state,
+	      multiplicity, orbital, parity);  break;
     default: ;
     }
     strupcase(atom.label[i]); 

@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
           analyze_output, equilibria_only;
   int     Nspect, Nread, Nrequired, checkPoint, *wave_index = NULL;
   double  muz, *S, *chi, *J;
-  FILE   *fp_out, *fp_ray, *fp_stokes, *fp_out_asc;
+  FILE   *fp_out, *fp_ray, *fp_out_asc;
   XDR     xdrs;
   ActiveSet *as;
 
