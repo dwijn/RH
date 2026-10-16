@@ -173,8 +173,9 @@ many-level atoms) go here (pending)._
 | [B-10](https://github.com/dwijn/RH/issues/11) | medium | 32-bit overflow of `Nlambda*Nspace` sizes (`NgInit(int N)`, `Nlamu`) once > 2³¹ (e.g. >163 PRD wavelengths at 13 M points) | `accelerate.c:34`, `redistribute.c` | code reading | open |
 | [B-11](https://github.com/dwijn/RH/issues/12) | low | Leaks: `backgrflags`/`backgrrecno` re-malloc'd every `Background()`; `spectrum.I` allocated twice in 3-D with Stokes | `background.c:300,312`, `initial_xdr.c:386,392` | code reading | open |
 | [B-12](https://github.com/dwijn/RH/issues/13) | low | AR85-CHP collisions hard-code `atmos.H->n[5]` as protons (wrong unless H has 6 levels; no shipped atom uses it) | `collision.c:883` | code reading | open |
-| [B-13](https://github.com/dwijn/RH/issues/14) | low | `ERROR_LEVEL_1` for an unknown solver leaves I and Psi undefined and continues | `rhf1d/formal.c:209-231` | code reading | open |
+| [B-13](https://github.com/dwijn/RH/issues/14) | low | `ERROR_LEVEL_1` for an unknown solver leaves I and Psi undefined and continues. **Not a bug:** `ERROR_LEVEL_1` terminates the run (see Q-16), and the keyword parser already rejects unknown solvers | `rhf1d/formal.c:209-231` | code reading | wontfix |
 | [B-14](https://github.com/dwijn/RH/issues/15) | low | `error.c` `sprintf`s a 512-byte message plus routine name into a 512-byte buffer | `error.c:51` | code reading | open |
+| [B-15](https://github.com/dwijn/RH/issues/80) | low | `Atoms/CaII_large.atom` has 13 `OMEGA` collision records equal to `Inf`; since B-4 the run stops at setup with a clear error instead of a SIGFPE | `Atoms/CaII_large.atom` | `1d_falc_cail`: "collision record OMEGA 11 10 has a non-finite value (inf)" | open |
 
 ### 3.2 Numerics and convergence
 
@@ -193,6 +194,8 @@ many-level atoms) go here (pending)._
 | [N-11](https://github.com/dwijn/RH/issues/26) | medium | FPE traps on with no handler: any overflow kills the run with no output or diagnostic | `fpehandler.c:37` | all SIGFPE cases | fixed |
 | [N-12](https://github.com/dwijn/RH/issues/27) | low | Collisions with H/protons use H populations frozen at setup; spline interpolation of rates can overshoot negative and clamps outside the table | `collision.c:685,726-746` | code reading | open |
 | [N-13](https://github.com/dwijn/RH/issues/28) | low | `w3` uses `1 − exp(−x)` instead of `expm1` (rel. error ~1e-9 near x = 5e-4); Bezier Ψ* ignores dS/dS_k in the derivative | `w3.c`, `bezier_*.c` | code reading | open |
+| [N-14](https://github.com/dwijn/RH/issues/81) | medium | Results depend on depth resolution: on FALC_v10 (±10 km/s) the linear and Bezier formal solvers disagree by 5–16 % throughout the chromosphere, so the grid does not resolve the velocity gradients; there is no grid refinement and no resolution check | — | CaII on FALC_v10, linear vs Bezier vs parabolic | open |
+| [N-15](https://github.com/dwijn/RH/issues/82) | medium | 3-D horizontal interpolation of S, χ and I (`BICUBIC_3D`, the default) is not limited and can overshoot across a corrugated transition region (the 2-D `Quadr` has a monotonic option); possible contributor to N-10 | `rhsc3d/geometry.c:344,495,633` | code reading | open |
 
 ### 3.3 Memory
 
@@ -253,6 +256,8 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | [Q-12](https://github.com/dwijn/RH/issues/63) | low | `tests/make_tiled_2d_atmos.py` uses the wrong array order | fixed |
 | [Q-13](https://github.com/dwijn/RH/issues/64) | low | Python readers depend on `xdrlib` (removed in Python 3.13) | open |
 | [Q-14](https://github.com/dwijn/RH/issues/65) | — | No unit tests (Voigt, LU, splines, w3j, formal solvers on analytic slabs), no CI | open |
+| [Q-15](https://github.com/dwijn/RH/issues/83) | low | Default `CFLAGS` lack `-g`, so N-11 backtraces resolve to function names only, without file and line | open |
+| [Q-16](https://github.com/dwijn/RH/issues/84) | medium | `Error(ERROR_LEVEL_1, …)` prints "Trying to continue" but terminates (exit status 2): the continue branch in `error.c` is unreachable. 74 call sites are written to recover afterwards (return FALSE, fall back, skip an output file), so their recovery code is dead, and `ERROR_LEVEL_1` and `_2` differ only in exit status (2 vs 3). Decide per site between a warning with recovery and a fatal error; define the exit statuses together with N-1 | open |
 
 Output formats are a contract: the Python (`python/rhanalyze`) and IDL readers
 unpack the XDR files field by field, and `rhopacity.py` seeks into raw
@@ -271,12 +276,13 @@ Ordered so that every step can be verified against upstream: byte-identical
    parabolic Ψ* (N-5) and switch the 2-D example to Bezier.
 2. **Build and hygiene** — drop Fortran (Q-2, Q-11); new build system with
    automatic dependencies and safe parallel builds (Q-1); warnings on and
-   cleaned (Q-3); dead code removed (Q-10); CI with the regression suite.
+   cleaned (Q-3); debug info in default builds (Q-15); dead code removed (Q-10); CI with the regression suite.
 3. **Unit tests** for Voigt (against a Faddeeva reference), LU, splines,
    formal solvers on analytic slabs — before touching numerics.
 4. **Convergence robustness** — Ng safeguards (N-2), better convergence
    measure (N-3), PRD sub-iteration rework (N-4), positivity (N-8), rate-matrix
-   scaling (N-7), ne preconditioning (N-6), collisional-radiative switching.
+   scaling (N-7), ne preconditioning (N-6), collisional-radiative switching,
+   monotonic 3-D interpolation (N-15) and a depth-resolution test (N-14).
 5. **Speed** — hoist angle-independent work (P-1), parallel statistical
    equilibrium (P-2), 3-D interpolation (P-3), dynamic scheduling (P-4), fused
    accumulation (P-6), flags (P-7).
@@ -285,7 +291,7 @@ Ordered so that every step can be verified against upstream: byte-identical
    (M-4), float storage where accuracy allows.
 7. **Structure** — shared geometry layer to remove duplication (Q-5),
    self-contained headers, reduced global state, error handling (Q-4, Q-7,
-   Q-9). MPI domain decomposition (P-11) is a separate, larger project.
+   Q-9, Q-16). MPI domain decomposition (P-11) is a separate, larger project.
 
 ---
 
