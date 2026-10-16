@@ -430,7 +430,7 @@ double findbeta1(double righthand, double *zeta1)
  */
 
   int    Ntry;
-  double beta, beta1, beta2, y, delta;
+  double beta = 0.0, beta1, beta2, y, delta;
 
   beta1 = BETA_START;
   y = square(Bessel_K0(beta1)) + square(Bessel_K1(beta1)) - righthand;

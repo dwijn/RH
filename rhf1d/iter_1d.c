@@ -43,10 +43,12 @@ void Iterate(int NmaxIter, double iterLimit)
   const char routineName[] = "Iterate";
   register int mu, la, l, k, nIter, to_obs;
 
-  int    Ndep = geometry.Ndep, Nrays = geometry.Nrays, Nspace, lamu;
+  int    Ndep = geometry.Ndep, Nrays = geometry.Nrays, Nspace = 0,
+         lamu;
   bool_t quiet, accel;
   enum   FeautrierOrder F_order;
-  double wqmu, *dJny, *chi_la, *diagonal, *P, **I, *Psi, **Psi_sc;
+  double wqmu, *dJny, *chi_la, *diagonal, *P = NULL, **I = NULL,
+         *Psi = NULL, **Psi_sc = NULL;
 
   FILE *fp_iter;
 

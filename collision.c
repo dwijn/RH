@@ -222,7 +222,7 @@ double ar85cea(int i, int j, int k, struct Atom *atom)
 
   char    cseq[ATOM_ID_WIDTH+1];
   int     iz, ichrge, isoseq;
-  double  zz, cup, bkt, b, zeff, iea, y, f1y, a, g;
+  double  zz, cup, bkt, b, zeff, iea = 0.0, y, f1y, a, g;
 
   (void) j;
   
@@ -465,13 +465,13 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
   char    inputLine[MAX_LINE_SIZE], keyword[MAX_LINE_SIZE], *pointer,
           labelStr[MAX_LINE_SIZE];
   bool_t  hunt, exit_on_EOF;
-  int     nitem, i1, i2, i, j, ij, ji, Nlevel = atom->Nlevel, Nitem,
-          status;
+  int     nitem, i1 = 0, i2 = 0, i = 0, j = 0, ij, ji = 0,
+          Nlevel = atom->Nlevel, Nitem, status;
   long    Nspace = atmos.Nspace;
   double  dE, C0, *T, *coeff, *C, Cdown, Cup, gij, *np, xj, fac, fxj;
 
   int      Ncoef, Nrow;
-  double **cdi, **badi;
+  double **cdi = NULL, **badi = NULL;
   double   acolsh,tcolsh,aradsh,xradsh,adish,bdish,t0sh,t1sh,summrs,tg,cdn,cup;
   double   ar85t1,ar85t2,ar85a,ar85b,ar85c,ar85d,t4;
   double   de,zz,betab,cbar,dekt,dekti,wlog,wb, sumscl;

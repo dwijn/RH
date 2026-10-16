@@ -68,7 +68,8 @@ void FixedRate(Atom *atom)
   register int kf, k;
 
   int    Nrepeat, Ndepth, i, j, ij, ji;
-  double Te, Trad, deltaT, gij, e_mc, xe, xrad, C0, hc_kla, exp_hckTla;
+  double Te, Trad, deltaT, gij = 0.0, e_mc, xe, xrad, C0 = 0.0, hc_kla,
+         exp_hckTla;
   FixedTransition *ft = atom->ft;
 
   getCPU(3, TIME_START, NULL);

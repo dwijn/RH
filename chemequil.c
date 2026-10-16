@@ -114,7 +114,7 @@ void ChemicalEquilibrium(int NmaxIter, double iterLimit)
   int     Nequation, **nucl_index, niter, Nnuclei, Ngdelay, Ngperiod,
           Ngorder, Nmaxstage;
   double *f, *a, *n, **df, *Phi, PhiHmin, fHmin, CI, dnmax = 0.0,
-         *fn0, fraction, saha, *fjk, *dfjk;
+         *fn0, fraction, saha, *fjk = NULL, *dfjk = NULL;
   struct  Ng *Ngn;
   Atom *atom;
   Molecule *molecule;

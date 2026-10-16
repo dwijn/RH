@@ -183,8 +183,8 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
   const char routineName[] = "addtoGamma";
   register int nact, n, k, m;
 
-  int    i, j, ij, ji, jp, nt;
-  double twohnu3_c2, twohc, wlamu, *Ieff, **Gam;
+  int    i, j, ij, ji, jp = 0, nt;
+  double twohnu3_c2, twohc, wlamu, *Ieff = NULL, **Gam;
 
   Atom *atom;
   AtomicLine *line;

@@ -54,7 +54,8 @@ void backgrOpac(int Nlambda, double *lambda)
   int     Nfudge;
   enum    opac_type type;
   double  *chi, *eta, *scatt, *thomson,
-          Hmin_fudge, scatt_fudge, metal_fudge, *lambda_fudge, **fudge;
+          Hmin_fudge, scatt_fudge, metal_fudge, *lambda_fudge = NULL,
+         **fudge = NULL;
   Atom   *He;
   FILE   *fp_out, *fp_fudge;
   XDR     xdrs;

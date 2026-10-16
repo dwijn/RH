@@ -257,10 +257,10 @@ void Profile(AtomicLine *line)
   register int la, k, mu;
 
   char    filename[MAX_LINE_SIZE];
-  int     Nlamu, NrecStokes;
+  int     Nlamu, NrecStokes = 0;
   double *adamp = NULL, **v_los = NULL, *vB = NULL, *sv = NULL, *vbroad,
-          Larmor, *phi = NULL, *phi_Q = NULL, *phi_U = NULL, *phi_V = NULL,
-         *psi_Q = NULL, *psi_U = NULL, *psi_V = NULL;
+          Larmor = 0.0, *phi = NULL, *phi_Q = NULL, *phi_U = NULL,
+         *phi_V = NULL, *psi_Q = NULL, *psi_U = NULL, *psi_V = NULL;
 
   Atom *atom = line->atom;
   bool_t     polarized = (line->polarizable &&
@@ -436,8 +436,8 @@ void MolecularProfile(MolecularLine *mrt)
 {
   register int la, k, mu;
 
-  double *adamp, *v, vk, **v_los, wlamu, *sv, *phi_down, *phi_up,
-          wlambda;
+  double *adamp, *v = NULL, vk, **v_los = NULL, wlamu, *sv, *phi_down,
+         *phi_up, wlambda;
   Molecule *molecule = mrt->molecule;
 
   getCPU(3, TIME_START, NULL);

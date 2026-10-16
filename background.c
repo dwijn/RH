@@ -147,7 +147,8 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
   bool_t  exit_on_EOF, do_fudge, fromscratch;
   int     backgrrecno, index, Nfudge, NrecStokes;
   double *chi, *eta, *scatt, wavelength, *thomson, *chi_ai, *eta_ai, *sca_ai,
-          Hmin_fudge, scatt_fudge, metal_fudge, *lambda_fudge, **fudge,
+          Hmin_fudge, scatt_fudge, metal_fudge, *lambda_fudge = NULL,
+         **fudge = NULL,
          *Bnu, *chi_c, *eta_c, *sca_c, *chip, *chip_c;
   Atom   *He;
   FILE   *fp_fudge;
