@@ -466,11 +466,11 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
           labelStr[MAX_LINE_SIZE];
   bool_t  hunt, exit_on_EOF;
   int     nitem, i1 = 0, i2 = 0, i = 0, j = 0, ij, ji = 0,
-          Nlevel = atom->Nlevel, Nitem, status;
+          Nlevel = atom->Nlevel, Nitem, Ntemp = 0, status;
   long    Nspace = atmos.Nspace;
   double  dE, C0, *T, *coeff, *C, Cdown, Cup, gij, *np, xj, fac, fxj;
 
-  int      Ncoef, Nrow;
+  int      Ncoef = 0, Nrow = 0;
   double **cdi = NULL, **badi = NULL;
   double   acolsh,tcolsh,aradsh,xradsh,adish,bdish,t0sh,t1sh,summrs,tg,cdn,cup;
   double   ar85t1,ar85t2,ar85a,ar85b,ar85c,ar85d,t4;
@@ -507,7 +507,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 
       /* --- Read temperature grid --                  -------------- */
 
-      Nitem = atoi(strtok(NULL, " "));
+      Nitem = Ntemp = atoi(strtok(NULL, " "));
       T = (double *) realloc(T, Nitem*sizeof(double));
       for (n = 0, nitem = 0;  n < Nitem;  n++) {
         if ((pointer = strtok(NULL, " ")) == NULL) break;
@@ -518,10 +518,18 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 	       !strcmp(keyword, "CH0")   || !strcmp(keyword, "CH+")||
 	       !strcmp(keyword, "CH") ) {
 
-      /* --- Read level indices and collision coefficients -- ------- */
+      /* --- Read level indices and collision coefficients, one per
+             temperature of the last TEMP grid. (Nitem may have been
+             set by a keyword with a fixed number of items since.) -- */
 
       i1 = atoi(strtok(NULL, " "));
       i2 = atoi(strtok(NULL, " "));
+      if (Ntemp <= 0) {
+	sprintf(messageStr, "Atom %s: %s collision data for levels %d %d"
+		" before any TEMP line", atom->ID, keyword, i1, i2);
+	Error(ERROR_LEVEL_2, routineName, messageStr);
+      }
+      Nitem = Ntemp;
       coeff = (double *) realloc(coeff, Nitem*sizeof(double));
 
       for (n = 0, nitem = 0;  n < Nitem;  n++) {
