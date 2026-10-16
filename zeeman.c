@@ -256,6 +256,15 @@ void Zeeman(AtomicLine *line)
 			  &nq, &Sl, &Ll, &Jl);
     result &= determinate(atom->label[line->j], atom->g[line->j],
 			  &nq, &Su, &Lu, &Ju);
+    if (!result) {
+
+      /* --- readAtom only marks a line polarizable when both
+             labels can be parsed, so this cannot happen -- ------- */
+
+      sprintf(messageStr, "Atom %s: no quantum numbers for line %d -> %d",
+	      atom->ID, line->j, line->i);
+      Error(ERROR_LEVEL_2, "Zeeman", messageStr);
+    }
 
     /* --- Count the number of components --           -------------- */
 

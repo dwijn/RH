@@ -87,6 +87,10 @@ int main(int argc, char *argv[])
 	nl->g = 2.0*J + 1.0;
       }
       Nread += sscanf(inputLine+60, "%f %f", &nl->E, &nl->g_Landee);
+      if (Nread < 5) {
+	fprintf(stderr, "Malformed NIST level line:\n %s", inputLine);
+	exit(1);
+      }
       nl++;
     }
   }

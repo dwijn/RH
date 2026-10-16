@@ -192,14 +192,18 @@ void readKuruczLines(char *inputFile)
 	  swap_levels = TRUE; 
 	  rlk->level_i.E = Ej;
 	  rlk->level_j.E = Ei;
-	  strncpy(labeli, inputLine+69, RLK_LABEL_LENGTH);
-	  strncpy(labelj, inputLine+41, RLK_LABEL_LENGTH);
+	  snprintf(labeli, RLK_LABEL_LENGTH+1, "%.*s", RLK_LABEL_LENGTH,
+		   inputLine+69);
+	  snprintf(labelj, RLK_LABEL_LENGTH+1, "%.*s", RLK_LABEL_LENGTH,
+		   inputLine+41);
 	} else {
 	  swap_levels = FALSE;
 	  rlk->level_i.E = Ei;
           rlk->level_j.E = Ej;
-	  strncpy(labeli, inputLine+41, RLK_LABEL_LENGTH);
-	  strncpy(labelj, inputLine+69, RLK_LABEL_LENGTH);
+	  snprintf(labeli, RLK_LABEL_LENGTH+1, "%.*s", RLK_LABEL_LENGTH,
+		   inputLine+41);
+	  snprintf(labelj, RLK_LABEL_LENGTH+1, "%.*s", RLK_LABEL_LENGTH,
+		   inputLine+69);
 	}
 
 	Nread += sscanf(inputLine+35, "%lf", &Ji);
@@ -1085,7 +1089,7 @@ double getJK_K(char Kchar)
 {
   const char routineName[] = "getJK_K";
 
-  double K;
+  double K = 0.0;
 
   switch (Kchar) {
   case 'p': K = 0.5;  break;
