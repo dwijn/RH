@@ -58,18 +58,46 @@ int main(int argc, char *argv[])
   SetFPEtraps();
 
   Nread = fread(&atmos.angleSet.set, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read atmos.angleSet.set from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(&mu, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read mu from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   if (atmos.angleSet.set == SET_GL) {
     Nread = fread(&atmos.angleSet.Ninclination, sizeof(int), 1, stdin);
+    if (Nread != 1) {
+      sprintf(messageStr, "Unable to read atmos.angleSet.Ninclination from standard input");
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
     Nread = fread(&atmos.angleSet.Nazimuth, sizeof(int), 1, stdin);
+    if (Nread != 1) {
+      sprintf(messageStr, "Unable to read atmos.angleSet.Nazimuth from standard input");
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
   }
 
   geometry.bvalue[TOP] = geometry.bvalue[BOTTOM] = IRRADIATED;
   Nread = fread(&geometry.hboundary, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read geometry.hboundary from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   Nread = fread(&geometry.Nx, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read geometry.Nx from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nx = geometry.Nx;
   Nread = fread(&geometry.Nz, sizeof(int), 1, stdin);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read geometry.Nz from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nz = geometry.Nz;
   Nspace = atmos.Nspace = geometry.Nx * geometry.Nz;
 
@@ -77,6 +105,10 @@ int main(int argc, char *argv[])
 
   geometry.dx = (double *) malloc(Nx * sizeof(double));
   Nread = fread(geometry.dx, sizeof(double), Nx, stdin);
+  if (Nread != Nx) {
+    sprintf(messageStr, "Unable to read geometry.dx from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   for (l = 0;  l < ((geometry.hboundary == PERIODIC) ? Nx : Nx-1);  l++) {
     geometry.dx[l] *= KM_TO_M;
@@ -95,6 +127,10 @@ int main(int argc, char *argv[])
 
   geometry.z = (double *) malloc(Nz * sizeof(double));
   Nread = fread(geometry.z, sizeof(double), Nz, stdin);
+  if (Nread != Nz) {
+    sprintf(messageStr, "Unable to read geometry.z from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   for (k = 0;  k < Nz;  k++) geometry.z[k] *= KM_TO_M;
 
   geometry.dz = (double *) malloc(Nz * sizeof(double));
@@ -111,14 +147,30 @@ int main(int argc, char *argv[])
   geometry.Itop    = matrix_double(Nspect, geometry.Nx);
   geometry.Ibottom = matrix_double(Nspect, geometry.Nx);
   Nread = fread(geometry.Itop[0], sizeof(double), geometry.Nx, stdin);
+  if (Nread != geometry.Nx) {
+    sprintf(messageStr, "Unable to read geometry.Itop[0] from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(geometry.Ibottom[0], sizeof(double), geometry.Nx, stdin);
+  if (Nread != geometry.Nx) {
+    sprintf(messageStr, "Unable to read geometry.Ibottom[0] from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   switch (geometry.hboundary) {
   case FIXED:
     geometry.Ileft = matrix_double(Nspect, geometry.Nz);
     Nread = fread(geometry.Ileft[0], sizeof(double), geometry.Nz, stdin);
+    if (Nread != geometry.Nz) {
+      sprintf(messageStr, "Unable to read geometry.Ileft[0] from standard input");
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
     geometry.Iright = matrix_double(Nspect, geometry.Nz);
     Nread = fread(geometry.Iright[0], sizeof(double), geometry.Nz, stdin);
+    if (Nread != geometry.Nz) {
+      sprintf(messageStr, "Unable to read geometry.Iright[0] from standard input");
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
     break;
   case PERIODIC:
     geometry.Ileft  = NULL;
@@ -129,7 +181,15 @@ int main(int argc, char *argv[])
   chi   = (double *) malloc(Nspace * sizeof(double));
   S     = (double *) malloc(Nspace * sizeof(double));
   Nread = fread(chi, sizeof(double), Nspace, stdin);
+  if (Nread != Nspace) {
+    sprintf(messageStr, "Unable to read chi from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = fread(S, sizeof(double), Nspace, stdin);
+  if (Nread != Nspace) {
+    sprintf(messageStr, "Unable to read S from standard input");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   I      = (double *) malloc(Nspace * sizeof(double));
   Psi    = (double *) malloc(Nspace * sizeof(double));
@@ -142,7 +202,15 @@ int main(int argc, char *argv[])
 
   getCPU(1, TIME_POLL, "Formal Solution down");
   Nwrite = fwrite(I, sizeof(double), Nspace, stdout);
+  if (Nwrite != Nspace) {
+    sprintf(messageStr, "Unable to write I to standard output");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nwrite = fwrite(Psi, sizeof(double), Nspace, stdout);
+  if (Nwrite != Nspace) {
+    sprintf(messageStr, "Unable to write Psi to standard output");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   getCPU(1, TIME_START, NULL);
 
@@ -150,7 +218,15 @@ int main(int argc, char *argv[])
 
   getCPU(1, TIME_POLL, "Formal Solution up");
   Nwrite = fwrite(I, sizeof(double), Nspace, stdout);
+  if (Nwrite != Nspace) {
+    sprintf(messageStr, "Unable to write I to standard output");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nwrite = fwrite(Psi, sizeof(double), Nspace, stdout);
+  if (Nwrite != Nspace) {
+    sprintf(messageStr, "Unable to write Psi to standard output");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   printTotalCPU();
 }

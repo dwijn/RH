@@ -65,8 +65,20 @@ int main(int argc, char *argv[])
   }
 
   Nread = fscanf(fp, "%d", &Nlambda);
+  if (Nread != 1) {
+    sprintf(messageStr, "Unable to read Nlambda from inputfile %s",
+            CONTR_INPUT_FILE);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   lambda = (double *) malloc(Nlambda * sizeof(double));
-  for (n = 0;  n < Nlambda;  n++) Nread = fscanf(fp, "%lf", &lambda[n]);
+  for (n = 0;  n < Nlambda;  n++) {
+    Nread = fscanf(fp, "%lf", &lambda[n]);
+    if (Nread != 1) {
+      sprintf(messageStr, "Unable to read wavelength %d from inputfile %s",
+              n, CONTR_INPUT_FILE);
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
+  }
   fclose(fp);
 
   backgrOpac(Nlambda, lambda);

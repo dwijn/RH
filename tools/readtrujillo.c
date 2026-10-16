@@ -68,6 +68,10 @@ int main(int argc, char *argv[])
 
   getLine(fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF=TRUE);
   Nread = sscanf(line, "%d", &geometry.Ndep);
+  if (Nread != 1) {
+    sprintf(messageStr, "Malformed input line:\n %.200s", line);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   atmos.Nspace = geometry.Ndep;
 
   atmos.gravity    = POW10(4.44);
@@ -89,6 +93,10 @@ int main(int argc, char *argv[])
 		   &geometry.tau_ref[k], &atmos.T[k], &Pe, &atmos.vturb[k],
 		   &atmos.B[k], &geometry.vel[k], &atmos.gamma_B[k],
 		   &atmos.chi_B[k]);
+    if (Nread != 8) {
+      sprintf(messageStr, "Malformed input line:\n %.200s", line);
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
 
     geometry.tau_ref[k] = POW10(geometry.tau_ref[k]);
     atmos.ne[k] = (Pe * ERG_TO_JOULE) / (KBOLTZMANN * atmos.T[k]);

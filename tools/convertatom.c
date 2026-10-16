@@ -111,6 +111,10 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 
   getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF=TRUE);
   Nread = sscanf(input, "%2s", atom->ID);
+  if (Nread != 1) {
+    sprintf(messageStr, "Malformed input line:\n %.200s", input);
+    Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+  }
   if (strlen(atom->ID) == 1) strcat(atom->ID, " ");
   for (n = 0;  n < ATOM_ID_WIDTH;  n++)
     atom->ID[n] = toupper(atom->ID[n]);
@@ -119,6 +123,10 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 
   getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF=TRUE);
   Nread = sscanf(input, "%lf %lf", &atom->abundance, &atom->weight);
+  if (Nread != 2) {
+    sprintf(messageStr, "Malformed input line:\n %.200s", input);
+    Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+  }
   atom->abundance = POW10(atom->abundance - 12.0);
 
   /* --- Get Number of levels, lines fixed transitions, and continua  */
@@ -126,6 +134,10 @@ void MULTIatom(FILE *atomFile, Atom *atom)
   getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF=TRUE);
   Nread = sscanf(input, "%d %d %d %d",
 		 &atom->Nlevel, &atom->Nline, &atom->Ncont, &atom->Nfixed);
+  if (Nread != 4) {
+    sprintf(messageStr, "Malformed input line:\n %.200s", input);
+    Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+  }
 
   /* --- Read in the level energies, statistical weights, labels,
          and ionization stage --                       -------------- */
@@ -140,6 +152,10 @@ void MULTIatom(FILE *atomFile, Atom *atom)
     getLine(atomFile, MULTI_COMMENT_CHAR, input , exit_on_EOF=TRUE);
     Nread = sscanf(input, "%lf %lf '%20c' %d",
       &atom->E[i], &atom->g[i], atom->label[i], &atom->stage[i]);
+    if (Nread != 4) {
+      sprintf(messageStr, "Malformed input line:\n %.200s", input);
+      Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+    }
 
     *(atom->label[i] + ATOM_LABEL_WIDTH) = '\0';
     atom->E[i] *= (HPLANCK * CLIGHT) / CM_TO_M;
@@ -162,6 +178,10 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 		   &j, &i, &f, &line->Nlambda, &line->qwing,
 		   &line->qcore, &iw,
 		   &line->Grad, &line->cvdWaals[0], &line->cStark);
+    if (Nread < 7) {
+      sprintf(messageStr, "Malformed input line:\n %.200s", input);
+      Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+    }
     
     line->j = MAX(i, j);  line->i = MIN(i, j);
     j = --line->j;  i = --line->i;
@@ -172,8 +192,13 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 
     if ((line->qcore < 0.0) || (line->qwing < 0.0)) {
       line->lambda = (double *) malloc(line->Nlambda * sizeof(double));
-      for (la = 0;  la < line->Nlambda;  la++)
+      for (la = 0;  la < line->Nlambda;  la++) {
 	Nread = fscanf(atomFile, "%lf", line->lambda + la);
+	if (Nread != 1) {
+	  sprintf(messageStr, "Unable to read wavelength table for line %d", kr);
+	  Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+	}
+      }
       line->symmetric = FALSE;
       line->qcore = fabs(line->qcore);
       line->qwing = fabs(line->qwing);
@@ -195,6 +220,10 @@ void MULTIatom(FILE *atomFile, Atom *atom)
     Nread = sscanf(input, "%d %d %lf %d %lf",
 		   &j, &i, &continuum->alpha0,
 		   &continuum->Nlambda, &lambdaMin);
+    if (Nread != 5) {
+      sprintf(messageStr, "Malformed input line:\n %.200s", input);
+      Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+    }
 
     continuum->j = MAX(i, j);  continuum->i = MIN(i, j);
     j = --continuum->j;  i = --continuum->i;
@@ -234,6 +263,10 @@ void MULTIatom(FILE *atomFile, Atom *atom)
     getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF=TRUE);
     Nread = sscanf(input, "%d %d %d %lf %lf %d",
 		   &j, &i, &phot, &A0, &fixed->Trad, &Trad_option);
+    if (Nread != 6) {
+      sprintf(messageStr, "Malformed input line:\n %.200s", input);
+      Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+    }
 
     fixed->j = MAX(i, j);  fixed->i = MIN(i, j);
     j = --fixed->j;  i = --fixed->i;

@@ -167,8 +167,12 @@ int main(int argc, char *argv[])
   xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
   result = xdr_double(&xdrs, &muz);
-  result = xdr_vector(&xdrs, (char *) spectrum.I[0], spectrum.Nspect,
+  result &= xdr_vector(&xdrs, (char *) spectrum.I[0], spectrum.Nspect,
 		      sizeof(double), (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to write spectrum to file %s", rayFileName);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   /* --- Write ASCII table for special applications -- -------------- */
 
@@ -216,6 +220,10 @@ int main(int argc, char *argv[])
       S = (double *) malloc(atmos.Nspace * sizeof(double));
   }
   result = xdr_int(&xdrs, &Nspect);
+  if (!result) {
+    sprintf(messageStr, "Unable to write number of wavelengths to file %s", rayFileName);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   /* --- Go through the list of wavelengths --         -------------- */
 
@@ -251,10 +259,14 @@ int main(int argc, char *argv[])
       S[k]   = (as->eta[k] + as->eta_c[k] + as->sca_c[k]*J[k]) / chi[k];
     }
     result = xdr_int(&xdrs, &wave_index[n]);
-    result = xdr_vector(&xdrs, (char *) chi, atmos.Nspace,
+    result &= xdr_vector(&xdrs, (char *) chi, atmos.Nspace,
 			sizeof(double), (xdrproc_t) xdr_double);
-    result = xdr_vector(&xdrs, (char *) S, atmos.Nspace,
+    result &= xdr_vector(&xdrs, (char *) S, atmos.Nspace,
 			sizeof(double), (xdrproc_t) xdr_double);
+    if (!result) {
+      sprintf(messageStr, "Unable to write chi and S to file %s", rayFileName);
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
 
     free_as(wave_index[n], crosscoupling=FALSE);
   }
@@ -266,12 +278,16 @@ int main(int argc, char *argv[])
     result = xdr_vector(&xdrs, (char *) spectrum.Stokes_Q[0],
 			spectrum.Nspect, sizeof(double),
 			(xdrproc_t) xdr_double);
-    result = xdr_vector(&xdrs, (char *) spectrum.Stokes_U[0],
+    result &= xdr_vector(&xdrs, (char *) spectrum.Stokes_U[0],
 			spectrum.Nspect, sizeof(double),
 			(xdrproc_t) xdr_double);
-    result = xdr_vector(&xdrs, (char *) spectrum.Stokes_V[0],
+    result &= xdr_vector(&xdrs, (char *) spectrum.Stokes_V[0],
 			spectrum.Nspect, sizeof(double),
 			(xdrproc_t) xdr_double);
+    if (!result) {
+      sprintf(messageStr, "Unable to write Stokes spectra to file %s", rayFileName);
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
   }
 
   if (Nspect > 0  &&  input.limit_memory)

@@ -153,19 +153,41 @@ bool_t readBarklemTable(enum Barklemtype type, Barklemstruct *bs)
   bs->cross = matrix_double(bs->N1, bs->N2);
   bs->alpha = matrix_double(bs->N1, bs->N2);
 
-  for (n = 0;  n < 3;  n++)
+  for (n = 0;  n < 3;  n++) {
     charptr = fgets(inputLine, MAX_LINE_SIZE, fp_Barklem);
+    if (charptr == NULL) {
+      sprintf(messageStr, "Unable to read header of Barklem table %s",
+              filename);
+      Error(ERROR_LEVEL_2, routineName, messageStr);
+    }
+  }
 
   for (i = 0;  i < bs->N1;  i++)
     for (j = 0;  j < bs->N2;  j++) {
       nread = fscanf(fp_Barklem, "%lf", &bs->cross[i][j]);
+      if (nread != 1) {
+        sprintf(messageStr, "Unable to read cross[%d][%d] from Barklem table %s",
+                i, j, filename);
+        Error(ERROR_LEVEL_2, routineName, messageStr);
+      }
   }
-  for (n = 0;  n < 2;  n++)
+  for (n = 0;  n < 2;  n++) {
     charptr = fgets(inputLine, MAX_LINE_SIZE, fp_Barklem);
+    if (charptr == NULL) {
+      sprintf(messageStr, "Unable to read header of Barklem table %s",
+              filename);
+      Error(ERROR_LEVEL_2, routineName, messageStr);
+    }
+  }
 
   for (i = 0;  i < bs->N1;  i++)
     for (j = 0;  j < bs->N2;  j++) {
       nread = fscanf(fp_Barklem, "%lf", &bs->alpha[i][j]);
+      if (nread != 1) {
+        sprintf(messageStr, "Unable to read alpha[%d][%d] from Barklem table %s",
+                i, j, filename);
+        Error(ERROR_LEVEL_2, routineName, messageStr);
+      }
   }
 
   fclose(fp_Barklem);

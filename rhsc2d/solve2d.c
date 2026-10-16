@@ -58,14 +58,26 @@ int main(int argc, char *argv[])
 
   result = xdr_vector(&xdrs, (char *) inputs, N_INPUTS,
 		      sizeof(int), (xdrproc_t) xdr_int);
+  if (!result) {
+    sprintf(messageStr, "Unable to read input parameters from file 2dinput.dat");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   atmos.angleSet.set = (enum angleset) inputs[0];
   if (atmos.angleSet.set == SET_GL) {
      result = xdr_int(&xdrs, &atmos.angleSet.Ninclination);
-     result = xdr_int(&xdrs, &atmos.angleSet.Nazimuth);
+     result &= xdr_int(&xdrs, &atmos.angleSet.Nazimuth);
+     if (!result) {
+       sprintf(messageStr, "Unable to read angle set from file 2dinput.dat");
+       Error(ERROR_LEVEL_2, argv[0], messageStr);
+     }
   }
   result = xdr_double(&xdrs, &iterLimit);
-  result = xdr_double(&xdrs, &Adamp);
+  result &= xdr_double(&xdrs, &Adamp);
+  if (!result) {
+    sprintf(messageStr, "Unable to read iteration parameters from file 2dinput.dat");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   Nx = geometry.Nx = inputs[1];
   Nz = geometry.Nz = inputs[2];
@@ -76,6 +88,10 @@ int main(int argc, char *argv[])
 
   result = xdr_vector(&xdrs, (char *) btype, 3,
 		      sizeof(int), (xdrproc_t) xdr_int);
+  if (!result) {
+    sprintf(messageStr, "Unable to read boundary types from file 2dinput.dat");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   geometry.hboundary = (enum boundary) btype[0];
   for (n = 0;  n < 2;  n++)
     geometry.bvalue[n] = (enum boundval) btype[1+n];
@@ -118,6 +134,10 @@ int main(int argc, char *argv[])
   geometry.dx = (double *) malloc(Nx * sizeof(double));
   result = xdr_vector(&xdrs, (char *) geometry.dx, Nx,
 		       sizeof(double), (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to read dx from file 2dinput.dat");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   for (l = 0;  l < ((geometry.hboundary == PERIODIC) ? Nx : Nx-1);  l++) {
     geometry.dx[l] *= KM_TO_M;
     if (geometry.dx[l] <= 0.0) {
@@ -136,6 +156,10 @@ int main(int argc, char *argv[])
   geometry.z = (double *) malloc(Nz * sizeof(double));
   result = xdr_vector(&xdrs, (char *) geometry.z, Nz,
 		      sizeof(double), (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to read z from file 2dinput.dat");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   for (k = 0;  k < Nz;  k++) geometry.z[k] *= KM_TO_M;
 
   geometry.dz = (double *) malloc(Nz * sizeof(double));
@@ -157,10 +181,14 @@ int main(int argc, char *argv[])
 
   result = xdr_vector(&xdrs, (char *) chi, Nspace,
 		       sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) Bp, Nspace,
+  result &= xdr_vector(&xdrs, (char *) Bp, Nspace,
 		       sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) epsilon, Nspace,
+  result &= xdr_vector(&xdrs, (char *) epsilon, Nspace,
 		       sizeof(double), (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to read chi, Bp and epsilon from file 2dinput.dat");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   getBoundary(&atmos, &geometry);
   getAngleQuadr(&geometry);
@@ -174,6 +202,10 @@ int main(int argc, char *argv[])
 
   result = xdr_vector(&xdrs, (char *) lambda, Nlambda,
 		      sizeof(double), (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to read wavelengths from file 2dinput.dat");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   wlamb[0] = (lambda[1] - lambda[0]);
   for (la = 1;  la < Nlambda-1;  la++)
     wlamb[la] = (lambda[la+1] - lambda[la-1]);
@@ -195,6 +227,10 @@ int main(int argc, char *argv[])
   Iterate(NmaxIter, iterLimit);
 
   nwrite = fwrite(S, sizeof(double), Nspace, stdout);
+  if (nwrite != Nspace) {
+    sprintf(messageStr, "Unable to write S to standard output");
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   printTotalCPU();
 }
 /* ------- end ---------------------------- solve2d.c --------------- */
@@ -203,6 +239,8 @@ int main(int argc, char *argv[])
 
 void getBoundary(Atmosphere *atmos, Geometry *geometry)
 {
+  const char routineName[] = "getBoundary";
+
   int  result, Nspect = Nlambda;
 
   (void) atmos;
@@ -216,6 +254,10 @@ void getBoundary(Atmosphere *atmos, Geometry *geometry)
     result = xdr_vector(&xdrs, (char *) geometry->Itop[0],
 			Nspect*geometry->Nx,
 			sizeof(double), (xdrproc_t) xdr_double);
+    if (!result) {
+      sprintf(messageStr, "Unable to read Itop from file 2dinput.dat");
+      Error(ERROR_LEVEL_2, routineName, messageStr);
+    }
     break;
   default:
     geometry->Itop = NULL;
@@ -228,6 +270,10 @@ void getBoundary(Atmosphere *atmos, Geometry *geometry)
     result = xdr_vector(&xdrs, (char *) geometry->Ibottom[0],
 			Nspect*geometry->Nx,
 			sizeof(double), (xdrproc_t) xdr_double);
+    if (!result) {
+      sprintf(messageStr, "Unable to read Ibottom from file 2dinput.dat");
+      Error(ERROR_LEVEL_2, routineName, messageStr);
+    }
     break;
   default:
     geometry->Ibottom = NULL;
@@ -242,10 +288,18 @@ void getBoundary(Atmosphere *atmos, Geometry *geometry)
     result = xdr_vector(&xdrs, (char *) geometry->Ileft[0],
 			Nspect*geometry->Nz,
                         sizeof(double), (xdrproc_t) xdr_double);
+    if (!result) {
+      sprintf(messageStr, "Unable to read Ileft from file 2dinput.dat");
+      Error(ERROR_LEVEL_2, routineName, messageStr);
+    }
     geometry->Iright = matrix_double(Nspect, geometry->Nz);
     result = xdr_vector(&xdrs, (char *) geometry->Iright[0],
 			Nspect*geometry->Nz,
                         sizeof(double), (xdrproc_t) xdr_double);
+    if (!result) {
+      sprintf(messageStr, "Unable to read Iright from file 2dinput.dat");
+      Error(ERROR_LEVEL_2, routineName, messageStr);
+    }
     break;
   case PERIODIC:
     geometry->Ileft  = NULL;

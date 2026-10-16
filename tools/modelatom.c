@@ -177,6 +177,10 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 
   getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF=TRUE);
   nread = sscanf(input, "%s", collisionRoutine);
+  if (nread != 1) {
+    sprintf(messageStr, "Malformed input line:\n %.200s", input);
+    Error(ERROR_LEVEL_2, "writeCollisions", messageStr);
+  }
   if ((strcmp(collisionRoutine, "GENCOL") != 0)) {
     fprintf(stderr, "\n Error: can only treat collisional data from\n ");
     fprintf(stderr, " GENCOL, not from routine %s \n", collisionRoutine);
@@ -187,6 +191,10 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
   while((getLine(atomFile, MULTI_COMMENT_CHAR, input,
 		 exit_on_EOF=FALSE) != EOF)) {
     nread = sscanf(input, "%s", keyword);
+    if (nread != 1) {
+      sprintf(messageStr, "Malformed input line:\n %.200s", input);
+      Error(ERROR_LEVEL_2, "writeCollisions", messageStr);
+    }
 
     if (strcmp(keyword, "TEMP") == 0) {
       getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF=TRUE);

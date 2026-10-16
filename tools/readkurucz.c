@@ -74,19 +74,40 @@ int main(int argc, char *argv[])
   }
 
   sread = fgets(line, MAX_LINE_SIZE, fp_Kurucz);
+  if (sread == NULL) {
+    sprintf(messageStr, "Unexpected end of input file %s", argv[1]);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = sscanf(line, " TEFF %lf GRAVITY %lf", &Teff, &atmos.gravity);
+  if (Nread != 2) {
+    sprintf(messageStr, "Malformed input line:\n %.200s", line);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   atmos.gravity = POW10(atmos.gravity);
 
   sread = fgets(line, MAX_LINE_SIZE, fp_Kurucz);
+  if (sread == NULL) {
+    sprintf(messageStr, "Unexpected end of input file %s", argv[1]);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   strncpy(atmos.ID, line+5, ATMOS_ID_WIDTH);
   atmos.ID[ATMOS_ID_WIDTH-1] = '\0';
 
-  for (n = 0;  n < 3;  n++)
+  for (n = 0;  n < 3;  n++) {
     sread = fgets(line, MAX_LINE_SIZE, fp_Kurucz);
+    if (sread == NULL) {
+      sprintf(messageStr, "Unexpected end of input file %s", argv[1]);
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
+  }
   Nread = sscanf(line,
 		 "ABUNDANCE SCALE %lf ABUNDANCE CHANGE %d %lf %d %lf",
 		 &abundscale, &no, &atmos.elements[0].abund,
 		 &no, &atmos.elements[1].abund);
+  if (Nread != 5) {
+    sprintf(messageStr, "Malformed input line:\n %.200s", line);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   if (abundscale != 1.0) {
     sprintf(messageStr, "Use METALICITY = %f in keyword.input\n",
@@ -96,6 +117,10 @@ int main(int argc, char *argv[])
 
   for (n = 2;  n < 98;  n += 6) {
     sread = fgets(line, MAX_LINE_SIZE, fp_Kurucz);
+    if (sread == NULL) {
+      sprintf(messageStr, "Unexpected end of input file %s", argv[1]);
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
     Nread = sscanf(line,
 		   "ABUNDANCE CHANGE %d %lf %d %lf %d %lf %d %lf %d %lf %d %lf",
 		   &no, &atmos.elements[n].abund,
@@ -104,10 +129,22 @@ int main(int argc, char *argv[])
 		   &no, &atmos.elements[n+3].abund,
 		   &no, &atmos.elements[n+4].abund,
 		   &no, &atmos.elements[n+5].abund);
+    if (Nread != 12) {
+      sprintf(messageStr, "Malformed input line:\n %.200s", line);
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
   }
   sread = fgets(line, MAX_LINE_SIZE, fp_Kurucz);
+  if (sread == NULL) {
+    sprintf(messageStr, "Unexpected end of input file %s", argv[1]);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = sscanf(line, "ABUNDANCE CHANGE %d %lf",
 		 &no, &atmos.elements[98].abund);
+  if (Nread != 2) {
+    sprintf(messageStr, "Malformed input line:\n %.200s", line);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
 
   logabundH = log10(atmos.elements[0].abund);
   atmos.elements[0].abund = 12.0;
@@ -116,7 +153,15 @@ int main(int argc, char *argv[])
     atmos.elements[n].abund -= logabundH;
 
   sread = fgets(line, MAX_LINE_SIZE, fp_Kurucz);
+  if (sread == NULL) {
+    sprintf(messageStr, "Unexpected end of input file %s", argv[1]);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   Nread = sscanf(line, "READ DECK6 %d", &geometry.Ndep);
+  if (Nread != 1) {
+    sprintf(messageStr, "Malformed input line:\n %.200s", line);
+    Error(ERROR_LEVEL_2, argv[0], messageStr);
+  }
   atmos.Nspace = geometry.Ndep;
 
   geometry.scale = COLUMN_MASS;
@@ -128,9 +173,17 @@ int main(int argc, char *argv[])
 
   for (k = 0;  k < geometry.Ndep;  k++) {
     sread = fgets(line, MAX_LINE_SIZE, fp_Kurucz);
+    if (sread == NULL) {
+      sprintf(messageStr, "Unexpected end of input file %s", argv[1]);
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
     Nread = sscanf(line, "%lf %lf %lf %lf %lf %lf %lf",
 		   &geometry.cmass[k], &atmos.T[k], &pressure,
 		   &atmos.ne[k], &Rosseland_opac, &rad_acc, &atmos.vturb[k]);
+    if (Nread != 7) {
+      sprintf(messageStr, "Malformed input line:\n %.200s", line);
+      Error(ERROR_LEVEL_2, argv[0], messageStr);
+    }
 
     atmos.vturb[k] *= CM_TO_M;
   }

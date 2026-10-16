@@ -54,30 +54,34 @@ void writeGeometry(Geometry *geometry)
   xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
   result = xdr_enum(&xdrs, (enum_t *) &topology);
-  result = xdr_int(&xdrs, &geometry->Nrays);
-  result = xdr_int(&xdrs, &geometry->Nx);
-  result = xdr_int(&xdrs, &geometry->Ny);
-  result = xdr_int(&xdrs, &geometry->Nz);
-  result = xdr_enum(&xdrs, (enum_t *) &atmos.angleSet.set);
+  result &= xdr_int(&xdrs, &geometry->Nrays);
+  result &= xdr_int(&xdrs, &geometry->Nx);
+  result &= xdr_int(&xdrs, &geometry->Ny);
+  result &= xdr_int(&xdrs, &geometry->Nz);
+  result &= xdr_enum(&xdrs, (enum_t *) &atmos.angleSet.set);
 
-  result = xdr_vector(&xdrs, (char *) geometry->mux, Nrays,
+  result &= xdr_vector(&xdrs, (char *) geometry->mux, Nrays,
 		      sizeof(double),  (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) geometry->muy, Nrays,
+  result &= xdr_vector(&xdrs, (char *) geometry->muy, Nrays,
 		      sizeof(double), (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) geometry->wmu, Nrays,
-		      sizeof(double), (xdrproc_t) xdr_double);
-
-  result = xdr_double(&xdrs, &geometry->dx);
-  result = xdr_double(&xdrs, &geometry->dy);
-  result = xdr_vector(&xdrs, (char *) geometry->z, geometry->Nz,
+  result &= xdr_vector(&xdrs, (char *) geometry->wmu, Nrays,
 		      sizeof(double), (xdrproc_t) xdr_double);
 
-  result = xdr_vector(&xdrs, (char *) geometry->vx, Nspace,
+  result &= xdr_double(&xdrs, &geometry->dx);
+  result &= xdr_double(&xdrs, &geometry->dy);
+  result &= xdr_vector(&xdrs, (char *) geometry->z, geometry->Nz,
+		      sizeof(double), (xdrproc_t) xdr_double);
+
+  result &= xdr_vector(&xdrs, (char *) geometry->vx, Nspace,
 		      sizeof(double),  (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) geometry->vy, Nspace,
+  result &= xdr_vector(&xdrs, (char *) geometry->vy, Nspace,
 		      sizeof(double),  (xdrproc_t) xdr_double);
-  result = xdr_vector(&xdrs, (char *) geometry->vz, Nspace,
+  result &= xdr_vector(&xdrs, (char *) geometry->vz, Nspace,
 		      sizeof(double),  (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to write geometry to file %s", input.geometry_output);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
 
   xdr_destroy(&xdrs);
   fclose(fp_out);
