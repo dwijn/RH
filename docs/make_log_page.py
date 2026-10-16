@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render docs/MODERNIZATION.md as a self-contained HTML page.
 
-usage: make_log_page.py [--sync-md] [IN.md] [OUT.html]
+usage: make_log_page.py [--sync-md] [--no-github] [IN.md] [OUT.html]
 
 The Markdown file is the source of truth; the HTML is what gets published as
 the shared "RH modernization log" page. Severity (high/medium/low) and status
@@ -18,7 +18,16 @@ with "key: value" header lines and a blank line, then the entry text:
 The page shows every fragment at the top of the changelog and marks its IDs
 fixed. --sync-md folds the fragments into MODERNIZATION.md (changelog entry,
 status cells) and deletes them; run it on the integration branch now and then.
+
+Status from GitHub: every log ID is an issue on dwijn/RH titled "[ID] ...",
+and the issue state is the authority for the status column. Unless
+--no-github is given, the states are fetched with `gh` and each status cell
+is set to fixed (closed as completed), wontfix (closed as not planned) or
+open (open issue; an "in progress" cell is kept). Cells that change are
+listed. Without a working `gh` the cells are left as they are.
 """
+import json
+import subprocess
 import glob
 import html
 import os
@@ -28,8 +37,10 @@ import sys
 import markdown
 
 here = os.path.dirname(os.path.abspath(__file__))
-args = [a for a in sys.argv[1:] if a != "--sync-md"]
+flags = {"--sync-md", "--no-github"}
+args = [a for a in sys.argv[1:] if a not in flags]
 sync_md = "--sync-md" in sys.argv
+use_github = "--no-github" not in sys.argv
 src = args[0] if len(args) > 0 else os.path.join(here, "MODERNIZATION.md")
 dst = args[1] if len(args) > 1 else os.path.join(here, "MODERNIZATION.html")
 frag_dir = os.path.join(os.path.dirname(os.path.abspath(src)), "changes")
@@ -64,8 +75,50 @@ def apply_fragments(text, frags):
     return text
 
 
+def github_states(repo="dwijn/RH"):
+    """{ID: status} from the issue states, or None if gh is unavailable."""
+    try:
+        out = subprocess.run(
+            ["gh", "issue", "list", "-R", repo, "--state", "all", "--limit", "1000",
+             "--json", "title,state,stateReason"],
+            capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError) as e:
+        print(f"warning: no issue states from GitHub ({e}); status cells unchanged",
+              file=sys.stderr)
+        return None
+    states = {}
+    for i in json.loads(out):
+        m = re.match(r"\[([A-Z]+-[0-9]+)\]", i["title"])
+        if not m:
+            continue
+        if i["state"] == "OPEN":
+            states[m.group(1)] = "open"
+        else:
+            states[m.group(1)] = ("wontfix" if i.get("stateReason") == "NOT_PLANNED"
+                                  else "fixed")
+    return states
+
+
+def apply_github(text, states):
+    """Set the status cell of every issue-table row from its issue state."""
+    def fix(m):
+        id_, old = m.group(2), m.group(4)
+        new = states.get(id_)
+        if new is None or new == old or (new == "open" and old == "in progress"):
+            return m.group(0)
+        print(f"status {id_}: {old} -> {new}", file=sys.stderr)
+        return f"{m.group(1)}{m.group(3)}{new} |"
+    return re.sub(r"^(\| \[?([A-Z]+-[0-9]+)\]?)([^\n]*\| )"
+                  r"(open|fixed|wontfix|in progress) \|$", fix, text, flags=re.M)
+
+
 frags = read_fragments()
-text = apply_fragments(open(src).read(), frags)
+text = open(src).read()
+if use_github:
+    states = github_states()
+    if states is not None:
+        text = apply_github(text, states)
+text = apply_fragments(text, frags)
 if sync_md:
     open(src, "w").write(text)
     for f, _, _ in frags:
