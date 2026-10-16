@@ -32,9 +32,10 @@ LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "MODERNIZATION.md
 LOG_URL = f"https://github.com/{REPO}/blob/modernize/docs/MODERNIZATION.md"
 
 AREA = {"B": "bug", "N": "numerics", "P": "speed", "M": "memory",
-        "T": "threading", "Q": "quality"}
+        "T": "threading", "Q": "quality", "F": "feature"}
 AREA_COLOR = {"bug": "b60205", "numerics": "5319e7", "speed": "0e8a16",
-              "memory": "1d76db", "threading": "fbca04", "quality": "c5def5"}
+              "memory": "1d76db", "threading": "fbca04", "quality": "c5def5",
+              "feature": "a2eeef"}
 SEV_COLOR = {"high": "d93f0b", "medium": "f9d0c4", "low": "ededed"}
 
 # Plan step (section 4 of the log) for every ID
@@ -83,7 +84,7 @@ def parse_rows():
             continue
         if header is None or set(cells[0]) <= set("-: "):
             continue
-        m = re.match(r"\[?([BNPMTQ]-\d+)\]?", cells[0])
+        m = re.match(r"\[?([BNPMTQF]-\d+)\]?", cells[0])
         if not m:
             continue
         row = dict(zip(header, cells))
@@ -110,7 +111,7 @@ def labels_of(row):
         out.append(f"sev:{sev}")
     if row["ID"] in STEP:
         out.append(f"step-{STEP[row['ID']]}")
-    if row["ID"] not in NOT_UPSTREAM:
+    if row["ID"] not in NOT_UPSTREAM and not row["ID"].startswith("F-"):
         out.append("upstream")
     return out
 
@@ -129,7 +130,7 @@ def existing_issues():
     found = {}
     for it in gh("issue", "list", "-R", REPO, "--state", "all", "--limit", "1000",
                  "--json", "number,title", json_out=True):
-        m = re.match(r"\[([BNPMTQ]-\d+)\]", it["title"])
+        m = re.match(r"\[([BNPMTQF]-\d+)\]", it["title"])
         if m:
             found[m.group(1)] = it["number"]
     return found
@@ -157,7 +158,7 @@ def link_ids(numbers):
         if i not in numbers:
             return m.group(0)
         return f"| [{i}](https://github.com/{REPO}/issues/{numbers[i]}) |"
-    new = re.sub(r"^\| ([BNPMTQ]-\d+) \|", sub, text, flags=re.M)
+    new = re.sub(r"^\| ([BNPMTQF]-\d+) \|", sub, text, flags=re.M)
     if new != text:
         open(LOG, "w").write(new)
         print("linked IDs in", LOG)
@@ -226,7 +227,11 @@ def cmd_project(dry):
         values = {"Area": AREA[i[0]], "Severity": sev if sev in opt["Severity"] else None,
                   "Plan step": str(STEP[i]) if i in STEP else None}
         for f, v in values.items():
-            if v:
+            if v and v not in opt[f]:
+                # gh cannot add options to an existing single-select field
+                print(f"  no option '{v}' in field {f}: add it in the web UI, "
+                      f"then set it on #{n} by hand")
+            elif v:
                 gh("project", "item-edit", "--id", item["id"], "--project-id", pid,
                    "--field-id", fields[f]["id"], "--single-select-option-id", opt[f][v])
     print(f"project {PROJECT}: https://github.com/users/{OWNER}/projects/{num}")
