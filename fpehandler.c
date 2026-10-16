@@ -6,9 +6,14 @@
 
        --------------------------                      ----------RH-- */
 
-/* --- Trap floating point exceptions on various machines:
-
+/* --- Trap floating point exceptions where the C library can enable
+       traps (feenableexcept, glibc), and report a trapped exception with
+       a backtrace where execinfo.h is available. The build system defines
+       HAVE_FEENABLEEXCEPT and HAVE_EXECINFO_H after checking for them.
+       Elsewhere (macOS, musl) the run continues without traps.
        --                                              -------------- */
+
+#define _GNU_SOURCE 1
 
 #include <math.h>
 #include <stdio.h>
@@ -19,28 +24,15 @@
 extern char messageStr[];
 
 
-#if defined(Darwin)
+#if defined(HAVE_FEENABLEEXCEPT)
 
-void SetFPEtraps(void)
-{
-  /* --- Explicitly do not set traps --                -------------- */
-
-  Error(MESSAGE, "SetFPEtraps", 
-	"\n Darwin: FPE traps have not been set explicitly\n");
-}
-/* --- end SETNOTRAPS --                               -------------- */
-
-#elif defined(Linux)
-
-
-#define _GNU_SOURCE 1
-#include <execinfo.h>
 #include <fenv.h>
 #include <signal.h>
 #include <string.h>
 #include <unistd.h>
-
-int feenableexcept(int excepts);
+#if defined(HAVE_EXECINFO_H)
+#include <execinfo.h>
+#endif
 
 #define FPE_MAX_FRAMES 32
 
@@ -75,8 +67,6 @@ static void fpeHandler(int sig, siginfo_t *info, void *context)
          The signal is then raised again with the default action, so
          the exit status is unchanged --               -------------- */
 
-  void *frames[FPE_MAX_FRAMES];
-  int   Nframes;
   const char *what;
 
   (void) context;
@@ -91,10 +81,18 @@ static void fpeHandler(int sig, siginfo_t *info, void *context)
   fpeWrite(what);
   fpeWrite(" at address ");
   fpeWriteHex((unsigned long) info->si_addr);
-  fpeWrite("\n Backtrace (resolve with: addr2line -f -e <program> <address>):\n");
+  fpeWrite("\n");
 
-  Nframes = backtrace(frames, FPE_MAX_FRAMES);
-  backtrace_symbols_fd(frames, Nframes, STDERR_FILENO);
+#if defined(HAVE_EXECINFO_H)
+  {
+    void *frames[FPE_MAX_FRAMES];
+    int   Nframes;
+
+    fpeWrite(" Backtrace (resolve with: addr2line -f -e <program> <address>):\n");
+    Nframes = backtrace(frames, FPE_MAX_FRAMES);
+    backtrace_symbols_fd(frames, Nframes, STDERR_FILENO);
+  }
+#endif
 
   signal(sig, SIG_DFL);
   raise(sig);
@@ -104,7 +102,6 @@ static void fpeHandler(int sig, siginfo_t *info, void *context)
 void SetFPEtraps(void)
 {
   struct sigaction action;
-  void  *frame[1];
 
   /* --- Enable some exceptions.
          At startup all exceptions are masked. --      -------------- */
@@ -115,7 +112,12 @@ void SetFPEtraps(void)
          so that its library is loaded before it is needed inside the
          signal handler --                             -------------- */
 
-  backtrace(frame, 1);
+#if defined(HAVE_EXECINFO_H)
+  {
+    void *frame[1];
+    backtrace(frame, 1);
+  }
+#endif
   memset(&action, 0, sizeof(action));
   action.sa_sigaction = fpeHandler;
   action.sa_flags     = SA_SIGINFO;
@@ -125,12 +127,13 @@ void SetFPEtraps(void)
 
 #else
 
-/* --- unknown --                                      -------------- */
+/* --- No way to enable traps --                      -------------- */
 
 void SetFPEtraps(void)
 {
   Error(MESSAGE, "SetFPEtraps",
-	"\nUnsupported CPU and/or OS: cannot set FPE traps explicitly\n");
+	"\nFloating-point exception traps are not available on this"
+	" platform\n");
 }
 
 #endif

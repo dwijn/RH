@@ -4,12 +4,15 @@ Compare a *candidate* build against an unmodified *baseline* build on small,
 fast runs (the whole suite takes a few minutes).
 
 ```
-tests/run_tests.sh --baseline /path/to/upstream-tree --candidate . [--asan DIR] [--exact]
-tests/build_asan.sh . /path/to/asan-copy        # AddressSanitizer copy for --asan
+cmake -B build && cmake --build build -j                  # the candidate
+cmake -B build-asan -DRH_SANITIZE=address,undefined && cmake --build build-asan -j
+tests/run_tests.sh --baseline /path/to/upstream-tree --candidate . [--asan build-asan] [--exact]
 ```
 
-Both trees need `rhf1d`, `rhsc2d`, `rhsc3d` and `rhsphere` built. Run
-`run_tests.sh --help` for the options.
+A build is given as a source tree with a CMake build in `build/`, as a CMake
+build directory, or as a source tree built in place with the old makefiles
+(upstream RH, the usual baseline). `rhf1d`, `rhsc2d`, `rhsc3d` and
+`rhsphere` must be built. Run `run_tests.sh --help` for the options.
 
 | Case | What it covers |
 |---|---|
