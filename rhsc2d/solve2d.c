@@ -41,6 +41,8 @@ int main(int argc, char *argv[])
           inputs[N_INPUTS], nwrite, Nx, Nz;
   double  iterLimit, *lambda, Adamp;
 
+  (void) argc;
+
   stats.printCPU = TRUE;
   commandline.quiet = FALSE;
   commandline.logfile = stderr;
@@ -202,6 +204,8 @@ int main(int argc, char *argv[])
 void getBoundary(Atmosphere *atmos, Geometry *geometry)
 {
   int  result, Nspect = Nlambda;
+
+  (void) atmos;
 
   /* --- Read boundary conditions and irradiation. First VERTICAL
          boundary conditions --                            --------- */

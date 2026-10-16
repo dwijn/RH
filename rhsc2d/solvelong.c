@@ -43,8 +43,7 @@ double SolveLong(LongChar *lc, int local, double *chi, double *S, double *I)
 
   bool_t monotonic = TRUE;
   double c1, c2, dtau_dw, dS_uw, dS_dw, w[3], chi_loc, S_loc,
-         dtau_uw, chi_uw, S_uw, I_uwp, I_uw, chi_dw, S_dw,
-         U[3], psi_uw, psi_dw, Sc, psi_0;
+         dtau_uw, chi_uw, S_uw, I_uwp, I_uw, chi_dw, S_dw;
 
   /* --- The first point is the intersection with the horizontal
          grid line --                                  -------------- */

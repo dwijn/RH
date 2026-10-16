@@ -44,7 +44,7 @@ void Iterate(int NmaxIter, double iterLimit)
   register int mu, la, l, k, nIter, to_obs;
 
   int    Ndep = geometry.Ndep, Nrays = geometry.Nrays, Nspace, lamu;
-  bool_t P_only, quiet, accel;
+  bool_t quiet, accel;
   enum   FeautrierOrder F_order;
   double wqmu, *dJny, *chi_la, *diagonal, *P, **I, *Psi, **Psi_sc;
 

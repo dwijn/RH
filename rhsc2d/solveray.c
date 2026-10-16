@@ -70,8 +70,6 @@ int main(int argc, char *argv[])
           analyze_output, equilibria_only;
   int     Nspect, Nread, Nrequired, checkPoint, *wave_index = NULL;
   double  mux, muz, *S, *chi, *J;
-  Atom *atom;
-  Molecule *molecule;
   ActiveSet *as;
   FILE   *fp_out, *fp_ray;
   XDR     xdrs;

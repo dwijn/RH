@@ -61,7 +61,6 @@ extern Geometry geometry;
 
 double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2)
 {
-  const char routineName[] = "RII";
   register int n;
   static bool_t initialize = TRUE;
   static double xg0[N_GAUSS_QUADR], wg0[N_GAUSS_QUADR];

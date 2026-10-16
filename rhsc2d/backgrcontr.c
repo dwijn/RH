@@ -48,8 +48,6 @@ int main(int argc, char *argv[])
   int     Nlambda, Nread;
   double *lambda;
   FILE   *fp;
-  Atom *atom;
-  Molecule *molecule;
 
   /* --- Read input data and initialize --             -------------- */
 

@@ -45,6 +45,8 @@ int main(int argc, char *argv[])
   int     mu, Nread, Nwrite, Nspace, Nspect = 1, nspect, Nx, Nz;
   double *chi, *S, *I, *Psi;
 
+  (void) argc;
+
   stats.printCPU = TRUE;
   commandline.quiet = FALSE;
   commandline.logfile = stderr;

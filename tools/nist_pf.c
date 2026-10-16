@@ -25,10 +25,10 @@ int main(int argc, char *argv[])
   register int i, k;
 
   char   inputLine[MAX_REC_LENGTH+1], *commentChar = COMMENT_CHAR,
-         *atomID, *spectrum, *label, *ptr, *Jstr, *term1, *term2,
+         *atomID, *spectrum, *label, *Jstr, *term2,
         *Estr;
-  int    Nlevel, Nread, Ntemp, n, J;
-  float  E, g, *kT, *pf;
+  int    Nlevel, Ntemp, J;
+  float  *kT, *pf;
   FILE  *fp_NIST;
   struct NIST_Level *levels, *nl;
 
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
       else if (strcmp(spectrum, "III") == 0)
         nl->stage = 2;
 
-      term1 = strtok(NULL, " ");
+      strtok(NULL, " ");
       term2 = strtok(NULL, " ");
 
       Jstr  = strtok(NULL, " ");

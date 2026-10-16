@@ -44,10 +44,13 @@ char   messageStr[MAX_LINE_SIZE];
 
 int main(int argc, char *argv[])
 {
-  register int k, n;
+  register int k;
 
   int    Ntemp = NTEMP;
   double temp[NTEMP] = {3.0E+3, 5.0E+3, 7.0E+3, 1.0E+4, 2.0E+4, 3.0E+4};
+
+  (void) argc;
+  (void) argv;
 
   commandline.quiet = FALSE;
   commandline.logfile = stderr;
@@ -265,7 +268,7 @@ double x0;
 
 void Whelan(int Ntemp, double *temp)
 {
-  register int k, l, n;
+  register int k, n;
 
   char   line[MAX_LINE_SIZE], labeli[3], labelj[3];
   bool_t exit_on_EOF;

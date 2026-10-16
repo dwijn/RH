@@ -36,7 +36,7 @@ void getRays(Geometry *geometry)
 {
   register int mu, k, n;
 
-  int     Nradius = geometry->Nradius, ncore, Nray0;
+  int     Nradius = geometry->Nradius, ncore;
   double *pcore, xmu, *r = geometry->r;
   Ray *ray;
 

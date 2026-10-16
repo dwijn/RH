@@ -103,12 +103,8 @@ extern char messageStr[];
 void fillMesh(Geometry *geometry)
 {
   const char routineName[] = "fillMesh";
-  register int mu, k, l, m;
+  register int mu, k;
  
-  int    quadrant;
-  double mux, muy, muz, dz, frac1, frac2, longfracx, longfracy;
-  enum intersect plane;
-
   getCPU(2, TIME_START, NULL);
  
   if (geometry->x_boundary != PERIODIC ||
@@ -606,7 +602,7 @@ double Interpolate_3D(double *f, Geometry *geometry, Stencil *st,
 {
   register int i, j;
 
-  int    index, offset1, offset2, xbase[NCC], ybase[NCC], zbase[2];
+  int    index, offset1, offset2, xbase[NCC], ybase[NCC];
   bool_t monotonic = TRUE;
   double value;
 

@@ -131,13 +131,13 @@ void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
 
   bool_t  monotonic = TRUE;
   enum    boundval bvalue;
-  enum    direction upwind, downwind;
+  enum    direction upwind;
   enum    sweep sweep;
   int     Nx = geometry->Nx, Nz = geometry->Nz, local, dl, lstart,
           Nrow, row_left, row_right, dk, kstart, kend;
-  double  mux = geometry->mux[mu], I_uw, *Iboundary, dtau_uw, dtau_dw,
-          c1, dS_dw, S_uw, chi_uw, S_dw, chi_dw, w[2],
-          Sc, Bnu_uw, Bnu, T_uw, psi_uw, psi_dw, psi_0;
+  double  mux = geometry->mux[mu], I_uw, *Iboundary, dtau_uw,
+          c1, S_uw, chi_uw, w[2],
+          Bnu_uw, Bnu, T_uw;
   Stencil  *st;
   LongChar *lc = NULL;
 
@@ -223,7 +223,6 @@ void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
     kstart = Nz - 2;
     kend   = 0;
     upwind   = DOWNWIND;
-    downwind = UPWIND;
   } else {
     if (mux <= 0) dl = 1;  else  dl= -1;
     sweep  = DOWN;
@@ -231,7 +230,6 @@ void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
     kstart = 1;
     kend   = Nz - 1;
     upwind   = UPWIND;
-    downwind = DOWNWIND;
   }
 
   for (k = kstart;  k != kend + dk;  k += dk) {

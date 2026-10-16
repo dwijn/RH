@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
   register int i;
 
   char   inputLine[MAX_REC_LENGTH+1], *commentChar = COMMENT_CHAR,
-         atomID[ATOM_ID_WIDTH+1], spectrum[6], label[25], *ptr, term[3],
+         atomID[ATOM_ID_WIDTH+1], spectrum[6], label[25], term[3],
          Jstr[5];
   int    Nlevel, Nread, n, J;
   float  E0, E, g;

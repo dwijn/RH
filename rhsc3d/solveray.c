@@ -69,8 +69,6 @@ int main(int argc, char *argv[])
   double  mux, muy, *S, *chi, *J;
   FILE   *fp_out, *fp_ray;
   XDR     xdrs;
-  Atom *atom;
-  Molecule *molecule;
   ActiveSet *as;
 
   setOptions(argc, argv);
