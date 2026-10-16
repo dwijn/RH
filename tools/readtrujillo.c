@@ -6,7 +6,6 @@
 
        --------------------------                      ----------RH-- */
 
-#include <malloc.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,7 +38,7 @@ char messageStr[MAX_MESSAGE_LENGTH];
 
 /* ------- begin -------------------------- readTrujillo.c ---------- */
 
-void main(int argc, void *argv[])
+int main(int argc, char *argv[])
 {
   register int n, k;
 
@@ -105,5 +104,6 @@ void main(int argc, void *argv[])
 
   fclose(fp_Trujillo);
   writeMULTIatmos(&geometry, &atmos, argv[2]);
+  return 0;
 }
 /* ------- end ---------------------------- readTrujillo.c ---------- */

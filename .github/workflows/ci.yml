@@ -16,7 +16,11 @@ concurrency:
 
 env:
   UPSTREAM_REPO: han-uitenbroek/RH
-  UPSTREAM_REF: c95bdf6
+  UPSTREAM_REF: c95bdf66ff6bc1c6cea0ed04dc688100170e8ee6
+
+defaults:
+  run:
+    shell: bash       # -eo pipefail: a failing command before | tee fails the step
 
 jobs:
   build:
