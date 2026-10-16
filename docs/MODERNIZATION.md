@@ -194,7 +194,7 @@ on perturbed FAL-C (82 depths):
 | [B-13](https://github.com/dwijn/RH/issues/14) | low | `ERROR_LEVEL_1` for an unknown solver leaves I and Psi undefined and continues. **Not a bug:** `ERROR_LEVEL_1` terminates the run (see Q-16), and the keyword parser already rejects unknown solvers | `rhf1d/formal.c:209-231` | code reading | wontfix |
 | [B-14](https://github.com/dwijn/RH/issues/15) | low | `error.c` `sprintf`s a 512-byte message plus routine name into a 512-byte buffer | `error.c:51` | code reading | open |
 | [B-15](https://github.com/dwijn/RH/issues/80) | low | `Atoms/CaII_large.atom` has 13 `OMEGA` collision records equal to `Inf`; since B-4 the run stops at setup with a clear error instead of a SIGFPE | `Atoms/CaII_large.atom` | `1d_falc_cail`: "collision record OMEGA 11 10 has a non-finite value (inf)" | open |
-| [B-16](https://github.com/dwijn/RH/issues/93) | medium | Collision data must follow a `TEMP` line, but this is not enforced: a tabulated keyword (OMEGA, CE, CI, CP, CH0, CH+, CH) before any `TEMP` reads an uninitialized item count and a NULL temperature grid (crash); after a fixed-size keyword (AR85-*, BURGESS, SHULL82, BADNELL, SUMMERS) without a new `TEMP` it inherits that keyword's item count, so a line with that many numbers gives silently wrong rates | `collision.c:469` | -Wmaybe-uninitialized triage; no shipped atom file is affected | open |
+| [B-16](https://github.com/dwijn/RH/issues/93) | medium | Collision data must follow a `TEMP` line, but this is not enforced: a tabulated keyword (OMEGA, CE, CI, CP, CH0, CH+, CH) before any `TEMP` reads an uninitialized item count and a NULL temperature grid (crash); after a fixed-size keyword (AR85-*, BURGESS, SHULL82, BADNELL, SUMMERS) without a new `TEMP` it inherits that keyword's item count, so a line with that many numbers gives silently wrong rates | `collision.c:469` | -Wmaybe-uninitialized triage; no shipped atom file is affected | fixed |
 | [B-17](https://github.com/dwijn/RH/issues/94) | low | `writeMULTIatmos()` writes an uninitialized `height` for a GEOMETRIC depth scale (no branch for it); latent, both callers use other scales | `tools/writemulti.c:89` | -Wmaybe-uninitialized triage | open |
 | [B-18](https://github.com/dwijn/RH/issues/95) | low | `solve1d` reads the boundary-condition codes `btop`/`bbot` from stdin without validating them; an out-of-range code now gives a zero boundary intensity | `rhf1d/solve1d.c` | -Wmaybe-uninitialized triage | open |
 
@@ -263,7 +263,7 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 
 | ID | Sev | Issue | Status |
 |---|---|---|---|
-| [Q-1](https://github.com/dwijn/RH/issues/52) | high | Hand-written makefiles with archive-member rules: not safe under `make -j`; hand-maintained, partly wrong dependencies; four ~90 % identical geometry makefiles | open |
+| [Q-1](https://github.com/dwijn/RH/issues/52) | high | Hand-written makefiles with archive-member rules: not safe under `make -j`; hand-maintained, partly wrong dependencies; four ~90 % identical geometry makefiles | fixed |
 | [Q-2](https://github.com/dwijn/RH/issues/53) | high | Fortran still required by rhsc2d/rhsc3d/rhsphere/tools makefiles (`librh_f90.a`) after the WIP dropped it at top level | fixed |
 | [Q-3](https://github.com/dwijn/RH/issues/54) | medium | 354 warnings with `-Wall -Wextra -std=c11 -pedantic` (138 maybe-uninitialized, 140 unused variables, 32 set-but-unused, 30 unused parameters, 8 sign-compare, 5 implicit declarations — pread/pwrite/fileno need `_POSIX_C_SOURCE`) | open |
 | [Q-4](https://github.com/dwijn/RH/issues/55) | medium | Pervasive global state: 315 `extern` declarations in .c files; `atmos` referenced 2145 times in 108 files | open |
@@ -277,9 +277,9 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | [Q-12](https://github.com/dwijn/RH/issues/63) | low | `tests/make_tiled_2d_atmos.py` uses the wrong array order | fixed |
 | [Q-13](https://github.com/dwijn/RH/issues/64) | low | Python readers depend on `xdrlib` (removed in Python 3.13) | open |
 | [Q-14](https://github.com/dwijn/RH/issues/65) | — | No unit tests (Voigt, LU, splines, w3j, formal solvers on analytic slabs), no CI | open |
-| [Q-15](https://github.com/dwijn/RH/issues/83) | low | Default `CFLAGS` lack `-g`, so N-11 backtraces resolve to function names only, without file and line | open |
+| [Q-15](https://github.com/dwijn/RH/issues/83) | low | Default `CFLAGS` lack `-g`, so N-11 backtraces resolve to function names only, without file and line | fixed |
 | [Q-16](https://github.com/dwijn/RH/issues/84) | medium | `Error(ERROR_LEVEL_1, …)` prints "Trying to continue" but terminates (exit status 2): the continue branch in `error.c` is unreachable. 74 call sites are written to recover afterwards (return FALSE, fall back, skip an output file), so their recovery code is dead, and `ERROR_LEVEL_1` and `_2` differ only in exit status (2 vs 3). Decide per site between a warning with recovery and a fatal error; define the exit statuses together with N-1 | open |
-| [Q-17](https://github.com/dwijn/RH/issues/96) | medium | ~30 unchecked I/O results: `fread`/`fwrite`, `xdr_*`, `fscanf`/`fgets` return values assigned and never tested (e.g. a truncated Barklem table goes unnoticed) | open |
+| [Q-17](https://github.com/dwijn/RH/issues/96) | medium | ~30 unchecked I/O results: `fread`/`fwrite`, `xdr_*`, `fscanf`/`fgets` return values assigned and never tested (e.g. a truncated Barklem table goes unnoticed) | fixed |
 
 Output formats are a contract: the Python (`python/rhanalyze`) and IDL readers
 unpack the XDR files field by field, and `rhopacity.py` seeks into raw
@@ -318,6 +318,97 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-10-16 — Collision data before a TEMP line is an error; no inherited item counts (B-16)
+
+Tabulated collision keywords (OMEGA, CE, CI, CP, CH0, CH+, CH) give one
+value per temperature of the last `TEMP` grid, but read as many values as
+the last keyword of any kind had set. Two consequences for atom files:
+
+- Collision data before any `TEMP` line read an uninitialized count and a
+  NULL temperature grid: a segmentation fault. It now stops with
+  "OMEGA collision data for levels 1 0 before any TEMP line".
+- After a fixed-size keyword (AR85-*, BURGESS, SHULL82, BADNELL, SUMMERS)
+  a tabulated line read only that keyword's number of values and
+  interpolated in a truncated grid, without any message. With a BURGESS
+  line placed before the first OMEGA line of `CaII.atom` the Ca II
+  849.8 nm line changed by 6.6 %. Tabulated lines now always use the
+  `TEMP` grid size.
+
+No shipped atom file is affected: the regression suite is byte-identical.
+
+### 2026-10-16 — Continuous integration on Linux and macOS; Voigt complex arithmetic
+
+GitHub Actions now builds every push and PR to `modernize` on Ubuntu (gcc,
+clang) and macOS 14 (Apple silicon, clang) with `-Wall -Wextra`, runs the
+smoke tests, and runs the regression suite against upstream c95bdf6 built
+on the same runner (`tests/build_upstream.sh`), on Ubuntu and macOS and with
+ASan+UBSan.
+
+The first runs found:
+
+- `tools/readtrujillo.c` did not compile with clang or on macOS
+  (`void main(int, void *[])`, `<malloc.h>`).
+- UBSan: `readMolecule()` passed a NULL array to `qsort` for a molecule
+  without lines (undefined behaviour); fixed. Otherwise the sanitizers are
+  clean, the first time they ran on RH.
+- The Stokes cases on macOS were not byte-identical to upstream.
+
+Complex arithmetic in the Voigt code: upstream divided complex numbers with
+the textbook formula (`cmplx_div`). With that formula (an explicit
+`cdiv()`, or gcc's `-fcx-limited-range`) gcc on Linux is byte-identical to
+upstream; on macOS the Stokes cases differ even then (most likely FMA
+contraction, which clang enables by default on arm64). Since exact
+agreement across compilers is not a goal, the Voigt code now uses C's
+default complex arithmetic and the CI regression runs in tolerance mode.
+The Stokes cases then differ from upstream by at most 1e-10 relative
+(I: 2e-11), the size of thread-count noise. For pure refactors, compare
+exactly against a build of the PR's base instead of upstream.
+
+### 2026-10-16 — CMake replaces the hand-written makefiles (breaking) (Q-1, Q-15)
+
+RH now builds with CMake (3.20 or newer): `cmake -B build && cmake --build
+build -j`. The seven makefiles and `tests/build_asan.sh` are gone.
+
+- Parallel builds are safe (the archive-member rules raced under `make -j`
+  and could leave a corrupt `librh.a`), and header dependencies are tracked
+  by the compiler instead of by hand. A full build takes 3 s on 16 cores.
+- Out-of-source builds: programs land in `build/rhf1d/rhf1d` etc. Installed,
+  the auxiliary programs that several geometries share get a suffix
+  (`solveray_1d`, `backgrcontr_2d`).
+- The default build type is RelWithDebInfo (`-O2 -g`), so FPE backtraces
+  (N-11) resolve to file and line (Q-15). Options: `RH_NATIVE`,
+  `RH_SANITIZE`, `RH_WARNINGS`, `RH_BUILD_TOOLS`.
+- Portability: XDR from libtirpc (found with pkg-config, or in
+  `/usr/include/tirpc`) or from the C library (macOS); `feenableexcept`
+  and `execinfo.h` are detected instead of keyed on `-DLinux`/`-DDarwin`,
+  so traps work on any glibc system and are skipped cleanly elsewhere.
+  Intel compilers get `-fp-model=precise`: with icx's default fast
+  floating point the wavelength grids differed and the Kurucz case died
+  with SIGFPE.
+- `run_tests.sh` and `run_stress.sh` accept a CMake build directory or a
+  source tree with `build/`, as well as in-place makefile builds (upstream).
+
+Verified: `run_tests.sh --exact` against upstream is byte-identical in all
+34 cases (this needed `-fcx-limited-range` for `voigt.c` and `humlicek.c`,
+which the old Makefile set per file). Intel icx 2022.1 matches upstream
+within the suite's tolerances (1e-9; 1e-7 in 2-D) with no warnings. The Unix
+Makefiles generator with `make -j32` produces the same machine code as
+Ninja. Sanitizer builds could not be run locally (no sanitizer runtime is
+installed for gcc 8 or icx); CI will cover them.
+
+### 2026-10-16 — I/O results are checked (Q-17)
+
+About 30 places stored the result of an `fread`/`fwrite`, `xdr_*`,
+`fscanf`/`sscanf` or `fgets` call and never looked at it, so a truncated
+or malformed file, or a failed write, went unnoticed (e.g. a short
+Barklem table in `readBarklemTable`). Each now stops with a message that
+names the file or quotes the offending line. Mostly in the auxiliary
+programs (`solve1d`, `solve2d`, `formal2d`, `formal3d`, `solveray`,
+`chartflow`, `backgrcontr`), the 2-D/3-D atmosphere readers and geometry
+writers, and the atomic-data tools. XDR calls that belong together are
+checked once per group. Behaviour on valid input is unchanged (regression
+suite byte-identical).
 
 ### 2026-10-15 — calcDistance always returns a value (B-8)
 
