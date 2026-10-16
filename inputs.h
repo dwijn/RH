@@ -18,7 +18,7 @@
 #define MAX_VALUE_LENGTH    160
 
 #define CHECK_OPTION(option, name, length) \
-        (strncmp(option, name, MAX(((int) length), strlen(option))) == 0)
+        (strncmp(option, name, MAX((size_t) (length), strlen(option))) == 0)
 
 
 enum keywordtype  {KEYWORD_REQUIRED, KEYWORD_DEFAULT, KEYWORD_OPTIONAL};

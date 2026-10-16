@@ -17,7 +17,7 @@
 
 
 #define CHECK_OPTION(string, option, lmin) \
-        (strncmp((string), (option), MAX((lmin),strlen(string))) == 0)
+        (strncmp((string), (option), MAX((size_t) (lmin), strlen(string))) == 0)
 
 struct Option {
   char *name;
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     {"-help",  FALSE, 2, "Print this message          "},
     {"-full",  FALSE, 2, "Print all wavelengths       "},
     {"-air",   FALSE, 2, "Convert to wavelength in air"},
-    {NULL}
+    {NULL, FALSE, 0, NULL}
   };
   if (argc <= 1) ShowUsage(argv[0], theOpt);
 

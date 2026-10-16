@@ -69,6 +69,11 @@ void writeGeometry(Geometry *geometry)
 		       sizeof(double),  (xdrproc_t) xdr_double);
   result &= xdr_vector(&xdrs, (char *) geometry->vel, geometry->Ndep,
 		       sizeof(double),  (xdrproc_t) xdr_double);
+  if (!result) {
+    sprintf(messageStr, "Unable to write geometry to file %s",
+	    input.geometry_output);
+    Error(ERROR_LEVEL_2, routineName, messageStr);
+  }
 
   xdr_destroy(&xdrs);
   fclose(fp_out);

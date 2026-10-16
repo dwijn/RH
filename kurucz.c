@@ -1085,7 +1085,7 @@ double getJK_K(char Kchar)
 {
   const char routineName[] = "getJK_K";
 
-  double K;
+  double K = 0.0;
 
   switch (Kchar) {
   case 'p': K = 0.5;  break;
