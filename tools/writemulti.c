@@ -37,7 +37,7 @@ void writeMULTIatmos(Geometry *geometry, Atmosphere *atmos,
 
   char    fileName[MAX_LINE_SIZE];
   bool_t  result = TRUE;
-  double *heightscale, height, vturb, *np;
+  double *heightscale = NULL, height, vturb, *np;
   FILE   *fp_MULTI;
   XDR     xdrs;
 

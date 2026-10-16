@@ -48,7 +48,7 @@ void Hydrostatic(int NmaxIter, double iterLimit)
   bool_t  Debeye, quiet, H2present;
   int    niter, Ngdelay, Ngperiod, Ngorder, Nhse;
   double *n_k, **dfdn, C1, C2, C3, beta, Phi_H, Phi_H2, *F, *dFdne, *f,
-    dnmax, nHtot_old, *np, *nH2;
+    dnmax = 0.0, nHtot_old, *np, *nH2;
   struct  Ng *Nghse;
   Atom *atom;
 

@@ -147,7 +147,7 @@ double ZeemanStrength(double Ju, double Mu, double Jl, double Ml)
   const char routineName[] = "ZeemanStrength";
 
   int    q, dJ;
-  double s;
+  double s = 0.0;
 
   /* --- Return the strength of Zeeman component (Ju, Mu) -> (Jl, Ml),
          where J and M are the total angular momentum and magnetic

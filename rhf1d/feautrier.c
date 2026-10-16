@@ -60,9 +60,9 @@ double Feautrier(int nspect, int mu, double *chi, double *S,
   register int k;
 
   int     Ndep = geometry.Ndep;
-  double  r0, h0, rN, hN, f0, fN, Ak, Ck, tau0 = 0.0, Bnu[2], zmu,
-          dtau_mid, Iplus, *dtau, *abc, *A1, *C1, *F, *G, *Q,
-         *Stmp, *ztmp;
+  double  r0 = 0.0, h0 = 0.0, rN = 0.0, hN = 0.0, f0, fN, Ak, Ck,
+          tau0 = 0.0, Bnu[2], zmu, dtau_mid, Iplus, *dtau, *abc, *A1, *C1,
+         *F, *G, *Q, *Stmp, *ztmp;
 
   dtau = (double *) malloc(Ndep * sizeof(double));
   abc  = (double *) malloc(Ndep * sizeof(double));

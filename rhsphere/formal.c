@@ -280,8 +280,8 @@ void addtoGamma_sphere(int nspect, Ray *ray, double *P, double *Psi)
   const char routineName[] = "addtoGamma_sphere";
   register int n, k, m, nact;
 
-  int    i, j, ij, ji, jp, nt;
-  double twohnu3_c2, twohc, wmula, *Ieff;
+  int    i, j, ij, ji, jp = 0, nt;
+  double twohnu3_c2, twohc, wmula, *Ieff = NULL;
 
   Atom *atom;
   Molecule *molecule;

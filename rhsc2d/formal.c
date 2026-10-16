@@ -52,8 +52,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
            PRD_angle_dep, to_obs, solveStokes, angle_dep;
   int      Nspace = atmos.Nspace, Nrays = atmos.Nrays, lamuk;
   long int idx, idx0;
-  double  *I, *chi, *S, **Ipol, **Spol, *Psi, *Jdag, wmu, dJmax, dJ,
-          *J20dag, musq, threemu1, threemu2, *J, *J20, *lambda, sign,
+  double  *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
+           dJmax, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
+          *J, *J20 = NULL, *lambda, sign,
            lambda_gas, lambda_prv, lambda_nxt, fac, dl, frac;
   ActiveSet *as;
 
@@ -478,9 +479,9 @@ void Feautrier_2D(int nspect, double *chi, double *S,
   register int k, l, kl;
 
   int     Ndep = geometry.Nz;
-  double  r0, h0, rN, hN, f0, fN, Ak, Ck, tau0 = 0.0, Bnu[2], zmu,
-          dtau_mid, Iplus, *dtau, *abc, *A1, *C1, *F, *G, *Q,
-         *Stmp, *ztmp, T[2], *chi_l, *S_l, *I_l, *Psi_l;
+  double  r0, h0 = 0.0, rN, hN = 0.0, f0, fN, Ak, Ck, tau0 = 0.0, Bnu[2],
+          zmu, dtau_mid, Iplus, *dtau, *abc, *A1, *C1, *F, *G, *Q,
+         *Stmp, *ztmp, T[2], *chi_l, *S_l, *I_l, *Psi_l = NULL;
 
   dtau = (double *) malloc(geometry.Nz * sizeof(double));
   abc  = (double *) malloc(geometry.Nz * sizeof(double));

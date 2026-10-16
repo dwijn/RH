@@ -54,7 +54,7 @@ double Feautrier(int nspect, int mu, double *chi, double *S,
   register int k;
 
   int    Ns;
-  double r0, h0, rN, hN, f0, fN, Ak, Ck, tau0 = 0.0, Bnu[2], dtau_mid,
+  double r0, h0 = 0.0, rN, hN, f0, fN, Ak, Ck, tau0 = 0.0, Bnu[2], dtau_mid,
          Iplus, *dtau, *abc, *A1, *C1, *F, *G, *Q, *Stmp, *ztmp;
   Ray   *ray;
 

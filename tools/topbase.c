@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
           stage, i_l, islp_l, ilv_l, jslp_l, jlv_l, Nrad, ntoken;
   double  gi, *te, e, rl, abundance, weight, Eion, *alpha,
          *E, hERc, Econt, fdum, gf, f, lambda0, C, Ecorr, E0;
-  FILE   *fp_energy, *fp_photo, *fp_lines;
+  FILE   *fp_energy, *fp_photo = NULL, *fp_lines = NULL;
   Atom atom;
   AtomicLine *line;
   AtomicContinuum *continuum;

@@ -68,12 +68,15 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
   register int k, n, nact;
 
   int     la, i, j, vi, vj, lamu, nt, NrecStokes, Nrecphi;
-  double *phi, gijk, twohnu3_c2, twohc, hc_4PI, hc_k, hc, fourPI,
-    *n_i, *n_j, Bijxhc_4PI, wlambda, chi_l, *chi_Q, *chi_U, *chi_V,
-     eta_l, *eta_Q, *eta_U, *eta_V, *chip_Q, *chip_U, *chip_V,
-    *phi_Q, *phi_U, *phi_V, *psi_Q, *psi_U, *psi_V,
-    lag, rho_int, *rho_tmp, sign;
-  bool_t  solveStokes;
+  double *phi = NULL, gijk, twohnu3_c2, twohc, hc_4PI, hc_k, hc, fourPI,
+    *n_i, *n_j, Bijxhc_4PI = 0.0, wlambda, chi_l,
+    *chi_Q = NULL, *chi_U = NULL, *chi_V = NULL,
+     eta_l, *eta_Q, *eta_U, *eta_V,
+    *chip_Q = NULL, *chip_U = NULL, *chip_V = NULL,
+    *phi_Q = NULL, *phi_U = NULL, *phi_V = NULL,
+    *psi_Q = NULL, *psi_U = NULL, *psi_V = NULL,
+    lag, rho_int, *rho_tmp = NULL, sign;
+  bool_t  solveStokes = FALSE;
 
   Atom *atom;
   Molecule *molecule;
@@ -815,8 +818,9 @@ flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
   int    NrecStokes;
   double dlamb_char0, dlamb_charN, kT, hc_la, hc, fourPI, hc_4PI,
     Bijhc_4PI, ni_gi, nj_gj, twohnu3_c2, phi, phi_Q, phi_U, phi_V,
-    psi_Q, psi_U, psi_V, chi_l, *chi_Q, *chi_U, *chi_V,
-    eta_l, *eta_Q, *eta_U, *eta_V, *chip_Q, *chip_U, *chip_V;
+    psi_Q, psi_U, psi_V, chi_l, *chi_Q = NULL, *chi_U = NULL, *chi_V = NULL,
+    eta_l, *eta_Q = NULL, *eta_U = NULL, *eta_V = NULL,
+    *chip_Q = NULL, *chip_U = NULL, *chip_V = NULL;
   Molecule        *molecule;
   MolecularLine   *mrt;
   flags            backgrflags;

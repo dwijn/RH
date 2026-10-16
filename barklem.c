@@ -104,7 +104,7 @@ bool_t readBarklemTable(enum Barklemtype type, Barklemstruct *bs)
 
   char    filename[MAX_LINE_SIZE], inputLine[MAX_LINE_SIZE], *charptr;
   int     nread;
-  double  neff1_0, neff2_0;
+  double  neff1_0 = 0.0, neff2_0 = 0.0;
   FILE   *fp_Barklem;
 
   switch (type) {

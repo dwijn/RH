@@ -48,7 +48,7 @@ void Piecewise_Linear_1D(int nspect, int mu, bool_t to_obs,
   register int k;
 
   int    k_start, k_end, dk, Ndep = geometry.Ndep;
-  double dtau_uw, dS_uw, I_uw, w[2], zmu, Bnu[2];
+  double dtau_uw, dS_uw, I_uw = 0.0, w[2], zmu, Bnu[2];
 
   zmu = 0.5 / geometry.muz[mu];
 

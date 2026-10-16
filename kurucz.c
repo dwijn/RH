@@ -431,10 +431,11 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
   int    Nwhite, Nblue, Nred, NrecStokes;
   double dlamb_wing, *pf, dlamb_char, hc_la, ni_gi, nj_gj, kT,
          Bijhc_4PI, twohnu3_c2, hc, fourPI, hc_4PI,
-        *eta_Q, *eta_U, *eta_V, eta_l,
-        *chi_Q, *chi_U, *chi_V, chi_l, *chip_Q, *chip_U, *chip_V,
+        *eta_Q = NULL, *eta_U = NULL, *eta_V = NULL, eta_l,
+        *chi_Q = NULL, *chi_U = NULL, *chi_V = NULL, chi_l,
+        *chip_Q = NULL, *chip_U = NULL, *chip_V = NULL,
          phi, phi_Q, phi_U, phi_V, psi_Q, psi_U, psi_V,
-         epsilon, C, C2_atom, C2_ion, C3, dE, x;
+         epsilon, C, C2_atom, C2_ion, C3 = 0.0, dE = 0.0, x = 0.0;
   Atom *metal;
   AtomicLine *line;
   Element *element;

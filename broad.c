@@ -64,8 +64,8 @@ void VanderWaals(AtomicLine *line, double *GvdW)
   register int k;
 
   int     i, j, ic, Z;
-  double  vrel35_H, vrel35_He, fourPIeps0, deltaR, cross, gammaCorrH,
-          gammaCorrHe, *T = atmos.T, C625;
+  double  vrel35_H, vrel35_He = 0.0, fourPIeps0, deltaR, cross, gammaCorrH,
+          gammaCorrHe, *T = atmos.T, C625 = 0.0;
   Atom    *atom = line->atom;
   Element *He = &atmos.elements[1];
 

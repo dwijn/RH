@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
           to_obs, equilibria_only;
   int     Nspect, Nread, Nrequired, checkPoint,
          *wave_index = NULL;
-  double  mux, muy, *S, *chi, *J;
+  double  mux, muy, *S = NULL, *chi = NULL, *J = NULL;
   FILE   *fp_out, *fp_ray;
   XDR     xdrs;
   ActiveSet *as;

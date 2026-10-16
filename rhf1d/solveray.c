@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
   bool_t  result, exit_on_EOF, to_obs, initialize, crosscoupling,
           analyze_output, equilibria_only;
   int     Nspect, Nread, Nrequired, checkPoint, *wave_index = NULL;
-  double  muz, *S, *chi, *J;
+  double  muz, *S = NULL, *chi = NULL, *J = NULL;
   FILE   *fp_out, *fp_ray, *fp_out_asc;
   XDR     xdrs;
   ActiveSet *as;

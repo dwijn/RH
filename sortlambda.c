@@ -45,8 +45,8 @@ void SortLambda()
   register int kr, n, m, nspect, la, nact;
 
   bool_t hunt, unique, result;
-  int Nred, Nspectrum, Nlambda_original, Z, i, j, Nwave;
-  double *alpha_original, gbf_0, n_eff, *wavetable;
+  int Nred, Nspectrum, Nlambda_original, Z, i = 0, j = 0, Nwave;
+  double *alpha_original, gbf_0, n_eff, *wavetable = NULL;
   ActiveSet *as;
   Atom *atom;
   Molecule *molecule;

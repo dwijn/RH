@@ -47,8 +47,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
            PRD_angle_dep, to_obs, solveStokes, angle_dep;
   int      Nspace = atmos.Nspace, Nrays = atmos.Nrays, lamuk;
   long int idx, idx0;
-  double  *I, *chi, *S, **Ipol, **Spol, *Psi, *Jdag, wmu, dJmax, dJ,
-          *J20dag, musq, threemu1, threemu2, *J, *J20, *lambda, sign,
+  double  *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
+           dJmax, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
+          *J, *J20 = NULL, *lambda, sign,
            lambda_gas, lambda_prv, lambda_nxt, fac, dl, frac;
   ActiveSet *as;
 
