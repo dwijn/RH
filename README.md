@@ -18,7 +18,7 @@ of the system.
 ```
 cmake -B build
 cmake --build build -j
-ctest --test-dir build                    # quick check that the programs start
+ctest --test-dir build                    # unit tests; the programs start cleanly
 cmake --install build --prefix ~/rh       # optional: ~/rh/bin/rhf1d, ...
 ```
 
@@ -54,7 +54,7 @@ alignment. Format before committing with clang-format 19 (`pip install
 clang-format==19.1.7`, or your package manager):
 
 ```
-git ls-files '*.c' '*.h' | grep -v '^tests/' | xargs clang-format -i
+git ls-files '*.c' '*.h' | grep -v '_reference\.h$' | xargs clang-format -i
 ```
 
 CI rejects unformatted code. `git config blame.ignoreRevsFile

@@ -2,7 +2,7 @@
 #
 #   cmake -B build                 configure (default build type RelWithDebInfo)
 #   cmake --build build -j         build librh, the four programs and the tools
-#   ctest --test-dir build         quick check that the programs start
+#   ctest --test-dir build         unit tests and a check that the programs start
 #   cmake --install build --prefix ~/rh
 #
 # Options (-D<option>=<value>):
@@ -194,6 +194,10 @@ foreach(prog rhf1d rhsc2d rhsc3d rhsphere)
     PASS_REGULAR_EXPRESSION "TERMINATING_ERROR"
     FAIL_REGULAR_EXPRESSION "Sanitizer|runtime error|Segmentation|FATAL ERROR")
 endforeach()
+
+# --- Unit tests --------------------------------------------------------------
+
+add_subdirectory(tests/unit)
 
 message(STATUS "RH ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, "
                "native=${RH_NATIVE}, sanitize='${RH_SANITIZE}', "
