@@ -238,6 +238,7 @@ on perturbed FAL-C (82 depths):
 | [N-20](https://github.com/dwijn/RH/issues/138) | low | Gauss-Legendre weights accurate to only ~1e-14 (P'(x) evaluated at the previous Newton iterate, stop at 3e-14): weights sum short by 2.4e-14 at n = 64, polynomial exactness 5e-13 | `gaussleg.c:49-56` | `test_quadrature` (Q-14) | open |
 | [N-21](https://github.com/dwijn/RH/issues/139) | low | `SolveLinearEq(..., improve)`: iterative refinement with the residual in plain double gives no gain (Hilbert n = 8: 8.9e-7 with, 1.4e-7 without); a singular matrix with nonzero rows is not detected (zero pivot replaced by 1e-20) | `ludcmp.c` | `test_linalg` (Q-14) | open |
 | [N-22](https://github.com/dwijn/RH/issues/140) | low | Special functions: `Planck` uses `exp(x) − 1` (relative error eps/x, 6e-10 at x = 1e-7, radio wavelengths); `E1`/`E2` return 0 above x = 80 and `E2` loses accuracy toward it (1.2e-6) | `planck.c:46`, `expint.c:51,73` | `test_functions` (Q-14) | open |
+| [N-23](https://github.com/dwijn/RH/issues/143) | medium | In 1-D, every angle-independent wavelength (static atmosphere, no Stokes, no angle-dependent PRD) is solved with second-order Feautrier, whatever `S_INTERPOLATION` says; Bezier3 (4th order for the emergent intensity) is used only with velocities or polarization. The keyword is silently ignored, and static and moving atmospheres are solved with different methods | `rhf1d/formal.c:356-372` | `1d/nostokes` unchanged by the Bezier fix (N-17); `test_formal_1d` | open |
 
 ### 3.3 Memory
 
