@@ -3,11 +3,15 @@
 
 name: CI
 
+# Changes that only touch documentation skip CI (the code, the tests and
+# their data are unaffected). Any other file in the change runs everything.
 on:
   push:
     branches: [modernize]
+    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs']
   pull_request:
     branches: [modernize]
+    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs']
   workflow_dispatch:
 
 concurrency:
