@@ -176,6 +176,50 @@ inline void Svec(int k, double **S, double *Sf)
 
 /* ------- begin -------------------------- Bezier3_coeffs ---------- */
 
+/* --- Taylor coefficients of alpha, beta, gamma and theta: the
+	   coefficients of dt^1 to dt^13, from the exact expansion of the
+	   closed forms below. The closed forms lose digits to cancellation
+	   at small dt (1e-9 at dt = 0.05, 5e-12 at dt = 0.2, 7e-15 at
+	   dt = 1), so below |dt| = 0.2 the series is used, with as many
+	   terms as a relative error of about 1e-12 needs. It also serves
+	   small negative dt, which interpolated opacities can give in 2-D
+	   and 3-D. For dt > 40 the closed forms are expanded in 1/dt
+	   (exp(-dt) negligible), so that a huge or infinite dt gives the
+	   limits instead of NaN. Checked against mpmath in
+	   tests/unit/test_formal_1d.c --                 -------------- */
+
+#define BEZIER3_NTAYLOR 9
+
+static const double bezier3_taylor[4][BEZIER3_NTAYLOR] = {
+	/* alpha: 1/4, -1/5, 1/12, -1/42, 1/192, -1/1080, ... */
+	{0.25, -0.20000000000000001, 0.083333333333333329, -0.023809523809523808,
+	 0.005208333333333333, -0.00092592592592592596, 0.00013888888888888889, -1.8037518037518038e-05,
+	 2.0667989417989419e-06},
+	/* beta: 1/4, -1/20, 1/120, -1/840, 1/6720, -1/60480, ... */
+	{0.25, -0.050000000000000003, 0.0083333333333333332, -0.0011904761904761906,
+	 0.00014880952380952382, -1.6534391534391536e-05, 1.6534391534391535e-06, -1.5031265031265032e-07,
+	 1.252605419272086e-08},
+	/* gamma: 1/4, -3/20, 1/20, -1/84, 1/448, -1/2880, ... */
+	{0.25, -0.14999999999999999, 0.050000000000000003, -0.011904761904761904,
+	 0.002232142857142857, -0.00034722222222222224, 4.6296296296296294e-05, -5.4112554112554113e-06,
+	 5.6367243867243867e-07},
+	/* theta: 1/4, -1/10, 1/40, -1/210, 1/1344, -1/10080, ... */
+	{0.25, -0.10000000000000001, 0.025000000000000001, -0.0047619047619047623,
+	 0.00074404761904761901, -9.9206349206349206e-05, 1.1574074074074073e-05, -1.2025012025012026e-06,
+	 1.1273448773448773e-07}};
+
+/* --- c[0] + c[1] x + ... + c[6] x^6 and to c[8] x^8, with x2 = x^2
+	   and x4 = x^4 (Estrin's scheme: short dependency chains) -- -- */
+
+#define BEZIER3_ESTRIN7(c, x, x2, x4)                           \
+	(((c)[0] + (c)[1] * (x)) + ((c)[2] + (c)[3] * (x)) * (x2) + \
+	 (((c)[4] + (c)[5] * (x)) + (c)[6] * (x2)) * (x4))
+
+#define BEZIER3_ESTRIN9(c, x, x2, x4)                                    \
+	(((c)[0] + (c)[1] * (x)) + ((c)[2] + (c)[3] * (x)) * (x2) +          \
+	 (((c)[4] + (c)[5] * (x)) + ((c)[6] + (c)[7] * (x)) * (x2)) * (x4) + \
+	 (c)[8] * (x4) * (x4))
+
 inline void Bezier3_coeffs(double dt, double *alpha, double *beta,
 						   double *gamma, double *theta, double *eps)
 {
@@ -190,32 +234,61 @@ inline void Bezier3_coeffs(double dt, double *alpha, double *beta,
 
 	   --- */
 
-	double dt2 = dt * dt, dt3 = dt2 * dt; //,  dt4;
-	if (dt < 0.05) {
-		*eps   = 1.0 - dt + 0.50 * dt2 - dt3 * 0.166666666666666666666666667;
-		*alpha = 0.25 * dt - 0.20 * dt2 +
-				 dt3 * 0.083333333333333333333333333; // - dt4 / 840.0;
-		*beta = 0.25 * dt - 0.05 * dt2 +
-				dt3 * 0.008333333333333333333333333;   //  - dt4 / 42.0;
-		*gamma = 0.25 * dt - 0.15 * dt2 + dt3 * 0.050; // - dt4 / 210.0;
-		*theta = 0.25 * dt - 0.10 * dt2 + dt3 * 0.025; // - dt4 / 84.0;
-		return;
+	const double *c0 = bezier3_taylor[0], *c1 = bezier3_taylor[1],
+				 *c2 = bezier3_taylor[2], *c3 = bezier3_taylor[3];
+
+	/* --- Below |dt| = 0.05 eps follows from the sum of the weights,
+		   which is 1 - exp(-dt) (constant S). The number of terms
+		   keeps the relative error below about 1e-12: in 2-D and 3-D
+		   most intervals are optically very thin --     -------------- */
+
+	if (fabs(dt) < 2.0e-6) {
+		*alpha = dt * (c0[0] + c0[1] * dt);
+		*beta  = dt * (c1[0] + c1[1] * dt);
+		*gamma = dt * (c2[0] + c2[1] * dt);
+		*theta = dt * (c3[0] + c3[1] * dt);
+		*eps   = 1.0 - (*alpha + *beta + *gamma + *theta);
+	} else if (fabs(dt) < 1.0e-3) {
+		*alpha = dt * (c0[0] + dt * (c0[1] + dt * (c0[2] + dt * c0[3])));
+		*beta  = dt * (c1[0] + dt * (c1[1] + dt * (c1[2] + dt * c1[3])));
+		*gamma = dt * (c2[0] + dt * (c2[1] + dt * (c2[2] + dt * c2[3])));
+		*theta = dt * (c3[0] + dt * (c3[1] + dt * (c3[2] + dt * c3[3])));
+		*eps   = 1.0 - (*alpha + *beta + *gamma + *theta);
+	} else if (fabs(dt) < 0.05) {
+		double d2 = dt * dt, d4 = d2 * d2;
+
+		*alpha = dt * BEZIER3_ESTRIN7(c0, dt, d2, d4);
+		*beta  = dt * BEZIER3_ESTRIN7(c1, dt, d2, d4);
+		*gamma = dt * BEZIER3_ESTRIN7(c2, dt, d2, d4);
+		*theta = dt * BEZIER3_ESTRIN7(c3, dt, d2, d4);
+		*eps   = 1.0 - (*alpha + *beta + *gamma + *theta);
+	} else if (fabs(dt) < 0.2) {
+
+		/* --- Terms to dt^9 --                           -------------- */
+
+		double d2 = dt * dt, d4 = d2 * d2;
+
+		*alpha = dt * BEZIER3_ESTRIN9(c0, dt, d2, d4);
+		*beta  = dt * BEZIER3_ESTRIN9(c1, dt, d2, d4);
+		*gamma = dt * BEZIER3_ESTRIN9(c2, dt, d2, d4);
+		*theta = dt * BEZIER3_ESTRIN9(c3, dt, d2, d4);
+		*eps   = exp(-dt);
+	} else if (dt > 40.0) {
+		double r = 1.0 / dt; /* exp(-dt) terms below 1e-17 relative */
+
+		*eps   = 0.0;
+		*alpha = 6.0 * r * r * r;
+		*beta  = 1.0 + r * (-3.0 + r * (6.0 - 6.0 * r));
+		*gamma = r * r * (6.0 - 18.0 * r);
+		*theta = r * (3.0 + r * (-12.0 + 18.0 * r));
 	} else {
-		if ((dt > 30.)) {
-			*eps   = 0.0;
-			*alpha = 6.0 / dt3;
-			*beta  = 1.0 - (*alpha) * (1.0 - dt) - 3.0 / dt;
-			*gamma = *alpha * (dt - 3.0);
-			*theta = 3.0 * (*alpha + (dt - 4.0) / dt2);
-			return;
-		} else {
-			*eps   = exp(-dt);
-			*alpha = -(-6.0 + (6.0 + 6.0 * dt + 3.0 * dt2 + dt3) * (*eps)) / dt3;
-			*beta  = (-6.0 + dt * (6.0 + dt * (dt - 3.0)) + 6.0 * (*eps)) / dt3;
-			*gamma = 3.0 * (2.0 * dt - 6.0 + *eps * (6.0 + dt * (dt + 4.0))) / dt3;
-			*theta = 3.0 * (-2.0 * (*eps) * (dt + 3.0) + 6.0 + (dt - 4.0) * dt) / dt3;
-			return;
-		}
+		double dt2 = dt * dt, dt3 = dt2 * dt;
+
+		*eps   = exp(-dt);
+		*alpha = -(-6.0 + (6.0 + 6.0 * dt + 3.0 * dt2 + dt3) * (*eps)) / dt3;
+		*beta  = (-6.0 + dt * (6.0 + dt * (dt - 3.0)) + 6.0 * (*eps)) / dt3;
+		*gamma = 3.0 * (2.0 * dt - 6.0 + *eps * (6.0 + dt * (dt + 4.0))) / dt3;
+		*theta = 3.0 * (-2.0 * (*eps) * (dt + 3.0) + 6.0 + (dt - 4.0) * dt) / dt3;
 	}
 }
 /* ------- end ---------------------------- Bezier3_coeffs ---------- */

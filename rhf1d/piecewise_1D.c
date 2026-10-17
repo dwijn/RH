@@ -119,6 +119,7 @@ void Piecewise_Linear_1D(int nspect, int mu, bool_t to_obs,
 
 		I_uw = I[k];
 	}
+	w2(dtau_uw, w);
 	I[k_end] = (1.0 - w[0]) * I_uw + w[0] * S[k_end] + w[1] * dS_uw;
 	if (Psi) Psi[k_end] = w[0] - w[1] / dtau_uw;
 }

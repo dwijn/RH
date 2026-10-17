@@ -188,17 +188,16 @@ enum { SERIES,
 static const char *const regime_name[NREGIME] = {"series", "exact expressions", "large dtau"};
 
 /* --- Bounds: about twice the maximum measured (gcc, x86-64), by
-	   regime and element. Series: truncated after the cubic term (w) and
-	   the quartic one (U), so the relative error grows to ~dtau^2/4 at
-	   the switch (dtau = 5e-4 for w, 2e-4 for U): 6e-8 in w[1], 7e-8 in
-	   w[2]. Exact expressions: cancellation at small dtau, which is
-	   worst just above the switch, where it is much larger than the
-	   series' error: w[2] is off by 9.8e-7 at dtau = 5e-4 and U[2] by
-	   8.5e-6 at dtau = 2e-4. Large dtau: exact -- ----------------- */
+	   regime and element. w: the incomplete-gamma series below
+	   |dtau| = 1 and the closed forms above are accurate to rounding
+	   (3.5e-16; N-18). U (unchanged, unused in RH): series truncated
+	   after the quartic term below dtau = 2e-4 (6e-9), closed forms with
+	   cancellation above, U[2] off by 8.5e-6 at 2e-4. Large dtau:
+	   exact --                                        -------------- */
 
 static const double w_bound[NREGIME][3] = {
-	/* series */ {1e-7, 1.2e-7, 1.5e-7},
-	/* exact */ {1e-13, 3.5e-10, 2e-6},
+	/* series */ {1e-15, 1e-15, 1e-15},
+	/* exact */ {1e-15, 1e-15, 1e-15},
 	/* limit */ {1e-15, 1e-15, 1e-15}};
 
 static const double u_bound[NREGIME][3] = {
@@ -214,8 +213,8 @@ static void test_w3_u3(void)
 		double dt = dtau_ref[n], w[3], w_two[3] = {0.0, 0.0, 0.0}, u[3];
 		double wref[3] = {w_ref_0[n], w_ref_1[n], w_ref_2[n]};
 		double uref[3] = {u_ref_0[n], u_ref_1[n], u_ref_2[n]};
-		int    rw      = (dt < 5e-4) ? SERIES : (dt > 50.0) ? LIMIT
-															: EXACT;
+		int    rw      = (dt < 1.0) ? SERIES : (dt > 50.0) ? LIMIT
+														   : EXACT;
 		int    ru      = (dt < 2e-4) ? SERIES : (dt > 200.0) ? LIMIT
 															 : EXACT;
 
@@ -232,10 +231,11 @@ static void test_w3_u3(void)
 			CHECK(ew < w_bound[rw][k], "w3[%d](%g) = %.17g, want %.17g (rel. error %.3g)", k, dt, w[k], wref[k], ew);
 			CHECK(eu < u_bound[ru][k], "U3[%d](%g) = %.17g, want %.17g (rel. error %.3g)", k, dt, u[k], uref[k], eu);
 		}
-		/* --- w2 is the first two elements of w3 -- ------------- */
+		/* --- w2 is the first two elements of w3, up to rounding:
+			   below dtau = 1 w3 sums P(3) and w2 P(2) -- -------- */
 
-		CHECK(w_two[0] == w[0] && w_two[1] == w[1], "w2(%g) = %.17g, %.17g differs from w3: %.17g, %.17g",
-			  dt, w_two[0], w_two[1], w[0], w[1]);
+		CHECK(check_close(w_two[0], w[0], 5e-16, 0.0) && check_close(w_two[1], w[1], 5e-16, 0.0),
+			  "w2(%g) = %.17g, %.17g differs from w3: %.17g, %.17g", dt, w_two[0], w_two[1], w[0], w[1]);
 	}
 	if (table)
 		for (int r = 0; r < NREGIME; r++)
