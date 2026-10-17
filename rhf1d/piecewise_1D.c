@@ -1,21 +1,20 @@
 /* ------- file: -------------------------- piecewise_1D.c ----------
 
-       Version:       rh2.0
-       Author:        Han Uitenbroek (huitenbroek@nso.edu)
-       Last modified: Thu May 31 13:26:58 2018 --
+	   Version:       rh2.0
+	   Author:        Han Uitenbroek (huitenbroek@nso.edu)
+	   Last modified: Thu May 31 13:26:58 2018 --
 
-       --------------------------                      ----------RH-- */
+	   --------------------------                      ----------RH-- */
 
 /* --- Piecewise integration of transfer equation in one dimension.
 
-    -- For boundary condition THERMALIZED use the relation
+	-- For boundary condition THERMALIZED use the relation
 
-          I ~= B - \mu dB / d\tau,
+		  I ~= B - \mu dB / d\tau,
 
-       where \tau is taken in the direction of the ray (i.e. NOT in the
-       sense of optical depth, e.g. see Mihalas, 1978, p. 51).
-       --                                              -------------- */
-
+	   where \tau is taken in the direction of the ray (i.e. NOT in the
+	   sense of optical depth, e.g. see Mihalas, 1978, p. 51).
+	   --                                              -------------- */
 
 #include <math.h>
 #include <stdlib.h>
@@ -27,105 +26,100 @@
 #include "geometry.h"
 #include "spectrum.h"
 
-
 /* --- Function prototypes --                          -------------- */
-
 
 /* --- Global variables --                             -------------- */
 
-extern Geometry geometry;
+extern Geometry   geometry;
 extern Atmosphere atmos;
-extern Spectrum spectrum;
-extern char messageStr[];
-
+extern Spectrum   spectrum;
+extern char       messageStr[];
 
 /* ------- begin -------------------------- Piecewise_Linear_1D.c --- */
 
 void Piecewise_Linear_1D(int nspect, int mu, bool_t to_obs,
-			 double *chi, double *S, double *I, double *Psi)
+						 double *chi, double *S, double *I, double *Psi)
 {
-  const char routineName[] = "Piecewise_Linear_1D";
-  register int k;
+	const char   routineName[] = "Piecewise_Linear_1D";
+	register int k;
 
-  int    k_start, k_end, dk, Ndep = geometry.Ndep;
-  double dtau_uw, dS_uw, I_uw = 0.0, w[2], zmu, Bnu[2];
+	int    k_start, k_end, dk, Ndep = geometry.Ndep;
+	double dtau_uw, dS_uw, I_uw = 0.0, w[2], zmu, Bnu[2];
 
-  zmu = 0.5 / geometry.muz[mu];
+	zmu = 0.5 / geometry.muz[mu];
 
-  /* --- Distinguish between rays going from BOTTOM to TOP
-         (to_obs == TRUE), and vice versa --      -------------- */
+	/* --- Distinguish between rays going from BOTTOM to TOP
+		   (to_obs == TRUE), and vice versa --      -------------- */
 
-  if (to_obs) {
-    dk      = -1;
-    k_start = Ndep-1;
-    k_end   = 0;
-  } else {
-    dk      = 1;
-    k_start = 0;
-    k_end   = Ndep-1;
-  }
-  dtau_uw = zmu * (chi[k_start] + chi[k_start+dk]) *
-    fabs(geometry.height[k_start] - geometry.height[k_start+dk]);
-  dS_uw = (S[k_start] - S[k_start+dk]) / dtau_uw;
+	if (to_obs) {
+		dk      = -1;
+		k_start = Ndep - 1;
+		k_end   = 0;
+	} else {
+		dk      = 1;
+		k_start = 0;
+		k_end   = Ndep - 1;
+	}
+	dtau_uw = zmu * (chi[k_start] + chi[k_start + dk]) *
+			  fabs(geometry.height[k_start] - geometry.height[k_start + dk]);
+	dS_uw = (S[k_start] - S[k_start + dk]) / dtau_uw;
 
-  /* --- Boundary conditions --                        -------------- */
+	/* --- Boundary conditions --                        -------------- */
 
-  if (to_obs) {
-    switch (geometry.vboundary[BOTTOM]) {
-    case ZERO:
-      I_uw = 0.0;
-      break;
-    case THERMALIZED:
-      Planck(2, &atmos.T[Ndep-2], spectrum.lambda[nspect], Bnu);
-      I_uw = Bnu[1] - (Bnu[0] - Bnu[1]) / dtau_uw;
-      break;
-    case IRRADIATED:
-      I_uw = geometry.Ibottom[nspect][mu];
-      break;
-    case REFLECTIVE:
-      sprintf(messageStr, "Boundary condition not implemented: %d",
-	      geometry.vboundary[BOTTOM]);
-      Error(ERROR_LEVEL_2, routineName, messageStr);
-    }
-  } else {
-    switch (geometry.vboundary[TOP]) {
-    case ZERO:
-      I_uw = 0.0;
-      break;
-    case THERMALIZED:
-      Planck(2, &atmos.T[0], spectrum.lambda[nspect], Bnu);
-      I_uw = Bnu[0] - (Bnu[1] - Bnu[0]) / dtau_uw;
-      break;
-    case IRRADIATED:
-      I_uw = geometry.Itop[nspect][mu];
-      break;
-    case REFLECTIVE:
-      sprintf(messageStr, "Boundary condition not implemented: %d",
-	      geometry.vboundary[BOTTOM]);
-      Error(ERROR_LEVEL_2, routineName, messageStr);
-    }
-  }
+	if (to_obs) {
+		switch (geometry.vboundary[BOTTOM]) {
+		case ZERO:
+			I_uw = 0.0;
+			break;
+		case THERMALIZED:
+			Planck(2, &atmos.T[Ndep - 2], spectrum.lambda[nspect], Bnu);
+			I_uw = Bnu[1] - (Bnu[0] - Bnu[1]) / dtau_uw;
+			break;
+		case IRRADIATED:
+			I_uw = geometry.Ibottom[nspect][mu];
+			break;
+		case REFLECTIVE:
+			sprintf(messageStr, "Boundary condition not implemented: %d",
+					geometry.vboundary[BOTTOM]);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
+	} else {
+		switch (geometry.vboundary[TOP]) {
+		case ZERO:
+			I_uw = 0.0;
+			break;
+		case THERMALIZED:
+			Planck(2, &atmos.T[0], spectrum.lambda[nspect], Bnu);
+			I_uw = Bnu[0] - (Bnu[1] - Bnu[0]) / dtau_uw;
+			break;
+		case IRRADIATED:
+			I_uw = geometry.Itop[nspect][mu];
+			break;
+		case REFLECTIVE:
+			sprintf(messageStr, "Boundary condition not implemented: %d",
+					geometry.vboundary[BOTTOM]);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
+	}
 
-  I[k_start] = I_uw;
-  if (Psi) Psi[k_start] = 0.0;
+	I[k_start] = I_uw;
+	if (Psi) Psi[k_start] = 0.0;
 
-  /* --- Solve transfer along ray --                   -------------- */
+	/* --- Solve transfer along ray --                   -------------- */
 
-  for (k = k_start+dk;  k != k_end;  k += dk) {
-    w2(dtau_uw, w);
+	for (k = k_start + dk; k != k_end; k += dk) {
+		w2(dtau_uw, w);
 
-    I[k] = (1.0 - w[0])*I_uw + w[0]*S[k] + w[1]*dS_uw;
-    if (Psi) Psi[k] = w[0] - w[1] / dtau_uw;
+		I[k] = (1.0 - w[0]) * I_uw + w[0] * S[k] + w[1] * dS_uw;
+		if (Psi) Psi[k] = w[0] - w[1] / dtau_uw;
 
-    dtau_uw = zmu * (chi[k] + chi[k+dk]) *
-      fabs(geometry.height[k] - geometry.height[k+dk]);
-    dS_uw   = (S[k] - S[k+dk]) / dtau_uw;
+		dtau_uw = zmu * (chi[k] + chi[k + dk]) *
+				  fabs(geometry.height[k] - geometry.height[k + dk]);
+		dS_uw = (S[k] - S[k + dk]) / dtau_uw;
 
-    I_uw = I[k];
-  }
-  I[k_end] = (1.0 - w[0])*I_uw + w[0]*S[k_end] + w[1]*dS_uw;
-  if (Psi) Psi[k_end] = w[0] - w[1] / dtau_uw;
+		I_uw = I[k];
+	}
+	I[k_end] = (1.0 - w[0]) * I_uw + w[0] * S[k_end] + w[1] * dS_uw;
+	if (Psi) Psi[k_end] = w[0] - w[1] / dtau_uw;
 }
 /* ------- end ---------------------------- Piecewise_Linear_1D.c --- */
-
-

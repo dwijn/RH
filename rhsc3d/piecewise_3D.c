@@ -1,10 +1,10 @@
 /* ------- file: -------------------------- piecewise_3D.c ----------
 
-       Version:       rh2.0, 3-D Cartesian, short characteristics
-       Author:        Han Uitenbroek(huitenbroek@nso.edu)
-       Last modified: Tue Sep 23 12:28:26 2025 --
+	   Version:       rh2.0, 3-D Cartesian, short characteristics
+	   Author:        Han Uitenbroek(huitenbroek@nso.edu)
+	   Last modified: Tue Sep 23 12:28:26 2025 --
 
-       --------------------------                      ----------RH-- */
+	   --------------------------                      ----------RH-- */
 
 #include <stdlib.h>
 #include <math.h>
@@ -17,224 +17,221 @@
 #include "inputs.h"
 #include "error.h"
 
-
 /* --- Function prototypes --                          -------------- */
-
 
 /* --- Global variables --                             -------------- */
 
 extern Atmosphere atmos;
-extern Spectrum spectrum;
-extern InputData input;
-extern char messageStr[];
-
+extern Spectrum   spectrum;
+extern InputData  input;
+extern char       messageStr[];
 
 /* ------- begin -------------------------- ShortChar.c ------------- */
 
 void ShortChar(Geometry *geometry, int nspect, int mu,
-               bool_t to_observer, double *chi, double *S,
-               double *I, double *Psi)
+			   bool_t to_observer, double *chi, double *S,
+			   double *I, double *Psi)
 {
-  const char routineName[] = "ShortChar";
-  register int k, l, m;
+	const char   routineName[] = "ShortChar";
+	register int k, l, m;
 
-  int     Nz = geometry->Nz, Nplane = geometry->Nplane, quadrant,
-          dl, lstart, lend, dm, mstart, mend, dk, kstart, kend, local;
-  double  I_uw, Bnu_uw, Bnu, T_uw, chi_uw, dtau_uw;
-  Stencil *st_uw, *st_dw;
+	int Nz = geometry->Nz, Nplane = geometry->Nplane, quadrant,
+		dl, lstart, lend, dm, mstart, mend, dk, kstart, kend, local;
+	double   I_uw, Bnu_uw, Bnu, T_uw, chi_uw, dtau_uw;
+	Stencil *st_uw, *st_dw;
 
-  if (to_observer) {
+	if (to_observer) {
 
-    /* --- Boundary condition at the BOTTOM of the grid -- ---------- */
+		/* --- Boundary condition at the BOTTOM of the grid -- ---------- */
 
-    switch (geometry->z_boundary_value[BOTTOM]) {
-    case IRRADIATED:
-      for (l = 0;  l < Nplane;  l++)
-	I[(Nz-1)*Nplane + l] = geometry->Ibottom[nspect][l];
-      break;
+		switch (geometry->z_boundary_value[BOTTOM]) {
+		case IRRADIATED:
+			for (l = 0; l < Nplane; l++)
+				I[(Nz - 1) * Nplane + l] = geometry->Ibottom[nspect][l];
+			break;
 
-    case ZERO:
-      for (l = (Nz-1)*Nplane;  l < Nz*Nplane;  l++)
-	I[l] = 0.0;
-      break;
+		case ZERO:
+			for (l = (Nz - 1) * Nplane; l < Nz * Nplane; l++)
+				I[l] = 0.0;
+			break;
 
-    case THERMALIZED:
-      if (to_observer) {
-        local = (geometry->Nz-1) * geometry->Nplane;
-	st_uw = &geometry->stencil_uw[mu][geometry->Nz-1];
+		case THERMALIZED:
+			if (to_observer) {
+				local = (geometry->Nz - 1) * geometry->Nplane;
+				st_uw = &geometry->stencil_uw[mu][geometry->Nz - 1];
 
-	for (m = 0;  m < geometry->Ny;  m++) {
-	  for (l = 0;  l < geometry->Nx;  l++) {	    
-	    T_uw = Interpolate_3D(atmos.T, geometry, st_uw, l, m);
-	    Planck(1, &T_uw, spectrum.lambda[nspect], &Bnu_uw);
-	    Planck(1, &atmos.T[local], spectrum.lambda[nspect], &Bnu);
+				for (m = 0; m < geometry->Ny; m++) {
+					for (l = 0; l < geometry->Nx; l++) {
+						T_uw = Interpolate_3D(atmos.T, geometry, st_uw, l, m);
+						Planck(1, &T_uw, spectrum.lambda[nspect], &Bnu_uw);
+						Planck(1, &atmos.T[local], spectrum.lambda[nspect], &Bnu);
 
-	    chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
-	    dtau_uw = 0.5 * (chi_uw + chi[local]) * st_uw->ds;
+						chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
+						dtau_uw = 0.5 * (chi_uw + chi[local]) * st_uw->ds;
 
-	    I[local] = Bnu - (Bnu_uw - Bnu) / dtau_uw;
-	    local++;
-	  }
+						I[local] = Bnu - (Bnu_uw - Bnu) / dtau_uw;
+						local++;
+					}
+				}
+			} else {
+				Error(ERROR_LEVEL_2, routineName,
+					  "Boundary condition THERMALIZED not implemented for TOP");
+			}
+			break;
+		case REFLECTIVE:
+			Error(ERROR_LEVEL_2, routineName,
+				  "Boundary condition REFLECTIVE not implemented");
+			break;
+		}
+		if (Psi)
+			for (l = (Nz - 1) * Nplane; l < Nz * Nplane; l++) Psi[l] = 0.0;
+
+		dk     = -1;
+		kstart = Nz - 2;
+		kend   = 0;
+
+		quadrant = geometry->stencil_uw[mu][kstart].quadrant;
+	} else {
+
+		/* --- Boundary condition at the TOP of the grid -- ------------- */
+
+		switch (geometry->z_boundary_value[TOP]) {
+		case IRRADIATED:
+			for (l = 0; l < Nplane; l++) I[l] = geometry->Itop[nspect][l];
+			break;
+
+		case ZERO:
+			for (l = 0; l < Nplane; l++) I[l] = 0.0;
+			break;
+
+		case THERMALIZED:
+			Planck(Nplane, atmos.T, spectrum.lambda[nspect], I);
+			break;
+
+		case REFLECTIVE:
+			Error(ERROR_LEVEL_2, routineName,
+				  "Boundary condition REFLECTIVE not implemented");
+			break;
+		}
+		if (Psi)
+			for (l = 0; l < Nplane; l++) Psi[l] = 0.0;
+
+		dk     = 1;
+		kstart = 1;
+		kend   = Nz - 1;
+
+		quadrant = geometry->stencil_dw[mu][kstart].quadrant;
 	}
-      } else {
-	Error(ERROR_LEVEL_2, routineName, 
-	      "Boundary condition THERMALIZED not implemented for TOP");
-      }
-      break;
-    case REFLECTIVE:
-      Error(ERROR_LEVEL_2, routineName, 
-	    "Boundary condition REFLECTIVE not implemented");
-      break;
-    }
-    if (Psi)
-      for (l = (Nz-1)*Nplane;  l < Nz*Nplane;  l++) Psi[l] = 0.0;
+	dl = (quadrant == 1 || quadrant == 4) ? 1 : -1;
+	dm = (quadrant == 1 || quadrant == 2) ? 1 : -1;
 
-    dk     = -1;
-    kstart = Nz - 2;
-    kend   = 0;
+	/* --- Figure out in which direction the grids have to be crossed - */
 
-    quadrant = geometry->stencil_uw[mu][kstart].quadrant;
-  } else {
-
-    /* --- Boundary condition at the TOP of the grid -- ------------- */
-
-    switch (geometry->z_boundary_value[TOP]) {
-    case IRRADIATED:
-      for (l = 0;  l < Nplane;  l++) I[l] = geometry->Itop[nspect][l];
-      break;
-
-    case ZERO:
-      for (l = 0;  l < Nplane;  l++) I[l] = 0.0;
-      break;
-
-    case THERMALIZED:
-      Planck(Nplane, atmos.T, spectrum.lambda[nspect], I);
-      break;
-      
-    case REFLECTIVE:
-      Error(ERROR_LEVEL_2, routineName, 
-	    "Boundary condition REFLECTIVE not implemented");
-      break;
-    }
-    if (Psi) for (l = 0;  l < Nplane;  l++) Psi[l] = 0.0;
-
-    dk     = 1;
-    kstart = 1;
-    kend   = Nz - 1;
-
-    quadrant = geometry->stencil_dw[mu][kstart].quadrant;
-  }
-  dl = (quadrant == 1 || quadrant == 4) ?  1  :  -1;
-  dm = (quadrant == 1 || quadrant == 2) ?  1  :  -1;
-
-  /* --- Figure out in which direction the grids have to be crossed - */
-
-  if (dl == 1) {
-    lstart = 0;
-    lend   = geometry->Nx - 1;
-  } else {
-    lstart = geometry->Nx - 1;
-    lend   = 0;
-  }
-  if (dm == 1) {
-    mstart = 0;
-    mend   = geometry->Ny - 1;
-  } else {
-    mstart = geometry->Ny - 1;
-    mend   = 0;
-  }
-
-  for (k = kstart;  k != kend+dk;  k += dk) {
-    if (to_observer) {
-      st_uw = &geometry->stencil_dw[mu][k];
-      st_dw = &geometry->stencil_uw[mu][k];
-    } else {
-      st_uw = &geometry->stencil_uw[mu][k];
-      st_dw = &geometry->stencil_dw[mu][k];
-    }
-    if (st_uw->plane == XY || st_uw->plane == XZ) {
-
-      /* --- Inner loop is in the x-direction --       -------------- */
-
-      for (m = mstart;  m != mend+dm;  m += dm) {
-	for (l = lstart;  l != lend+dl;  l += dl) {
-	  if (st_uw->plane == XZ && m == mstart)
-	    I_uw = SolveLong(geometry, st_uw->longchar,
-			     k, l, m, chi, S, I);
-	  else
-	    I_uw = Interpolate_3D(I, geometry, st_uw, l, m);
-
-	  if (input.S_interpolation == S_LINEAR) {
-	    Piecewise_Linear_3D(geometry, st_uw, st_dw,
-				k, kend, l, m, I_uw, chi, S, I, Psi);
-	  } else if (input.S_interpolation == S_BEZIER3) {
-	    Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
-				k, kend, l, m, I_uw, chi, S, I, Psi);
-	  } else {
-	    sprintf(messageStr,
-		    "Unknown radiation solver: %d",
-		    input.S_interpolation);
-	    Error(ERROR_LEVEL_1, routineName, messageStr);
-	  }
+	if (dl == 1) {
+		lstart = 0;
+		lend   = geometry->Nx - 1;
+	} else {
+		lstart = geometry->Nx - 1;
+		lend   = 0;
 	}
-      }
-    } else {
-
-      /* --- Inner loop is in the y-direction --       -------------- */
-
-      for (l = lstart;  l != lend+dl;  l += dl) {
-	for (m = mstart;  m != mend+dm;  m += dm) {
-	  if (l == lstart)
-	    I_uw = SolveLong(geometry, st_uw->longchar,
-			     k, l, m, chi, S, I);
-	  else
-	    I_uw = Interpolate_3D(I, geometry, st_uw, l, m);
-	  
-	  if (input.S_interpolation == S_LINEAR) {
-	    Piecewise_Linear_3D(geometry, st_uw, st_dw,
-				k, kend, l, m, I_uw, chi, S, I, Psi);
-	  } else if (input.S_interpolation == S_BEZIER3) {
-	    Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
-				k, kend, l, m, I_uw, chi, S, I, Psi);
-	  } else {
-	    sprintf(messageStr,
-		    "Unknown radiation solver: %d",
-		    input.S_interpolation);
-	    Error(ERROR_LEVEL_1, routineName, messageStr);
-	  }
+	if (dm == 1) {
+		mstart = 0;
+		mend   = geometry->Ny - 1;
+	} else {
+		mstart = geometry->Ny - 1;
+		mend   = 0;
 	}
-      }
-    }
-  }
+
+	for (k = kstart; k != kend + dk; k += dk) {
+		if (to_observer) {
+			st_uw = &geometry->stencil_dw[mu][k];
+			st_dw = &geometry->stencil_uw[mu][k];
+		} else {
+			st_uw = &geometry->stencil_uw[mu][k];
+			st_dw = &geometry->stencil_dw[mu][k];
+		}
+		if (st_uw->plane == XY || st_uw->plane == XZ) {
+
+			/* --- Inner loop is in the x-direction --       -------------- */
+
+			for (m = mstart; m != mend + dm; m += dm) {
+				for (l = lstart; l != lend + dl; l += dl) {
+					if (st_uw->plane == XZ && m == mstart)
+						I_uw = SolveLong(geometry, st_uw->longchar,
+										 k, l, m, chi, S, I);
+					else
+						I_uw = Interpolate_3D(I, geometry, st_uw, l, m);
+
+					if (input.S_interpolation == S_LINEAR) {
+						Piecewise_Linear_3D(geometry, st_uw, st_dw,
+											k, kend, l, m, I_uw, chi, S, I, Psi);
+					} else if (input.S_interpolation == S_BEZIER3) {
+						Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
+											 k, kend, l, m, I_uw, chi, S, I, Psi);
+					} else {
+						sprintf(messageStr,
+								"Unknown radiation solver: %d",
+								input.S_interpolation);
+						Error(ERROR_LEVEL_1, routineName, messageStr);
+					}
+				}
+			}
+		} else {
+
+			/* --- Inner loop is in the y-direction --       -------------- */
+
+			for (l = lstart; l != lend + dl; l += dl) {
+				for (m = mstart; m != mend + dm; m += dm) {
+					if (l == lstart)
+						I_uw = SolveLong(geometry, st_uw->longchar,
+										 k, l, m, chi, S, I);
+					else
+						I_uw = Interpolate_3D(I, geometry, st_uw, l, m);
+
+					if (input.S_interpolation == S_LINEAR) {
+						Piecewise_Linear_3D(geometry, st_uw, st_dw,
+											k, kend, l, m, I_uw, chi, S, I, Psi);
+					} else if (input.S_interpolation == S_BEZIER3) {
+						Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
+											 k, kend, l, m, I_uw, chi, S, I, Psi);
+					} else {
+						sprintf(messageStr,
+								"Unknown radiation solver: %d",
+								input.S_interpolation);
+						Error(ERROR_LEVEL_1, routineName, messageStr);
+					}
+				}
+			}
+		}
+	}
 }
 /* ------- end ---------------------------- ShortChar.c ------------- */
-
 
 /* ------- begin -------------------------- Piecewise_Linear_3D.c --- */
 
 void Piecewise_Linear_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
-			 int k, int kend, int l, int m, double I_uw,
-			 double *chi, double *S, double *I, double *Psi)
+						 int k, int kend, int l, int m, double I_uw,
+						 double *chi, double *S, double *I, double *Psi)
 {
-  int    local;
-  double chi_uw, S_uw, dS_uw, dtau_uw, w[2]; 
+	int    local;
+	double chi_uw, S_uw, dS_uw, dtau_uw, w[2];
 
-  (void) st_dw;
-  (void) kend;
+	(void) st_dw;
+	(void) kend;
 
-  local = k*geometry->Nplane + m*geometry->Nx + l;
+	local = k * geometry->Nplane + m * geometry->Nx + l;
 
-  /* --- The upwind quantities --                      -------------- */
+	/* --- The upwind quantities --                      -------------- */
 
-  chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
-  S_uw    = Interpolate_3D(S, geometry, st_uw, l, m);
-  dtau_uw = 0.5 * (chi_uw + chi[local]) * st_uw->ds;
-  dS_uw   = (S_uw - S[local]) / dtau_uw;
+	chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
+	S_uw    = Interpolate_3D(S, geometry, st_uw, l, m);
+	dtau_uw = 0.5 * (chi_uw + chi[local]) * st_uw->ds;
+	dS_uw   = (S_uw - S[local]) / dtau_uw;
 
-  w2(dtau_uw, w);
+	w2(dtau_uw, w);
 
-  I[local] = (1.0 - w[0])*I_uw + w[0]*S[local] + w[1]*dS_uw;
+	I[local] = (1.0 - w[0]) * I_uw + w[0] * S[local] + w[1] * dS_uw;
 
-  if (Psi) Psi[local] = w[0] - w[1]/dtau_uw;
+	if (Psi) Psi[local] = w[0] - w[1] / dtau_uw;
 }
 /* ------- end ---------------------------- Piecewise_Linear_3D.c --- */

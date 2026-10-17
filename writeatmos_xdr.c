@@ -1,15 +1,14 @@
 /* ------- file: -------------------------- writeatmos_xdr.c --------
 
-       Version:       rh2.0
-       Author:        Han Uitenbroek (huitenbroek@nso.edu)
-       Last modified: Fri May  7 16:10:15 2021 --
+	   Version:       rh2.0
+	   Author:        Han Uitenbroek (huitenbroek@nso.edu)
+	   Last modified: Fri May  7 16:10:15 2021 --
 
-       --------------------------                      ----------RH-- */
+	   --------------------------                      ----------RH-- */
 
 /* --- Writes atmospheric data to output file.
-       XDR (external data representation) version. --  -------------- */
+	   XDR (external data representation) version. --  -------------- */
 
- 
 #include <stdlib.h>
 #include <string.h>
 
@@ -22,34 +21,32 @@
 
 /* --- Function prototypes --                          -------------- */
 
-
 /* --- Global variables --                             -------------- */
 
 extern InputData input;
-extern char messageStr[];
-
+extern char      messageStr[];
 
 /* ------- begin -------------------------- xdr_counted_string.c ---- */
 
 bool_t xdr_counted_string(XDR *xdrs, char **p)
 {
-  bool_t output = (xdrs->x_op == XDR_ENCODE) ? TRUE : FALSE; 
-  short  length;
+	bool_t output = (xdrs->x_op == XDR_ENCODE) ? TRUE : FALSE;
+	short  length;
 
-  /* --- Reads or writes string of length length from or to xdr stream
-         pointed to by xdrs.
+	/* --- Reads or writes string of length length from or to xdr stream
+		   pointed to by xdrs.
 
-    See: IDL User's Guide 17-34
-         --                                            -------------- */
+	  See: IDL User's Guide 17-34
+		   --                                            -------------- */
 
-  if (output) length = strlen(*p);
+	if (output) length = strlen(*p);
 
-  if (!xdr_short(xdrs, &length))  return FALSE;
-  if (!output) {
-    *p = (char *) malloc((length + 1) * sizeof(char));
-    (*p)[length] = '\0';
-  }
-  return (length ? xdr_string(xdrs, p, length) : TRUE);
+	if (!xdr_short(xdrs, &length)) return FALSE;
+	if (!output) {
+		*p           = (char *) malloc((length + 1) * sizeof(char));
+		(*p)[length] = '\0';
+	}
+	return (length ? xdr_string(xdrs, p, length) : TRUE);
 }
 /* ------- end ---------------------------- xdr_counted_string.c ---- */
 
@@ -57,113 +54,112 @@ bool_t xdr_counted_string(XDR *xdrs, char **p)
 
 void writeAtmos(Atmosphere *atmos)
 {
-  const char routineName[] = "writeAtmos";
-  register int n;
+	const char   routineName[] = "writeAtmos";
+	register int n;
 
-  bool_t result = TRUE;
-  int    Nspace = atmos->Nspace;
-  char  *elemID, *atmosID;
-  FILE  *fp_out;
-  XDR    xdrs;
+	bool_t result = TRUE;
+	int    Nspace = atmos->Nspace;
+	char  *elemID, *atmosID;
+	FILE  *fp_out;
+	XDR    xdrs;
 
-  if (!strcmp(input.atmos_output, "none")) return;
+	if (!strcmp(input.atmos_output, "none")) return;
 
-  if ((fp_out = fopen(input.atmos_output, "w")) == NULL) {
-    sprintf(messageStr, "Unable to open output file %s", input.atmos_output);
-    Error(ERROR_LEVEL_1, routineName, messageStr);
-    return;
-  }
-  xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
+	if ((fp_out = fopen(input.atmos_output, "w")) == NULL) {
+		sprintf(messageStr, "Unable to open output file %s", input.atmos_output);
+		Error(ERROR_LEVEL_1, routineName, messageStr);
+		return;
+	}
+	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
-  result &= xdr_int(&xdrs, &atmos->H->Nlevel);
-  result &= xdr_int(&xdrs, &atmos->Nelem);
-  result &= xdr_bool(&xdrs, &atmos->moving);
+	result &= xdr_int(&xdrs, &atmos->H->Nlevel);
+	result &= xdr_int(&xdrs, &atmos->Nelem);
+	result &= xdr_bool(&xdrs, &atmos->moving);
 
-  result &= xdr_vector(&xdrs, (char *) atmos->T, Nspace,
-		       sizeof(double), (xdrproc_t) xdr_double);
-  result &= xdr_vector(&xdrs, (char *) atmos->ne, Nspace,
-		       sizeof(double), (xdrproc_t) xdr_double);
-  result &= xdr_vector(&xdrs, (char *) atmos->vturb, Nspace,
-		       sizeof(double), (xdrproc_t) xdr_double);
-  result &= xdr_vector(&xdrs, (char *) atmos->H->n[0],
-		       Nspace * atmos->H->Nlevel,
-		       sizeof(double), (xdrproc_t) xdr_double);
+	result &= xdr_vector(&xdrs, (char *) atmos->T, Nspace,
+						 sizeof(double), (xdrproc_t) xdr_double);
+	result &= xdr_vector(&xdrs, (char *) atmos->ne, Nspace,
+						 sizeof(double), (xdrproc_t) xdr_double);
+	result &= xdr_vector(&xdrs, (char *) atmos->vturb, Nspace,
+						 sizeof(double), (xdrproc_t) xdr_double);
+	result &= xdr_vector(&xdrs, (char *) atmos->H->n[0],
+						 Nspace * atmos->H->Nlevel,
+						 sizeof(double), (xdrproc_t) xdr_double);
 
-  atmosID = atmos->ID;
-  result &= xdr_counted_string(&xdrs, &atmosID);
+	atmosID = atmos->ID;
+	result &= xdr_counted_string(&xdrs, &atmosID);
 
-  for (n = 0;  n < atmos->Nelem;  n++) {
-    elemID = atmos->elements[n].ID;
-    result &= xdr_counted_string(&xdrs, &elemID);
-    result &= xdr_double(&xdrs, &atmos->elements[n].weight);
-    result &= xdr_double(&xdrs, &atmos->elements[n].abund);
-  }
-  /* --- In case magnetic fields were present --       -------------- */
+	for (n = 0; n < atmos->Nelem; n++) {
+		elemID = atmos->elements[n].ID;
+		result &= xdr_counted_string(&xdrs, &elemID);
+		result &= xdr_double(&xdrs, &atmos->elements[n].weight);
+		result &= xdr_double(&xdrs, &atmos->elements[n].abund);
+	}
+	/* --- In case magnetic fields were present --       -------------- */
 
-  if (atmos->Stokes) {
-    result &= xdr_bool(&xdrs, &atmos->Stokes);
+	if (atmos->Stokes) {
+		result &= xdr_bool(&xdrs, &atmos->Stokes);
 
-    result &= xdr_vector(&xdrs, (char *) atmos->B, Nspace,
-			 sizeof(double), (xdrproc_t) xdr_double);
-    result &= xdr_vector(&xdrs, (char *) atmos->gamma_B, Nspace,
-			 sizeof(double), (xdrproc_t) xdr_double);
-    result &= xdr_vector(&xdrs, (char *) atmos->chi_B, Nspace,
-			 sizeof(double), (xdrproc_t) xdr_double);
-  }    
+		result &= xdr_vector(&xdrs, (char *) atmos->B, Nspace,
+							 sizeof(double), (xdrproc_t) xdr_double);
+		result &= xdr_vector(&xdrs, (char *) atmos->gamma_B, Nspace,
+							 sizeof(double), (xdrproc_t) xdr_double);
+		result &= xdr_vector(&xdrs, (char *) atmos->chi_B, Nspace,
+							 sizeof(double), (xdrproc_t) xdr_double);
+	}
 
-  if (!result) {
-    sprintf(messageStr, "Unable to write proper amount to output file %s",
-	    input.atmos_output);
-    Error(ERROR_LEVEL_1, routineName, messageStr);
-  }
-  xdr_destroy(&xdrs);
-  fclose(fp_out);
+	if (!result) {
+		sprintf(messageStr, "Unable to write proper amount to output file %s",
+				input.atmos_output);
+		Error(ERROR_LEVEL_1, routineName, messageStr);
+	}
+	xdr_destroy(&xdrs);
+	fclose(fp_out);
 }
 /* ------- end ---------------------------- writeAtmos.c ------------ */
-
 
 /* ------- begin -------------------------- freeAtmos.c ------------- */
 
 void freeAtmos(Atmosphere *atmos)
 {
-  register int n;
-  
-  /* --- Free memory associated with atmospheric structure -- ------- */
+	register int n;
 
-  free(atmos->elements);
+	/* --- Free memory associated with atmospheric structure -- ------- */
 
-  free(atmos->T);
-  free(atmos->ne);
-  free(atmos->nHtot);
-  free(atmos->nHmin);
+	free(atmos->elements);
 
-  if (atmos->Stokes) {
-    free(atmos->B);
-    free(atmos->gamma_B);
-    free(atmos->chi_B);
+	free(atmos->T);
+	free(atmos->ne);
+	free(atmos->nHtot);
+	free(atmos->nHmin);
 
-    freeMatrix((void **) atmos->cos_gamma);
-    freeMatrix((void **) atmos->cos_2chi);
-    freeMatrix((void **) atmos->sin_2chi);
-  }
+	if (atmos->Stokes) {
+		free(atmos->B);
+		free(atmos->gamma_B);
+		free(atmos->chi_B);
 
-  for (n = 0;  n < atmos->Natom;  n++) {
-    if (atmos->atoms[n].active  ||  
-	atmos->hydrostatic  ||
-	input.solve_ne == ITERATION) 
-      freeAtom(&atmos->atoms[n]);
-  }
-  free(atmos->activeatoms);
-  
-  for (n = 0;  n < atmos->Nmolecule;  n++) {
-    if (atmos->molecules[n].active  ||  
-	atmos->hydrostatic  ||
-	input.solve_ne == ITERATION) 
-      freeMolecule(&atmos->molecules[n]);
-  }
-  free(atmos->activemols);
+		freeMatrix((void **) atmos->cos_gamma);
+		freeMatrix((void **) atmos->cos_2chi);
+		freeMatrix((void **) atmos->sin_2chi);
+	}
 
-  free(atmos->backgrrecno);
-  free(atmos->backgrflags);
+	for (n = 0; n < atmos->Natom; n++) {
+		if (atmos->atoms[n].active ||
+			atmos->hydrostatic ||
+			input.solve_ne == ITERATION)
+			freeAtom(&atmos->atoms[n]);
+	}
+	free(atmos->activeatoms);
+
+	for (n = 0; n < atmos->Nmolecule; n++) {
+		if (atmos->molecules[n].active ||
+			atmos->hydrostatic ||
+			input.solve_ne == ITERATION)
+			freeMolecule(&atmos->molecules[n]);
+	}
+	free(atmos->activemols);
+
+	free(atmos->backgrrecno);
+	free(atmos->backgrflags);
 }
 /* ------- end ---------------------------- freeAtmos.c ------------- */

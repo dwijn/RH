@@ -1,66 +1,62 @@
 /* ------- file: -------------------------- spectrum.h --------------
 
-       Version:       rh2.0
-       Author:        Han Uitenbroek (huitenbroek@nso.edu)
-       Last modified: Tue Feb 20 09:47:52 2024 --
+	   Version:       rh2.0
+	   Author:        Han Uitenbroek (huitenbroek@nso.edu)
+	   Last modified: Tue Feb 20 09:47:52 2024 --
 
-       --------------------------                      ----------RH-- */
+	   --------------------------                      ----------RH-- */
 
 #ifndef __SPECTRUM_H__
 #define __SPECTRUM_H__
 
-
 /* --- Defines structure containing the overall set of wavelengths,
-       and the transitions that are active at each of the wavelengths.
-       --                                              -------------- */
+	   and the transitions that are active at each of the wavelengths.
+	   --                                              -------------- */
 
-#define N_MAX_OVERLAP  500
+#define N_MAX_OVERLAP 500
 
-#define VACUUM_TO_AIR_LIMIT  200.0000
-#define AIR_TO_VACUUM_LIMIT  199.9352
+#define VACUUM_TO_AIR_LIMIT 200.0000
+#define AIR_TO_VACUUM_LIMIT 199.9352
 
 /* --- File for storage of intensities in case of angle-dependent PRD */
 
-#define IMU_FILENAME  "Imu.dat"
-
+#define IMU_FILENAME "Imu.dat"
 
 /* --- Stores set of active transitions at each wavelength and pointers
-       to temporary storage for opacity and emissivity components --  */
+	   to temporary storage for opacity and emissivity components --  */
 
-typedef struct{
-  int     *Nactiveatomrt, *Nactivemolrt,
-          *Nlower, *Nupper, **lower_levels, **upper_levels;
-  double  *chi, *eta, *chip, *chi_c, *eta_c, *sca_c, *chip_c;
-  AtomicTransition **art;
-  MolTransition **mrt;
+typedef struct {
+	int *Nactiveatomrt, *Nactivemolrt,
+		*Nlower, *Nupper, **lower_levels, **upper_levels;
+	double            *chi, *eta, *chip, *chi_c, *eta_c, *sca_c, *chip_c;
+	AtomicTransition **art;
+	MolTransition    **mrt;
 } ActiveSet;
 
 /* --- Stores emergent intensities and array of active sets -- ------ */
 
 typedef struct {
-  bool_t   vacuum_to_air, updateJ;
-  int      Nspect, *PRDindex, fd_J, fd_J20, fd_Imu;
-  double  *lambda, **J, **I, **Stokes_Q, **Stokes_U, **Stokes_V, **J20,
-         **Jgas, **Ilast, **v_los;
-  ActiveSet *as;
-  int    *nc, *iprdh;
-  double *cprdh;
+	bool_t  vacuum_to_air, updateJ;
+	int     Nspect, *PRDindex, fd_J, fd_J20, fd_Imu;
+	double *lambda, **J, **I, **Stokes_Q, **Stokes_U, **Stokes_V, **J20,
+		**Jgas, **Ilast, **v_los;
+	ActiveSet *as;
+	int       *nc, *iprdh;
+	double    *cprdh;
 } Spectrum;
-
 
 /* --- Associated function prototypes --               -------------- */
 
 double Formal(int nspect, bool_t eval_operator, bool_t redistribute);
 double solveSpectrum(bool_t eval_operator, bool_t redistribute);
 
-void   addtoGamma(int nspect, double wmu, double *P, double *Psi);
-void   addtoRates(int nspect, int mu, bool_t to_obs, double wmu,
-		  double *I, bool_t redistribute);
-void   initScatter(void);
+void addtoGamma(int nspect, double wmu, double *P, double *Psi);
+void addtoRates(int nspect, int mu, bool_t to_obs, double wmu,
+				double *I, bool_t redistribute);
+void initScatter(void);
 
-void   StokesK(int nspect, int k, double chi_I, double K[4][4]);
-void   addtoCoupling(int nspect);
-
+void StokesK(int nspect, int k, double chi_I, double K[4][4]);
+void addtoCoupling(int nspect);
 
 /* --- What type of lines are present in active set as? -- ---------- */
 
@@ -88,7 +84,6 @@ void writeImu(int nspect, int mu, bool_t to_obs, double *I);
 void writeSpectrum(Spectrum *spectrum);
 void freeSpectrum(Spectrum *spectrum);
 void writeOpacity();
-
 
 /* --- Wavelength conversion --                         ------------- */
 

@@ -1,10 +1,10 @@
 /* ------- file: -------------------------- backgrcontr.c -----------
 
-       Version:       rh2.0, 2-D Cartesian
-       Author:        Han Uitenbroek (huitenbroek@nso.edu)
-       Last modified: Mon Nov 22 15:17:25 2010 --
+	   Version:       rh2.0, 2-D Cartesian
+	   Author:        Han Uitenbroek (huitenbroek@nso.edu)
+	   Last modified: Mon Nov 22 15:17:25 2010 --
 
-       --------------------------                      ----------RH-- */
+	   --------------------------                      ----------RH-- */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,67 +22,64 @@
 
 #define CONTR_INPUT_FILE "contribute.input"
 
-
 /* --- Function prototypes --                          -------------- */
-
 
 /* --- Global variables --                             -------------- */
 
 enum Topology topology = TWO_D_PLANE;
 
-Atmosphere atmos;
-Geometry geometry;
-Spectrum spectrum;
-InputData input;
+Atmosphere   atmos;
+Geometry     geometry;
+Spectrum     spectrum;
+InputData    input;
 ProgramStats stats;
-CommandLine commandline;
-char messageStr[MAX_LINE_SIZE];
-
+CommandLine  commandline;
+char         messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- backgrcontr.c ----------- */
 
 int main(int argc, char *argv[])
 {
-  register int n;
+	register int n;
 
-  int     Nlambda, Nread;
-  double *lambda;
-  FILE   *fp;
+	int     Nlambda, Nread;
+	double *lambda;
+	FILE   *fp;
 
-  /* --- Read input data and initialize --             -------------- */
+	/* --- Read input data and initialize --             -------------- */
 
-  setOptions(argc, argv);
-  SetFPEtraps();
+	setOptions(argc, argv);
+	SetFPEtraps();
 
-  readInput();
-  readAtmos(&atmos, &geometry);
-  readAtomicModels();
-  readMolecularModels();
+	readInput();
+	readAtmos(&atmos, &geometry);
+	readAtomicModels();
+	readMolecularModels();
 
-  if ((fp = fopen(CONTR_INPUT_FILE, "r")) == NULL) {
-    sprintf(messageStr, "Unable to open inputfile %s", CONTR_INPUT_FILE);
-    Error(ERROR_LEVEL_2, argv[0], messageStr);
-  }
+	if ((fp = fopen(CONTR_INPUT_FILE, "r")) == NULL) {
+		sprintf(messageStr, "Unable to open inputfile %s", CONTR_INPUT_FILE);
+		Error(ERROR_LEVEL_2, argv[0], messageStr);
+	}
 
-  Nread = fscanf(fp, "%d", &Nlambda);
-  if (Nread != 1) {
-    sprintf(messageStr, "Unable to read Nlambda from inputfile %s",
-            CONTR_INPUT_FILE);
-    Error(ERROR_LEVEL_2, argv[0], messageStr);
-  }
-  lambda = (double *) malloc(Nlambda * sizeof(double));
-  for (n = 0;  n < Nlambda;  n++) {
-    Nread = fscanf(fp, "%lf", &lambda[n]);
-    if (Nread != 1) {
-      sprintf(messageStr, "Unable to read wavelength %d from inputfile %s",
-              n, CONTR_INPUT_FILE);
-      Error(ERROR_LEVEL_2, argv[0], messageStr);
-    }
-  }
-  fclose(fp);
+	Nread = fscanf(fp, "%d", &Nlambda);
+	if (Nread != 1) {
+		sprintf(messageStr, "Unable to read Nlambda from inputfile %s",
+				CONTR_INPUT_FILE);
+		Error(ERROR_LEVEL_2, argv[0], messageStr);
+	}
+	lambda = (double *) malloc(Nlambda * sizeof(double));
+	for (n = 0; n < Nlambda; n++) {
+		Nread = fscanf(fp, "%lf", &lambda[n]);
+		if (Nread != 1) {
+			sprintf(messageStr, "Unable to read wavelength %d from inputfile %s",
+					n, CONTR_INPUT_FILE);
+			Error(ERROR_LEVEL_2, argv[0], messageStr);
+		}
+	}
+	fclose(fp);
 
-  backgrOpac(Nlambda, lambda);
+	backgrOpac(Nlambda, lambda);
 
-  free(lambda);
+	free(lambda);
 }
 /* ------- end ---------------------------- backgrcontr.c ----------- */
