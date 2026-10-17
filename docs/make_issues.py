@@ -32,10 +32,10 @@ LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "MODERNIZATION.md
 LOG_URL = f"https://github.com/{REPO}/blob/modernize/docs/MODERNIZATION.md"
 
 AREA = {"B": "bug", "N": "numerics", "P": "speed", "M": "memory",
-        "T": "threading", "Q": "quality", "F": "feature"}
+        "T": "threading", "Q": "quality", "F": "feature", "S": "solver"}
 AREA_COLOR = {"bug": "b60205", "numerics": "5319e7", "speed": "0e8a16",
               "memory": "1d76db", "threading": "fbca04", "quality": "c5def5",
-              "feature": "a2eeef"}
+              "feature": "a2eeef", "solver": "8a2be2"}
 SEV_COLOR = {"high": "d93f0b", "medium": "f9d0c4", "low": "ededed"}
 
 # Plan step (section 4 of the log) for every ID
@@ -45,6 +45,7 @@ for ids, step in [
     ("Q-1 Q-2 Q-3 Q-10 Q-12 Q-13 Q-15 Q-17", 2),
     ("Q-11 Q-14 Q-18", 3),
     ("B-5 B-6 B-7 N-2 N-3 N-4 N-6 N-7 N-8 N-9 N-10 N-12 N-13 N-14 N-15 N-16", 4),
+    ("S-1 S-2 S-3 S-4 S-5 S-6 S-7 S-8 S-9", 4),
     ("P-1 P-2 P-3 P-4 P-5 P-6 P-7 P-8 P-9 P-10", 5),
     ("B-10 B-11 M-1 M-2 M-3 M-4 M-5 M-6 M-7 M-8 M-9", 6),
     ("B-12 B-14 T-1 T-2 T-3 Q-4 Q-5 Q-6 Q-7 Q-8 Q-9 Q-16 P-11", 7),
@@ -84,7 +85,7 @@ def parse_rows():
             continue
         if header is None or set(cells[0]) <= set("-: "):
             continue
-        m = re.match(r"\[?([BNPMTQF]-\d+)\]?", cells[0])
+        m = re.match(r"\[?([BNPMTQFS]-\d+)\]?", cells[0])
         if not m:
             continue
         row = dict(zip(header, cells))
@@ -111,7 +112,7 @@ def labels_of(row):
         out.append(f"sev:{sev}")
     if row["ID"] in STEP:
         out.append(f"step-{STEP[row['ID']]}")
-    if row["ID"] not in NOT_UPSTREAM and not row["ID"].startswith("F-"):
+    if row["ID"] not in NOT_UPSTREAM and not row["ID"].startswith(("F-", "S-")):
         out.append("upstream")
     return out
 
@@ -130,7 +131,7 @@ def existing_issues():
     found = {}
     for it in gh("issue", "list", "-R", REPO, "--state", "all", "--limit", "1000",
                  "--json", "number,title", json_out=True):
-        m = re.match(r"\[([BNPMTQF]-\d+)\]", it["title"])
+        m = re.match(r"\[([BNPMTQFS]-\d+)\]", it["title"])
         if m:
             found[m.group(1)] = it["number"]
     return found
@@ -158,7 +159,7 @@ def link_ids(numbers):
         if i not in numbers:
             return m.group(0)
         return f"| [{i}](https://github.com/{REPO}/issues/{numbers[i]}) |"
-    new = re.sub(r"^\| ([BNPMTQF]-\d+) \|", sub, text, flags=re.M)
+    new = re.sub(r"^\| ([BNPMTQFS]-\d+) \|", sub, text, flags=re.M)
     if new != text:
         open(LOG, "w").write(new)
         print("linked IDs in", LOG)

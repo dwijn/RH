@@ -37,10 +37,19 @@ upstream. Newest changes go at the top of the changelog.
   across the four geometries, global state everywhere, no unit tests or CI.
 - **Next step:** fix the crashes and silent failures (plan step 1), then the
   build and Fortran removal, before any numerical or structural change.
+- **Solver (2026-10-16):** the iteration scheme is to be redesigned rather
+  than patched: Ng is Anderson acceleration without safeguards, and the
+  nested PRD/ne loops are a block splitting that can cycle or diverge where
+  the coupled problem has a solution. Plan: a monolithic residual solved by
+  globalized Newton–Krylov with MALI as preconditioner, tested against
+  stabilized Anderson before anything is committed to (S-track, §3.8 and
+  [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)).
 
 Issue IDs: **B** bug or crash, **N** numerics/convergence, **P** speed,
-**M** memory, **T** threading, **Q** code quality / build. Severity: high,
-medium, low. Status: open, fixed (with changelog entry), wontfix.
+**M** memory, **T** threading, **Q** code quality / build, **F** feature,
+**S** solver redesign (design and work items in [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)).
+Severity: high, medium, low. Status: open, fixed (with changelog entry),
+wontfix.
 
 ---
 
@@ -296,6 +305,27 @@ New capabilities, not problems with the existing code.
 | ID | Sev | Item | Status |
 |---|---|---|---|
 | [F-1](https://github.com/dwijn/RH/issues/109) | medium | Tool for building RH model atoms from standard data sources: choosing the right model atom is one of the hard parts of running RH well. Assemble levels, lines, photoionization cross-sections and collisional data from standard sources (NIST, Kurucz, TOPbase/Opacity Project, CHIANTI, collision databases), with options to reduce a large model (level/line selection, superlevels) and checks of completeness. Replaces the removed `constructatom` (Kurucz lines only, levels and lines, Si only) | open |
+
+### 3.8 Solver redesign
+
+Work items of the solver redesign; [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md) §5 has goal,
+interface, traps and acceptance criteria for each. S-1 and S-2 come first
+(prerequisites for a fair comparison), S-5 is a decision gate, S-6 to S-9
+depend on it. The N issues listed under *Addresses* stay open until the S
+item that resolves them lands.
+
+| ID | Sev | Item | Addresses | Status |
+|---|---|---|---|---|
+| [S-1](https://github.com/dwijn/RH/issues/117) | high | Residual norm, reference solutions and metrics independent of the solver: true statistical-equilibrium residual ‖F_SE‖ (formal solution with fixed populations), a residual norm, tight reference solutions for the S-5 cases, and reports of formal solutions, wall time and true error in populations and spectra | N-3 | open |
+| [S-2](https://github.com/dwijn/RH/issues/118) | high | One MALI step as a deterministic, smooth function x ↦ G(x) with an explicit state vector (populations, PRD ρ, background-scattering J, ne): no Ng inside, fixed PRD sub-iteration count, no hidden history, deterministic reductions | N-4 (early exit) | open |
+| [S-3](https://github.com/dwijn/RH/issues/119) | high | Stabilized Anderson acceleration replacing Ng: QR least squares, scaled variables, one coefficient set for the whole state, safeguard with fallback to the plain step, positivity, history reset after ne/HSE/relaxation updates (`SOLVER = ANDERSON`) | N-2, N-8 | open |
+| [S-4](https://github.com/dwijn/RH/issues/120) | high | Newton–GMRES on R(x) = G(x) − x: finite-difference Jacobian products (one MALI step each), Eisenstat–Walker forcing, backtracking line search, stop on ‖F_SE‖ (`SOLVER = NEWTON_KRYLOV`) | N-8 | open |
+| [S-5](https://github.com/dwijn/RH/issues/121) | high | Experiment and decision gate: Ng vs Anderson vs Newton on a fixed 1-D case set (easy, slow, failing; then 2-D and RMHD), success criteria fixed beforehand, measured in formal solutions and true error | N-10 (as test case) | open |
+| [S-6](https://github.com/dwijn/RH/issues/122) | medium | Analytic residual F = Γ(n, J[n])·n (Arramy et al. 2024) with MALI's Γ + Ψ* as explicit preconditioner; only if S-5 favours Newton | — | open |
+| [S-7](https://github.com/dwijn/RH/issues/123) | medium | Monolithic electron density (charge conservation in the residual) and PRD (ρ in the residual or CRD-preconditioned inner solve); only if S-5 favours Newton | N-4, N-6 | open |
+| [S-8](https://github.com/dwijn/RH/issues/124) | medium | Pseudo-transient continuation and physics continuation (CRD → +ne → +PRD → finer grid), warm starts from neighbouring columns or snapshots | N-9 (partly) | open |
+| [S-9](https://github.com/dwijn/RH/issues/125) | low | Mesh-independent convergence: multigrid preconditioner or nonlinear multigrid (FAS), for fine-grid RMHD columns | N-14 (iteration count only) | open |
+
 ---
 
 ## 4. Plan
@@ -315,18 +345,34 @@ Ordered so that every step can be verified against upstream: byte-identical
    moved to step 3, where the Voigt unit tests decide which to keep.
 3. **Unit tests** for Voigt (against a Faddeeva reference; then reduce
    the Voigt variants, Q-11), LU, splines, formal solvers on analytic
-   slabs — before touching numerics. Realistic multi-D test atmospheres
-   from RMHD snapshots (Q-18).
-4. **Convergence robustness** — Ng safeguards (N-2), better convergence
-   measure (N-3), PRD sub-iteration rework (N-4), positivity (N-8), rate-matrix
-   scaling (N-7), ne preconditioning (N-6), collisional-radiative switching,
-   monotonic 3-D interpolation (N-15) and a depth-resolution test (N-14).
-5. **Speed** — hoist angle-independent work (P-1), parallel statistical
-   equilibrium (P-2), 3-D interpolation (P-3), dynamic scheduling (P-4), fused
-   accumulation (P-6), flags (P-7).
-6. **Memory** — profiles on the fly (M-1), sparse Γ/C by transition and no
-   per-thread copies (M-2, M-3), PRD weights tabulated instead of per point
-   (M-4), float storage where accuracy allows.
+   slabs — before touching numerics. Unit tests use problems with known
+   answers only. Realistic multi-D atmospheres from RMHD snapshots (Q-18)
+   belong to the stress tier, not the unit tests; check the data's
+   redistribution terms first, and commit a fetch script with checksums
+   instead of the data if needed.
+   *Two test tiers from here on:* regression (`run_tests.sh`, must pass on
+   every pull request; a non-default solver is checked on converged
+   solutions against stored references, not on iteration 4) and stress
+   (`run_stress.sh`, convergence and performance, including the RMHD
+   cases). See [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md) §6.
+4. **Solver redesign** (S track, §3.8, [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)) replaces
+   the earlier list of convergence patches (Ng safeguards, PRD
+   sub-iteration rework, ne preconditioning, positivity): S-1 and S-2,
+   then S-3 and S-4, then the S-5 decision gate; S-6 to S-9 depending on
+   its outcome. Independent of the solver and still part of this step:
+   rate-matrix scaling (N-7; the preconditioner needs it), starting
+   solutions (N-9), monotonic 3-D interpolation (N-15), a depth-resolution
+   test (N-14), N-12, N-13, N-16 and B-5 to B-7. N-10 becomes a test case
+   for the new solvers.
+5. **Speed** — hoist angle-independent work (P-1), 3-D interpolation (P-3),
+   dynamic scheduling (P-4), flags (P-7). Parallel statistical equilibrium
+   (P-2), the Γ merge (P-5) and fused accumulation (P-6) depend on how Γ is
+   built and used by the new solver: decide after S-5.
+6. **Memory** — profiles on the fly (M-1), PRD weights tabulated instead
+   of per point (M-4), float storage where accuracy allows. Sparse Γ/C and
+   no per-thread copies (M-2, M-3) after S-5, together with the storage of
+   Krylov/Anderson history vectors (about 20 GB per vector in the 3-D
+   estimate of §3.3; [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md) §4.3).
 7. **Structure** — shared geometry layer to remove duplication (Q-5),
    self-contained headers, reduced global state, error handling (Q-4, Q-7,
    Q-9, Q-16). MPI domain decomposition (P-11) is a separate, larger project.
