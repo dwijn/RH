@@ -51,14 +51,17 @@ double SolveLong(LongChar *lc, int local, double *chi, double *S, double *I)
 	chi_loc = Quadr(chi, &lc->stencil[1], UPWIND, monotonic);
 	dtau_uw = 0.5 * (chi_uw + chi_loc) * lc->stencil[0].ds[UPWIND];
 
-	/* --- When lc->Nst == 2 we need I_uw = I_uwp --     -------------- */
-
 	I_uw = I_uwp;
 
-	/* --- Go through the long characteristic section by section -- --- */
+	/* --- Go through the long characteristic section by section. Its
+		   Nlc points are the crossings up to the upwind point of the
+		   local short characteristic (the last one, whose ds reaches the
+		   local point); the local point itself is the downwind end of
+		   the last section, so that I_uw is returned at the upwind
+		   point --                                       -------------- */
 
-	for (ls = 2; ls < lc->Nlc; ls++) {
-		if (ls == lc->Nlc - 1) {
+	for (ls = 2; ls <= lc->Nlc; ls++) {
+		if (ls == lc->Nlc) {
 
 			/* --- The last point is the the endpoint for which the non-local
 				   contribution is needed. --                -------------- */
@@ -133,12 +136,11 @@ void SolveLongStokes(int nspect, LongChar *lc, int local, double *chi,
 
 	dtau_uw = 0.5 * (chi_uw + chi_loc) * lc->stencil[0].ds[UPWIND];
 
-	for (ls = 2; ls < lc->Nlc; ls++) {
-		if (ls == lc->Nlc - 1) {
+	/* --- As in SolveLong: the local point is the downwind end of the
+		   last section, I_uw is returned at the upwind point -- ------ */
 
-			/* --- The last point is the the endpoint for which the non-local
-				   contribution is needed. --                -------------- */
-
+	for (ls = 2; ls <= lc->Nlc; ls++) {
+		if (ls == lc->Nlc) {
 			chi_dw = chi[local];
 			for (n = 0; n < 4; n++) S_dw[n] = S[n][local];
 		} else {
@@ -178,7 +180,7 @@ void SolveLongStokes(int nspect, LongChar *lc, int local, double *chi,
 
 		/* --- Reuse upwind quantities --                  -------------- */
 
-		if (ls < lc->Nlc - 1) {
+		if (ls < lc->Nlc) {
 			chi_uw  = chi_loc;
 			chi_loc = chi_dw;
 			dtau_uw = dtau_dw;
