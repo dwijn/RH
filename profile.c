@@ -157,7 +157,7 @@ static void profileWorker(int kbeg, int kend, int nt, void *arg)
 
 								for (nz = 0; nz < line->zm->Ncomponent; nz++) {
 									H = Voigt(adamp[k], vk - line->zm->shift[nz] * vB[k],
-											  &F, HUMLICEK);
+											  &F);
 									switch (line->zm->q[nz]) {
 									case -1:
 										phi_sm += line->zm->strength[nz] * H;
@@ -207,7 +207,7 @@ static void profileWorker(int kbeg, int kend, int nt, void *arg)
 						for (k = kbeg; k < kend; k++) {
 							for (n = 0; n < line->Ncomponent; n++) {
 								vk = v[(k - kbeg) * line->Ncomponent + n] + sign * v_los[mu][k];
-								phi[k] += Voigt(adamp[k], vk, NULL, ARMSTRONG) *
+								phi[k] += Voigt(adamp[k], vk, NULL) *
 										  line->c_fraction[n] / (SQRTPI * atom->vbroad[k]);
 							}
 							line->wphi[k] += phi[k] * wlamu;
@@ -233,7 +233,7 @@ static void profileWorker(int kbeg, int kend, int nt, void *arg)
 				for (n = 0; n < line->Ncomponent; n++) {
 					vk = (line->lambda[la] - line->lambda0 - line->c_shift[n]) *
 						 CLIGHT / (line->lambda0 * atom->vbroad[k]);
-					phi[k] += Voigt(adamp[k], vk, NULL, ARMSTRONG) *
+					phi[k] += Voigt(adamp[k], vk, NULL) *
 							  line->c_fraction[n] / (SQRTPI * atom->vbroad[k]);
 				}
 				line->wphi[k] += phi[k] * wlamu;
@@ -484,10 +484,10 @@ void MolecularProfile(MolecularLine *mrt)
 
 				for (k = 0; k < atmos.Nspace; k++) {
 					phi_down[k] = Voigt(adamp[k], v[k] - v_los[mu][k],
-										NULL, ARMSTRONG) *
+										NULL) *
 								  sv[k];
 					phi_up[k] = Voigt(adamp[k], v[k] + v_los[mu][k],
-									  NULL, ARMSTRONG) *
+									  NULL) *
 								sv[k];
 					mrt->wphi[k] += (phi_down[k] + phi_up[k]) * wlamu;
 				}
@@ -503,7 +503,7 @@ void MolecularProfile(MolecularLine *mrt)
 			for (k = 0; k < atmos.Nspace; k++) {
 				vk = (mrt->lambda[la] - mrt->lambda0) * CLIGHT /
 					 (mrt->lambda0 * molecule->vbroad[k]);
-				mrt->phi[la][k] = Voigt(adamp[k], vk, NULL, ARMSTRONG) * sv[k];
+				mrt->phi[la][k] = Voigt(adamp[k], vk, NULL) * sv[k];
 				mrt->wphi[k] += mrt->phi[la][k] * wlambda;
 			}
 		}

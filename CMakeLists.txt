@@ -130,7 +130,7 @@ add_library(rh STATIC
   bezier_aux.c broad.c brs_xdr.c chemequil.c cocollisions.c collision.c
   cubeconvol.c duplicate.c error.c expint.c expspline.c fillgamma.c
   fixedrate.c fpehandler.c gammafunc.c gaussleg.c getcpu.c getlambda.c
-  getline.c giigen.c h2collisions.c humlicek.c hunt.c hydrogen.c
+  getline.c giigen.c h2collisions.c hunt.c hydrogen.c
   initial_xdr.c initscatter.c iterate.c kurucz.c linear.c ltepops.c
   ludcmp.c matrix.c maxchange.c metal.c molzeeman.c nemetals.c ohchbf.c
   opacity.c options.c order.c parallel.c parse.c paschen.c planck.c

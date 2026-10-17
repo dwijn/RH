@@ -96,7 +96,7 @@ double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2)
 		rii = ((1.0 + SQ(cos_theta)) / sin_theta) *
 			  exp(-SQ(vmin) * (2.0 / (1.0 - cos_theta))) *
 			  Voigt(adamp * sqrt(2.0 / (1.0 + cos_theta)),
-					vplus * sqrt(2.0 / (1.0 + cos_theta)), NULL, HUI_ETAL);
+					vplus * sqrt(2.0 / (1.0 + cos_theta)), NULL);
 	} else {
 
 		rii = 0.0;
@@ -110,7 +110,7 @@ double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2)
 			csc_theta2 = 2.0 / (1.0 - cos_theta);
 
 			rii += (1.0 + SQ(cos_theta)) * exp(-SQ(vmin) * csc_theta2) *
-				   Voigt(adamp * sec_theta, vplus * sec_theta, NULL, HUI_ETAL) /
+				   Voigt(adamp * sec_theta, vplus * sec_theta, NULL) /
 				   sqrt(mu12 - SQ(cos_theta) + 2.0 * muz1 * muz2 * cos_theta) * wg[n];
 		}
 	}

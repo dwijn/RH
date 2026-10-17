@@ -276,8 +276,7 @@ flags passive_bb(double lambda, int nspect, int mu, bool_t to_obs,
 									v -= vproject(k, mu) / atom->vbroad[k];
 							}
 							if (line->Voigt)
-								phi = Voigt(linelist[entry]->adamp[k], v, NULL,
-											ARMSTRONG) *
+								phi = Voigt(linelist[entry]->adamp[k], v, NULL) *
 									  line->c_fraction[nc];
 							else
 								phi = exp(-SQ(v));

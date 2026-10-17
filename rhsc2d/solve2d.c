@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 
 	wphi = 0.0;
 	for (la = 0; la < Nlambda; la++) {
-		phi[la] = Voigt(Adamp, lambda[la], NULL, RYBICKI) / SQRTPI;
+		phi[la] = Voigt(Adamp, lambda[la], NULL) / SQRTPI;
 		wphi += wlamb[la] * phi[la];
 	}
 	wphi = 1.0 / wphi;

@@ -36,11 +36,6 @@ enum solution { UNKNOWN = -1,
 enum StokesMode { NO_STOKES,
 				  FIELD_FREE,
 				  FULL_STOKES };
-enum VoigtAlgorithm { ARMSTRONG,
-					  RYBICKI,
-					  HUI_ETAL,
-					  HUMLICEK,
-					  LOOKUP };
 enum PRDangle { PRD_ANGLE_AVER = 0,
 				PRD_ANGLE_APPROX,
 				PRD_ANGLE_DEP };
@@ -129,7 +124,7 @@ double cubeconvol(int Nx, int Ny, double *f, double x, double y);
 /* --- Special functions --                            -------------- */
 
 void   GaussLeg(double x1, double x2, double *x, double *w, int n);
-double Voigt(double a, double v, double *F, enum VoigtAlgorithm algorithm);
+double Voigt(double a, double v, double *F);
 double gammln(double xx);
 
 void w2(double dtau, double *w);
