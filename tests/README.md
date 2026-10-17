@@ -1,4 +1,36 @@
-# RH regression tests
+# RH tests
+
+Three tiers:
+
+- **Unit tests** (`tests/unit/`, run by `ctest`): single routines on
+  problems with known answers. Fast, no input files.
+- **Regression** (`run_tests.sh`, below): whole runs of a candidate build
+  against a baseline build. Must pass on every pull request.
+- **Stress** (`run_stress.sh`, further below): convergence and performance
+  on hard and large problems.
+
+## Unit tests
+
+```
+cmake -B build && cmake --build build -j
+ctest --test-dir build -L unit --output-on-failure
+```
+
+Each test is a small program linked against `librh` (see
+`tests/unit/CMakeLists.txt`); `check.h` has the checks. References come from
+analytic results or, where there is no closed form, from high-precision
+computations committed as data together with the script that made them
+(never from RH itself).
+
+| Test | What it covers |
+|---|---|
+| `test_voigt` | the Voigt (H) and Faraday-Voigt (F) functions of every algorithm against the Faddeeva function from mpmath (`make_voigt_reference.py`); symmetry; finite values. `test_voigt --table` prints the errors per damping parameter, `--bench` the time per call |
+
+Error bounds in the tests are about twice what is measured, so that other
+compilers and FMA contraction (Apple silicon) pass, while a real change in
+accuracy fails.
+
+# Regression tests
 
 Compare a *candidate* build against an unmodified *baseline* build on small,
 fast runs (the whole suite takes a few minutes).
