@@ -42,7 +42,7 @@ jobs:
         run: pip install clang-format==19.1.7
       - name: Check formatting
         run: |
-          git ls-files '*.c' '*.h' | grep -v '^tests/' |
+          git ls-files '*.c' '*.h' | grep -v '_reference\.h$' |
             xargs clang-format --dry-run --Werror
 
   build:
@@ -72,7 +72,7 @@ jobs:
           n=$(grep -c 'warning:' build.log || true)
           echo "$n compiler warnings"
           echo "### ${{ matrix.os }} ${{ matrix.cc }}: $n compiler warnings" >> "$GITHUB_STEP_SUMMARY"
-      - name: Smoke tests
+      - name: Unit and smoke tests
         run: ctest --test-dir build --output-on-failure
 
   regression:
@@ -143,6 +143,9 @@ jobs:
           cmake -B build-san -G Ninja -DCMAKE_C_COMPILER=${{ matrix.cc }} \
                 -DRH_SANITIZE=${{ matrix.sanitize }}
           cmake --build build-san
+      - name: Unit tests with sanitizers
+        if: matrix.sanitize
+        run: ctest --test-dir build-san -L unit --output-on-failure
       - name: Regression suite against the base commit
         run: |
           set +e

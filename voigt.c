@@ -307,7 +307,7 @@ double VoigtHui(double a, double v, double *F)
 		 348.703917719495792, 170.354001821091472, 53.992906912940207,
 		 10.479857114260399};
 
-	double complex W1 = 0.0, W2;
+	double complex W1, W2;
 
 	/* --- Voigt function generator using rational approximation of
 		   the complex error function W(a - iv).
@@ -322,10 +322,14 @@ double VoigtHui(double a, double v, double *F)
 
 	z = a - v * I;
 
-	W2 = z;
-	for (n = NHUI; n >= 0; n--) {
-		W1 = (W1 + ah[n]) * z;
-		W2 = (W2 + bh[n]) * z;
+	/* --- Horner: numerator of degree 6, monic denominator of degree
+		   7, finite at z = 0 --                        -------------- */
+
+	W1 = ah[NHUI];
+	W2 = z + bh[NHUI];
+	for (n = NHUI - 1; n >= 0; n--) {
+		W1 = W1 * z + ah[n];
+		W2 = W2 * z + bh[n];
 	}
 	W = W1 / W2;
 

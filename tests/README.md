@@ -1,4 +1,40 @@
-# RH regression tests
+# RH tests
+
+Three tiers:
+
+- **Unit tests** (`tests/unit/`, run by `ctest`): single routines on
+  problems with known answers. Fast, no input files.
+- **Regression** (`run_tests.sh`, below): whole runs of a candidate build
+  against a baseline build. Must pass on every pull request.
+- **Stress** (`run_stress.sh`, further below): convergence and performance
+  on hard and large problems.
+
+## Unit tests
+
+```
+cmake -B build && cmake --build build -j
+ctest --test-dir build -L unit --output-on-failure
+```
+
+Each test is a small program linked against `librh` (see
+`tests/unit/CMakeLists.txt`); `check.h` has the checks. References come from
+analytic results or, where there is no closed form, from high-precision
+computations committed as data together with the script that made them
+(never from RH itself).
+
+| Test | What it covers |
+|---|---|
+| `test_voigt` | the Voigt (H) and Faraday-Voigt (F) functions of every algorithm against the Faddeeva function from mpmath (`make_voigt_reference.py`); symmetry; finite values. `test_voigt --table` prints the errors per damping parameter, `--bench` the time per call |
+| `test_linalg` | `SolveLinearEq`, `LUdecomp`, `LUbacksubst`: random diagonally dominant systems (N up to 60), a pivoting case with exact integer answer and determinant, badly scaled rows, the Hilbert matrix scaled to integers (cond 1.5e10, with and without `improve`), the inverse |
+| `test_interp` | `Hunt`/`Locate` (every starting guess, ascending and descending tables, values at, between and beyond the nodes), `Linear`, `BiLinear`, natural and exponential splines (exact for linear data; mpmath reference solutions; convergence order; tension limits), `cc_kernel`/`cubeconvol` (kernel identities, exact for biquadratics including boundary cells, order 3) |
+| `test_quadrature` | `GaussLeg` (exact for x^k, k <= 2n-1, n up to 100; remainder term for x^2n; closed forms; node and weight properties), `w2`/`w3`/`U3` against incomplete-gamma references from mpmath across the series/exact/large-dtau switches |
+| `test_functions` | `E1`/`E2` vs mpmath, `Planck` vs mpmath, Wien and Rayleigh-Jeans limits and the Stefan-Boltzmann integral, `w3js`/`w6js` vs closed forms, orthogonality, symmetries and sum rules. Reference tables for `test_interp`, `test_quadrature` and `test_functions` come from `make_kernels_reference.py` |
+
+The other tests also take `--table` to print the measured errors. Error bounds in the tests are about twice what is measured, so that other
+compilers and FMA contraction (Apple silicon) pass, while a real change in
+accuracy fails.
+
+# Regression tests
 
 Compare a *candidate* build against an unmodified *baseline* build on small,
 fast runs (the whole suite takes a few minutes).
