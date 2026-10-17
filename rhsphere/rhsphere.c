@@ -25,6 +25,7 @@
 #include "geometry.h"
 #include "spectrum.h"
 #include "background.h"
+#include "error.h"
 #include "inputs.h"
 #include "statistics.h"
 #include "xdr.h"
@@ -118,5 +119,7 @@ int main(int argc, char *argv[])
 
   getCPU(1, TIME_POLL, "Output");
   printTotalCPU();
+
+  return ExitStatus();
 }
 /* ------- end ---------------------------- main.c ------------------ */

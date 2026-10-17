@@ -45,3 +45,25 @@ The default build type is `RelWithDebInfo` (`-O2 -g`). Options, given as
 
 Intel compilers are run with `-fp-model=precise`: RH needs IEEE
 floating-point semantics.
+
+## Exit status
+
+`rhf1d`, `rhsc2d`, `rhsc3d` and `rhsphere` report the outcome of a run in
+their exit status:
+
+| Status | Meaning |
+|---|---|
+| 0 | completed and converged |
+| 1–63 | completed, with problems (a bitmask, as several can occur together); the output is written. 1: populations not converged within `N_MAX_ITER` |
+| 70 | fatal error; the log says what went wrong (`TERMINATING_ERROR`) |
+| 128 + n | killed by signal n, e.g. 136 for a trapped floating-point exception |
+
+A batch script can test for 0, or for `status < 64` if unconverged runs
+are expected (for example with a deliberately small `N_MAX_ITER`).
+
+So far only the convergence of the populations is checked, including runs
+stopped early with a `STOP_RH` file. The PRD, chemical-equilibrium and
+hydrostatic sub-iterations still stop at their own limits without setting
+a bit. A run with `N_MAX_ITER = 0` (formal solution only) exits with 0.
+The auxiliary programs (`solve1d`, `solve2d`, ...) have their own
+iteration and always exit with 0 when they complete.

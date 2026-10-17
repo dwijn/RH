@@ -54,6 +54,26 @@ void ErrorExit(enum errorlevel level, const char *routineName,
   fprintf(commandline.logfile, "%s", errorStr);
   if (commandline.logfile != stderr) fprintf(stderr, "%s", errorStr);
 
-  exit(level);
+  (void) level;
+  exit(RH_EXIT_FATAL);
 }
 /* ------- end ---------------------------- ErrorExit.c ------------- */
+
+/* ------- begin -------------------------- ExitStatus.c ------------ */
+
+/* --- Problems of a completed run, see error.h --     -------------- */
+
+static int exitFlags = 0;
+
+void SetExitFlag(int flag)
+{
+  /* --- Only bits 1-63: higher statuses mean failure -- ---------- */
+
+  exitFlags |= (flag & 63);
+}
+
+int ExitStatus(void)
+{
+  return exitFlags;
+}
+/* ------- end ---------------------------- ExitStatus.c ------------ */

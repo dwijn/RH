@@ -131,14 +131,23 @@ prepare() {
   done
 }
 
+# completed RC: did the program complete? 0 = converged; 1-63 = completed
+# with problems (bit 1: populations not converged, which is expected here,
+# since the cases stop after 4 iterations); 70 = fatal error; >128 = signal
+completed() { [ "$1" -ge 0 ] && [ "$1" -le 63 ]; }
+# Sanitizers exit with 99 when they report an error (their default, 1,
+# would look like "not converged")
+SAN_OPTIONS=detect_leaks=0:exitcode=99   # ASan; UBSan gets exitcode=99
+
 # execute TREE GEOM -> runs in RUNDIR, returns the program's exit status
 execute() {
   local bin="$1/$(geomdir $2)/$(geomdir $2)"
   if [ -x /usr/bin/time ]; then
-    ( cd "$RUNDIR" && ASAN_OPTIONS=detect_leaks=0 \
+    ( cd "$RUNDIR" && ASAN_OPTIONS=$SAN_OPTIONS UBSAN_OPTIONS=exitcode=99 \
         /usr/bin/time $TIMEFLAG -o time.txt "$bin" > log.log 2>&1 )
   else
-    ( cd "$RUNDIR" && ASAN_OPTIONS=detect_leaks=0 "$bin" > log.log 2>&1 )
+    ( cd "$RUNDIR" && ASAN_OPTIONS=$SAN_OPTIONS UBSAN_OPTIONS=exitcode=99 \
+        "$bin" > log.log 2>&1 )
   fi
 }
 
@@ -188,13 +197,13 @@ run_case() {
   local geom=$1 name=$2 mods=$3 id="$1/$2" n rc why
   prepare $geom $name base 1 "$mods"; local B1=$RUNDIR
   execute "$BASE_BIN" $geom; rc=$?
-  if [ $rc -ne 0 ]; then
+  if ! completed $rc; then
     record SKIP "$id" "baseline itself failed (rc=$rc), nothing to compare against"; return
   fi
 
   prepare $geom $name cand 1 "$mods"; local C1=$RUNDIR
   execute "$CAND_BIN" $geom; rc=$?; why=$(log_problem)
-  if [ $rc -ne 0 ] || [ -n "$why" ]; then
+  if ! completed $rc || [ -n "$why" ]; then
     record FAIL "$id candidate N=1" "rc=$rc $why"; return
   fi
   if [ $EXACT -eq 1 ]; then compare "$B1" "$C1" $geom exact; else compare "$B1" "$C1" $geom; fi
@@ -204,7 +213,7 @@ run_case() {
   for n in $THREADS; do
     prepare $geom $name cand $n "$mods"; local CN=$RUNDIR
     execute "$CAND_BIN" $geom; rc=$?; why=$(log_problem)
-    if [ $rc -ne 0 ] || [ -n "$why" ]; then
+    if ! completed $rc || [ -n "$why" ]; then
       record FAIL "$id candidate N=$n" "rc=$rc $why"; continue
     fi
     compare "$C1" "$CN" $geom
@@ -216,7 +225,7 @@ run_case() {
   for n in 1 $THREADS_MAX; do
     prepare $geom $name asan $n "$mods"
     execute "$ASAN_BIN" $geom; rc=$?; why=$(log_problem)
-    [ $rc -eq 0 ] && [ -z "$why" ] && record PASS "$id ASan N=$n" "clean" \
+    completed $rc && [ -z "$why" ] && record PASS "$id ASan N=$n" "clean" \
                                    || record FAIL "$id ASan N=$n" "rc=$rc $why"
   done
 }
@@ -229,9 +238,9 @@ run_mem_case() {
           "$WORK/tiled_2d.atmos" 192 >/dev/null || { record FAIL "2d/mem" "tiling failed"; return; }
   local mods="ATMOS_FILE=$WORK/tiled_2d.atmos;N_MAX_ITER=1" rc why bm cm
   prepare 2d mem base 1 "$mods"; local B=$RUNDIR; execute "$BASE_BIN" 2d; rc=$?
-  [ $rc -eq 0 ] || { record SKIP "2d/mem" "baseline failed (rc=$rc)"; return; }
+  completed $rc || { record SKIP "2d/mem" "baseline failed (rc=$rc)"; return; }
   prepare 2d mem cand 1 "$mods"; local C=$RUNDIR; execute "$CAND_BIN" 2d; rc=$?; why=$(log_problem)
-  [ $rc -eq 0 ] && [ -z "$why" ] || { record FAIL "2d/mem candidate" "rc=$rc $why"; return; }
+  completed $rc && [ -z "$why" ] || { record FAIL "2d/mem candidate" "rc=$rc $why"; return; }
   bm=$(rss_mb "$B"); cm=$(rss_mb "$C")
   if awk -v c="$cm" -v b="$bm" -v t="$MEMTOL" 'BEGIN{exit !(c <= b*t)}'; then
     record PASS "2d/mem peak memory" "candidate ${cm} MB vs baseline ${bm} MB (limit x$MEMTOL)"
@@ -247,12 +256,12 @@ run_kurucz_blank_case() {
   prepare 1d kurucz cand 1 "$mods"; local A=$RUNDIR
   echo "../../Atoms/Kurucz/gf0400.10" > "$A/kurucz.input"
   execute "$CAND_BIN" 1d; rc=$?; why=$(log_problem)
-  [ $rc -eq 0 ] && [ -z "$why" ] || { record FAIL "1d/kurucz_blank reference" "rc=$rc $why"; return; }
+  completed $rc && [ -z "$why" ] || { record FAIL "1d/kurucz_blank reference" "rc=$rc $why"; return; }
   prepare 1d kurucz_blank cand 1 "$mods"; local B=$RUNDIR
   { echo; cat "$CAND/Atoms/Kurucz/gf0400.10"; } > "$B/kurucz_blank.dat"
   echo "./kurucz_blank.dat" > "$B/kurucz.input"
   execute "$CAND_BIN" 1d; rc=$?; why=$(log_problem)
-  [ $rc -eq 0 ] && [ -z "$why" ] || { record FAIL "1d/kurucz_blank" "rc=$rc $why"; return; }
+  completed $rc && [ -z "$why" ] || { record FAIL "1d/kurucz_blank" "rc=$rc $why"; return; }
   compare "$A" "$B" 1d exact
   [ $? -eq 0 ] && record PASS "1d/kurucz_blank" "same as without the blank line" \
                || record FAIL "1d/kurucz_blank" "$CMPOUT"

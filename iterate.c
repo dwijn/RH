@@ -50,9 +50,10 @@ void Iterate(int NmaxIter, double iterLimit)
   const char routineName[] = "Iterate";
   register int niter, nact;
 
-  bool_t    eval_operator, write_analyze_output, equilibria_only;
+  bool_t    eval_operator, write_analyze_output, equilibria_only,
+            converged = FALSE, stopped = FALSE;
   int       Ngorder;
-  double    dpopsmax, PRDiterlimit;
+  double    dpopsmax = 0.0, PRDiterlimit;
   Atom     *atom;
   Molecule *molecule;
 
@@ -81,7 +82,10 @@ void Iterate(int NmaxIter, double iterLimit)
   while (niter <= NmaxIter ||
 	 (input.CR_Nstep > 0 && niter <= input.CR_Nstep)) {
 
-    if (StopRequested()) return;
+    if (StopRequested()) {
+      stopped = TRUE;
+      break;
+    }
     
     getCPU(2, TIME_START, NULL);
 
@@ -151,8 +155,10 @@ void Iterate(int NmaxIter, double iterLimit)
 	molecule->Ng_nv = NgInit(molecule->Nv*atmos.Nspace, input.Ngdelay,
 				 Ngorder, input.Ngperiod, molecule->nv[0]);
       }
-    } else if (dpopsmax < iterLimit)
+    } else if (dpopsmax < iterLimit) {
+      converged = TRUE;
       break;
+    }
     niter++;
 
     if (input.solve_ne == ITERATION)
@@ -166,6 +172,29 @@ void Iterate(int NmaxIter, double iterLimit)
       }
       Hydrostatic(N_MAX_HSE_ITER, HSE_ITER_LIMIT);
     }
+  }
+
+  /* --- Say whether the populations converged. A run that stops at
+         N_MAX_ITER still writes its output, so make it clear that
+         this output is not a converged solution --   -------------- */
+
+  if (converged) {
+    sprintf(messageStr, "\n -- Converged in %d iterations: max change"
+	    " %.4E < ITER_LIMIT = %.4E\n", niter, dpopsmax, iterLimit);
+    Error(MESSAGE, routineName, messageStr);
+  } else if (stopped) {
+    sprintf(messageStr, "Stopped on request (STOP_RH) after %d iterations:"
+	    " NOT CONVERGED.\n The output is not a converged solution",
+	    niter - 1);
+    Error(WARNING, routineName, messageStr);
+    SetExitFlag(RH_EXIT_NOT_CONVERGED);
+  } else {
+    sprintf(messageStr, "NOT CONVERGED after %d iterations: max change"
+	    " %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"
+	    " solution; increase N_MAX_ITER or see what limits convergence",
+	    niter - 1, dpopsmax, iterLimit);
+    Error(WARNING, routineName, messageStr);
+    SetExitFlag(RH_EXIT_NOT_CONVERGED);
   }
 
   for (nact = 0;  nact < atmos.Nactiveatom;  nact++) {
