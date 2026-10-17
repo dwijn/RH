@@ -17,12 +17,14 @@
 		  to 6 levels (Humlicek's region I is its first level);
 	   -- inside: Weideman's (1994, SIAM J. Numer. Anal. 31, 1497)
 		  rational approximation with N = 32 terms;
-	   -- a = 0: H = exp(-v^2) exactly (the approximations have an
-		  absolute error, which no longer is small compared with the
-		  Gaussian far from line center).
+	   -- a < 1e-6: H and F to first order in a around a = 0, where
+		  H(0, v) = exp(-v^2) exactly (Weideman's absolute error of
+		  ~1e-14 would exceed H in the near wing; its F(0, v) is used);
+	   -- |z| > 1e6: the first term of the continued fraction (its
+		  convergents would overflow).
 
-	   Against mpmath (tests/unit/test_voigt.c), for a from 0 to 100 and
-	   v from 0 to 1e4: relative error of H below 1.6e-6 where H >=
+	   Against mpmath (tests/unit/test_voigt.c), for a from 0 (and 1e-12)
+	   to 100 and v from 0 to 1e4: relative error of H below 1.6e-6 where H >=
 	   1e-12 H(a, 0) (largest for a ~ 1e-6 just outside the Doppler
 	   core), 2.7e-10 relative to H(a, 0), and F within 1e-9 of max |F|.
 	   About 50 ns per call. This replaces the five algorithms of RH 2
@@ -43,6 +45,11 @@
 
 #define VOIGT_ASYMPTOTIC 8.0
 #define VOIGT_CF_LEVELS  6
+
+/* --- Below this damping parameter H and F are expanded to first
+	   order in a --                                   -------------- */
+
+#define VOIGT_SMALL_A 1.0e-6
 
 /* --- Weideman's coefficients for N = 32, highest power first, from
 	   tests/unit/make_weideman_coefficients.py --   -------------- */
@@ -85,71 +92,112 @@ static const double weideman_a[WEIDEMAN_N] = {
 	2.5722534081245693,
 };
 
+/* --- Weideman's approximation of w(x + ia), x >= 0. With
+	   r = 1 / (L - iz) and Z = (L + iz) r, w = (2 p(Z) r + 1/sqrt(pi)) r;
+	   p is summed as its odd and even powers in Z^2, two independent
+	   Horner chains --                                -------------- */
+
+static void Weideman(double a, double x, double *H, double *F)
+{
+	double dr = WEIDEMAN_L + a, q = 1.0 / (dr * dr + x * x);
+	double rr = dr * q, ri = x * q;
+	double nr = WEIDEMAN_L - a;
+	double Zr = nr * rr - x * ri, Zi = nr * ri + x * rr;
+	double Z2r = Zr * Zr - Zi * Zi, Z2i = 2.0 * Zr * Zi;
+	double odr = weideman_a[0], odi = 0.0, evr = weideman_a[1], evi = 0.0;
+
+	for (int n = 2; n < WEIDEMAN_N; n += 2) {
+		double t = odr * Z2r - odi * Z2i + weideman_a[n];
+
+		odi = odr * Z2i + odi * Z2r;
+		odr = t;
+		t   = evr * Z2r - evi * Z2i + weideman_a[n + 1];
+		evi = evr * Z2i + evi * Z2r;
+		evr = t;
+	}
+	double pr = odr * Zr - odi * Zi + evr, pi = odr * Zi + odi * Zr + evi;
+	double sr = 2.0 * (pr * rr - pi * ri) + INVSQRTPI,
+		   si = 2.0 * (pr * ri + pi * rr);
+
+	*H = sr * rr - si * ri;
+	*F = sr * ri + si * rr;
+}
+
+/* --- Laplace continued fraction for w(x + ia), as the ratio A/B of
+	   its convergents: A_k = z A_(k-1) - (k/2) A_(k-2), and the same
+	   for B, so that there is a single division. Far out (|z| > 1e6),
+	   where the convergents would overflow, its first term
+	   i / (sqrt(pi) z) is accurate to 1e-12 --        -------------- */
+
+static void ContinuedFraction(double a, double x, double *H, double *F)
+{
+	if (x + a > 1.0e6) {
+
+		/* --- 1/z = conj(z) / |z|^2, scaled so that |z|^2 cannot
+			   overflow --                                -------------- */
+
+		double m = MAX(x, a), xm = x / m, am = a / m,
+			   q = INVSQRTPI / (m * (xm * xm + am * am));
+
+		*H = am * q;
+		*F = xm * q;
+		return;
+	}
+	double Ar = 1.0, Ai = 0.0, Br = x, Bi = a;
+	double Apr = 0.0, Api = 0.0, Bpr = 1.0, Bpi = 0.0;
+
+	for (int k = 1; k <= VOIGT_CF_LEVELS; k++) {
+		double c   = 0.5 * k;
+		double nAr = x * Ar - a * Ai - c * Apr, nAi = x * Ai + a * Ar - c * Api;
+		double nBr = x * Br - a * Bi - c * Bpr, nBi = x * Bi + a * Br - c * Bpi;
+
+		Apr = Ar;
+		Api = Ai;
+		Ar  = nAr;
+		Ai  = nAi;
+		Bpr = Br;
+		Bpi = Bi;
+		Br  = nBr;
+		Bi  = nBi;
+	}
+	double q = INVSQRTPI / (Br * Br + Bi * Bi);
+
+	/* --- w = (i / sqrt(pi)) A / B --                  -------------- */
+
+	*H = (Ar * Bi - Ai * Br) * q;
+	*F = (Ar * Br + Ai * Bi) * q;
+}
+
 /* ------- begin -------------------------- Voigt.c ----------------- */
 
 double Voigt(double a, double v, double *F)
 {
 	double x = fabs(v), H, Fx;
 
+	if (a == 0.0 && !F) return exp(-v * v);
+
 	if (x + a >= VOIGT_ASYMPTOTIC) {
+		ContinuedFraction(a, x, &H, &Fx);
 
-		/* --- Continued fraction as the ratio A/B of its convergents:
-			   A_k = z A_(k-1) - (k/2) A_(k-2), and the same for B, so
-			   that there is a single division --          -------------- */
+		/* --- The Gaussian part, beyond the approximation, matters
+			   only for a below ~1e-26 --                   -------------- */
 
-		double Ar = 1.0, Ai = 0.0, Br = x, Bi = a;
-		double Apr = 0.0, Api = 0.0, Bpr = 1.0, Bpi = 0.0;
+		if (a < VOIGT_SMALL_A) H += exp(-x * x);
+	} else if (a < VOIGT_SMALL_A) {
 
-		for (int k = 1; k <= VOIGT_CF_LEVELS; k++) {
-			double c   = 0.5 * k;
-			double nAr = x * Ar - a * Ai - c * Apr, nAi = x * Ai + a * Ar - c * Api;
-			double nBr = x * Br - a * Bi - c * Bpr, nBi = x * Bi + a * Br - c * Bpi;
+		/* --- Small damping: the absolute error of the approximation
+			   (~1e-14) would exceed H in the near wing. First order in
+			   a instead, from w' = -2zw + 2i/sqrt(pi) at a = 0:
+			   H = exp(-x^2) + a (2 x F0 - 2/sqrt(pi)),
+			   F = F0 - 2 a x exp(-x^2), relative error ~ 2 a^2 x^2 -- */
 
-			Apr = Ar;
-			Api = Ai;
-			Ar  = nAr;
-			Ai  = nAi;
-			Bpr = Br;
-			Bpi = Bi;
-			Br  = nBr;
-			Bi  = nBi;
-		}
-		double q = 1.0 / (Br * Br + Bi * Bi);
+		double H0, F0, gauss = exp(-x * x);
 
-		/* --- w = (i / sqrt(pi)) A / B --              -------------- */
-
-		H  = INVSQRTPI * (Ar * Bi - Ai * Br) * q;
-		Fx = INVSQRTPI * (Ar * Br + Ai * Bi) * q;
-	} else {
-
-		/* --- Weideman: with r = 1 / (L - iz) and Z = (L + iz) r,
-			   w = (2 p(Z) r + 1/sqrt(pi)) r. p is summed as its odd and
-			   even powers in Z^2, two independent Horner chains -- --- */
-
-		double dr = WEIDEMAN_L + a, q = 1.0 / (dr * dr + x * x);
-		double rr = dr * q, ri = x * q;
-		double nr = WEIDEMAN_L - a;
-		double Zr = nr * rr - x * ri, Zi = nr * ri + x * rr;
-		double Z2r = Zr * Zr - Zi * Zi, Z2i = 2.0 * Zr * Zi;
-		double odr = weideman_a[0], odi = 0.0, evr = weideman_a[1], evi = 0.0;
-
-		for (int n = 2; n < WEIDEMAN_N; n += 2) {
-			double t = odr * Z2r - odi * Z2i + weideman_a[n];
-
-			odi = odr * Z2i + odi * Z2r;
-			odr = t;
-			t   = evr * Z2r - evi * Z2i + weideman_a[n + 1];
-			evi = evr * Z2i + evi * Z2r;
-			evr = t;
-		}
-		double pr = odr * Zr - odi * Zi + evr, pi = odr * Zi + odi * Zr + evi;
-		double sr = 2.0 * (pr * rr - pi * ri) + INVSQRTPI,
-			   si = 2.0 * (pr * ri + pi * rr);
-
-		H  = sr * rr - si * ri;
-		Fx = sr * ri + si * rr;
-	}
-	if (a == 0.0) H = exp(-v * v);
+		Weideman(0.0, x, &H0, &F0);
+		H  = gauss + a * (2.0 * x * F0 - 2.0 * INVSQRTPI);
+		Fx = F0 - 2.0 * a * x * gauss;
+	} else
+		Weideman(a, x, &H, &Fx);
 
 	/* --- H is even in v, F odd --                     -------------- */
 
