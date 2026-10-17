@@ -69,7 +69,7 @@ double PII(double adamp, double waveRatio, double q_emit, double q_abs)
 		b2 = (a1 - a2 * cs[n]) / sn[n];
 		c1 = a1 * q_abs - a2 * q_emit;
 
-		pii += Voigt(adamp / (a2 * sn[n]), b1 * q_abs + b2 * q_emit, NULL, RYBICKI) *
+		pii += Voigt(adamp / (a2 * sn[n]), b1 * q_abs + b2 * q_emit, NULL) *
 			   exp(-c1 * c1) * wg[n / 2];
 	}
 	return (0.25 * pii);

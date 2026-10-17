@@ -68,7 +68,7 @@ double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2)
 	vplus = (v_emit + v_abs) / 2.0;
 
 	rii = ((1.0 + SQ(cos_theta)) / sin_theta) * exp(-SQ(vmin) * csc_theta2) *
-		  Voigt(adamp * sec_theta, vplus * sec_theta, NULL, HUI_ETAL);
+		  Voigt(adamp * sec_theta, vplus * sec_theta, NULL);
 
 	return 3.0 / (16.0 * SQ(PI)) * rii;
 }

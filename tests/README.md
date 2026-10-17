@@ -24,7 +24,7 @@ computations committed as data together with the script that made them
 
 | Test | What it covers |
 |---|---|
-| `test_voigt` | the Voigt (H) and Faraday-Voigt (F) functions of every algorithm against the Faddeeva function from mpmath (`make_voigt_reference.py`); symmetry; finite values. `test_voigt --table` prints the errors per damping parameter, `--bench` the time per call |
+| `test_voigt` | `Voigt()`: H and the Faraday-Voigt function F against the Faddeeva function from mpmath (`make_voigt_reference.py`), relative error where H matters and error relative to line center; exact symmetry in v; finite values; continuity where the two approximations meet. `--table` prints the errors per damping parameter, `--bench` the time per call |
 
 Error bounds in the tests are about twice what is measured, so that other
 compilers and FMA contraction (Apple silicon) pass, while a real change in

@@ -703,7 +703,7 @@ double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
 		psi_sm = psi_pi = psi_sp = 0.0;
 
 		for (nz = 0; nz < rlk->zm->Ncomponent; nz++) {
-			H = Voigt(adamp, v - rlk->zm->shift[nz] * vB, &F, HUMLICEK);
+			H = Voigt(adamp, v - rlk->zm->shift[nz] * vB, &F);
 
 			switch (rlk->zm->q[nz]) {
 			case -1:
@@ -737,7 +737,7 @@ double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
 			*psi_V = sign * 0.5 * (psi_sp - psi_sm) * atmos.cos_gamma[mu][k] * sv;
 		}
 	} else
-		phi = Voigt(adamp, v, NULL, ARMSTRONG) * sv;
+		phi = Voigt(adamp, v, NULL) * sv;
 
 	return phi;
 }

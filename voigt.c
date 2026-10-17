@@ -1,472 +1,159 @@
 /* ------- file: -------------------------- voigt.c -----------------
 
-	   Version:       rh2.0
-	   Author:        Han Uitenbroek (huitenbroek@nso.edu)
-	   Last modified: Fri Dec 14 08:53:28 2001 --
+	   Voigt function H(a, v) and Faraday-Voigt function F(a, v):
 
-	   --------------------------                      ----------RH-- */
+		 H + i F = w(v + ia),  w(z) = exp(-z^2) erfc(-iz),
 
-/* --- Voigt profile generators:
+	   the Faddeeva function, with damping parameter a >= 0 and
+	   frequency v, both in Doppler widths. H(a, 0) = 1 for a = 0 (not
+	   normalized to unit area; divide by sqrt(pi) for that).
 
-	   -- Armstrong 1967, JQSRT 7, pp. 61-88
-		  (slow for damping parameters larger than 1.5, accurate to
-		  6 significant figures).
+	   A hybrid of two approximations, after Schreier (2018, JQSRT 213,
+	   13), who combines Humlicek's asymptotic region with Weideman's
+	   rational approximation:
 
-	   -- Hui, Armstrong & Wray 1978, JQSRT 19, pp. 509-516
-		  (same speed in whole parameter space, faster than Armstrong for
-		  large a, otherwise comparable, only 1% accurate for larger v).
+	   -- |v| + a >= 8: the Laplace continued fraction
+			w(z) = (i/sqrt(pi)) / (z - (1/2) / (z - 1 / (z - (3/2) / ...)))
+		  to 6 levels (Humlicek's region I is its first level);
+	   -- inside: Weideman's (1994, SIAM J. Numer. Anal. 31, 1497)
+		  rational approximation with N = 32 terms;
+	   -- a = 0: H = exp(-v^2) exactly (the approximations have an
+		  absolute error, which no longer is small compared with the
+		  Gaussian far from line center).
 
-	   -- George Rybicki's accurate (Ref)
-		  (accurate to at least 8 significant figures, but a factor 2
-		  slower than Armstrong and Hui et al.).
-
-	   -- David Hummer's (Ref: algorithm 363 from the collected algorithms
-		  from CACM, and SIAM J. Num. Analysis, 7, 185 (1970))
-		  (Speed is comparable to Rybicki's).
-
-	   -- Humlicek 1982, JQSRT 27, p. 437
-		  Relative accuracy 1.0E-04. Also calculates Faraday-Voigt
-		  function needed in Stokes radiative transfer.
-
-	   -- Lookup table.
-
+	   Against mpmath (tests/unit/test_voigt.c), for a from 0 to 100 and
+	   v from 0 to 1e4: relative error of H below 1.6e-6 where H >=
+	   1e-12 H(a, 0) (largest for a ~ 1e-6 just outside the Doppler
+	   core), 2.7e-10 relative to H(a, 0), and F within 1e-9 of max |F|.
+	   About 50 ns per call. This replaces the five algorithms of RH 2
+	   (Armstrong, Rybicki, Hui et al., Humlicek, lookup table; errors
+	   up to 1.2e-4), so that profiles with and without polarization are
+	   the same function.
 	   --                                              -------------- */
 
-#include <stdlib.h>
 #include <math.h>
+#include <stdlib.h>
 
 #include "rh.h"
-#include "constant.h"
-#include <complex.h>
-#include "error.h"
 
-#define TINY 1.0E-08
+#define INVSQRTPI 0.56418958354775628695
 
-/* --- Function prototypes --                          -------------- */
+/* --- Asymptotic region and depth of the continued fraction: |v| + a
+	   >= 8 with 6 levels is accurate to 3e-10 of H(a, 0) -- ---------- */
 
-double VoigtArmstrong(double a, double v);
-double VoigtRybicki(double a, double v);
-double VoigtHui(double a, double v, double *F);
-double VoigtHumlicek(double a, double v, double *F);
+#define VOIGT_ASYMPTOTIC 8.0
+#define VOIGT_CF_LEVELS  6
 
-double VoigtK1(double a, double v);
-double VoigtK2(double a, double v);
-double VoigtK3(double a, double v);
+/* --- Weideman's coefficients for N = 32, highest power first, from
+	   tests/unit/make_weideman_coefficients.py --   -------------- */
 
-double complex Humlicek1(double complex z);
-double complex Humlicek2(double complex z);
-double complex Humlicek3(double complex z);
-double complex Humlicek4(double complex z);
+#define WEIDEMAN_N 32
+#define WEIDEMAN_L 4.75682846001088426687
 
-double VoigtLookup(double a, double v);
-
-/* --- Global variables --                             -------------- */
-
-extern char messageStr[];
+static const double weideman_a[WEIDEMAN_N] = {
+	-1.3033481245090925e-12,
+	3.7410343579709147e-12,
+	8.0303941233429979e-12,
+	-2.1543623534540259e-11,
+	-5.544247434751948e-11,
+	1.1658238505513269e-10,
+	4.1537422837681178e-10,
+	-5.2310221157958813e-10,
+	-3.2080152206021089e-9,
+	8.1248891740501905e-10,
+	2.3797556704926332e-8,
+	2.2930439030891306e-8,
+	-1.481307891793793e-7,
+	-4.1840763711855293e-7,
+	4.2558331373556316e-7,
+	4.4015317315303742e-6,
+	6.821031944000645e-6,
+	-2.1409619201818263e-5,
+	-1.3075449254609854e-4,
+	-2.4532980270018119e-4,
+	3.9259136070078965e-4,
+	4.5195411053492856e-3,
+	1.9006155784845476e-2,
+	5.7304403529837191e-2,
+	1.4060716226893785e-1,
+	2.9544451071508732e-1,
+	5.4601397206393423e-1,
+	9.0192548936479998e-1,
+	1.3455441692345451,
+	1.8256696296324813,
+	2.2635372999002678,
+	2.5722534081245693,
+};
 
 /* ------- begin -------------------------- Voigt.c ----------------- */
 
-double Voigt(double a, double v, double *F, enum VoigtAlgorithm algorithm)
+double Voigt(double a, double v, double *F)
 {
-	double voigt;
+	double x = fabs(v), H, Fx;
 
-	switch (algorithm) {
-	case ARMSTRONG:
-		voigt = VoigtArmstrong(a, v);
-		break;
-	case RYBICKI:
-		voigt = VoigtRybicki(a, v);
-		break;
-	case HUI_ETAL:
-		voigt = VoigtHui(a, v, F);
-		break;
-	case HUMLICEK:
-		voigt = VoigtHumlicek(a, v, F);
-		break;
-	case LOOKUP:
-		voigt = VoigtLookup(a, v);
-		break;
-	default:
-		sprintf(messageStr, "Unregognized Voigt algorithm: %d", algorithm);
-		Error(ERROR_LEVEL_2, "Voigt", messageStr);
+	if (x + a >= VOIGT_ASYMPTOTIC) {
+
+		/* --- Continued fraction as the ratio A/B of its convergents:
+			   A_k = z A_(k-1) - (k/2) A_(k-2), and the same for B, so
+			   that there is a single division --          -------------- */
+
+		double Ar = 1.0, Ai = 0.0, Br = x, Bi = a;
+		double Apr = 0.0, Api = 0.0, Bpr = 1.0, Bpi = 0.0;
+
+		for (int k = 1; k <= VOIGT_CF_LEVELS; k++) {
+			double c   = 0.5 * k;
+			double nAr = x * Ar - a * Ai - c * Apr, nAi = x * Ai + a * Ar - c * Api;
+			double nBr = x * Br - a * Bi - c * Bpr, nBi = x * Bi + a * Br - c * Bpi;
+
+			Apr = Ar;
+			Api = Ai;
+			Ar  = nAr;
+			Ai  = nAi;
+			Bpr = Br;
+			Bpi = Bi;
+			Br  = nBr;
+			Bi  = nBi;
+		}
+		double q = 1.0 / (Br * Br + Bi * Bi);
+
+		/* --- w = (i / sqrt(pi)) A / B --              -------------- */
+
+		H  = INVSQRTPI * (Ar * Bi - Ai * Br) * q;
+		Fx = INVSQRTPI * (Ar * Br + Ai * Bi) * q;
+	} else {
+
+		/* --- Weideman: with r = 1 / (L - iz) and Z = (L + iz) r,
+			   w = (2 p(Z) r + 1/sqrt(pi)) r. p is summed as its odd and
+			   even powers in Z^2, two independent Horner chains -- --- */
+
+		double dr = WEIDEMAN_L + a, q = 1.0 / (dr * dr + x * x);
+		double rr = dr * q, ri = x * q;
+		double nr = WEIDEMAN_L - a;
+		double Zr = nr * rr - x * ri, Zi = nr * ri + x * rr;
+		double Z2r = Zr * Zr - Zi * Zi, Z2i = 2.0 * Zr * Zi;
+		double odr = weideman_a[0], odi = 0.0, evr = weideman_a[1], evi = 0.0;
+
+		for (int n = 2; n < WEIDEMAN_N; n += 2) {
+			double t = odr * Z2r - odi * Z2i + weideman_a[n];
+
+			odi = odr * Z2i + odi * Z2r;
+			odr = t;
+			t   = evr * Z2r - evi * Z2i + weideman_a[n + 1];
+			evi = evr * Z2i + evi * Z2r;
+			evr = t;
+		}
+		double pr = odr * Zr - odi * Zi + evr, pi = odr * Zi + odi * Zr + evi;
+		double sr = 2.0 * (pr * rr - pi * ri) + INVSQRTPI,
+			   si = 2.0 * (pr * ri + pi * rr);
+
+		H  = sr * rr - si * ri;
+		Fx = sr * ri + si * rr;
 	}
-	return voigt;
+	if (a == 0.0) H = exp(-v * v);
+
+	/* --- H is even in v, F odd --                     -------------- */
+
+	if (F) *F = (v < 0.0) ? -Fx : Fx;
+	return H;
 }
 /* ------- end ---------------------------- Voigt.c ----------------- */
-
-/* ------- begin -------------------------- VoigtArmstrong.c -------- */
-
-#define NT 10
-
-static double t[NT] =
-	{0.2453407083, 0.7374737285, 1.2340762153, 1.7385377121,
-	 2.2549740020, 2.7888060584, 3.3478545673, 3.9447640401,
-	 4.6036824495, 5.3874808900};
-
-static double w[NT] =
-	{4.6224366960e-01, 2.8667550536e-01, 1.0901720602e-01,
-	 2.4810520887e-02, 3.2437733422e-03, 2.2833863601e-04,
-	 7.8025564785e-06, 1.0860693707e-07, 4.3993409922e-10,
-	 2.2293936455e-13};
-
-double VoigtArmstrong(double a, double v)
-{
-	if (v < 0.0) v = -v;
-
-	if ((a < 1.0 && v < 4.0) || (a < 1.8 / (v + 1.0)))
-		return VoigtK1(a, v);
-	else if (a < 2.5 && v < 4.0)
-		return VoigtK2(a, v);
-	else
-		return VoigtK3(a, v);
-}
-/* ------- end ---------------------------- VoigtArmstrong.c -------- */
-
-/* ------- begin -------------------------- VoigtK1.c --------------- */
-
-#define TWOSQRTPI 1.12837917
-#define EXPMAX    70.0
-#define NC        34
-
-double VoigtK1(double a, double v)
-{
-	static double c[NC] =
-		{0.1999999999972224, -0.1840000000029998,
-		 0.1558399999965025, -0.1216640000043988,
-		 0.0877081599940391, -0.0585141248086907,
-		 0.0362157301623914, -0.0208497654398036,
-		 0.0111960116346270, -0.56231896167109e-02,
-		 0.26487634172265e-02, -0.11732670757704e-02,
-		 0.4899519978088e-03, -0.1933630801528e-03,
-		 0.722877446788e-04, -0.256555124979e-04,
-		 0.86620736841e-05, -0.27876379719e-05,
-		 0.8566873627e-06, -0.2518433784e-06, 0.709360221e-07,
-		 -0.191732257e-07, 0.49801256e-08, -0.12447734e-08,
-		 0.2997777e-09, -0.696450e-10, 0.156262e-10, -0.33897e-11,
-		 0.7116e-12, -0.1447e-12, 0.285e-13, -0.55e-14,
-		 0.10e-14, -0.2e-15};
-
-	register int n;
-
-	double a2 = a * a, v2 = v * v, u1, dn01, dn02, dn, v2i, funct, an, q, g,
-		   coef, bn01, bn02, bn, v1;
-
-	if ((v2 - a2) > EXPMAX)
-		u1 = 0.0;
-	else
-		u1 = exp(a2 - v2) * cos(2.0 * v * a);
-
-	if (v > 5.0) {
-		v2i  = 1.0 / v2;
-		dn01 = -v2i * (0.5 + v2i * (0.75 + v2i * (1.875 + v2i * (6.5625 +
-																 v2i * (29.53125 + v2i * (1162.4218 + v2i * 1055.7421))))));
-		dn02 = (1.0 - dn01) / (2.0 * v);
-	} else {
-		bn01 = bn02 = 0.0;
-		v1          = v / 5.0;
-		coef        = 4.0 * v1 * v1 - 2.0;
-		for (n = NC - 1; n >= 0; n--) {
-			bn   = coef * bn01 - bn02 + c[n];
-			bn02 = bn01;
-			bn01 = bn;
-		}
-		dn02 = (double) (v1 * (bn - bn02));
-		dn01 = 1.0 - 2.0 * v * dn02;
-	}
-
-	funct = a * dn01;
-	if (a > TINY) {
-		q  = 1.0;
-		an = a;
-		for (n = 2; n <= 50; n++) {
-			dn   = (v * dn01 + dn02) * (-2.0 / n);
-			dn02 = dn01;
-			dn01 = dn;
-			if (n % 2) {
-				q = -q;
-				an *= a2;
-				g = dn * an;
-				funct += q * g;
-				if (fabs(g / funct) <= TINY) return (u1 - TWOSQRTPI * funct);
-			}
-		}
-	}
-	return (u1 - TWOSQRTPI * funct);
-}
-/* ------- end ---------------------------- VoigtK1.c --------------- */
-
-/* ------- begin -------------------------- VoigtK2.c --------------- */
-
-double VoigtK2(double a, double v)
-{
-	register int n;
-
-	double g = 0.0, r, s, a2 = a * a;
-
-	for (n = 0; n < NT; n++) {
-		r = t[n] - v;
-		s = t[n] + v;
-		g += (4.0 * t[n] * t[n] - 2.0) * (r * atan(r / a) + s * atan(s / a) - 0.5 * a * (log(a2 + r * r) + log(a2 + s * s))) * w[n];
-	}
-	return g / PI;
-}
-/* ------- end ---------------------------- VoigtK2.c --------------- */
-
-/* ------- begin -------------------------- VoigtK3.c --------------- */
-
-double VoigtK3(double a, double v)
-{
-	register int n;
-
-	double g = 0.0, a2 = a * a;
-
-	for (n = 0; n < NT; n++) {
-		g += (1.0 / (SQ(v - t[n]) + a2) + 1.0 / (SQ(v + t[n]) + a2)) * w[n];
-	}
-	return (a * g) / PI;
-}
-/* ------- end ---------------------------- VoigtK3.c --------------- */
-
-/* ------- begin -------------------------- VoigtRybicki.c ---------- */
-
-#define NGR 31
-
-#define THREEPI   9.42477796076938
-#define INVSQRTPI 0.564189583547756
-#define C0        0.0897935610625833
-#define C1        29.608813203268
-
-/* --- Computes the Voigt function for any value of x and
-	   any positive value of a. Adapted from original by G. Rybicki - */
-
-double VoigtRybicki(double a, double v)
-{
-	register int  m, n;
-	static int    initialize = TRUE;
-	static double c[NGR];
-
-	double a1, a2, b1, b2, e, s, t, zi, zr, voigt;
-
-	if (initialize) {
-		for (m = -15, n = 0; n < NGR; m++, n++)
-			c[n] = C0 * exp(-(m * m) / 9.0);
-		initialize = FALSE;
-	}
-	/* --- Doppler profile (a = 0.0) --                   ------------- */
-
-	if (a == 0.0)
-		return (double) exp(-v * v);
-
-	/* --- General case --                                ------------- */
-
-	a1 = 3.0 * a;
-	a2 = a * a;
-	e  = exp(-THREEPI * a);
-	if (a < 0.1) {
-		zr    = 0.5 * (e + 1.0 / e) * cos(THREEPI * v);
-		zi    = 0.5 * (e - 1.0 / e) * sin(THREEPI * v);
-		voigt = INVSQRTPI * exp(a2 - v * v) * cos(2.0 * a * v);
-	} else {
-		zr    = e * cos(THREEPI * v);
-		zi    = e * sin(THREEPI * v);
-		voigt = 0.0;
-	}
-	b1 = (1.0 - zr) * a * 1.5;
-	b2 = -zi;
-	s  = -8.0 - 1.5 * v;
-	t  = s * s + 2.25 * a2;
-	for (n = 0; n < NGR; n++) {
-		t  = t + s + 0.25;
-		s  = s + 0.5;
-		b1 = a1 - b1;
-		b2 = -b2;
-		if (t > 2.5e-12)
-			voigt += c[n] * (b1 + b2 * s) / t;
-		else
-			voigt -= c[n] * a * C1;
-	}
-	return (double) voigt * SQRTPI;
-}
-/* ------- end ---------------------------- VoigtRybicki.c ---------- */
-
-/* ------- begin -------------------------- VoigtHui.c -------------- */
-
-#define NHUI 6
-
-double VoigtHui(double a, double v, double *F)
-{
-	register int n;
-
-	static double ah[NHUI + 1] =
-		{122.607931777104326, 214.382388694706425, 181.928533092181549,
-		 93.155580458138441, 30.180142196210589, 5.912626209773153,
-		 0.564189583562615};
-
-	static double bh[NHUI + 1] =
-		{122.607931773875350, 352.730625110963558, 457.334478783897737,
-		 348.703917719495792, 170.354001821091472, 53.992906912940207,
-		 10.479857114260399};
-
-	double complex W1, W2;
-
-	/* --- Voigt function generator using rational approximation of
-		   the complex error function W(a - iv).
-		   This routine is faster for large a (> 1.5)
-
-		   Voigt:             H(a, v) = Re[W(v + ia)]
-		   Faraday - Voigt: 2*F(a, v) = Im[W(v + ia)]
-
-		   --                                            -------------- */
-
-	double complex z, W;
-
-	z = a - v * I;
-
-	/* --- Horner: numerator of degree 6, monic denominator of degree
-		   7, finite at z = 0 --                        -------------- */
-
-	W1 = ah[NHUI];
-	W2 = z + bh[NHUI];
-	for (n = NHUI - 1; n >= 0; n--) {
-		W1 = W1 * z + ah[n];
-		W2 = W2 * z + bh[n];
-	}
-	W = W1 / W2;
-
-	if (F != NULL) *F = cimag(W);
-	return creal(W);
-}
-/* ------- end ---------------------------- VoigtHui.c -------------- */
-
-/* ------- begin -------------------------- VoigtHumlicek.c --------- */
-
-/* --- Voigt function generator using rational approximation of
-	   the complex error function W(v + ia).
-
-	   Output:
-
-	   Voigt:             H(a, v) = Re[W(v + ia)]
-	   Faraday - Voigt: 2*F(a, v) = Im[W(v + ia)]
-
-	   --                                            -------------- */
-
-double VoigtHumlicek(double a, double v, double *F)
-{
-	double complex W, z = a - v * I;
-	double         s = fabs(v) + a;
-
-	/* --- See: humlicek.c --                          -------------- */
-
-	if (s >= 15.0)
-		W = Humlicek1(z);
-	else if (s >= 5.5)
-		W = Humlicek2(z);
-	else if (a >= 0.195 * fabs(v) - 0.176)
-		W = Humlicek3(z);
-	else
-		W = Humlicek4(z);
-
-	if (F != NULL) *F = cimag(W);
-	return creal(W);
-}
-/* ------- end ---------------------------- VoigtHumlicek.c --------- */
-
-/* ------- begin -------------------------- VoigtLookup.c ----------- */
-
-#define TABLE_ALGORITHM RYBICKI
-
-#define A_MIN 1.0E-05
-#define A_MAX 1.0E-02
-#define N_A   50
-
-#define V_MIN_LIN 0.0
-#define V_MAX_LIN 4.0
-#define N_V_LIN   400
-#define V_MIN_LOG V_MAX_LIN
-#define V_MAX_LOG 1000.0
-#define N_V_LOG   30
-
-/* --- Compute lookup table of Voigt function when called
-	   for the first time. With subsequent calls the lookup table is
-	   interpolated (bi-linearly for the moment) --    -------------- */
-
-double VoigtLookup(double a, double v)
-{
-	const char   routineName[] = "VoigtLookup";
-	register int n, m;
-
-	static bool_t  initialize = TRUE, hunt;
-	static double *a_table, *v_table_lin, *v_table_log,
-		**table_lin, **table_log, voigt, log_a;
-
-	double da, dv;
-
-	v = fabs(v);
-
-	if (a < A_MIN || a > A_MAX || v > V_MAX_LOG) {
-		sprintf(messageStr,
-				"Arguments (%E, %E) outside domain table", a, v);
-		Error(WARNING, routineName, messageStr);
-
-		return Voigt(a, v, NULL, TABLE_ALGORITHM);
-	}
-
-	/* --- Populate the lookup tables on initialization -- ------------ */
-
-	if (initialize) {
-		a_table     = (double *) malloc(N_A * sizeof(double));
-		v_table_lin = (double *) malloc(N_V_LIN * sizeof(double));
-		v_table_log = (double *) malloc(N_V_LOG * sizeof(double));
-
-		table_lin = matrix_double(N_A, N_V_LIN);
-		table_log = matrix_double(N_A, N_V_LOG);
-
-		a_table[0]       = log(A_MIN);
-		a_table[N_A - 1] = log(A_MAX);
-		da               = (a_table[N_A - 1] - a_table[0]) / (N_A - 1);
-		for (n = 1; n < N_A - 1; n++)
-			a_table[n] = a_table[n - 1] + da;
-
-		v_table_lin[0]           = V_MIN_LIN;
-		v_table_lin[N_V_LIN - 1] = V_MAX_LIN;
-		dv                       = (v_table_lin[N_V_LIN - 1] - v_table_lin[0]) / (N_V_LIN - 1);
-		for (m = 1; m < N_V_LIN - 1; m++)
-			v_table_lin[m] = v_table_lin[m - 1] + dv;
-
-		v_table_log[0]           = log(V_MIN_LOG);
-		v_table_log[N_V_LOG - 1] = log(V_MAX_LOG);
-		dv                       = (v_table_log[N_V_LOG - 1] - v_table_log[0]) / (N_V_LOG - 1);
-		for (m = 1; m < N_V_LOG - 1; m++)
-			v_table_log[m] = v_table_log[m - 1] + dv;
-
-		for (n = 0; n < N_A; n++) {
-			for (m = 0; m < N_V_LIN; m++) {
-				table_lin[n][m] = Voigt(exp(a_table[n]), v_table_lin[m],
-										NULL, TABLE_ALGORITHM);
-			}
-			for (m = 0; m < N_V_LOG; m++) {
-				table_log[n][m] = Voigt(exp(a_table[n]), exp(v_table_log[m]),
-										NULL, TABLE_ALGORITHM);
-			}
-		}
-		sprintf(messageStr, "Created Voigt lookup tables\n");
-		Error(MESSAGE, routineName, messageStr);
-
-		initialize = FALSE;
-	}
-	/* --- There are two domains. Interpolation is always logarithmic
-		   in damping parameter a. For large values of Doppler frequency
-		   v it is also logarithmic in v, otherwise it is linear in v - */
-
-	log_a = log(a);
-
-	if (v < V_MAX_LIN) {
-		voigt = BiLinear(N_A, a_table, log_a, N_V_LIN, v_table_lin, v,
-						 table_lin, hunt = TRUE);
-	} else {
-		voigt = BiLinear(N_A, a_table, log_a, N_V_LOG, v_table_log, log(v),
-						 table_log, hunt = FALSE);
-	}
-	return voigt;
-}
-/* ------- begin -------------------------- VoigtLookup.c ----------- */
