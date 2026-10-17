@@ -195,7 +195,7 @@ on perturbed FAL-C (82 depths):
 | [B-14](https://github.com/dwijn/RH/issues/15) | low | `error.c` `sprintf`s a 512-byte message plus routine name into a 512-byte buffer | `error.c:51` | code reading | open |
 | [B-15](https://github.com/dwijn/RH/issues/80) | low | `Atoms/CaII_large.atom` has 13 `OMEGA` collision records equal to `Inf`; since B-4 the run stops at setup with a clear error instead of a SIGFPE | `Atoms/CaII_large.atom` | `1d_falc_cail`: "collision record OMEGA 11 10 has a non-finite value (inf)" | open |
 | [B-16](https://github.com/dwijn/RH/issues/93) | medium | Collision data must follow a `TEMP` line, but this is not enforced: a tabulated keyword (OMEGA, CE, CI, CP, CH0, CH+, CH) before any `TEMP` reads an uninitialized item count and a NULL temperature grid (crash); after a fixed-size keyword (AR85-*, BURGESS, SHULL82, BADNELL, SUMMERS) without a new `TEMP` it inherits that keyword's item count, so a line with that many numbers gives silently wrong rates | `collision.c:469` | -Wmaybe-uninitialized triage; no shipped atom file is affected | fixed |
-| [B-17](https://github.com/dwijn/RH/issues/94) | low | `writeMULTIatmos()` writes an uninitialized `height` for a GEOMETRIC depth scale (no branch for it); latent, both callers use other scales | `tools/writemulti.c:89` | -Wmaybe-uninitialized triage | open |
+| [B-17](https://github.com/dwijn/RH/issues/94) | low | `writeMULTIatmos()` writes an uninitialized `height` for a GEOMETRIC depth scale (no branch for it); latent, both callers use other scales | `tools/writemulti.c:89` | -Wmaybe-uninitialized triage | fixed |
 | [B-18](https://github.com/dwijn/RH/issues/95) | low | `solve1d` reads the boundary-condition codes `btop`/`bbot` from stdin without validating them; an out-of-range code now gives a zero boundary intensity | `rhf1d/solve1d.c` | -Wmaybe-uninitialized triage | open |
 
 ### 3.2 Numerics and convergence
@@ -265,14 +265,14 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 |---|---|---|---|
 | [Q-1](https://github.com/dwijn/RH/issues/52) | high | Hand-written makefiles with archive-member rules: not safe under `make -j`; hand-maintained, partly wrong dependencies; four ~90 % identical geometry makefiles | fixed |
 | [Q-2](https://github.com/dwijn/RH/issues/53) | high | Fortran still required by rhsc2d/rhsc3d/rhsphere/tools makefiles (`librh_f90.a`) after the WIP dropped it at top level | fixed |
-| [Q-3](https://github.com/dwijn/RH/issues/54) | medium | 354 warnings with `-Wall -Wextra -std=c11 -pedantic` (138 maybe-uninitialized, 140 unused variables, 32 set-but-unused, 30 unused parameters, 8 sign-compare, 5 implicit declarations — pread/pwrite/fileno need `_POSIX_C_SOURCE`) | open |
+| [Q-3](https://github.com/dwijn/RH/issues/54) | medium | 354 warnings with `-Wall -Wextra -std=c11 -pedantic` (138 maybe-uninitialized, 140 unused variables, 32 set-but-unused, 30 unused parameters, 8 sign-compare, 5 implicit declarations — pread/pwrite/fileno need `_POSIX_C_SOURCE`) | fixed |
 | [Q-4](https://github.com/dwijn/RH/issues/55) | medium | Pervasive global state: 315 `extern` declarations in .c files; `atmos` referenced 2145 times in 108 files | open |
 | [Q-5](https://github.com/dwijn/RH/issues/56) | medium | ~25 % of code in duplicated blocks; rhsc2d 53 %, rhsc3d 52 %, rhf1d 42 %, rhsphere 38 % | open |
 | [Q-6](https://github.com/dwijn/RH/issues/57) | medium | Very long functions: 77 over 100 lines, 31 over 200 (`initSolution` 647, `SortLambda` 572, `Background` 558, `readAtom` 543, `CollisionRate` 494) | open |
 | [Q-7](https://github.com/dwijn/RH/issues/58) | medium | Error handling: `Error()` calls `exit()` (262 sites), so the library cannot be unit-tested; 395 `sprintf`, 0 `snprintf`; unbounded `%s` in `sscanf` | open |
 | [Q-8](https://github.com/dwijn/RH/issues/59) | medium | Memory ownership implicit; 493 allocations vs 310 frees; `matrix_double` has no NULL check | open |
 | [Q-9](https://github.com/dwijn/RH/issues/60) | medium | Headers not self-contained; reserved include-guard names; `rh.h` has none and pulls in `<rpc/types.h>` and `<pthread.h>` everywhere | open |
-| [Q-10](https://github.com/dwijn/RH/issues/61) | low | Dead or bit-rotted code: `collision_15d.c` (does not compile), `collision_Oslo.c`, `rhsphere/readinput.c`, `rhsphere/solveplane.c`, `tools/constructatom.c` (does not compile upstream either), `tools/adjustbf.c` | open |
+| [Q-10](https://github.com/dwijn/RH/issues/61) | low | Dead or bit-rotted code: `collision_15d.c` (does not compile), `collision_Oslo.c`, `rhsphere/readinput.c`, `rhsphere/solveplane.c`, `tools/constructatom.c` (does not compile upstream either), `tools/adjustbf.c` | fixed |
 | [Q-11](https://github.com/dwijn/RH/issues/62) | low | Five Voigt algorithms plus Fortran variants | open |
 | [Q-12](https://github.com/dwijn/RH/issues/63) | low | `tests/make_tiled_2d_atmos.py` uses the wrong array order | fixed |
 | [Q-13](https://github.com/dwijn/RH/issues/64) | low | Python readers depend on `xdrlib` (removed in Python 3.13) | open |
@@ -308,8 +308,13 @@ Ordered so that every step can be verified against upstream: byte-identical
 2. **Build and hygiene** — drop Fortran (Q-2, Q-11); new build system with
    automatic dependencies and safe parallel builds (Q-1); warnings on and
    cleaned (Q-3); debug info in default builds (Q-15); dead code removed (Q-10); CI with the regression suite.
-3. **Unit tests** for Voigt (against a Faddeeva reference), LU, splines,
-   formal solvers on analytic slabs — before touching numerics.
+   *Done 2026-10-16:* CMake, CI on Linux/macOS with gcc and clang plus
+   sanitizers, zero warnings with `-Werror` in CI. Q-11 (Voigt variants)
+   moved to step 3, where the Voigt unit tests decide which to keep.
+3. **Unit tests** for Voigt (against a Faddeeva reference; then reduce
+   the Voigt variants, Q-11), LU, splines, formal solvers on analytic
+   slabs — before touching numerics. Realistic multi-D test atmospheres
+   from RMHD snapshots (Q-18).
 4. **Convergence robustness** — Ng safeguards (N-2), better convergence
    measure (N-3), PRD sub-iteration rework (N-4), positivity (N-8), rate-matrix
    scaling (N-7), ne preconditioning (N-6), collisional-radiative switching,
@@ -327,6 +332,46 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-10-16 — MULTI atmospheres from readtrujillo have velocities in km/s (B-17)
+
+`writeMULTIatmos()` (used by `readtrujillo` and `readkurucz`) wrote the
+macroscopic velocity in m/s into a column that RH reads as km/s, so a
+`readtrujillo` atmosphere with a velocity field came out with velocities
+1000 times too large (`readkurucz` writes zero velocities). For a geometric
+depth scale it wrote an uninitialized height. Velocities are now written
+in km/s and heights in km, as `rhf1d` reads them. With this, gcc reports
+no warnings at all under `-Wall -Wextra`.
+
+### 2026-10-16 — Dead code removed (Q-10)
+
+Seven source files that no build used are gone (about 2,800 lines):
+`collision_15d.c` and `collision_Oslo.c` (older variants of
+`collision.c`; the first did not compile), `rhsphere/readinput.c` and
+`rhsphere/solveplane.c`, and the tools `constructatom.c` (built model atoms
+from a Kurucz line list, levels and lines only; it made `Atoms/SiI.atom`,
+did not compile since about 2000, and hard-coded silicon ion labels),
+`adjustbf.c` and `lande.c`. Earlier, `listincl` and `listincl_f` went with
+the old makefiles. A new model-atom tool is on the wishlist (F-1).
+
+### 2026-10-16 — RH compiles without warnings; CI treats warnings as errors (Q-3)
+
+`-Wall -Wextra` gave 381 warnings with gcc 8 (more with clang and gcc 13).
+All are gone, in gcc 8, gcc 13 and clang (Linux and macOS), and the CI
+builds now use `-Werror` (new option `RH_WERROR`), so they stay gone.
+
+- Unused variables and parameters removed (about 230, mostly by Sonnet
+  subagents). `Error()` now tells the compiler that the error levels do
+  not return. 120 false-positive "maybe uninitialized" warnings were
+  checked one by one and initialized.
+- The triage found real bugs, fixed separately: collision data before a
+  `TEMP` line (B-16, silently wrong rates), velocities 1000 times too large
+  in `readtrujillo` output (B-17), about 30 unchecked I/O results (Q-17),
+  an unbounded `sprintf` into a label buffer in `topbase`, a NULL `qsort`
+  in `readMolecule`, and missing validation of the radial grid size in
+  `rhsphere`.
+
+The regression suite stayed byte-identical through all of it.
 
 ### 2026-10-16 — Collision data before a TEMP line is an error; no inherited item counts (B-16)
 
