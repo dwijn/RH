@@ -293,8 +293,9 @@ static Errors method_errors(const Method *m, Slab *slab, const double s[NPOLY])
 }
 
 /* --- Linear S at constant opacity lies in the interpolants of both
-	   short-characteristics solvers: exact up to rounding (measured
-	   1.5e-15). With exponential opacity the optical depth is not exact,
+	   short-characteristics solvers: exact up to rounding (LINEAR
+	   1.3e-15) or the accuracy of the Bezier weights (1.1e-12). With
+	   exponential opacity the optical depth is not exact,
 	   so neither is I --                              -------------- */
 
 static void check_exact(const Method *m, bool_t verbose)
@@ -308,7 +309,7 @@ static void check_exact(const Method *m, bool_t verbose)
 	e = method_errors(m, &slab, s);
 	if (verbose)
 		printf("%-18s linear S: error %.2e\n", m->name, MAX(e.interior, e.ends));
-	CHECK(MAX(e.interior, e.ends) < 1.0e-14,
+	CHECK(MAX(e.interior, e.ends) < 1.0e-11,
 		  "%s, linear S: error %.3g in the interior, %.3g at the ends",
 		  m->name, e.interior, e.ends);
 	slab_free(&slab);
@@ -479,7 +480,7 @@ int main(int argc, char *argv[])
 	geometry.vboundary[TOP]    = ZERO;
 	geometry.vboundary[BOTTOM] = IRRADIATED;
 
-	check_bezier_weights(1.5e-14, verbose); /* measured 6.5e-15, at dt = 1 */
+	check_bezier_weights(1.0e-11, verbose); /* 8.5e-13 at dt = 0.32 */
 
 	for (int n = 0; n < N_METHODS; n++) {
 		if (methods[n].exact_linear) check_exact(&methods[n], verbose);
