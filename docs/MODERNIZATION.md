@@ -212,7 +212,7 @@ on perturbed FAL-C (82 depths):
 
 | ID | Sev | Issue | Where | Evidence | Status |
 |---|---|---|---|---|---|
-| [N-1](https://github.com/dwijn/RH/issues/16) | high | No convergence report: at `N_MAX_ITER` the loop ends silently and output is written as if converged; log has no converged/not-converged line; exit status 0 | `iterate.c:132`, `rhf1d/rhf1d.c:91-131` | all runs | open |
+| [N-1](https://github.com/dwijn/RH/issues/16) | high | No convergence report: at `N_MAX_ITER` the loop ends silently and output is written as if converged; log has no converged/not-converged line; exit status 0 | `iterate.c:132`, `rhf1d/rhf1d.c:91-131` | all runs | fixed |
 | [N-2](https://github.com/dwijn/RH/issues/17) | high | Ng acceleration without safeguards: one global coefficient set for all levels/depths weighted by 1/n; no positivity, residual or conditioning check; history not reset after relaxation, ne or HSE updates | `accelerate.c:88-122` | He_large Ng jump 0.34 → 20.7; FALC_shock H_6 SIGFPE with Ng, converges in 115 without | open |
 | [N-3](https://github.com/dwijn/RH/issues/18) | high | Convergence criterion is not an accuracy guarantee: max relative change over all levels/depths, dominated by trace levels, measures Ng jumps, ignores PRD ρ, background J and ne | `maxchange.c:43`, `iterate.c:132` | He_large "converged" to 1e-3 at 1 thread (108 iterations) and 4 threads (48) differ by 1.4 %; MgI+II at 1e-6 vs 1e-9 differ by 2e-5 | open |
 | [N-4](https://github.com/dwijn/RH/issues/19) | high | PRD ρ iteration is Λ-iteration with populations fixed; early exit at `PRD_ITER_LIMIT` makes the map discontinuous → limit cycles; ρ never clipped (ρ < 0 possible after Ng) | `redistribute.c:74-105`, `scatter.c:346,765` | H_6 FALC at 1e-8 stalls at 3–9e-4 for 600 iterations; converges in 142 with fixed 3 sub-iterations; FALXCO H_6 (PRD) no convergence, H_6_CRD converges in 17 | open |
@@ -380,6 +380,77 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-10-16 — Runs report whether they converged, also in the exit status (breaking) (N-1)
+
+- `Iterate()` now ends with "Converged in N iterations: max change … <
+  ITER_LIMIT = …", or with a WARNING "NOT CONVERGED after N iterations: max
+  change … >= ITER_LIMIT = …" saying that the output is not a converged
+  solution. Before, a run that hit `N_MAX_ITER` ended silently and wrote
+  its output as if it had converged. All four geometries.
+- The exit status says how the run went (documented in `error.h` and the
+  README):
+
+  | Status | Meaning |
+  |---|---|
+  | 0 | completed and converged |
+  | 1–63 | completed, with problems, as a bitmask; output is written. 1 = populations not converged |
+  | 70 | fatal error (EX_SOFTWARE in sysexits.h); see the TERMINATING_ERROR message |
+  | 128+n | killed by signal n (136: trapped floating-point exception) |
+
+  Problems of a completed run can occur together, hence the bitmask; six
+  bits are available, one is used so far (PRD and electron-density
+  convergence get theirs when they are checked). Fatal errors exit with one
+  code instead of 2 (`ERROR_LEVEL_1`) and 3 (`ERROR_LEVEL_2`): they are rare,
+  a user cannot act on a category, and the message says what went wrong.
+- A run with a deliberately small `N_MAX_ITER` now exits with 1; scripts
+  that test for success should test for 0, or accept bit 1.
+  `run_tests.sh` and `analyze_run.py` treat 1–63 as completed.
+- Verified: no input → 70; CaII CRD at `N_MAX_ITER = 4` → 1 with the NOT
+  CONVERGED warning, at 200 → 0 after 10 iterations; the regression suite
+  is byte-identical to the previous build.
+
+### 2026-10-16 — Solver redesign planned (S track); plan steps 3 to 6 revised
+
+Plan step 4 (convergence robustness) is replaced by a redesign of the
+iteration scheme instead of patches to it. Design, rationale, cost model,
+traps and work items are in `docs/SOLVER.md`; the work items are S-1 to S-9
+in §3.8.
+
+- Why: RH's Ng is Anderson acceleration (type II) solved through normal
+  equations without safeguards, weighted so that it fits a different
+  quantity than the convergence test measures; the PRD and ne loops are a
+  block splitting of one coupled system, which can cycle or diverge
+  although the coupled problem has a solution (N-2, N-4, N-6, N-10).
+- What: a monolithic residual solved by globalized inexact Newton–Krylov
+  with MALI as preconditioner, built in stages. First a fair comparison
+  (S-1 measuring stick, S-2 deterministic MALI map), then stabilized
+  Anderson (S-3) against Newton–GMRES on the MALI map (S-4), decided by
+  the S-5 experiment with criteria fixed beforehand.
+- Plan step 3 now separates two test tiers: regression (must pass; a
+  non-default solver is checked on converged solutions) and stress
+  (convergence and performance, including RMHD cut-outs, Q-18).
+- Steps 5 and 6: the items that depend on how Γ is built and stored (P-2,
+  P-5, P-6, M-2, M-3) wait for S-5; the rest is unaffected.
+- `docs/make_issues.py` knows the S area (label `solver`, plan step 4).
+
+No code changes; the regression suite is unaffected.
+
+### 2026-10-16 — One code style, enforced by clang-format
+
+The code followed Emacs's C mode (2-space indentation with leading runs
+of 8 spaces stored as tabs), which looked broken in any editor not set
+to 8-column tabs. All C sources are now formatted by clang-format
+(`.clang-format`): K&R braces, one tab per level shown as 4 columns,
+spaces for alignment, aligned declarations and assignments, no line
+limit yet (existing line breaks kept). `.editorconfig` sets tab width 4
+for editors and GitHub, a CI job rejects unformatted code, and
+`.git-blame-ignore-revs` lets `git blame` skip the reformat commit. The
+reformat changes no machine code (all 27 programs compile identically).
+With 4-column tabs, 960 lines exceed 80 columns (56 before), mostly in
+deeply nested loops; they are left for the structural work (step 7).
+Function and variable naming remains inconsistent (camelCase,
+Capitalized, snake_case); also for step 7.
 
 ### 2026-10-16 — MULTI atmospheres from readtrujillo have velocities in km/s (B-17)
 
