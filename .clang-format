@@ -1,0 +1,28 @@
+# RH code style: K&R braces, one tab per indentation level (shown as 4
+# columns), spaces for alignment. No line-length limit for now: existing
+# line breaks are kept.
+BasedOnStyle: LLVM
+Language: Cpp
+IndentWidth: 4
+TabWidth: 4
+UseTab: ForContinuationAndIndentation
+ColumnLimit: 0
+BreakBeforeBraces: Linux
+IndentCaseLabels: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: true
+AlignAfterOpenBracket: Align
+AlignConsecutiveMacros: Consecutive
+AlignConsecutiveAssignments: Consecutive
+AlignConsecutiveDeclarations: Consecutive
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 0
+ReflowComments: true
+SortIncludes: Never
+PointerAlignment: Right
+SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: true
