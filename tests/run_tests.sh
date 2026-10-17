@@ -135,15 +135,19 @@ prepare() {
 # with problems (bit 1: populations not converged, which is expected here,
 # since the cases stop after 4 iterations); 70 = fatal error; >128 = signal
 completed() { [ "$1" -ge 0 ] && [ "$1" -le 63 ]; }
+# Sanitizers exit with 99 when they report an error (their default, 1,
+# would look like "not converged")
+SAN_OPTIONS=detect_leaks=0:exitcode=99   # ASan; UBSan gets exitcode=99
 
 # execute TREE GEOM -> runs in RUNDIR, returns the program's exit status
 execute() {
   local bin="$1/$(geomdir $2)/$(geomdir $2)"
   if [ -x /usr/bin/time ]; then
-    ( cd "$RUNDIR" && ASAN_OPTIONS=detect_leaks=0 \
+    ( cd "$RUNDIR" && ASAN_OPTIONS=$SAN_OPTIONS UBSAN_OPTIONS=exitcode=99 \
         /usr/bin/time $TIMEFLAG -o time.txt "$bin" > log.log 2>&1 )
   else
-    ( cd "$RUNDIR" && ASAN_OPTIONS=detect_leaks=0 "$bin" > log.log 2>&1 )
+    ( cd "$RUNDIR" && ASAN_OPTIONS=$SAN_OPTIONS UBSAN_OPTIONS=exitcode=99 \
+        "$bin" > log.log 2>&1 )
   fi
 }
 

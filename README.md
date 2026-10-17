@@ -60,3 +60,10 @@ their exit status:
 
 A batch script can test for 0, or for `status < 64` if unconverged runs
 are expected (for example with a deliberately small `N_MAX_ITER`).
+
+So far only the convergence of the populations is checked, including runs
+stopped early with a `STOP_RH` file. The PRD, chemical-equilibrium and
+hydrostatic sub-iterations still stop at their own limits without setting
+a bit. A run with `N_MAX_ITER = 0` (formal solution only) exits with 0.
+The auxiliary programs (`solve1d`, `solve2d`, ...) have their own
+iteration and always exit with 0 when they complete.

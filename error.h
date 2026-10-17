@@ -22,7 +22,10 @@ enum errorlevel {MESSAGE, WARNING, ERROR_LEVEL_1, ERROR_LEVEL_2};
          0        the run completed and converged
          1 - 63   the run completed, with problems: a bitmask (several
                   can occur together; the output files are written)
-                    1  populations not converged (N_MAX_ITER reached)
+                    1  populations not converged (N_MAX_ITER reached,
+                       or stopped with STOP_RH)
+                  (PRD, chemical-equilibrium and hydrostatic convergence
+                  are not checked yet)
          70       fatal error (EX_SOFTWARE in sysexits.h): the run
                   stopped, see the TERMINATING_ERROR message
          128 + n  killed by signal n, e.g. 136 for a trapped floating-

@@ -51,7 +51,7 @@ void Iterate(int NmaxIter, double iterLimit)
   register int niter, nact;
 
   bool_t    eval_operator, write_analyze_output, equilibria_only,
-            converged = FALSE;
+            converged = FALSE, stopped = FALSE;
   int       Ngorder;
   double    dpopsmax = 0.0, PRDiterlimit;
   Atom     *atom;
@@ -82,7 +82,10 @@ void Iterate(int NmaxIter, double iterLimit)
   while (niter <= NmaxIter ||
 	 (input.CR_Nstep > 0 && niter <= input.CR_Nstep)) {
 
-    if (StopRequested()) return;
+    if (StopRequested()) {
+      stopped = TRUE;
+      break;
+    }
     
     getCPU(2, TIME_START, NULL);
 
@@ -179,6 +182,12 @@ void Iterate(int NmaxIter, double iterLimit)
     sprintf(messageStr, "\n -- Converged in %d iterations: max change"
 	    " %.4E < ITER_LIMIT = %.4E\n", niter, dpopsmax, iterLimit);
     Error(MESSAGE, routineName, messageStr);
+  } else if (stopped) {
+    sprintf(messageStr, "Stopped on request (STOP_RH) after %d iterations:"
+	    " NOT CONVERGED.\n The output is not a converged solution",
+	    niter - 1);
+    Error(WARNING, routineName, messageStr);
+    SetExitFlag(RH_EXIT_NOT_CONVERGED);
   } else {
     sprintf(messageStr, "NOT CONVERGED after %d iterations: max change"
 	    " %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"

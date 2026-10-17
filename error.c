@@ -67,7 +67,9 @@ static int exitFlags = 0;
 
 void SetExitFlag(int flag)
 {
-  exitFlags |= flag;
+  /* --- Only bits 1-63: higher statuses mean failure -- ---------- */
+
+  exitFlags |= (flag & 63);
 }
 
 int ExitStatus(void)
