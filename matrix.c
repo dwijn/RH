@@ -1,49 +1,46 @@
 /* ------- file: -------------------------- matrix.c ----------------
 
-       Version:       rh2.0
-       Author:        Han Uitenbroek (huitenbroek@nso.edu)
-       Last modified: Thu Oct  8 16:57:27 2020 --
+	   Version:       rh2.0
+	   Author:        Han Uitenbroek (huitenbroek@nso.edu)
+	   Last modified: Thu Oct  8 16:57:27 2020 --
 
-       --------------------------                      ----------RH-- */
+	   --------------------------                      ----------RH-- */
 
 /* --- Routines to create 2-dimensional arrays that are contiguous in
-       memory. Therefore the whole array pointed to by pointer **matrix_??
-       can be addressed as either 1-dimensional array with pointer
-       matrix_??[0], or as 2-dimensional array as matrix_??[i][j].
+	   memory. Therefore the whole array pointed to by pointer **matrix_??
+	   can be addressed as either 1-dimensional array with pointer
+	   matrix_??[0], or as 2-dimensional array as matrix_??[i][j].
 
  Note: space is initialized to zeros by using calloc rather than malloc.
 
-       --                                              -------------- */
- 
+	   --                                              -------------- */
+
 #include <stdlib.h>
 
 #include "rh.h"
 #include "error.h"
 
-
 /* --- Function prototypes --                          -------------- */
-
 
 /* --- Global variables --                             -------------- */
 
-extern char   messageStr[];
-
+extern char messageStr[];
 
 /* ------- begin -------------------------- matrix_char.c ----------- */
 
 char **matrix_char(int Nrow, int Ncol)
 {
-  register int i;
+	register int i;
 
-  char *theMatrix, **Matrix;
-  int   typeSize = sizeof(char), pointerSize = sizeof(char *);
+	char *theMatrix, **Matrix;
+	int   typeSize = sizeof(char), pointerSize = sizeof(char *);
 
-  theMatrix = (char *)  calloc(Nrow * Ncol, typeSize);
-  Matrix    = (char **) malloc(Nrow * pointerSize);
-  for (i = 0;  i < Nrow;  i++, theMatrix += Ncol)
-    Matrix[i] = theMatrix;
+	theMatrix = (char *) calloc(Nrow * Ncol, typeSize);
+	Matrix    = (char **) malloc(Nrow * pointerSize);
+	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
+		Matrix[i] = theMatrix;
 
-  return Matrix;
+	return Matrix;
 }
 /* ------- end ---------------------------- matrix_char.c ----------- */
 
@@ -51,17 +48,17 @@ char **matrix_char(int Nrow, int Ncol)
 
 int **matrix_int(int Nrow, int Ncol)
 {
-  register int i;
+	register int i;
 
-  int *theMatrix, **Matrix, typeSize = sizeof(int),
-       pointerSize = sizeof(int *);
+	int *theMatrix, **Matrix, typeSize = sizeof(int),
+							  pointerSize = sizeof(int *);
 
-  theMatrix = (int *)  calloc(Nrow * Ncol, typeSize);
-  Matrix    = (int **) malloc(Nrow * pointerSize);
-  for (i = 0;  i < Nrow;  i++, theMatrix += Ncol)
-    Matrix[i] = theMatrix;
+	theMatrix = (int *) calloc(Nrow * Ncol, typeSize);
+	Matrix    = (int **) malloc(Nrow * pointerSize);
+	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
+		Matrix[i] = theMatrix;
 
-  return Matrix;
+	return Matrix;
 }
 /* ------- end ---------------------------- matrix_int.c ------------ */
 
@@ -69,19 +66,19 @@ int **matrix_int(int Nrow, int Ncol)
 
 double **matrix_double(int Nrow, int Ncol)
 {
-  register int i;
+	register int i;
 
-  int     typeSize = sizeof(double), pointerSize = sizeof(double *);
-  size_t  memSize;
-  double *theMatrix, **Matrix;
+	int     typeSize = sizeof(double), pointerSize = sizeof(double *);
+	size_t  memSize;
+	double *theMatrix, **Matrix;
 
-  memSize   = ((long) Nrow * (long) Ncol); 
-  theMatrix = (double *)  calloc(memSize, typeSize);
-  Matrix    = (double **) malloc(Nrow * pointerSize);
-  for (i = 0;  i < Nrow;  i++, theMatrix += Ncol)
-    Matrix[i] = theMatrix;
+	memSize   = ((long) Nrow * (long) Ncol);
+	theMatrix = (double *) calloc(memSize, typeSize);
+	Matrix    = (double **) malloc(Nrow * pointerSize);
+	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
+		Matrix[i] = theMatrix;
 
-  return Matrix;
+	return Matrix;
 }
 /* ------- end ---------------------------- matrix_double.c --------- */
 
@@ -89,16 +86,16 @@ double **matrix_double(int Nrow, int Ncol)
 
 void freeMatrix(void **matrix)
 {
-  const char routineName[] = "freeMatrix";
+	const char routineName[] = "freeMatrix";
 
-  if (matrix == NULL  ||  matrix[0] == NULL) {
-    sprintf(messageStr, "Trying to free NULL pointer");
-    Error(ERROR_LEVEL_2, routineName, messageStr);
-  } else {
-    /* --- Free the memory allocated for matrix matrix -- ----------- */
+	if (matrix == NULL || matrix[0] == NULL) {
+		sprintf(messageStr, "Trying to free NULL pointer");
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	} else {
+		/* --- Free the memory allocated for matrix matrix -- ----------- */
 
-    free(matrix[0]);
-    free(matrix);
-  }
+		free(matrix[0]);
+		free(matrix);
+	}
 }
 /* ------- end ---------------------------- freeMatrix.c ------------ */

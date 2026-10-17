@@ -23,6 +23,18 @@ defaults:
     shell: bash       # -eo pipefail: a failing command before | tee fails the step
 
 jobs:
+  format:
+    name: code format (clang-format)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: clang-format
+        run: pip install clang-format==19.1.7
+      - name: Check formatting
+        run: |
+          git ls-files '*.c' '*.h' | grep -v '^tests/' |
+            xargs clang-format --dry-run --Werror
+
   build:
     name: build (${{ matrix.os }}, ${{ matrix.cc }})
     runs-on: ${{ matrix.os }}

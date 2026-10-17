@@ -1,22 +1,22 @@
 /* ------- file: -------------------------- rhf1d.c -----------------
 
-       Version:       rh2.0, 1-D plane-parallel
-       Author:        Han Uitenbroek (huitenbroek@nso.edu)
-       Last modified: Fri May  1 08:25:50 2020 --
+	   Version:       rh2.0, 1-D plane-parallel
+	   Author:        Han Uitenbroek (huitenbroek@nso.edu)
+	   Last modified: Fri May  1 08:25:50 2020 --
 
-       --------------------------                      ----------RH-- */
+	   --------------------------                      ----------RH-- */
 
 /* --- Main routine of 1D plane-parallel radiative transfer program.
-       MALI scheme formulated according to Rybicki & Hummer
+	   MALI scheme formulated according to Rybicki & Hummer
 
   See: G. B. Rybicki and D. G. Hummer 1991, A&A 245, p. 171-181
-       G. B. Rybicki and D. G. Hummer 1992, A&A 263, p. 209-215
+	   G. B. Rybicki and D. G. Hummer 1992, A&A 263, p. 209-215
 
-       Formal solution is performed with Feautrier difference scheme
-       in static atmospheres, and with piecewise quadratic integration
-       in moving atmospheres.
+	   Formal solution is performed with Feautrier difference scheme
+	   in static atmospheres, and with piecewise quadratic integration
+	   in moving atmospheres.
 
-       --                                              -------------- */
+	   --                                              -------------- */
 
 #include <string.h>
 
@@ -31,111 +31,108 @@
 #include "inputs.h"
 #include "xdr.h"
 
-
 /* --- Function prototypes --                          -------------- */
-
 
 /* --- Global variables --                             -------------- */
 
 enum Topology topology = ONE_D_PLANE;
 
-Atmosphere atmos;
-Geometry geometry;
-Spectrum spectrum;
+Atmosphere   atmos;
+Geometry     geometry;
+Spectrum     spectrum;
 ProgramStats stats;
-InputData input;
-CommandLine commandline;
-char messageStr[MAX_MESSAGE_LENGTH];
-
+InputData    input;
+CommandLine  commandline;
+char         messageStr[MAX_MESSAGE_LENGTH];
 
 /* ------- begin -------------------------- rhf1d.c ----------------- */
 
 int main(int argc, char *argv[])
 {
-  bool_t write_analyze_output, equilibria_only;
-  int    niter, nact;
-  double deltaJ;
-  
-  Atom *atom;
-  Molecule *molecule;
+	bool_t write_analyze_output, equilibria_only;
+	int    niter, nact;
+	double deltaJ;
 
-  /* --- Read input data and initialize --             -------------- */
+	Atom     *atom;
+	Molecule *molecule;
 
-  setOptions(argc, argv);
-  getCPU(0, TIME_START, NULL);
-  SetFPEtraps();
+	/* --- Read input data and initialize --             -------------- */
 
-  readInput();
-  spectrum.updateJ = TRUE;
+	setOptions(argc, argv);
+	getCPU(0, TIME_START, NULL);
+	SetFPEtraps();
 
-  getCPU(1, TIME_START, NULL);
-  MULTIatmos(&atmos, &geometry);
-  if (atmos.Stokes) Bproject();
+	readInput();
+	spectrum.updateJ = TRUE;
 
-  readAtomicModels();
-  readMolecularModels();
-  SortLambda();
-  
-  getBoundary(&geometry);
-  
-  Background(write_analyze_output=TRUE, equilibria_only=FALSE);
-  convertScales(&atmos, &geometry);
+	getCPU(1, TIME_START, NULL);
+	MULTIatmos(&atmos, &geometry);
+	if (atmos.Stokes) Bproject();
 
-  getProfiles();
-  initSolution();
-  initScatter();
+	readAtomicModels();
+	readMolecularModels();
+	SortLambda();
 
-  getCPU(1, TIME_POLL, "Total Initialize");
+	getBoundary(&geometry);
 
-  /* --- Solve radiative transfer for active ingredients -- --------- */
+	Background(write_analyze_output = TRUE, equilibria_only = FALSE);
+	convertScales(&atmos, &geometry);
 
-  Iterate(input.NmaxIter, input.iterLimit);
+	getProfiles();
+	initSolution();
+	initScatter();
 
-  /* --- If appropriate final solution(s) should be polarized -- ---- */
-  
-  adjustStokesMode();
-  
-  niter = 0;
-  while (niter < input.NmaxScatter) {
-    deltaJ = solveSpectrum(FALSE, FALSE);
-    if (!input.backgr_pol && deltaJ <= input.iterLimit) break;
+	getCPU(1, TIME_POLL, "Total Initialize");
 
-    niter++;
-  }
-  
-  /* --- Write output files --                         -------------- */
+	/* --- Solve radiative transfer for active ingredients -- --------- */
 
-  if (atmos.hydrostatic) {
-    geometry.scale = COLUMN_MASS;
-    convertScales(&atmos, &geometry);
-  }
-  getCPU(1, TIME_START, NULL);
+	Iterate(input.NmaxIter, input.iterLimit);
 
-  writeInput();
-  writeAtmos(&atmos);
-  writeGeometry(&geometry);
-  writeSpectrum(&spectrum);
-  writeFlux(FLUX_DOT_OUT);
+	/* --- If appropriate final solution(s) should be polarized -- ---- */
 
-  for (nact = 0;  nact < atmos.Nactiveatom;  nact++) {
-    atom = atmos.activeatoms[nact];
+	adjustStokesMode();
 
-    writeAtom(atom);
-    writePopulations(atom);
-    writeRadRate(atom);
-    writeCollisionRate(atom);
-    writeDamping(atom);
-  } 
-  for (nact = 0;  nact < atmos.Nactivemol;  nact++) {
-    molecule = atmos.activemols[nact];
-    writeMolPops(molecule);
-  }
+	niter = 0;
+	while (niter < input.NmaxScatter) {
+		deltaJ = solveSpectrum(FALSE, FALSE);
+		if (!input.backgr_pol && deltaJ <= input.iterLimit) break;
 
-  writeOpacity();
+		niter++;
+	}
 
-  getCPU(1, TIME_POLL, "Write output");
-  printTotalCPU();
+	/* --- Write output files --                         -------------- */
 
-  return ExitStatus();
+	if (atmos.hydrostatic) {
+		geometry.scale = COLUMN_MASS;
+		convertScales(&atmos, &geometry);
+	}
+	getCPU(1, TIME_START, NULL);
+
+	writeInput();
+	writeAtmos(&atmos);
+	writeGeometry(&geometry);
+	writeSpectrum(&spectrum);
+	writeFlux(FLUX_DOT_OUT);
+
+	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
+		atom = atmos.activeatoms[nact];
+
+		writeAtom(atom);
+		writePopulations(atom);
+		writeRadRate(atom);
+		writeCollisionRate(atom);
+		writeDamping(atom);
+	}
+	for (nact = 0; nact < atmos.Nactivemol; nact++) {
+		molecule = atmos.activemols[nact];
+		writeMolPops(molecule);
+	}
+
+	writeOpacity();
+
+	getCPU(1, TIME_POLL, "Write output");
+	printTotalCPU();
+
+	return ExitStatus();
 }
 /* ------- end ---------------------------- rhf1d.c ----------------- */

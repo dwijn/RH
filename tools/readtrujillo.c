@@ -1,10 +1,10 @@
 /* ------- file: -------------------------- readtrujillo.c ----------
 
-       Version:       rh1.0
-       Author:        Han Uitenbroek (huitenbroek@nso.edu)
-       Last modified: Tue Apr  4 17:30:52 2000 --
+	   Version:       rh1.0
+	   Author:        Han Uitenbroek (huitenbroek@nso.edu)
+	   Last modified: Tue Apr  4 17:30:52 2000 --
 
-       --------------------------                      ----------RH-- */
+	   --------------------------                      ----------RH-- */
 
 #include <math.h>
 #include <stdlib.h>
@@ -18,100 +18,96 @@
 #include "inputs.h"
 #include "constant.h"
 
-
-#define COMMENT_CHAR      "#"
-#define DEGREE_TO_RADIAN  0.017453293
-#define GAUSS_TO_TESLA    1.0E-4
-
+#define COMMENT_CHAR     "#"
+#define DEGREE_TO_RADIAN 0.017453293
+#define GAUSS_TO_TESLA   1.0E-4
 
 /* --- Function prototypes --                          -------------- */
 
 void writeMULTIatmos(Geometry *geometry, Atmosphere *atmos,
-		     char *modelName);
-
+					 char *modelName);
 
 /* --- Global variables --                             -------------- */
 
 CommandLine commandline;
-char messageStr[MAX_MESSAGE_LENGTH];
-
+char        messageStr[MAX_MESSAGE_LENGTH];
 
 /* ------- begin -------------------------- readTrujillo.c ---------- */
 
 int main(int argc, char *argv[])
 {
-  register int k;
+	register int k;
 
-  char   line[MAX_LINE_SIZE];
-  bool_t exit_on_EOF;
-  int    Nread;
-  double Pe;
+	char   line[MAX_LINE_SIZE];
+	bool_t exit_on_EOF;
+	int    Nread;
+	double Pe;
 
-  Atmosphere atmos;
-  Geometry geometry;
-  FILE  *fp_Trujillo;
+	Atmosphere atmos;
+	Geometry   geometry;
+	FILE      *fp_Trujillo;
 
-  commandline.logfile = stdout;
-  if (argc < 3) {
-    fprintf(stderr, "Usage : %s  Trujillo.model  MULTI_name\n\n", argv[0]);
-    exit(1);
-  }
+	commandline.logfile = stdout;
+	if (argc < 3) {
+		fprintf(stderr, "Usage : %s  Trujillo.model  MULTI_name\n\n", argv[0]);
+		exit(1);
+	}
 
-  if ((fp_Trujillo = fopen(argv[1], "r")) == NULL) {
-    sprintf(messageStr, "Unable to open input file %s", argv[1]);
-    Error(ERROR_LEVEL_2, argv[0], messageStr);
-  }
+	if ((fp_Trujillo = fopen(argv[1], "r")) == NULL) {
+		sprintf(messageStr, "Unable to open input file %s", argv[1]);
+		Error(ERROR_LEVEL_2, argv[0], messageStr);
+	}
 
-  strncpy(atmos.ID, "Atmospheric model from Javier Trujillo Bueno",
-	  ATMOS_ID_WIDTH);
-  atmos.ID[ATMOS_ID_WIDTH-1] = '\0';
+	strncpy(atmos.ID, "Atmospheric model from Javier Trujillo Bueno",
+			ATMOS_ID_WIDTH);
+	atmos.ID[ATMOS_ID_WIDTH - 1] = '\0';
 
-  getLine(fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF=TRUE);
-  Nread = sscanf(line, "%d", &geometry.Ndep);
-  if (Nread != 1) {
-    sprintf(messageStr, "Malformed input line:\n %.200s", line);
-    Error(ERROR_LEVEL_2, argv[0], messageStr);
-  }
-  atmos.Nspace = geometry.Ndep;
+	getLine(fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF = TRUE);
+	Nread = sscanf(line, "%d", &geometry.Ndep);
+	if (Nread != 1) {
+		sprintf(messageStr, "Malformed input line:\n %.200s", line);
+		Error(ERROR_LEVEL_2, argv[0], messageStr);
+	}
+	atmos.Nspace = geometry.Ndep;
 
-  atmos.gravity    = POW10(4.44);
-  geometry.scale   = TAU500;
-  geometry.tau_ref = (double *) malloc(geometry.Ndep * sizeof(double));
+	atmos.gravity    = POW10(4.44);
+	geometry.scale   = TAU500;
+	geometry.tau_ref = (double *) malloc(geometry.Ndep * sizeof(double));
 
-  atmos.T      = (double *) malloc(geometry.Ndep * sizeof(double));
-  atmos.ne     = (double *) malloc(geometry.Ndep * sizeof(double));
-  geometry.vel = (double *) malloc(geometry.Ndep * sizeof(double));
-  atmos.vturb  = (double *) malloc(geometry.Ndep * sizeof(double));
+	atmos.T      = (double *) malloc(geometry.Ndep * sizeof(double));
+	atmos.ne     = (double *) malloc(geometry.Ndep * sizeof(double));
+	geometry.vel = (double *) malloc(geometry.Ndep * sizeof(double));
+	atmos.vturb  = (double *) malloc(geometry.Ndep * sizeof(double));
 
-  atmos.B       = (double *) malloc(geometry.Ndep * sizeof(double));
-  atmos.gamma_B = (double *) malloc(geometry.Ndep * sizeof(double));
-  atmos.chi_B   = (double *) malloc(geometry.Ndep * sizeof(double));
+	atmos.B       = (double *) malloc(geometry.Ndep * sizeof(double));
+	atmos.gamma_B = (double *) malloc(geometry.Ndep * sizeof(double));
+	atmos.chi_B   = (double *) malloc(geometry.Ndep * sizeof(double));
 
-  for (k = geometry.Ndep-1;  k >= 0;  k--) {
-    getLine(fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF=TRUE);
-    Nread = sscanf(line, "%lf %lf %lf %lf %lf %lf %lf %lf",
-		   &geometry.tau_ref[k], &atmos.T[k], &Pe, &atmos.vturb[k],
-		   &atmos.B[k], &geometry.vel[k], &atmos.gamma_B[k],
-		   &atmos.chi_B[k]);
-    if (Nread != 8) {
-      sprintf(messageStr, "Malformed input line:\n %.200s", line);
-      Error(ERROR_LEVEL_2, argv[0], messageStr);
-    }
+	for (k = geometry.Ndep - 1; k >= 0; k--) {
+		getLine(fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF = TRUE);
+		Nread = sscanf(line, "%lf %lf %lf %lf %lf %lf %lf %lf",
+					   &geometry.tau_ref[k], &atmos.T[k], &Pe, &atmos.vturb[k],
+					   &atmos.B[k], &geometry.vel[k], &atmos.gamma_B[k],
+					   &atmos.chi_B[k]);
+		if (Nread != 8) {
+			sprintf(messageStr, "Malformed input line:\n %.200s", line);
+			Error(ERROR_LEVEL_2, argv[0], messageStr);
+		}
 
-    geometry.tau_ref[k] = POW10(geometry.tau_ref[k]);
-    atmos.ne[k] = (Pe * ERG_TO_JOULE) / (KBOLTZMANN * atmos.T[k]);
+		geometry.tau_ref[k] = POW10(geometry.tau_ref[k]);
+		atmos.ne[k]         = (Pe * ERG_TO_JOULE) / (KBOLTZMANN * atmos.T[k]);
 
-    geometry.vel[k] *= CM_TO_M;
-    atmos.vturb[k]  *= CM_TO_M;
+		geometry.vel[k] *= CM_TO_M;
+		atmos.vturb[k] *= CM_TO_M;
 
-    atmos.B[k]       *= GAUSS_TO_TESLA;
-    atmos.gamma_B[k] *= DEGREE_TO_RADIAN;
-    atmos.chi_B[k]   *= DEGREE_TO_RADIAN;
-  }
-  atmos.H_LTE = TRUE;
+		atmos.B[k] *= GAUSS_TO_TESLA;
+		atmos.gamma_B[k] *= DEGREE_TO_RADIAN;
+		atmos.chi_B[k] *= DEGREE_TO_RADIAN;
+	}
+	atmos.H_LTE = TRUE;
 
-  fclose(fp_Trujillo);
-  writeMULTIatmos(&geometry, &atmos, argv[2]);
-  return 0;
+	fclose(fp_Trujillo);
+	writeMULTIatmos(&geometry, &atmos, argv[2]);
+	return 0;
 }
 /* ------- end ---------------------------- readTrujillo.c ---------- */

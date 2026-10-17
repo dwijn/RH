@@ -46,6 +46,21 @@ The default build type is `RelWithDebInfo` (`-O2 -g`). Options, given as
 Intel compilers are run with `-fp-model=precise`: RH needs IEEE
 floating-point semantics.
 
+## Code style
+
+C code follows `.clang-format`: K&R braces, one tab per indentation level
+(shown as 4 columns; `.editorconfig` tells editors and GitHub), spaces for
+alignment. Format before committing with clang-format 19 (`pip install
+clang-format==19.1.7`, or your package manager):
+
+```
+git ls-files '*.c' '*.h' | grep -v '^tests/' | xargs clang-format -i
+```
+
+CI rejects unformatted code. `git config blame.ignoreRevsFile
+.git-blame-ignore-revs` makes `git blame` skip the commit that reformatted
+the whole tree.
+
 ## Exit status
 
 `rhf1d`, `rhsc2d`, `rhsc3d` and `rhsphere` report the outcome of a run in
