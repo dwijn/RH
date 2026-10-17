@@ -1,5 +1,4 @@
-# Tools for preparing atomic data. constructatom.c, adjustbf.c and lande.c
-# are not built (see issue Q-10).
+# Tools for preparing atomic data.
 
 rh_program(addgrad addgrad addgrad.c modelatom.c rawatom.c)
 rh_program(convertatom convertatom convertatom.c modelatom.c)
