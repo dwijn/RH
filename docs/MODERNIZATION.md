@@ -192,7 +192,7 @@ on perturbed FAL-C (82 depths):
 | [B-2](https://github.com/dwijn/RH/issues/3) | high | `PRD_NG_ORDER > 0` with default `PRD_NG_PERIOD = 0` divides by zero | `readinput.c:99`, `accelerate.c:88` | SIGFPE | fixed |
 | [B-3](https://github.com/dwijn/RH/issues/4) | high | Collisional relaxation (`COLL_RELAX_NSTEP/FACTOR`) stops after one iteration with LTE populations: convergence test fires during the relaxation phase while collisions are scaled by up to 1e38 | `iterate.c:132`, `fillgamma.c:59` | FALXCO H_6: 1 iteration, delta 1.4e-12, LTE result | fixed |
 | [B-4](https://github.com/dwijn/RH/issues/5) | high | `CaII_large` crashes at setup (SIGFPE in `splineCoef` from `SortLambda`) | `sortlambda.c:387` | upstream and WIP | fixed |
-| [B-5](https://github.com/dwijn/RH/issues/6) | medium | Linear short-characteristics end point uses stale weights (`w2` not recomputed) | `rhf1d/piecewise_1D.c:126` | flux changes up to 1e-3 when fixed | open |
+| [B-5](https://github.com/dwijn/RH/issues/6) | medium | Linear short-characteristics end point uses stale weights (`w2` not recomputed) | `rhf1d/piecewise_1D.c:126` | flux changes up to 1e-3 when fixed | fixed |
 | [B-6](https://github.com/dwijn/RH/issues/7) | medium | Possible double counting of the cross-coupling term for multi-ion atoms (added once per transition sharing an upper level) | `fillgamma.c:279` | MgI+II converged populations shift 3e-3 at level 70 when changed; correct form not yet established | open — verify against an independent code (e.g. Lightweaver) |
 | [B-7](https://github.com/dwijn/RH/issues/8) | medium | 3-D: `Jgas` accumulated with `wmu` inside the to_obs loop, looks double counted | `rhsc3d/formal.c:370-374` | code reading | open |
 | [B-8](https://github.com/dwijn/RH/issues/9) | medium | `calcDistance()` falls off the end without a return value | `rhsc3d/geometry.c:265` | -Wreturn-type | fixed |
@@ -207,7 +207,7 @@ on perturbed FAL-C (82 depths):
 | [B-17](https://github.com/dwijn/RH/issues/94) | low | `writeMULTIatmos()` writes an uninitialized `height` for a GEOMETRIC depth scale (no branch for it); latent, both callers use other scales | `tools/writemulti.c:89` | -Wmaybe-uninitialized triage | fixed |
 | [B-18](https://github.com/dwijn/RH/issues/95) | low | `solve1d` reads the boundary-condition codes `btop`/`bbot` from stdin without validating them; an out-of-range code now gives a zero boundary intensity | `rhf1d/solve1d.c` | -Wmaybe-uninitialized triage | open |
 | [B-19](https://github.com/dwijn/RH/issues/113) | low | `StopRequested()` opens `STOP_RH` with `fopen` to test for it and never closes the file | `stopreq.c:39` | code reading | open |
-| [B-20](https://github.com/dwijn/RH/issues/128) | low | `VoigtHui()` returns NaN at a = v = 0: the Horner loops multiply numerator and denominator by z once too often, so the ratio is 0/0 at z = 0. Used for angle-dependent PRD (`rii.c`, `riiplane.c`), where a = 0 occurs only with zero damping | `voigt.c:324` | `test_voigt` (Q-14) | open |
+| [B-20](https://github.com/dwijn/RH/issues/128) | low | `VoigtHui()` returns NaN at a = v = 0: the Horner loops multiply numerator and denominator by z once too often, so the ratio is 0/0 at z = 0. Used for angle-dependent PRD (`rii.c`, `riiplane.c`), where a = 0 occurs only with zero damping | `voigt.c:324` | `test_voigt` (Q-14) | fixed |
 | [B-21](https://github.com/dwijn/RH/issues/135) | low | `BiLinear()` reads one element past `a_table` and `f` when `a` (or `b`) equals the last table node, extrapolates below the table but not above, and keeps its hunt indices in function statics; only caller is the Voigt `LOOKUP` table | `linear.c:56,75` | `test_interp` (Q-14) | open |
 | [B-22](https://github.com/dwijn/RH/issues/136) | low | `w3js()` accepts non-integer j−m and j1+j2+j3 and returns nonzero values (`w3js(0.5,0.5,0.5,0.5,−0.5,0)` = 1); `fact()` returns 1 for non-integer arguments; the symbol loses accuracy above j ≈ 40 (1e-9) and returns ±inf for j = 50–56 and 0 from 58 (factorial overflow); only caller is `paschen.c` at small J | `wigner.c:49,167` | `test_functions` (Q-14) | open |
 | [B-23](https://github.com/dwijn/RH/issues/137) | low | `Hunt()` returns one index too low when hunting downward onto a value equal to a table node, disagreeing with `Locate()`; harmless for linear and spline interpolation | `hunt.c:40,55` | `test_interp` (Q-14) | open |
@@ -232,8 +232,8 @@ on perturbed FAL-C (82 depths):
 | [N-14](https://github.com/dwijn/RH/issues/81) | medium | Results depend on depth resolution: on FALC_v10 (±10 km/s) the linear and Bezier formal solvers disagree by 5–16 % throughout the chromosphere, so the grid does not resolve the velocity gradients; there is no grid refinement and no resolution check | — | CaII on FALC_v10, linear vs Bezier vs parabolic | open |
 | [N-15](https://github.com/dwijn/RH/issues/82) | medium | 3-D horizontal interpolation of S, χ and I (`BICUBIC_3D`, the default) is not limited and can overshoot across a corrugated transition region (the 2-D `Quadr` has a monotonic option); possible contributor to N-10 | `rhsc3d/geometry.c:344,495,633` | code reading | open |
 | [N-16](https://github.com/dwijn/RH/issues/114) | low | When the iteration stops without converging, ne (`SOLVE_NE = ITERATION`) and hydrostatic equilibrium are updated once more after the last population solve, so the output populations do not belong to the output ne/atmosphere | `iterate.c:150-171` | code review of N-1 | open |
-| [N-17](https://github.com/dwijn/RH/issues/131) | medium | Cubic Bezier integration weights (`Bezier3_coeffs`, used by the default solver in all geometries and for Stokes) switch to a Taylor series at dt < 0.05 that stops at dt³: the weights are wrong by up to 1.2e-5 relative just below the switch, and the closed form above it loses digits to cancellation (9e-10 at dt = 0.056); I is off by about 1e-6 for a linear S, which the method should reproduce exactly | `bezier_aux.c:179` | `test_formal_1d` (Q-14) | open |
-| [N-18](https://github.com/dwijn/RH/issues/132) | low | `w2`/`w3` (linear and long-characteristics weights) use a two-term series for dtau < 5e-4 (relative error up to 4e-8) and closed forms with cancellation just above | `w3.c:23,42` | `test_formal_1d` (Q-14) | open |
+| [N-17](https://github.com/dwijn/RH/issues/131) | medium | Cubic Bezier integration weights (`Bezier3_coeffs`, used by the default solver in all geometries and for Stokes) switch to a Taylor series at dt < 0.05 that stops at dt³: the weights are wrong by up to 1.2e-5 relative just below the switch, and the closed form above it loses digits to cancellation (9e-10 at dt = 0.056); I is off by about 1e-6 for a linear S, which the method should reproduce exactly | `bezier_aux.c:179` | `test_formal_1d` (Q-14) | fixed |
+| [N-18](https://github.com/dwijn/RH/issues/132) | low | `w2`/`w3` (linear and long-characteristics weights) use a two-term series for dtau < 5e-4 (relative error up to 4e-8) and closed forms with cancellation just above | `w3.c:23,42` | `test_formal_1d` (Q-14) | fixed |
 | [N-19](https://github.com/dwijn/RH/issues/133) | low | The Bezier solvers' diagonal operator Psi = beta + theta leaves out that the control point moves with S(k) (Steffen-limited derivative): it differs from the true dI(k)/dS(k) by up to 28% on a smooth 1-D slab. Changes MALI's convergence rate, not the solution; relevant to the preconditioner of the S track | `rhf1d/bezier_1D.c:437`, 2-D/3-D Bezier | `test_formal_1d` (Q-14) | open |
 | [N-20](https://github.com/dwijn/RH/issues/138) | low | Gauss-Legendre weights accurate to only ~1e-14 (P'(x) evaluated at the previous Newton iterate, stop at 3e-14): weights sum short by 2.4e-14 at n = 64, polynomial exactness 5e-13 | `gaussleg.c:49-56` | `test_quadrature` (Q-14) | open |
 | [N-21](https://github.com/dwijn/RH/issues/139) | low | `SolveLinearEq(..., improve)`: iterative refinement with the residual in plain double gives no gain (Hilbert n = 8: 8.9e-7 with, 1.4e-7 without); a singular matrix with nonzero rows is not detected (zero pivot replaced by 1e-20) | `ludcmp.c` | `test_linalg` (Q-14) | open |
@@ -295,7 +295,7 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | [Q-8](https://github.com/dwijn/RH/issues/59) | medium | Memory ownership implicit; 493 allocations vs 310 frees; `matrix_double` has no NULL check | open |
 | [Q-9](https://github.com/dwijn/RH/issues/60) | medium | Headers not self-contained; reserved include-guard names; `rh.h` has none and pulls in `<rpc/types.h>` and `<pthread.h>` everywhere | open |
 | [Q-10](https://github.com/dwijn/RH/issues/61) | low | Dead or bit-rotted code: `collision_15d.c` (does not compile), `collision_Oslo.c`, `rhsphere/readinput.c`, `rhsphere/solveplane.c`, `tools/constructatom.c` (does not compile upstream either), `tools/adjustbf.c` | fixed |
-| [Q-11](https://github.com/dwijn/RH/issues/62) | low | Five Voigt algorithms plus Fortran variants | open |
+| [Q-11](https://github.com/dwijn/RH/issues/62) | low | Five Voigt algorithms plus Fortran variants | fixed |
 | [Q-12](https://github.com/dwijn/RH/issues/63) | low | `tests/make_tiled_2d_atmos.py` uses the wrong array order | fixed |
 | [Q-13](https://github.com/dwijn/RH/issues/64) | low | Python readers depend on `xdrlib` (removed in Python 3.13) | open |
 | [Q-14](https://github.com/dwijn/RH/issues/65) | — | No unit tests (Voigt, LU, splines, w3j, formal solvers on analytic slabs), no CI | open |
@@ -366,6 +366,14 @@ Ordered so that every step can be verified against upstream: byte-identical
    solutions against stored references, not on iteration 4) and stress
    (`run_stress.sh`, convergence and performance, including the RMHD
    cases). See [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md) §6.
+   *Progress 2026-10-17:* unit tests run by `ctest` (also under
+   ASan/UBSan in CI) for Voigt, the numerical kernels and the 1-D formal
+   solvers; one Voigt function replaces five (Q-11); Bezier and linear
+   weights accurate to 1e-12 (B-5, N-17, N-18). CI now compares each
+   change with its base commit (label `changes-results` for intended
+   changes) and reports drift from upstream. Remaining: 2-D/3-D solvers on
+   horizontally uniform slabs against the 1-D solutions, the spherical
+   Feautrier solver, RMHD stress cases (Q-18).
 4. **Solver redesign** (S track, §3.8, [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)) replaces
    the earlier list of convergence patches (Ng safeguards, PRD
    sub-iteration rework, ne preconditioning, positivity): S-1 and S-2,
@@ -391,6 +399,118 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-10-17 — One Voigt function, accurate to 2e-6, for profiles with and without polarization (changes results) (Q-11)
+
+- `Voigt(a, v, &F)` returns H and the Faraday-Voigt function F together,
+  from a hybrid of Weideman's rational approximation (N = 32) inside
+  |v| + a < 8 and the Laplace continued fraction (6 levels; Humlicek's
+  region I is its first level) outside, after Schreier (2018); H =
+  exp(-v²) exactly for a = 0. Against mpmath: relative error of H below
+  1.6e-6 wherever H ≥ 1e-12 H(a, 0), 2.7e-10 relative to line center, F
+  within 1e-9; about 50 ns per call.
+- It replaces all five algorithms of RH 2 (ARMSTRONG for profiles without
+  polarization, 1.2e-4; HUMLICEK with polarization, 8e-5; RYBICKI and
+  HUI_ETAL in the PRD redistribution code; the unused lookup table), so a
+  field-free run and a B = 0 Stokes run use the same profile. `humlicek.c`
+  and the `VoigtAlgorithm` argument are gone.
+- Results change by up to 2.3e-5 in I and 7.6e-5 in Q, U, V in the
+  regression cases (relative to the peak), the size of the old profile
+  errors.
+
+### 2026-10-17 — 1-D formal solvers tested on analytic slabs; accurate Bezier and linear weights (Q-14, B-5, N-17, N-18)
+
+- `test_formal_1d` runs the 1-D solvers on slabs whose source function is a
+  polynomial in optical depth, where the intensities in both directions are
+  known in closed form. It checks exactness for a linear S, the order of
+  convergence as the grid is refined (constant and exponentially varying
+  opacity), the diagonal operator against dI/dS, and the Bezier weights
+  against mpmath. Measured at 16 points per decade:
+
+  | Solver | order, emergent I | error, emergent I | Psi |
+  |---|---|---|---|
+  | BEZIER3 (default; 1-D only with velocities or Stokes, see N-23) | 4 | 9e-7 | approximate, 28% from dI/dS (N-19) |
+  | LINEAR | 2 | 1e-3 | exact |
+  | FEAUTRIER | 2 | 4e-4 | exact |
+  | FEAUTRIER_HERMITE | 4 (2 with varying opacity) | 4e-7 | not implemented |
+
+- B-5: the linear short-characteristics solver computed the last point of
+  every ray with the weights of the previous interval (`w2` not called
+  again). Its emergent intensity was off by up to 1e-5 relative for a
+  linear S, which it should reproduce exactly; now 1e-15.
+- N-17: the cubic Bezier weights used a Taylor series to dt³ below
+  dt = 0.05 (up to 1.2e-5 relative error) and closed forms that lose
+  digits to cancellation above. Now the series below |dt| = 0.2, with as
+  many terms as a relative error of 1e-12 needs (2 terms below 2e-6, up
+  to 9 near 0.2), the closed forms up to 40 and their expansion in 1/dt
+  above (finite for infinite dt): within 1.1e-12 of mpmath for dt from
+  1e-8 to 1e3. Bezier3 is the default solver in all geometries and for
+  Stokes, so this changes those results by up to about 7e-7. Cost: in
+  the 2-D memory case half of the 7.5e8 calls have dt < 1e-3; with the
+  terms matched to dt, run time is +3% (2-D) and +1% (3-D) at 1 thread;
+  a fixed 18-term series cost +15%.
+- N-18: `w2` and `w3` sum the incomplete gamma series (all terms positive)
+  below |dtau| = 1 instead of a two-term series below 5e-4 and the closed
+  forms above: within 3.5e-16 of mpmath (was up to 2e-6).
+
+### 2026-10-17 — Unit tests for the numerical kernels (Q-14)
+
+- Four test programs against analytic results and mpmath references
+  (`make_kernels_reference.py`): `test_linalg` (LU, pivoting, Hilbert,
+  inverse), `test_interp` (Hunt/Locate, Linear, BiLinear, natural and
+  exponential splines, cubic convolution), `test_quadrature` (Gauss-Legendre
+  to n = 100, w2/w3/U3), `test_functions` (E1, E2, Planck, 3j and 6j
+  symbols). Written by a subagent, checked against the suite; no library
+  changes.
+- Findings, logged as B-21 to B-23 and N-20 to N-22: `BiLinear` reads past
+  the table at its upper edge; `w3js` accepts invalid arguments and
+  overflows from j = 50; `Hunt` is one index low on exact node values;
+  Gauss-Legendre weights only to ~1e-14; LU refinement gives no gain and
+  misses singular matrices; Planck without `expm1`, E1/E2 zero above x = 80.
+
+### 2026-10-17 — Unit tests, starting with the Voigt functions; VoigtHui finite at a = v = 0 (Q-14, B-20)
+
+- New test tier: unit tests in `tests/unit/`, small programs linked against
+  `librh` that check single routines on problems with known answers. They
+  run with `ctest` (label `unit`), in CI on every build and with
+  AddressSanitizer and UBSan in the sanitizer job. The code-format check
+  now covers `tests/` as well (except generated tables).
+- `test_voigt` checks the Voigt function H and the Faraday-Voigt function
+  F of every algorithm against the Faddeeva function w(v + ia) computed
+  with mpmath at 40 digits (`tests/unit/make_voigt_reference.py`, 18 damping
+  parameters from 0 to 100 times 39 frequencies from 0 to 10⁴), plus
+  symmetry in v and finite values. Measured accuracy (gcc, x86-64), as
+  relative error where H ≥ 10⁻¹² H(a, 0), and as error relative to line
+  centre:
+
+  | Algorithm | Used for | rel. error | rel. to peak | F, rel. to max F | ns/call |
+  |---|---|---|---|---|---|
+  | ARMSTRONG | all line profiles without Stokes | 1.2e-4 (v ≈ 5, small a) | 1.3e-6 | — | 97 |
+  | RYBICKI | `giigen.c`, `solve1d`, `solve2d` | 1.8e-8 | 7.6e-11 | — | 192 |
+  | HUI_ETAL | angle-dependent PRD (`rii.c`, `riiplane.c`) | no Gaussian wings for small a | 3.9e-6 | 6.4e-6 | 66 |
+  | HUMLICEK | profiles with Stokes (H and F) | 8.4e-5 | 2.9e-5 | 4.9e-5 | 46 |
+
+  The test's bounds are about twice these, so that a real loss of accuracy
+  fails. These numbers are the input for Q-11 (which algorithm to keep).
+- B-20: `VoigtHui()` returned NaN at a = v = 0 (0/0: numerator and
+  denominator were each multiplied by z once too often). The polynomials
+  are now evaluated by plain Horner; other values change only by rounding.
+
+### 2026-10-17 — CI compares each change with its base commit; drift from upstream is reported (Q-14)
+
+- The regression job builds the base commit of the change (the target
+  branch before it) and runs `run_tests.sh` against it in tolerance mode.
+  Results must match, unless the pull request carries the label
+  `changes-results` (an intended change of results): then the differences
+  from the base are reported in the job summary instead of failing, while
+  sanitizer, thread-count and memory checks still fail.
+- The comparison with upstream RH (c95bdf6) remains, as a report that never
+  fails. Upstream is the reference we trust but check: every difference
+  from it needs an explanation in this log (a known numerical change or a
+  fixed bug). The analytic unit tests guard against slow drift.
+- Why: the first fixes that change results on purpose (Bezier weights,
+  N-17: up to 7e-7) would otherwise fail every later comparison with
+  upstream, or force a tolerance too loose to catch accidents.
 
 ### 2026-10-16 — Runs report whether they converged, also in the exit status (breaking) (N-1)
 
