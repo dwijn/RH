@@ -1,5 +1,10 @@
-# Build RH on Linux and macOS with several compilers, and compare its
-# results with upstream RH (c95bdf6) built on the same runner.
+# Build RH on Linux and macOS with several compilers and run the unit tests.
+# The regression suite compares each change with a build of its base commit
+# (the target branch before the change), which must match unless the pull
+# request carries the label "changes-results" (an intended change of
+# results: then the differences are only reported). A second comparison with upstream RH
+# (c95bdf6) reports how far the results have drifted from it; it never
+# fails, but differences there need an explanation in the log.
 
 name: CI
 
@@ -11,6 +16,7 @@ on:
     paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs']
   pull_request:
     branches: [modernize]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs']
   workflow_dispatch:
 
@@ -70,7 +76,7 @@ jobs:
         run: ctest --test-dir build --output-on-failure
 
   regression:
-    name: regression vs upstream (${{ matrix.os }}${{ matrix.sanitize && ', with sanitizers' || '' }})
+    name: regression (${{ matrix.os }}${{ matrix.sanitize && ', with sanitizers' || '' }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -78,8 +84,30 @@ jobs:
         include:
           - { os: ubuntu-24.04, cc: gcc, sanitize: "address,undefined" }
           - { os: macos-14, cc: clang }
+    env:
+      CHANGES_RESULTS: ${{ contains(github.event.pull_request.labels.*.name, 'changes-results') }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Base commit
+        id: base
+        run: |
+          case "${{ github.event_name }}" in
+            pull_request) sha=${{ github.event.pull_request.base.sha }} ;;
+            push)         sha=${{ github.event.before }} ;;
+            *)            sha= ;;
+          esac
+          if [ -z "$sha" ] || [ "$sha" = 0000000000000000000000000000000000000000 ]; then
+            sha=$(git rev-parse HEAD^)
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Base commit: $sha" >> "$GITHUB_STEP_SUMMARY"
+      - name: Base RH
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.base.outputs.sha }}
+          path: base
       - name: Upstream RH
         uses: actions/checkout@v4
         with:
@@ -99,7 +127,11 @@ jobs:
         run: |
           brew install ninja
           pip install numpy
-      - name: Build upstream baseline
+      - name: Build base
+        run: |
+          cmake -S base -B base/build -G Ninja -DCMAKE_C_COMPILER=${{ matrix.cc }} -DRH_BUILD_TOOLS=OFF
+          cmake --build base/build
+      - name: Build upstream
         run: CC=${{ matrix.cc }} tests/build_upstream.sh upstream
       - name: Build
         run: |
@@ -111,15 +143,36 @@ jobs:
           cmake -B build-san -G Ninja -DCMAKE_C_COMPILER=${{ matrix.cc }} \
                 -DRH_SANITIZE=${{ matrix.sanitize }}
           cmake --build build-san
-      - name: Regression suite
+      - name: Regression suite against the base commit
         run: |
           set +e
-          tests/run_tests.sh --baseline upstream --candidate . \
+          tests/run_tests.sh --baseline base/build --candidate . \
             ${{ matrix.sanitize && '--asan build-san' || '' }} \
             --work "$RUNNER_TEMP/rh-tests" 2>&1 | tee tests.log
           rc=${PIPESTATUS[0]}
-          { echo '```'; grep -E '^(passed|FAILED|\[FAIL\])' tests.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Against the base commit"
+            [ "$CHANGES_RESULTS" = true ] && echo "Label **changes-results**: differences from the base are reported, not failed."
+            echo '```'; grep -E '^(passed|FAILED|\[FAIL\])|vs baseline' tests.log; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # With the label, only differences from the base may fail
+          # (sanitizers, thread counts and memory still count)
+          if [ "$CHANGES_RESULTS" = true ]; then
+            ! grep -E '^\[FAIL\]' tests.log | grep -qv 'candidate N=1 vs baseline'
+            exit $?
+          fi
           exit $rc
+      - name: Drift from upstream (report only)
+        if: always()
+        run: |
+          set +e
+          tests/run_tests.sh --baseline upstream --candidate . --threads "" \
+            --work "$RUNNER_TEMP/rh-upstream" > upstream.log 2>&1
+          {
+            echo "### Against upstream RH (report only)"
+            echo '```'; grep -E 'vs baseline|^passed' upstream.log; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
       - name: Keep logs of failed runs
         if: failure()
         uses: actions/upload-artifact@v4
