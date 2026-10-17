@@ -45,11 +45,18 @@ cmake -B build-asan -DRH_SANITIZE=address,undefined && cmake --build build-asan 
 tests/run_tests.sh --baseline /path/to/upstream-tree --candidate . [--asan build-asan] [--exact]
 ```
 
-The usual baseline is upstream RH at c95bdf6, built without Fortran by
-`tests/build_upstream.sh` (this is also what CI does). Against upstream use
-tolerance mode: the Stokes cases differ by ~1e-10 because the Voigt code
-uses the compiler's complex arithmetic. `--exact` is for refactors, with a
-build of the branch's base (e.g. `modernize`) as the baseline:
+CI compares every change with a build of its base commit (the target
+branch before the change), in tolerance mode; results must match. A pull
+request that changes results on purpose gets the label `changes-results`: then the
+differences from the base are reported in the job summary instead of
+failing (sanitizer, thread-count and memory checks still fail), and the PR
+states what changed and by how much. CI also reports, without failing, the
+differences from upstream RH at c95bdf6 (built without Fortran by
+`tests/build_upstream.sh`): upstream is the reference we trust but check,
+so every difference there needs an explanation in the log, either a known
+numerical change or a fixed bug. `--exact` is for refactors, with a build of
+the branch's base (e.g. `modernize`) as the baseline. An upstream baseline
+is built with:
 
 ```
 git clone https://github.com/han-uitenbroek/RH upstream && git -C upstream checkout c95bdf6
