@@ -146,8 +146,11 @@ jobs:
       - name: Regression suite against the base commit
         run: |
           set +e
+          # macOS peak RSS varies by ~6% between identical builds; the
+          # memory case looks for growth with Nspect, which is far larger
           tests/run_tests.sh --baseline base/build --candidate . \
             ${{ matrix.sanitize && '--asan build-san' || '' }} \
+            ${{ runner.os == 'macOS' && '--memtol 1.15' || '' }} \
             --work "$RUNNER_TEMP/rh-tests" 2>&1 | tee tests.log
           rc=${PIPESTATUS[0]}
           {
