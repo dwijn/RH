@@ -42,7 +42,7 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ninja
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_C_COMPILER=${{ matrix.cc }} -DRH_WARNINGS=ON
+        run: cmake -B build -G Ninja -DCMAKE_C_COMPILER=${{ matrix.cc }} -DRH_WARNINGS=ON -DRH_WERROR=ON
       - name: Build
         run: cmake --build build 2>&1 | tee build.log
       - name: Warnings

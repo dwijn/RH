@@ -11,6 +11,8 @@
 #   RH_SANITIZE=<list>  build with sanitizers, e.g. address or
 #                       address,undefined
 #   RH_WARNINGS=ON      compile with -Wall -Wextra
+#   RH_WERROR=ON        treat warnings as errors (CI uses this with
+#                       RH_WARNINGS=ON)
 #   RH_BUILD_TOOLS=OFF  skip the atomic-data tools in tools/
 
 cmake_minimum_required(VERSION 3.20)
@@ -27,6 +29,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(RH_NATIVE "Tune for the build machine's CPU" OFF)
 option(RH_WARNINGS "Compile with -Wall -Wextra" OFF)
+option(RH_WERROR "Treat compiler warnings as errors" OFF)
 option(RH_BUILD_TOOLS "Build the atomic-data tools in tools/" ON)
 set(RH_SANITIZE "" CACHE STRING
     "Comma-separated sanitizers, e.g. address or address,undefined")
@@ -63,6 +66,9 @@ endif()
 
 if(RH_WARNINGS)
   target_compile_options(rh_options INTERFACE -Wall -Wextra)
+endif()
+if(RH_WERROR)
+  target_compile_options(rh_options INTERFACE -Werror)
 endif()
 
 if(RH_SANITIZE)
@@ -191,4 +197,4 @@ endforeach()
 
 message(STATUS "RH ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, "
                "native=${RH_NATIVE}, sanitize='${RH_SANITIZE}', "
-               "warnings=${RH_WARNINGS}")
+               "warnings=${RH_WARNINGS}, werror=${RH_WERROR}")
