@@ -18,3 +18,8 @@ rh_unit_test(test_linalg test_linalg.c)
 rh_unit_test(test_interp test_interp.c)
 rh_unit_test(test_quadrature test_quadrature.c)
 rh_unit_test(test_functions test_functions.c)
+rh_unit_test(test_formal_1d test_formal_1d.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/piecewise_1D.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/bezier_1D.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/feautrier.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/project.c)
