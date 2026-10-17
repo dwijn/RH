@@ -168,7 +168,7 @@ static void feautrier_errors(Errors *e, Slab *slab, const double s[NPOLY],
 }
 
 /* --- The methods. Bounds from the convergence on a cubic S at
-	   Ndep = 41 to 321 (5 to 40 points per decade): the order 0.3
+	   Ndep = 41 to 321 (7 to 53 points per decade): the order 0.3
 	   below the measured one, the error at Ndep = 161 twice the
 	   measured one; [0] constant, [1] exponential opacity -- ------ */
 

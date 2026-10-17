@@ -157,13 +157,16 @@ static Errors ray_errors(Slab *slab, const double s[NPOLY], bool_t only_to_obs)
 	return e;
 }
 
-/* --- Meshes [r][m]: refinement r (Nz = 41 ... 321), m = 0 "layers"
-	   (DX = 1e8), 1 "columns" (DX = 0.05) --          -------------- */
+/* --- Meshes [i][r][m]: horizontal interpolation i (the stencils are
+	   built for it by fillMesh), refinement r (Nz = 41 ... 321, 7 to 53
+	   points per decade), m = 0 "layers" (DX = 1e8), 1 "columns"
+	   (DX = 0.05) --                                  -------------- */
 
-enum { NREFINE = 4,
+enum { NINTERP = 2,
+	   NREFINE = 4,
 	   NMESH   = 2 };
 
-static Slab        *slabs[NREFINE][NMESH];
+static Slab        *slabs[NINTERP][NREFINE][NMESH];
 static const char  *mesh_name[NMESH] = {"layers", "columns"};
 static const double mesh_dx[NMESH]   = {1.0e8, 0.05};
 
@@ -174,29 +177,31 @@ typedef struct {
 	const char     *name;
 	enum S_interpol S_interpolation;
 	enum order_3D   interpolate_3D;
-	double          exact_up[NMESH], order_emergent[NMESH];
+	double          exact_up[NMESH], exact_down[NMESH], order_emergent[NMESH];
 	double          err_emergent[NMESH], err_interior[NMESH], columns;
 } Method;
 
 /* --- Measured (gcc, x86-64), "layers" / "columns", Nz = 161:
-	   linear S upward 1.7e-15 / 2.0e-15 (LINEAR), 1.2e-13 / 1.0e-13
-	   (BEZIER3); on "layers" the same as 2-D and, for LINEAR, 1-D
-	   (BEZIER3 second order, N-24). On "columns" the vertical
-	   interpolation between two layers and the long characteristics
-	   limit the order to ~1.5 at these resolutions: emergent 3.9e-3,
-	   interior 9.5e-3 to 1.05e-2, columns of the uniform slab agree
-	   to 5.6e-3 (1.7e-3 at Nz = 321) --              -------------- */
+	   linear S, upward 1.7e-15 / 2.0e-15 (LINEAR), 1.2e-13 / 1.0e-13
+	   (BEZIER3); both directions exact on "layers", 1.5e-3 on
+	   "columns" (I- is not linear in height). On "layers" the same as
+	   2-D and, for LINEAR, 1-D (BEZIER3 second order, N-24). On
+	   "columns" the vertical interpolation between two layers and the
+	   long characteristics limit the order to ~1.5 at these
+	   resolutions: emergent 3.8e-3 to 3.9e-3, interior 9.5e-3 to
+	   9.8e-3; columns of the uniform slab agree to 3.0e-2 at Nz = 41,
+	   5.6e-3 at 161 --                                -------------- */
 
 /* clang-format off */
 static const Method methods[] = {
 	{"LINEAR/bilinear", S_LINEAR, LINEAR_3D,
-	 {1e-14, 1e-14}, {1.7, 1.2}, {2e-3, 8e-3}, {7e-3, 2.1e-2}, 1.2e-2},
+	 {1e-14, 1e-14}, {1e-14, 3.1e-3}, {1.7, 1.2}, {2e-3, 8e-3}, {7e-3, 2e-2}, 6.1e-2},
 	{"LINEAR/bicubic", S_LINEAR, BICUBIC_3D,
-	 {1e-14, 1e-14}, {1.7, 1.2}, {2e-3, 8e-3}, {7e-3, 2.1e-2}, 1.2e-2},
+	 {1e-14, 1e-14}, {1e-14, 3.1e-3}, {1.7, 1.2}, {2e-3, 8e-3}, {7e-3, 2e-2}, 6.1e-2},
 	{"BEZIER3/bilinear", S_BEZIER3, LINEAR_3D,
-	 {1e-12, 1e-12}, {1.7, 1.2}, {1e-3, 8e-3}, {3e-3, 2.1e-2}, 1.2e-2},
+	 {1e-12, 1e-12}, {1e-12, 3.1e-3}, {1.7, 1.2}, {1e-3, 8e-3}, {3e-3, 2e-2}, 6.1e-2},
 	{"BEZIER3/bicubic", S_BEZIER3, BICUBIC_3D,
-	 {1e-12, 1e-12}, {1.7, 1.2}, {1e-3, 8e-3}, {3e-3, 2.1e-2}, 1.2e-2}};
+	 {1e-12, 1e-12}, {1e-12, 3.1e-3}, {1.7, 1.2}, {1e-3, 8e-3}, {3e-3, 2e-2}, 6.1e-2}};
 /* clang-format on */
 
 #define N_METHODS (int) (sizeof(methods) / sizeof(methods[0]))
@@ -209,25 +214,30 @@ static void check_method(const Method *m, bool_t verbose)
 	input.interpolate_3D  = m->interpolate_3D;
 
 	for (int mesh = 0; mesh < NMESH; mesh++) {
-		const char *mn    = mesh_name[mesh];
-		Errors      up    = ray_errors(slabs[1][mesh], lin, TRUE), e[NREFINE];
-		double      exact = MAX(up.interior, up.ends), order = HUGE_VAL, columns = 0.0;
+		Slab      **sl = &slabs[m->interpolate_3D][0][0];
+		const char *mn = mesh_name[mesh];
+		Errors      up = ray_errors(sl[1 * NMESH + mesh], lin, TRUE), e[NREFINE],
+			   all     = ray_errors(sl[1 * NMESH + mesh], lin, FALSE);
+		double exact = MAX(up.interior, up.ends), down = MAX(all.interior, all.ends),
+			   order = HUGE_VAL, columns = 0.0;
 
 		for (int r = 0; r < NREFINE; r++) {
-			e[r]    = ray_errors(slabs[r][mesh], cub, FALSE);
+			e[r]    = ray_errors(sl[r * NMESH + mesh], cub, FALSE);
 			columns = MAX(columns, e[r].columns);
 			if (verbose)
 				printf("  %-16s %-8s Nz %4d  emergent %.3e  interior %.3e  ends %.3e  columns %.2e\n",
-					   m->name, mn, slabs[r][mesh]->Nz, e[r].emergent,
+					   m->name, mn, sl[r * NMESH + mesh]->Nz, e[r].emergent,
 					   e[r].interior, e[r].ends, e[r].columns);
 			if (r > 0) order = MIN(order, log2(e[r - 1].emergent / e[r].emergent));
 		}
 		if (verbose)
-			printf("%-16s %-8s linear S up %.2e; order emergent %.2f; columns agree to %.2e\n",
-				   m->name, mn, exact, order, columns);
+			printf("%-16s %-8s linear S up %.2e, down %.2e; order emergent %.2f; columns agree to %.2e\n",
+				   m->name, mn, exact, down, order, columns);
 
 		CHECK(exact <= m->exact_up[mesh], "%s, %s, linear S, upward: error %.3g > %.3g",
 			  m->name, mn, exact, m->exact_up[mesh]);
+		CHECK(down <= m->exact_down[mesh], "%s, %s, linear S, both directions: error %.3g > %.3g",
+			  m->name, mn, down, m->exact_down[mesh]);
 		CHECK(order >= m->order_emergent[mesh], "%s, %s: order %.2f < %.2f",
 			  m->name, mn, order, m->order_emergent[mesh]);
 		CHECK(e[2].emergent <= m->err_emergent[mesh],
@@ -236,8 +246,8 @@ static void check_method(const Method *m, bool_t verbose)
 		CHECK(e[2].interior <= m->err_interior[mesh],
 			  "%s, %s: interior error %.3g > %.3g", m->name, mn, e[2].interior,
 			  m->err_interior[mesh]);
-		CHECK(e[2].columns <= m->columns, "%s, %s: columns differ by %.3g > %.3g",
-			  m->name, mn, e[2].columns, m->columns);
+		CHECK(columns <= m->columns, "%s, %s: columns differ by %.3g > %.3g",
+			  m->name, mn, columns, m->columns);
 	}
 }
 
@@ -248,9 +258,12 @@ int main(int argc, char *argv[])
 	commandline.logfile = stdout;
 	commandline.quiet   = !verbose;
 
-	for (int r = 0; r < NREFINE; r++)
-		for (int m = 0; m < NMESH; m++)
-			slabs[r][m] = slab_new(40 * (1 << r) + 1, mesh_dx[m]);
+	for (int i = 0; i < NINTERP; i++) {
+		input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
+		for (int r = 0; r < NREFINE; r++)
+			for (int m = 0; m < NMESH; m++)
+				slabs[i][r][m] = slab_new(40 * (1 << r) + 1, mesh_dx[m]);
+	}
 
 	for (int n = 0; n < N_METHODS; n++) check_method(&methods[n], verbose);
 

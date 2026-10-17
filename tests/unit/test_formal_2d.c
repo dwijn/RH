@@ -56,7 +56,7 @@ typedef struct {
 	double  *tau, *chi, *S, *I, *Psi, *S1;
 } Slab;
 
-static Slab *slab_new(int Nz, double DX)
+static Slab *slab_new(int Nz, double DX, bool_t uneven)
 {
 	Slab     *slab   = calloc(1, sizeof(Slab));
 	Geometry *geo    = &slab->geo;
@@ -80,8 +80,8 @@ static Slab *slab_new(int Nz, double DX)
 	geo->x  = malloc(NX * sizeof(double));
 	geo->dx = malloc(NX * sizeof(double));
 	for (int l = 0; l < NX; l++) {
-		geo->x[l]  = l * DX;
-		geo->dx[l] = DX;
+		geo->dx[l] = uneven ? DX * ((l % 2) ? 1.4 : 0.6) : DX;
+		geo->x[l]  = (l == 0) ? 0.0 : geo->x[l - 1] + geo->dx[l - 1];
 	}
 	geo->z  = malloc(Nz * sizeof(double));
 	geo->dz = malloc(Nz * sizeof(double));
@@ -179,15 +179,18 @@ static Errors ray_errors(Solver2D solver, Slab *slab, const double s[NPOLY],
 	return e;
 }
 
-/* --- The meshes: [r][m] for refinement r (Nz = 41 ... 321) and
-	   m = 0 "layers" (DX = 1e8), 1 "columns" (DX = 0.05) -- ------- */
+/* --- The meshes: [r][m] for refinement r (Nz = 41 ... 321, 7 to 53
+	   points per decade) and m = 0 "layers" (DX = 1e8), 1 "columns"
+	   (DX = 0.05), 2 "uneven" (columns alternately 0.03 and 0.07
+	   wide) --                                        -------------- */
 
 enum { NREFINE = 4,
-	   NMESH   = 2 };
+	   NMESH   = 3 };
 
 static Slab        *slabs[NREFINE][NMESH];
-static const char  *mesh_name[NMESH] = {"layers", "columns"};
-static const double mesh_dx[NMESH]   = {1.0e8, 0.05};
+static const char  *mesh_name[NMESH]   = {"layers", "columns", "uneven"};
+static const double mesh_dx[NMESH]     = {1.0e8, 0.05, 0.05};
+static const bool_t mesh_uneven[NMESH] = {FALSE, FALSE, TRUE};
 
 /* --- Bounds, about twice the measured values (gcc, x86-64), per
 	   solver and mesh --                              -------------- */
@@ -200,23 +203,26 @@ typedef struct {
 	double      columns;
 } Method;
 
-/* --- Measured (gcc, x86-64), "layers" / "columns":
+/* --- Measured (gcc, x86-64), "layers" / "columns" ("uneven" as
+	   "columns", down 7.1e-4, columns agree to 7.5e-3):
 	   LINEAR   linear S up 1.3e-15 / 2.6e-15, down 1.3e-15 / 7.6e-4;
-			    order 2.00; Nz = 161: emergent 9.7e-4, interior 3.2e-3
-			    on both meshes (the same as in 1-D)
+				order 2.00; Nz = 161: emergent 9.7e-4, interior 3.2e-3
+				on both meshes (the same as in 1-D)
 	   BEZIER3  linear S up 2.8e-13 / 1.0e-13, down 4.0e-13 / 7.6e-4;
-			    order 1.99; emergent 4.8e-4, interior 1.4e-3 on both:
-			    second order where the 1-D solver is fourth, because the
-			    upwind control point uses the secant slope (N-24)
+				order 1.99; emergent 4.8e-4, interior 1.4e-3 on both:
+				second order where the 1-D solver is fourth, because the
+				upwind control point uses the secant slope (N-24)
 	   Columns of the uniform slab agree to 8.0e-3 on "columns" (in
 	   the two layers nearest the bottom), exactly on "layers" -- --- */
 
 /* clang-format off */
 static const Method methods[] = {
 	{"LINEAR", Piecewise_Linear_2D,
-	 {1e-14, 1e-14}, {1e-14, 1.6e-3}, {1.7, 1.7}, {2e-3, 2e-3}, {7e-3, 7e-3}, 1.6e-2},
+	 {1e-14, 1e-14, 1e-14}, {1e-14, 1.6e-3, 1.5e-3}, {1.7, 1.7, 1.7},
+	 {2e-3, 2e-3, 2e-3}, {7e-3, 7e-3, 7e-3}, 1.6e-2},
 	{"BEZIER3", Piecewise_Bezier3_2D,
-	 {1e-12, 1e-12}, {1e-12, 1.6e-3}, {1.7, 1.7}, {1e-3, 1e-3}, {3e-3, 3e-3}, 1.6e-2}};
+	 {1e-12, 1e-12, 1e-12}, {1e-12, 1.6e-3, 1.5e-3}, {1.7, 1.7, 1.7},
+	 {1e-3, 1e-3, 1e-3}, {3e-3, 3e-3, 3e-3}, 1.6e-2}};
 /* clang-format on */
 
 #define N_METHODS (int) (sizeof(methods) / sizeof(methods[0]))
@@ -329,7 +335,7 @@ int main(int argc, char *argv[])
 
 	for (int r = 0; r < NREFINE; r++)
 		for (int m = 0; m < NMESH; m++)
-			slabs[r][m] = slab_new(40 * (1 << r) + 1, mesh_dx[m]);
+			slabs[r][m] = slab_new(40 * (1 << r) + 1, mesh_dx[m], mesh_uneven[m]);
 
 	for (int n = 0; n < N_METHODS; n++) check_method(&methods[n], verbose);
 	check_psi_linear(1.0e-14, verbose); /* layers: 2.2e-16 */
