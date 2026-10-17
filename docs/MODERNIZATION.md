@@ -207,6 +207,7 @@ on perturbed FAL-C (82 depths):
 | [B-17](https://github.com/dwijn/RH/issues/94) | low | `writeMULTIatmos()` writes an uninitialized `height` for a GEOMETRIC depth scale (no branch for it); latent, both callers use other scales | `tools/writemulti.c:89` | -Wmaybe-uninitialized triage | fixed |
 | [B-18](https://github.com/dwijn/RH/issues/95) | low | `solve1d` reads the boundary-condition codes `btop`/`bbot` from stdin without validating them; an out-of-range code now gives a zero boundary intensity | `rhf1d/solve1d.c` | -Wmaybe-uninitialized triage | open |
 | [B-19](https://github.com/dwijn/RH/issues/113) | low | `StopRequested()` opens `STOP_RH` with `fopen` to test for it and never closes the file | `stopreq.c:39` | code reading | open |
+| [B-20](https://github.com/dwijn/RH/issues/128) | low | `VoigtHui()` returns NaN at a = v = 0: the Horner loops multiply numerator and denominator by z once too often, so the ratio is 0/0 at z = 0. Used for angle-dependent PRD (`rii.c`, `riiplane.c`), where a = 0 occurs only with zero damping | `voigt.c:324` | `test_voigt` (Q-14) | open |
 
 ### 3.2 Numerics and convergence
 
