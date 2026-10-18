@@ -67,7 +67,7 @@ static inline double P_zero(const double s[NPOLY], double m)
 	   no cancellation just below the top --           -------------- */
 
 static inline double I_exact(const double s[NPOLY], double tau, double tau_top,
-					  double mu, int to_obs)
+							 double mu, int to_obs)
 {
 	if (to_obs)
 		return P_zero(s, mu) + P_diff(s, tau, 0.0, mu);
