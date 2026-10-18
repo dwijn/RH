@@ -44,6 +44,11 @@ upstream. Newest changes go at the top of the changelog.
   globalized Newton–Krylov with MALI as preconditioner, tested against
   stabilized Anderson before anything is committed to (S-track, §3.8 and
   [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)).
+- **Unit tests (2026-10-17) found a serious upstream bug:** 2-D and 3-D
+  long characteristics stopped one section short (B-24), wrong by 7–11 %
+  on a slab with an exact solution and by up to 25 % in the shipped
+  examples, while looking like a believable solution. Bugs that also
+  exist upstream are collected in §3.9 for reporting there.
 
 Issue IDs: **B** bug or crash, **N** numerics/convergence, **P** speed,
 **M** memory, **T** threading, **Q** code quality / build, **F** feature,
@@ -211,7 +216,7 @@ on perturbed FAL-C (82 depths):
 | [B-21](https://github.com/dwijn/RH/issues/135) | low | `BiLinear()` reads one element past `a_table` and `f` when `a` (or `b`) equals the last table node, extrapolates below the table but not above, and keeps its hunt indices in function statics; only caller is the Voigt `LOOKUP` table | `linear.c:56,75` | `test_interp` (Q-14) | open |
 | [B-22](https://github.com/dwijn/RH/issues/136) | low | `w3js()` accepts non-integer j−m and j1+j2+j3 and returns nonzero values (`w3js(0.5,0.5,0.5,0.5,−0.5,0)` = 1); `fact()` returns 1 for non-integer arguments; the symbol loses accuracy above j ≈ 40 (1e-9) and returns ±inf for j = 50–56 and 0 from 58 (factorial overflow); only caller is `paschen.c` at small J | `wigner.c:49,167` | `test_functions` (Q-14) | open |
 | [B-23](https://github.com/dwijn/RH/issues/137) | low | `Hunt()` returns one index too low when hunting downward onto a value equal to a table node, disagreeing with `Locate()`; harmless for linear and spline interpolation | `hunt.c:40,55` | `test_interp` (Q-14) | open |
-| [B-24](https://github.com/dwijn/RH/issues/149) | high | 2-D and 3-D long characteristics (periodic boundaries, used where a short characteristic crosses column lines or vertical planes before the next layer) stop one section short: `SolveLong`/`SolveLongStokes` treat the last crossing as the local point and return the intensity one crossing upwind of the true upwind point. Linear S on a uniform slab: emergent I 7% (2-D) and 11% (3-D) wrong, identical columns differ by 15%; the shipped uniform 2-D/3-D examples have column spreads of 2.4e-3 and 1e-2 (2e-4 and 1.9e-3 when fixed) | `rhsc2d/solvelong.c:60,140`, `rhsc3d/solvelong.c:58,138` | `test_formal_2d`, `test_formal_3d` (Q-14) | open |
+| [B-24](https://github.com/dwijn/RH/issues/149) | high | 2-D and 3-D long characteristics (periodic boundaries, used where a short characteristic crosses column lines or vertical planes before the next layer) stop one section short: `SolveLong`/`SolveLongStokes` treat the last crossing as the local point and return the intensity one crossing upwind of the true upwind point. Linear S on a uniform slab: emergent I 7% (2-D) and 11% (3-D) wrong, identical columns differ by 15%; the shipped uniform 2-D/3-D examples have column spreads of 2.4e-3 and 1e-2 (2e-4 and 1.9e-3 when fixed) | `rhsc2d/solvelong.c:60,140`, `rhsc3d/solvelong.c:58,138` | `test_formal_2d`, `test_formal_3d` (Q-14) | fixed |
 
 ### 3.2 Numerics and convergence
 
@@ -300,7 +305,7 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | [Q-11](https://github.com/dwijn/RH/issues/62) | low | Five Voigt algorithms plus Fortran variants | fixed |
 | [Q-12](https://github.com/dwijn/RH/issues/63) | low | `tests/make_tiled_2d_atmos.py` uses the wrong array order | fixed |
 | [Q-13](https://github.com/dwijn/RH/issues/64) | low | Python readers depend on `xdrlib` (removed in Python 3.13) | open |
-| [Q-14](https://github.com/dwijn/RH/issues/65) | — | No unit tests (Voigt, LU, splines, w3j, formal solvers on analytic slabs), no CI | open |
+| [Q-14](https://github.com/dwijn/RH/issues/65) | — | No unit tests (Voigt, LU, splines, w3j, formal solvers on analytic slabs), no CI | fixed |
 | [Q-15](https://github.com/dwijn/RH/issues/83) | low | Default `CFLAGS` lack `-g`, so N-11 backtraces resolve to function names only, without file and line | fixed |
 | [Q-16](https://github.com/dwijn/RH/issues/84) | medium | `Error(ERROR_LEVEL_1, …)` prints "Trying to continue" but terminates (exit status 2): the continue branch in `error.c` is unreachable. 74 call sites are written to recover afterwards (return FALSE, fall back, skip an output file), so their recovery code is dead, and `ERROR_LEVEL_1` and `_2` differ only in exit status (2 vs 3). Decide per site between a warning with recovery and a fatal error; define the exit statuses together with N-1 | open |
 | [Q-17](https://github.com/dwijn/RH/issues/96) | medium | ~30 unchecked I/O results: `fread`/`fwrite`, `xdr_*`, `fscanf`/`fgets` return values assigned and never tested (e.g. a truncated Barklem table goes unnoticed) | fixed |
@@ -338,6 +343,44 @@ item that resolves them lands.
 | [S-7](https://github.com/dwijn/RH/issues/123) | medium | Monolithic electron density (charge conservation in the residual) and PRD (ρ in the residual or CRD-preconditioned inner solve); only if S-5 favours Newton | N-4, N-6 | open |
 | [S-8](https://github.com/dwijn/RH/issues/124) | medium | Pseudo-transient continuation and physics continuation (CRD → +ne → +PRD → finer grid), warm starts from neighbouring columns or snapshots | N-9 (partly) | open |
 | [S-9](https://github.com/dwijn/RH/issues/125) | low | Mesh-independent convergence: multigrid preconditioner or nonlinear multigrid (FAS), for fine-grid RMHD columns | N-14 (iteration count only) | open |
+
+### 3.9 Bugs also present in upstream RH
+
+Bugs found here that also exist in upstream RH (han-uitenbroek/RH,
+c95bdf6), to be reported there whatever becomes of this version: a wrong
+answer that looks believable is worse than a crash, and the first one
+here (B-24) went unnoticed until a test with an analytic solution. Every
+new bug that also exists upstream gets a row; *Reported* records the
+upstream issue or pull request once filed. Most severe first.
+
+| ID | Sev | What happens upstream | Fixed here | Reported |
+|---|---|---|---|---|
+| [B-24](https://github.com/dwijn/RH/issues/149) | high | 2-D and 3-D long characteristics stop one section short: wrong intensities wherever short characteristics cross column lines or vertical planes before the next layer (deep or optically thick layers, fine horizontal grids). 7–11% error for a linear source function on a uniform slab; the shipped 2-D/3-D examples change by up to 25% at short wavelengths | [#152](https://github.com/dwijn/RH/pull/152) | — |
+| [B-1](https://github.com/dwijn/RH/issues/2) | high | `SOLVE_NE = ITERATION` aborts on the second `Background()` call with active atoms | [#69](https://github.com/dwijn/RH/pull/69) | — |
+| [B-3](https://github.com/dwijn/RH/issues/4) | high | Collisional relaxation stops after one iteration and returns LTE populations reported as converged | [#70](https://github.com/dwijn/RH/pull/70) | — |
+| [B-2](https://github.com/dwijn/RH/issues/3) | high | `PRD_NG_ORDER > 0` with the default `PRD_NG_PERIOD = 0` divides by zero | [#67](https://github.com/dwijn/RH/pull/67) | — |
+| [B-4](https://github.com/dwijn/RH/issues/5) | high | Atom data with zero or non-finite values crash with SIGFPE at setup (e.g. `CaII_large`) | [#71](https://github.com/dwijn/RH/pull/71) | — |
+| [N-17](https://github.com/dwijn/RH/issues/131) | medium | Cubic Bezier weights (default solver, all geometries) wrong by up to 1.2e-5 below dt = 0.05 (truncated series) and cancelling above; I off by ~1e-6 | [#147](https://github.com/dwijn/RH/pull/147) | — |
+| [B-5](https://github.com/dwijn/RH/issues/6) | medium | Linear short characteristics compute the last point of each 1-D ray with stale weights | [#147](https://github.com/dwijn/RH/pull/147) | — |
+| [B-16](https://github.com/dwijn/RH/issues/93) | medium | Collision data before a `TEMP` line read an uninitialized item count (crash) or inherit one (silently wrong rates) | [#99](https://github.com/dwijn/RH/pull/99) | — |
+| [N-23](https://github.com/dwijn/RH/issues/143) | medium | 1-D static atmospheres are always solved with second-order Feautrier; `S_INTERPOLATION` is silently ignored there (to be confirmed as unintended) | — | — |
+| [B-6](https://github.com/dwijn/RH/issues/7) | medium | Possible double counting of the cross-coupling term for multi-ion atoms (not yet confirmed) | — | — |
+| [B-7](https://github.com/dwijn/RH/issues/8) | medium | 3-D `Jgas` possibly double counted (not yet confirmed) | — | — |
+| [B-8](https://github.com/dwijn/RH/issues/9) | medium | `calcDistance()` (3-D) can fall off the end without a return value | [#76](https://github.com/dwijn/RH/pull/76) | — |
+| [B-9](https://github.com/dwijn/RH/issues/10) | medium | Scratch-file `pread`/`pwrite` errors mishandled (signed/unsigned comparison) | [#76](https://github.com/dwijn/RH/pull/76) | — |
+| [B-10](https://github.com/dwijn/RH/issues/11) | medium | 32-bit overflow of `Nlambda*Nspace` sizes on large grids | — | — |
+| [N-18](https://github.com/dwijn/RH/issues/132) | low | `w2`/`w3` weights wrong by up to 2e-6 near dtau = 5e-4 | [#147](https://github.com/dwijn/RH/pull/147) | — |
+| [B-20](https://github.com/dwijn/RH/issues/128) | low | `VoigtHui()` returns NaN at a = v = 0 (angle-dependent PRD with zero damping) | [#130](https://github.com/dwijn/RH/pull/130) (Voigt replaced, [#146](https://github.com/dwijn/RH/pull/146)) | — |
+| [B-17](https://github.com/dwijn/RH/issues/94) | low | `writeMULTIatmos()` (tools): uninitialized heights for a geometric scale; velocities 1000× too large | [#101](https://github.com/dwijn/RH/pull/101) | — |
+| [B-11](https://github.com/dwijn/RH/issues/12) | low | Memory leaks in `Background()` and 3-D Stokes setup | — | — |
+| [B-12](https://github.com/dwijn/RH/issues/13) | low | AR85-CHP collisions assume the 6th hydrogen level is the proton | — | — |
+| [B-14](https://github.com/dwijn/RH/issues/15) | low | `error.c` can overflow its 512-byte message buffer | — | — |
+| [B-15](https://github.com/dwijn/RH/issues/80) | low | `Atoms/CaII_large.atom` contains `Inf` collision strengths | — | — |
+| [B-18](https://github.com/dwijn/RH/issues/95) | low | `solve1d` does not validate its boundary-condition codes | — | — |
+| [B-19](https://github.com/dwijn/RH/issues/113) | low | `StopRequested()` never closes the file it opens | — | — |
+| [B-21](https://github.com/dwijn/RH/issues/135) | low | `BiLinear()` reads past its table at the upper edge | — | — |
+| [B-22](https://github.com/dwijn/RH/issues/136) | low | `w3js()` accepts invalid arguments and overflows from j = 50 | — | — |
+| [B-23](https://github.com/dwijn/RH/issues/137) | low | `Hunt()` one index low on exact node values (harmless for interpolation) | — | — |
 
 ---
 
@@ -401,6 +444,43 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-10-17 — Long characteristics in 2-D and 3-D stopped one section short (changes results) (B-24, Q-14)
+
+- `test_formal_2d` and `test_formal_3d` solve a horizontally uniform,
+  periodic slab, whose every column must reproduce the 1-D analytic
+  solution. Where the short characteristics cross column lines (2-D) or
+  vertical planes (3-D) before reaching the next layer, RH integrates
+  back along a long characteristic. B-24: `SolveLong` (and
+  `SolveLongStokes`, both geometries) treated the last crossing as the
+  local point, returned the intensity one crossing upwind of the true
+  upwind point, and so skipped the last section. On a 2-D slab with
+  dz·|mux/muz| > dx in the deep layers this made the emergent intensity
+  7% wrong for a linear source function (which every interpolation
+  reproduces exactly), 15% different between identical columns; in 3-D
+  11%. Inherited from upstream RH. Now the local point is the downwind
+  end of the last section: I+ for linear S exact to 2e-15 in both.
+- Measured with the tests (Nz = 161 over six decades of optical depth,
+  27 points per decade): on a mesh where every
+  upwind point lies on a layer, the 2-D and 3-D linear solvers equal the
+  1-D one; the 2-D and 3-D Bezier solvers are second order (4.8e-4 where
+  1-D Bezier gives 9e-7), because the upwind control point uses the
+  secant slope (N-24). Across column crossings 3-D converges at order
+  ~1.5 (vertical interpolation between two layers).
+- The fix in `SolveLongStokes` (2-D and 3-D) is the same change; no test
+  exercises the polarized long characteristics yet.
+- The 1-D formal-solver entry of 2026-10-17 quoted its errors "at 16
+  points per decade"; that grid (Ndep = 161 over six decades) has 27.
+- `test_formal_sphere`: the spherical Feautrier solver along the rays of
+  `getRays()`, in a shell of constant opacity and source function where
+  every ray has a closed-form solution. It converges at order 1.4 to 1.6
+  (formally 2, and 4 for Hermite), because the rays are sampled where they
+  cross the radii and so coarsely near their tangent points; the grazing
+  rays near the top are not refined by a finer radial grid at all (the
+  outermost always has 3 points), with errors up to 7e-3.
+- `rh_unit_test()` takes the geometry directory, so that tests can use the
+  2-D and 3-D `geometry.h`; the analytic slab solution is shared in
+  `tests/unit/slab_exact.h`.
 
 ### 2026-10-17 — One Voigt function, accurate to 2e-6, for profiles with and without polarization (changes results) (Q-11)
 
