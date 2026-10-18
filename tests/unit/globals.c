@@ -2,7 +2,8 @@
 
 	   The global variables that the RH programs define in their main
 	   source file and that librh refers to, so that unit tests can link
-	   against librh.
+	   against librh. geometry.h comes from the geometry directory of
+	   the test, RH_TOPOLOGY from its CMake definition.
 	   --                                              -------------- */
 
 #include "rh.h"
@@ -13,7 +14,7 @@
 #include "statistics.h"
 #include "inputs.h"
 
-enum Topology topology = ONE_D_PLANE;
+enum Topology topology = RH_TOPOLOGY;
 
 Atmosphere   atmos;
 Geometry     geometry;

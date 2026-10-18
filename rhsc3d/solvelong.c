@@ -45,22 +45,21 @@ double SolveLong(Geometry *geometry, Longchar *lc,
 	S_uw   = Interpolate_3D(S, geometry, &lc->stencil[0], l, m);
 	I_uwp  = Interpolate_3D(I, geometry, &lc->stencil[0], l, m);
 
-	/* --- When lc->Nst == 2 we need I_uw = I_uwp --     -------------- */
-
 	I_uw = I_uwp;
 
 	chi_loc = Interpolate_3D(chi, geometry, &lc->stencil[1], l, m);
 	dtau_uw = 0.5 * (chi_uw + chi_loc) * lc->stencil[0].ds;
 	S_loc   = Interpolate_3D(S, geometry, &lc->stencil[1], l, m);
 
-	/* --- Go through the long characteristic section by section -- --- */
+	/* --- Go through the long characteristic section by section. Its
+		   Nst points are the crossings up to the upwind point of the
+		   local short characteristic (the last one, whose ds reaches the
+		   local point); the local point itself is the downwind end of
+		   the last section, so that I_uw is returned at the upwind
+		   point --                                       -------------- */
 
-	for (ls = 2; ls < lc->Nst; ls++) {
-		if (ls == lc->Nst - 1) {
-
-			/* --- The last point is the the endpoint for which the non-local
-				   contribution is needed. --                -------------- */
-
+	for (ls = 2; ls <= lc->Nst; ls++) {
+		if (ls == lc->Nst) {
 			local  = k * geometry->Nplane + m * geometry->Nx + l;
 			chi_dw = chi[local];
 			S_dw   = S[local];
@@ -135,12 +134,11 @@ void SolveLongStokes(Geometry *geometry, Longchar *lc,
 	for (n = 0; n < 4; n++)
 		S_loc[n] = Interpolate_3D(S[n], geometry, &lc->stencil[1], l, m);
 
-	for (ls = 2; ls < lc->Nst; ls++) {
-		if (ls == lc->Nst - 1) {
+	/* --- As in SolveLong: the local point is the downwind end of the
+		   last section, I_uw is returned at the upwind point -- ------ */
 
-			/* --- The last point is the the endpoint for which the non-local
-				   contribution is needed. --                -------------- */
-
+	for (ls = 2; ls <= lc->Nst; ls++) {
+		if (ls == lc->Nst) {
 			local  = k * geometry->Nplane + m * geometry->Nx + l;
 			chi_dw = chi[local];
 			for (n = 0; n < 4; n++) S_dw[n] = S[n][local];
@@ -181,7 +179,7 @@ void SolveLongStokes(Geometry *geometry, Longchar *lc,
 
 		/* --- Reuse upwind quantities --                  -------------- */
 
-		if (ls < lc->Nst - 1) {
+		if (ls < lc->Nst) {
 			chi_uw  = chi_loc;
 			chi_loc = chi_dw;
 			dtau_uw = dtau_dw;
