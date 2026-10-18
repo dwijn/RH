@@ -83,7 +83,9 @@ def parse_rows():
         if cells[0] == "ID":
             header = cells
             continue
-        if header is None or set(cells[0]) <= set("-: "):
+        # Only issue tables (they have a Status column); cross-reference
+        # tables such as the list of upstream bugs repeat IDs
+        if header is None or "Status" not in header or set(cells[0]) <= set("-: "):
             continue
         m = re.match(r"\[?([BNPMTQFS]-\d+)\]?", cells[0])
         if not m:
