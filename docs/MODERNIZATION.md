@@ -44,11 +44,14 @@ upstream. Newest changes go at the top of the changelog.
   globalized Newton–Krylov with MALI as preconditioner, tested against
   stabilized Anderson before anything is committed to (S-track, §3.8 and
   [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)).
-- **Unit tests (2026-10-17) found a serious upstream bug:** 2-D and 3-D
-  long characteristics stopped one section short (B-24), wrong by 7–11 %
-  on a slab with an exact solution and by up to 25 % in the shipped
-  examples, while looking like a believable solution. Bugs that also
-  exist upstream are collected in §3.9 for reporting there.
+- **Unit tests (2026-10-17/18) found two serious upstream bugs:** 2-D and
+  3-D long characteristics stopped one section short (B-24), wrong by
+  7–11 % on a slab with an exact solution and by up to 25 % in the
+  shipped examples; and the polarized DELO-Bezier solvers had two wrong
+  terms in their control points (B-25), first order where the
+  propagation matrix varies with depth: Stokes V 38 % from the converged
+  answer for Ca II on FALC. Both looked like believable solutions. Bugs
+  that also exist upstream are collected in §3.9 for reporting there.
 
 Issue IDs: **B** bug or crash, **N** numerics/convergence, **P** speed,
 **M** memory, **T** threading, **Q** code quality / build, **F** feature,
@@ -217,8 +220,8 @@ on perturbed FAL-C (82 depths):
 | [B-22](https://github.com/dwijn/RH/issues/136) | low | `w3js()` accepts non-integer j−m and j1+j2+j3 and returns nonzero values (`w3js(0.5,0.5,0.5,0.5,−0.5,0)` = 1); `fact()` returns 1 for non-integer arguments; the symbol loses accuracy above j ≈ 40 (1e-9) and returns ±inf for j = 50–56 and 0 from 58 (factorial overflow); only caller is `paschen.c` at small J | `wigner.c:49,167` | `test_functions` (Q-14) | open |
 | [B-23](https://github.com/dwijn/RH/issues/137) | low | `Hunt()` returns one index too low when hunting downward onto a value equal to a table node, disagreeing with `Locate()`; harmless for linear and spline interpolation | `hunt.c:40,55` | `test_interp` (Q-14) | open |
 | [B-24](https://github.com/dwijn/RH/issues/149) | high | 2-D and 3-D long characteristics (periodic boundaries, used where a short characteristic crosses column lines or vertical planes before the next layer) stop one section short: `SolveLong`/`SolveLongStokes` treat the last crossing as the local point and return the intensity one crossing upwind of the true upwind point. Linear S on a uniform slab: emergent I 7% (2-D) and 11% (3-D) wrong, identical columns differ by 15%; the shipped uniform 2-D/3-D examples have column spreads of 2.4e-3 and 1e-2 (2e-4 and 1.9e-3 when fixed) | `rhsc2d/solvelong.c:60,140`, `rhsc3d/solvelong.c:58,138` | `test_formal_2d`, `test_formal_3d` (Q-14) | fixed |
-| [B-25](https://github.com/dwijn/RH/issues/155) | high | Polarized DELO-Bezier solvers wrong in two control-point terms (1-D, 2-D, 3-D): (i) the derivative terms are paired with the wrong weights, γ S'(c) − θ S'(u) instead of γ S'(u) − θ S'(c), which makes them second order (with K' = 0 they differ from the unpolarized Bezier solver by 2.4% at 81 points); (ii) the sign of dK'/dτ at the central point is wrong, which makes them first order when K varies with depth. Converged Ca II full Stokes on FALC (82 points): Stokes V 38% from the converged answer (3% when fixed), the 854.2 nm V amplitude 21% too large, 1.9x more iterations | `rhf1d/bezier_1D.c:228,251`, `rhsc2d/bezier_2D.c:254,277`, `rhsc3d/bezier_3D.c:151,173` | `test_formal_stokes` (Q-14) | open |
-| [B-26](https://github.com/dwijn/RH/issues/156) | medium | 2-D and 3-D polarized solvers use a stale or uninitialized source vector in the last layer of each ray: 2-D takes the value of the last point of the layer below, 3-D reads an uninitialized local variable. The emergent Stokes vector (top layer of the outgoing rays) is computed with the wrong source vector; on a test slab the bottom layer of I- was 38% off | `rhsc2d/bezier_2D.c:188,230`, `rhsc3d/bezier_3D.c:85,127` | `test_formal_2d`, `test_formal_3d` (Q-14) | open |
+| [B-25](https://github.com/dwijn/RH/issues/155) | high | Polarized DELO-Bezier solvers wrong in two control-point terms (1-D, 2-D, 3-D): (i) the derivative terms are paired with the wrong weights, γ S'(c) − θ S'(u) instead of γ S'(u) − θ S'(c), which makes them second order (with K' = 0 they differ from the unpolarized Bezier solver by 2.4% at 81 points); (ii) the sign of dK'/dτ at the central point is wrong, which makes them first order when K varies with depth. Converged Ca II full Stokes on FALC (82 points): Stokes V 38% from the converged answer (3% when fixed), the 854.2 nm V amplitude 21% too large, 1.9x more iterations | `rhf1d/bezier_1D.c:228,251`, `rhsc2d/bezier_2D.c:254,277`, `rhsc3d/bezier_3D.c:151,173` | `test_formal_stokes` (Q-14) | fixed |
+| [B-26](https://github.com/dwijn/RH/issues/156) | medium | 2-D and 3-D polarized solvers use a stale or uninitialized source vector in the last layer of each ray: 2-D takes the value of the last point of the layer below, 3-D reads an uninitialized local variable. The emergent Stokes vector (top layer of the outgoing rays) is computed with the wrong source vector; on a test slab the bottom layer of I- was 38% off | `rhsc2d/bezier_2D.c:188,230`, `rhsc3d/bezier_3D.c:85,127` | `test_formal_2d`, `test_formal_3d` (Q-14) | fixed |
 
 ### 3.2 Numerics and convergence
 
@@ -246,7 +249,7 @@ on perturbed FAL-C (82 depths):
 | [N-20](https://github.com/dwijn/RH/issues/138) | low | Gauss-Legendre weights accurate to only ~1e-14 (P'(x) evaluated at the previous Newton iterate, stop at 3e-14): weights sum short by 2.4e-14 at n = 64, polynomial exactness 5e-13 | `gaussleg.c:49-56` | `test_quadrature` (Q-14) | open |
 | [N-21](https://github.com/dwijn/RH/issues/139) | low | `SolveLinearEq(..., improve)`: iterative refinement with the residual in plain double gives no gain (Hilbert n = 8: 8.9e-7 with, 1.4e-7 without); a singular matrix with nonzero rows is not detected (zero pivot replaced by 1e-20) | `ludcmp.c` | `test_linalg` (Q-14) | open |
 | [N-22](https://github.com/dwijn/RH/issues/140) | low | Special functions: `Planck` uses `exp(x) − 1` (relative error eps/x, 6e-10 at x = 1e-7, radio wavelengths); `E1`/`E2` return 0 above x = 80 and `E2` loses accuracy toward it (1.2e-6) | `planck.c:46`, `expint.c:51,73` | `test_functions` (Q-14) | open |
-| [N-23](https://github.com/dwijn/RH/issues/143) | medium | In 1-D, every angle-independent wavelength (static atmosphere, no Stokes, no angle-dependent PRD) is solved with second-order Feautrier, whatever `S_INTERPOLATION` says; Bezier3 (4th order for the emergent intensity) is used only with velocities or polarization. The keyword is silently ignored, and static and moving atmospheres are solved with different methods | `rhf1d/formal.c:356-372` | `1d/nostokes` unchanged by the Bezier fix (N-17); `test_formal_1d` | open |
+| [N-23](https://github.com/dwijn/RH/issues/143) | medium | In 1-D, every angle-independent wavelength (static atmosphere, no Stokes, no angle-dependent PRD) is solved with second-order Feautrier, whatever `S_INTERPOLATION` says; Bezier3 (4th order for the emergent intensity) is used only with velocities or polarization. The keyword is silently ignored, and static and moving atmospheres are solved with different methods | `rhf1d/formal.c:356-372` | `1d/nostokes` unchanged by the Bezier fix (N-17); `test_formal_1d` | fixed |
 | [N-24](https://github.com/dwijn/RH/issues/150) | medium | 2-D and 3-D cubic Bezier solvers are second order: the upwind control point uses the secant slope (S_local − S_uw)/Δτ instead of a derivative at the upwind point (the 1-D solver carries the centred derivative from the previous point). On a uniform slab where every upwind point lies on a layer: emergent error 4.8e-4 at 16 points per decade, where 1-D Bezier gives 9e-7. Several ways to fix it (interpolated derivatives, a derivative from the upwind stencil); to be chosen | `rhsc2d/bezier_2D.c:510`, `rhsc3d/bezier_3D.c` | `test_formal_2d`, `test_formal_3d` (Q-14) | open |
 
 ### 3.3 Memory
@@ -313,7 +316,7 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | [Q-17](https://github.com/dwijn/RH/issues/96) | medium | ~30 unchecked I/O results: `fread`/`fwrite`, `xdr_*`, `fscanf`/`fgets` return values assigned and never tested (e.g. a truncated Barklem table goes unnoticed) | fixed |
 | [Q-18](https://github.com/dwijn/RH/issues/105) | medium | Multi-D test cases use perturbed FAL-C atmospheres; realistic cases need cut-outs of freely available 3-D RMHD snapshots (e.g. Bifrost, MURaM), small enough for the stress suite and CI, with converter scripts in `tests/` | open |
 | [Q-19](https://github.com/dwijn/RH/issues/157) | medium | Manual out of date and without source: only `docs/rhmanual.pdf` (26 pages, November 2010, pdfTeX) exists, its LaTeX source is not in the repository or upstream. It describes the makefile build and Fortran, keywords that have since been removed (`S_PARABOLIC`, the Voigt choices), and nothing of CMake, threads, the tests or the solver changes. To be revised once the code settles, with its source in the repository; `pdftotext` extracts the text cleanly as a starting point | open |
-| [Q-20](https://github.com/dwijn/RH/issues/158) | medium | Unit tests documented only in source comments: write up each problem, its analytic solution and the expected accuracy and order of convergence, with derivations, in a LaTeX document (`docs/unit-tests/`) | open |
+| [Q-20](https://github.com/dwijn/RH/issues/158) | medium | Unit tests documented only in source comments: write up each problem, its analytic solution and the expected accuracy and order of convergence, with derivations, in a LaTeX document (`docs/unit-tests/`) | fixed |
 
 Output formats are a contract: the Python (`python/rhanalyze`) and IDL readers
 unpack the XDR files field by field, and `rhopacity.py` seeks into raw
@@ -360,7 +363,7 @@ upstream issue or pull request once filed. Most severe first.
 | ID | Sev | What happens upstream | Fixed here | Reported |
 |---|---|---|---|---|
 | [B-24](https://github.com/dwijn/RH/issues/149) | high | 2-D and 3-D long characteristics stop one section short: wrong intensities wherever short characteristics cross column lines or vertical planes before the next layer (deep or optically thick layers, fine horizontal grids). 7–11% error for a linear source function on a uniform slab; the shipped 2-D/3-D examples change by up to 25% at short wavelengths | [#152](https://github.com/dwijn/RH/pull/152) | — |
-| [B-25](https://github.com/dwijn/RH/issues/155) | high | The polarized DELO-Bezier solvers (all geometries) pair the derivative terms of the control points with the wrong weights and have the wrong sign of dK/dτ at the central point: first order where K varies with depth. Converged Ca II full Stokes on FALC: Stokes V 38% from the converged answer, the 854.2 nm V amplitude 21% too large | — | — |
+| [B-25](https://github.com/dwijn/RH/issues/155) | high | The polarized DELO-Bezier solvers (all geometries) pair the derivative terms of the control points with the wrong weights and have the wrong sign of dK/dτ at the central point: first order where K varies with depth. Converged Ca II full Stokes on FALC: Stokes V 38% from the converged answer, the 854.2 nm V amplitude 21% too large | [#161](https://github.com/dwijn/RH/pull/161) | — |
 | [B-1](https://github.com/dwijn/RH/issues/2) | high | `SOLVE_NE = ITERATION` aborts on the second `Background()` call with active atoms | [#69](https://github.com/dwijn/RH/pull/69) | — |
 | [B-3](https://github.com/dwijn/RH/issues/4) | high | Collisional relaxation stops after one iteration and returns LTE populations reported as converged | [#70](https://github.com/dwijn/RH/pull/70) | — |
 | [B-2](https://github.com/dwijn/RH/issues/3) | high | `PRD_NG_ORDER > 0` with the default `PRD_NG_PERIOD = 0` divides by zero | [#67](https://github.com/dwijn/RH/pull/67) | — |
@@ -368,8 +371,8 @@ upstream issue or pull request once filed. Most severe first.
 | [N-17](https://github.com/dwijn/RH/issues/131) | medium | Cubic Bezier weights (default solver, all geometries) wrong by up to 1.2e-5 below dt = 0.05 (truncated series) and cancelling above; I off by ~1e-6 | [#147](https://github.com/dwijn/RH/pull/147) | — |
 | [B-5](https://github.com/dwijn/RH/issues/6) | medium | Linear short characteristics compute the last point of each 1-D ray with stale weights | [#147](https://github.com/dwijn/RH/pull/147) | — |
 | [B-16](https://github.com/dwijn/RH/issues/93) | medium | Collision data before a `TEMP` line read an uninitialized item count (crash) or inherit one (silently wrong rates) | [#99](https://github.com/dwijn/RH/pull/99) | — |
-| [B-26](https://github.com/dwijn/RH/issues/156) | medium | The 2-D and 3-D polarized solvers compute the last layer of each ray, which includes the emergent Stokes vector, with a stale (2-D) or uninitialized (3-D) source vector | — | — |
-| [N-23](https://github.com/dwijn/RH/issues/143) | medium | 1-D static atmospheres are always solved with second-order Feautrier; `S_INTERPOLATION` is silently ignored there. Converged on FALC (82 points), Feautrier is up to 20% from the converged spectrum, Bezier3 3% | [#154](https://github.com/dwijn/RH/pull/154) (in review) | — |
+| [B-26](https://github.com/dwijn/RH/issues/156) | medium | The 2-D and 3-D polarized solvers compute the last layer of each ray, which includes the emergent Stokes vector, with a stale (2-D) or uninitialized (3-D) source vector | [#161](https://github.com/dwijn/RH/pull/161) | — |
+| [N-23](https://github.com/dwijn/RH/issues/143) | medium | 1-D static atmospheres are always solved with second-order Feautrier; `S_INTERPOLATION` is silently ignored there. Converged on FALC (82 points), Feautrier is up to 20% from the converged spectrum, Bezier3 3% | [#154](https://github.com/dwijn/RH/pull/154) | — |
 | [B-6](https://github.com/dwijn/RH/issues/7) | medium | Possible double counting of the cross-coupling term for multi-ion atoms (not yet confirmed) | — | — |
 | [B-7](https://github.com/dwijn/RH/issues/8) | medium | 3-D `Jgas` possibly double counted (not yet confirmed) | — | — |
 | [B-8](https://github.com/dwijn/RH/issues/9) | medium | `calcDistance()` (3-D) can fall off the end without a return value | [#76](https://github.com/dwijn/RH/pull/76) | — |
@@ -458,6 +461,88 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-10-18 — Polarized DELO-Bezier solvers fixed and tested (changes results) (B-25, B-26, Q-14)
+
+- `test_formal_stokes` (new) solves the 1-D polarized transfer equation
+  with a constant propagation matrix K = 1 + K' and an unpolarized
+  polynomial source function, where the Stokes vector is known in closed
+  form: the scalar solution with mu replaced by mu K^-1
+  (`stokes_exact.h`; I- through a matrix exponential). It also requires
+  the polarized solver to equal the unpolarized Bezier solver when
+  K' = 0, and measures the order with a depth-dependent K from
+  successive grids. `test_formal_2d` and `test_formal_3d` do the same for
+  the 2-D and 3-D polarized solvers on their uniform slabs, which also
+  tests `SolveLongStokes` (the polarized variant of B-24).
+- B-25, all geometries: the derivative terms of the control points were
+  paired with the wrong weights (gamma S'(c) - theta S'(u) instead of
+  gamma S'(u) - theta S'(c)): second order, and with K' = 0 2.4% from the
+  unpolarized solver at 81 points. The sign of dK'/dtau at the central
+  point was wrong: first order (1.02) when K varies with depth. Now
+  fourth order for the emergent Stokes vector, constant or varying K
+  (9.9e-7 at 161 points, as unpolarized: 9.3e-7).
+- B-26, 2-D and 3-D: in the last layer of each ray the local source
+  vector was used before it was set (2-D: the last point of the layer
+  below; 3-D: an uninitialized local). With K' = 0 the bottom layer of
+  I- was 38% off; for linear S the emergent vector 2e-9 (exact now).
+- Converged Ca II full Stokes (CRD, 500 G at 45 degrees, ITER_LIMIT
+  1e-6) on FALC refined 1x to 8x, against the fixed solver at 8x:
+
+  | grid | 82 | 163 | 325 | 649 |
+  |---|---|---|---|---|
+  | V error, before | 3.8e-1 | 1.7e-1 | 7.2e-2 | 2.7e-2 |
+  | V error, now | 2.9e-2 | 5.9e-3 | 1.1e-3 | — |
+  | iterations, before / now | 54 / 28 | 79 / 34 | 64 / 46 | 100 / 70 |
+
+  (V error: largest |V - V_ref| over the spectrum and rays, relative to
+  max |V_ref|.) The old solver converged at order ~1.2 to the same
+  limit; it overestimated the 854.2 nm V amplitude by 21% at 82 points.
+  The fixed solver also needs fewer iterations at every resolution.
+
+### 2026-10-18 — 1-D static atmospheres solved with S_INTERPOLATION instead of always Feautrier (changes results) (N-23)
+
+- In 1-D, every wavelength without velocities, polarization or
+  angle-dependent PRD was solved with second-order Feautrier, whatever
+  `S_INTERPOLATION` said; only moving or polarized cases used Bezier3.
+  Now both directions of every ray are solved with the chosen method
+  (`S_BEZIER3` by default, or `S_LINEAR`), as in the angle-dependent
+  case. `Feautrier()` stays in use by `rhsphere` and `solve1d`.
+- The regression cases change by up to 30% (Ca II H and Lyα cores), but
+  they stop after 4 iterations, with changes of 0.25 left: the
+  difference is mostly a different iteration path. Converged
+  (ITER_LIMIT 1e-6) on FALC refined 1x, 2x, 4x and 8x (82 to 649
+  points; Ca II active), against Bezier3 at 8x:
+
+  | method | 82 points | 163 | 325 | 649 | order |
+  |---|---|---|---|---|---|
+  | Feautrier (before), worst over spectrum | 2.0e-1 | 4.8e-2 | 1.2e-2 | 3.3e-3 | 2 |
+  | Bezier3 (now), worst over spectrum | 3.1e-2 | 1.2e-2 | 1.9e-3 | — | ~3 |
+  | Feautrier, Ca II 8498 core | 3.9e-2 | 9.8e-3 | 2.5e-3 | 6.0e-4 | 2 |
+  | Bezier3, Ca II 8498 core | 1.5e-2 | 1.9e-3 | 2.0e-4 | — | ~3 |
+
+  Both converge to the same limit; on the standard 82-point grid
+  Bezier3 is 4 to 6 times closer to it. Cost: Bezier3 needs two sweeps
+  per ray instead of one Feautrier solve (1.6x per iteration on this
+  case) and 28 iterations instead of 22 (its approximate diagonal
+  operator, N-19): 0.73 s instead of 0.36 s.
+
+### 2026-10-18 — The unit-test problems and their derivations, written up (Q-20)
+
+- `docs/unit-tests/unit-tests.tex` (`make -C docs/unit-tests` builds the
+  PDF with pdflatex) describes every unit test: the problem, its
+  analytic solution or reference, why the expected accuracy and order of
+  convergence are what they are, and the defects each test found. Voigt
+  and Faraday-Voigt functions (the hybrid algorithm and its first-order
+  expansion in a); LU, interpolation, quadrature and special functions;
+  1-D formal solvers on slabs with polynomial S (I+ and I- in closed
+  form, without cancellation), the cubic Bezier weights and why Bezier3
+  is fourth order for the emergent intensity, the exact diagonal of the
+  Bezier operator (N-19); multi-D solvers on uniform slabs and the long
+  characteristics (B-24); the spherical shell; the polarized solvers
+  against the matrix form of the analytic solution, DELO-Bezier and the
+  errors found there (B-25, B-26).
+- `make_bezier_reference.py`: its docstring had the weights of the two
+  control points swapped (gamma belongs to the upwind one).
 
 ### 2026-10-17 — Long characteristics in 2-D and 3-D stopped one section short (changes results) (B-24, Q-14)
 
