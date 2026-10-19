@@ -16,3 +16,6 @@ rhsc3d/solveray
 rhsphere/rhsphere
 build/
 build-*/
+
+# Python bytecode
+__pycache__/
