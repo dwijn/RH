@@ -102,7 +102,7 @@ the upstream segfault.
 ## Stress, convergence and performance cases
 
 `run_tests.sh` stops every case after 4 iterations. `run_stress.sh` runs
-strongly NLTE problems **to convergence** (`--set conv`, 24 cases) or for a
+strongly NLTE problems **to convergence** (`--set conv`, 21 cases, 5 more on Bifrost cuts) or for a
 fixed number of iterations on large multi-D grids (`--set perf`), on one or
 more builds, and reports iterations, final population change, trend
 (monotone / oscillating / stalled), wall time, peak memory, and the population
@@ -122,3 +122,23 @@ corrugated transition region and velocity field); `atmos/` holds two dynamic
 1-D models. `analyze_run.py` does the log parsing and population comparison.
 Use a `--work` directory on a large filesystem: PRD runs write GB-sized
 scratch files.
+
+### Realistic atmospheres: Bifrost
+
+The `bf_` cases use cuts of a Bifrost snapshot (Carlsson et al. 2016, A&A
+585, A4: en024048_hion, snapshot 385, the FITS cubes of lgtg, lgne, ux, uy,
+uz, bx, by, bz and lgn1..lgn6). The data are not distributed with RH and these
+cases do not run on GitHub: download the cubes and point the script at them,
+
+```
+tests/run_stress.sh --tree candidate=. --bifrost /path/to/en024048_hion/atmos --only _bf_
+```
+
+(or set `RH_BIFROST_DIR`); without it they are skipped. `make_bifrost_atmos.py`
+cuts the snapshot to z = -0.5 ... 3 Mm (every second point, 89 heights) as a
+1-D column, a 2-D row or a 3-D box. RH's horizontal boundaries are periodic
+(3-D allows nothing else; fixed 2-D boundaries need the incoming intensity at
+every wavelength), and so is the snapshot: a full row or the whole box sampled
+every S-th point, S a divisor of 504, stays periodic; a window does not and is
+used for timing only. Ca II runs in CRD: with PRD the iteration diverges in
+these moving atmospheres (B-29), which the `_prd` cases reproduce.
