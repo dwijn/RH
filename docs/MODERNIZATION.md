@@ -330,6 +330,7 @@ New capabilities, not problems with the existing code.
 | ID | Sev | Item | Status |
 |---|---|---|---|
 | [F-1](https://github.com/dwijn/RH/issues/109) | medium | Tool for building RH model atoms from standard data sources: choosing the right model atom is one of the hard parts of running RH well. Assemble levels, lines, photoionization cross-sections and collisional data from standard sources (NIST, Kurucz, TOPbase/Opacity Project, CHIANTI, collision databases), with options to reduce a large model (level/line selection, superlevels) and checks of completeness. Replaces the removed `constructatom` (Kurucz lines only, levels and lines, Si only) | open |
+| [F-2](https://github.com/dwijn/RH/issues/164) | medium | Magnetic-dipole (M1) lines with polarization: RH treats every line as electric dipole (E1). For M1 the Zeeman pattern and strengths are the same (rank 1), but the linear polarization is rotated by 90°: eta_Q, eta_U, rho_Q and rho_U change sign, eta_V and rho_V do not. Needed for forbidden lines such as [O I] 630.03 nm (blended with Ni I 630.04 nm; it also has a small E2 admixture, which would need |dM| = 2 components and is left out). Minimal version: a per-line flag in the atom file and the sign changes in `profile.c`, covered by the Zeeman/profile unit tests | open |
 
 ### 3.8 Solver redesign
 
