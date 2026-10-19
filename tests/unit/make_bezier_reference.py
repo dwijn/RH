@@ -5,7 +5,7 @@ formal-solver unit test.
 Over an interval of optical depth dt, with S_u, S_c the source function at
 the upwind and central point and C_u, C_c its Bezier control points,
 
-    I_c = eps I_u + alpha S_u + beta S_c + gamma C_c + theta C_u,
+    I_c = eps I_u + alpha S_u + beta S_c + gamma C_u + theta C_c,
 
     eps   = exp(-dt)
     alpha = (6 - (6 + 6 dt + 3 dt^2 + dt^3) eps) / dt^3
