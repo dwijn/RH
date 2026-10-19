@@ -16,8 +16,13 @@
 	   Checks: all columns agree; I+ is exact for linear S (a linear
 	   function of height survives any of the interpolations), and so is
 	   I- on the "layers" mesh; convergence order on a cubic S; Psi of
-	   the linear solver against the response to a unit S. -v prints the
-	   measured errors.
+	   the linear solver against the response to a unit S.
+
+	   Polarized (Piece_Stokes_Bezier3_2D) with a constant propagation
+	   matrix and an unpolarized source vector (stokes_exact.h): with
+	   K' = 0 it must equal the unpolarized Bezier3 solver; I+ is exact
+	   for linear S; the emergent Stokes vector converges for cubic S.
+	   -v prints the measured errors.
 	   --                                              -------------- */
 
 #include <math.h>
@@ -31,9 +36,12 @@
 #include "spectrum.h"
 #include "inputs.h"
 #include "check.h"
-#include "slab_exact.h"
+#include "stokes_exact.h"
 
 extern CommandLine commandline;
+extern Atmosphere  atmos;
+extern Spectrum    spectrum;
+extern InputData   input;
 
 /* --- Rays: (muz, mux), both signs of mux and a vertical one -- ---- */
 
@@ -324,6 +332,154 @@ static void check_psi_linear(double bound, bool_t verbose)
 		  layers, bound);
 }
 
+/* --- Polarized: constant K' = kscale K_ELEMENTS in every point,
+	   source vector K (S, 0, 0, 0). Arrays for the Stokes vectors are
+	   per slab and stay allocated --                  -------------- */
+
+static double **stokes_S[NREFINE][NMESH], **stokes_I[NREFINE][NMESH];
+
+static void stokes_set(Slab *slab, double **Sv, const double s[NPOLY], double kscale)
+{
+	int        Nspace = NX * slab->Nz;
+	ActiveSet *as     = &spectrum.as[0];
+	Mat        K;
+
+	atmos.Nspace = Nspace;
+	as->chi_c    = realloc(as->chi_c, 4 * Nspace * sizeof(double));
+	as->chip_c   = realloc(as->chip_c, 3 * Nspace * sizeof(double));
+	full_K(K_ELEMENTS, kscale, K);
+	set_source(slab, s);
+	for (int n = 0; n < Nspace; n++) {
+		as->chi_c[n]               = 1.0;
+		as->chi_c[Nspace + n]      = K[0][1];
+		as->chi_c[2 * Nspace + n]  = K[0][2];
+		as->chi_c[3 * Nspace + n]  = K[0][3];
+		as->chip_c[n]              = K[2][3]; /* rho_Q */
+		as->chip_c[Nspace + n]     = K[3][1]; /* rho_U */
+		as->chip_c[2 * Nspace + n] = K[1][2]; /* rho_V */
+		for (int i = 0; i < 4; i++) Sv[i][n] = K[i][0] * slab->S[n];
+	}
+}
+
+/* --- Largest error of any Stokes component relative to I, over the
+	   layers with tau <= 10 (deeper, the boundary condition Q = U = V
+	   = 0 at the bottom differs from the semi-infinite solution) and
+	   all columns; and of the emergent vector --     -------------- */
+
+static void stokes_errors(Slab *slab, double **I, const double s[NPOLY], int mu,
+						  bool_t to_obs, double *interior, double *emergent)
+{
+	Mat K;
+
+	full_K(K_ELEMENTS, 1.0, K);
+	for (int k = (to_obs ? 0 : 1); k < slab->Nz && slab->tau[k] <= 10.0; k++) {
+		Vec want;
+
+		I_exact_pol(s, K, slab->tau[k], slab->tau[0], ray_muz[mu], to_obs, want);
+		for (int l = 0; l < NX; l++)
+			for (int n = 0; n < 4; n++) {
+				double err = fabs(I[n][k * NX + l] - want[n]) / fabs(want[0]);
+				if (k == 0)
+					*emergent = MAX(*emergent, err);
+				else
+					*interior = MAX(*interior, err);
+			}
+	}
+}
+
+static void stokes_solve(Slab *slab, double **Sv, double **I, const double s[NPOLY],
+						 int mu, bool_t to_obs)
+{
+	double Ib = I_exact(s, slab->tau[slab->Nz - 1], 0.0, ray_muz[mu], TRUE);
+
+	for (int l = 0; l < NX; l++) {
+		slab->geo.Itop[0][l]    = 0.0;
+		slab->geo.Ibottom[0][l] = Ib;
+	}
+	Piece_Stokes_Bezier3_2D(&slab->geo, 0, mu, to_obs, slab->chi, Sv, I, NULL);
+}
+
+/* --- Measured (gcc, x86-64): K' = 0 equal to the unpolarized solver
+	   to 4.6e-16 on all meshes; linear S, I+ exact to 2.9e-13 (layers)
+	   / 1.1e-13 (before the fix of B-26 the emergent vector was
+	   computed with the source vector of a point in the layer below:
+	   error 1.8e-9, and 38% at K' = 0 in the bottom layer of I-);
+	   cubic S on "layers": order 1.96, emergent 5.8e-4 at Nz = 161,
+	   second order as unpolarized (N-24) --          -------------- */
+
+static void check_stokes(bool_t verbose)
+{
+	const double lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
+
+	spectrum.as                      = calloc(1, sizeof(ActiveSet));
+	atmos.backgrflags                = calloc(1, sizeof(flags));
+	atmos.backgrflags[0].ispolarized = TRUE;
+	input.magneto_optical            = TRUE;
+
+	for (int r = 0; r < NREFINE; r++)
+		for (int m = 0; m < NMESH; m++) {
+			stokes_S[r][m] = matrix_double(4, NX * slabs[r][m]->Nz);
+			stokes_I[r][m] = matrix_double(4, NX * slabs[r][m]->Nz);
+		}
+
+	for (int mesh = 0; mesh < NMESH; mesh++) {
+		const char *mn   = mesh_name[mesh];
+		Slab       *slab = slabs[1][mesh];
+		double    **Sv = stokes_S[1][mesh], **I = stokes_I[1][mesh];
+		double      unpol = 0.0, quv = 0.0, lin_err = 0.0, lin_em = 0.0;
+
+		/* --- K' = 0: the unpolarized solution, Q = U = V = 0 -- --- */
+
+		stokes_set(slab, Sv, cub, 0.0);
+		for (int mu = 0; mu < NRAYS; mu++)
+			for (int to_obs = 0; to_obs <= 1; to_obs++) {
+				stokes_solve(slab, Sv, I, cub, mu, to_obs);
+				solve(Piecewise_Bezier3_2D, slab, cub, mu, to_obs, NULL);
+				for (int n = 0; n < NX * slab->Nz; n++) {
+					unpol = MAX(unpol, fabs(I[0][n] - slab->I[n]) / fabs(slab->I[n]));
+					for (int i = 1; i < 4; i++) quv = MAX(quv, fabs(I[i][n]));
+				}
+			}
+
+		/* --- Linear S: I+ exact --                     -------------- */
+
+		stokes_set(slab, Sv, lin, 1.0);
+		for (int mu = 0; mu < NRAYS; mu++) {
+			stokes_solve(slab, Sv, I, lin, mu, TRUE);
+			stokes_errors(slab, I, lin, mu, TRUE, &lin_err, &lin_em);
+		}
+		if (verbose)
+			printf("STOKES   %-8s K' = 0 vs unpolarized %.2e (QUV %.1e); linear S up "
+				   "%.2e, emergent %.2e\n",
+				   mn, unpol, quv, lin_err, lin_em);
+		CHECK(unpol <= 1.0e-13 && quv == 0.0,
+			  "STOKES, %s: K' = 0 differs from unpolarized by %.3g (QUV %.3g)", mn,
+			  unpol, quv);
+		CHECK(MAX(lin_err, lin_em) <= 1.0e-12, "STOKES, %s: linear S, I+ error %.3g",
+			  mn, MAX(lin_err, lin_em));
+	}
+
+	/* --- Cubic S on "layers": emergent Stokes vector converges -- */
+
+	double em[NREFINE], order = HUGE_VAL;
+	for (int r = 0; r < NREFINE; r++) {
+		double interior = 0.0;
+		em[r]           = 0.0;
+		stokes_set(slabs[r][0], stokes_S[r][0], cub, 1.0);
+		for (int mu = 0; mu < NRAYS; mu++) {
+			stokes_solve(slabs[r][0], stokes_S[r][0], stokes_I[r][0], cub, mu, TRUE);
+			stokes_errors(slabs[r][0], stokes_I[r][0], cub, mu, TRUE, &interior, &em[r]);
+		}
+		if (verbose)
+			printf("  STOKES   layers   Nz %4d  emergent %.3e  interior %.3e\n",
+				   slabs[r][0]->Nz, em[r], interior);
+		if (r > 0) order = MIN(order, log2(em[r - 1] / em[r]));
+	}
+	if (verbose) printf("STOKES   layers   order emergent %.2f\n", order);
+	CHECK(order >= 1.7, "STOKES, layers: order %.2f < 1.7", order);
+	CHECK(em[2] <= 1.0e-3, "STOKES, layers: emergent error %.3g > 1e-3", em[2]);
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
@@ -339,6 +495,7 @@ int main(int argc, char *argv[])
 
 	for (int n = 0; n < N_METHODS; n++) check_method(&methods[n], verbose);
 	check_psi_linear(1.0e-14, verbose); /* layers: 2.2e-16 */
+	check_stokes(verbose);
 
 	return check_summary("test_formal_2d");
 }

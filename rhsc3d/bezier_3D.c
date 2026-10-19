@@ -81,6 +81,7 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 		S_uw[n] = Interpolate_3D(S[n], geometry, st_uw, l, m);
 	}
 	StokesK(nspect, local, chi[local], K_loc);
+	for (n = 0; n < 4; n++) S_loc[n] = S[n][local];
 
 	if (k == kend) {
 
@@ -124,7 +125,6 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 
 		for (n = 0; n < 4; n++) {
 			S_dw[n]  = Interpolate_3D(S[n], geometry, st_dw, l, m);
-			S_loc[n] = S[n][local];
 			dS_uw[n] = (S_loc[n] - S_uw[n]) / dtau_uw;
 
 			for (p = 0; p < 4; p++)
@@ -148,7 +148,7 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 	dt03 = dtau_uw * 0.3333333333333333333333333;
 	for (j = 0; j < 4; j++) {
 		for (i = 0; i < 4; i++) {
-			M_dw[j][i] = ident[j][i] + beta * K_loc[j][i] + theta * (dt03 * (A[j][i] + dK_c[j][i] + K_loc[j][i]) + K_loc[j][i]);
+			M_dw[j][i] = ident[j][i] + beta * K_loc[j][i] + theta * (dt03 * (A[j][i] - dK_c[j][i] + K_loc[j][i]) + K_loc[j][i]);
 
 			Ma[j][i] = eps * ident[j][i] - alpha * K_uw[j][i] + gamma * (dt03 * (Ma[j][i] - dK_uw[j][i] + K_uw[j][i]) - K_uw[j][i]);
 
@@ -160,7 +160,7 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 	}
 
 	/* --- Here I am doing Ma*stk + Mb * Su + Mc * S0 +
-		   (gam * dS0 - theta * dSu) * dtau / 3.0 to compute the
+		   (gamma * dSu - theta * dS0) * dtau / 3.0 to compute the
 	   right-hand term
 			 --                                         --------------- */
 
@@ -170,7 +170,7 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 			V0[i] += Ma[i][j] * I_uw[j] + Mb[i][j] * S_uw[j] +
 					 Mc[i][j] * S_loc[j];
 		}
-		V0[i] += dt03 * (gamma * dS_c[i] - theta * dS_uw[i]);
+		V0[i] += dt03 * (gamma * dS_uw[i] - theta * dS_c[i]);
 	}
 	/* --- Solve linear system to get the intensity -- ---------------- */
 
