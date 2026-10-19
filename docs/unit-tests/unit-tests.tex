@@ -9,7 +9,12 @@
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage[round]{natbib}
 \usepackage[hidelinks]{hyperref}
+% journal macros used by ADS BibTeX exports
+\providecommand{\jqsrt}{JQSRT}
+\providecommand{\apj}{ApJ}
+\providecommand{\aap}{A\&A}
 
 \newcommand{\code}[1]{\texttt{#1}}
 \newcommand{\dd}{\mathrm{d}}
@@ -91,7 +96,7 @@ $H(0,v) = \e^{-v^2}$ and $\int H\,\dd v = \sqrt\pi$. $H$ is even and $F$
 odd in $v$.
 
 \subsection{The implementation}
-\code{voigt.c} combines (after Schreier 2018):
+\code{voigt.c} combines (after \citealt{2018JQSRT.213...13S}):
 \begin{itemize}
 \item for $|v|+a\ge 8$, the Laplace continued fraction
 \begin{equation}
@@ -100,7 +105,7 @@ w(z) = \frac{i}{\sqrt\pi}\,\cfrac{1}{z-\cfrac{1/2}{z-\cfrac{1}{z-\cfrac{3/2}{z-\
   to six levels, evaluated as the ratio $A_6/B_6$ of its convergents,
   $A_k = zA_{k-1}-\tfrac{k}{2}A_{k-2}$ and the same for $B_k$, so that
   there is a single complex division;
-\item inside that region, Weideman's (1994) rational approximation with
+\item inside that region, the rational approximation of \citet{10.1137/0731077} with
   $N=32$: with $L = 2^{-1/4}N^{1/2}$, $r = 1/(L-iz)$ and
   $Z = (L+iz)\,r$,
   \begin{equation}
@@ -137,7 +142,7 @@ Against $w(z)$ from \code{mpmath} on $a\in\{0,10^{-12},10^{-10},
 \item the relative error of $H$ wherever $H\ge 10^{-12}H(a,0)$ (a strong
   line's wing matters against the continuum down to about there):
   measured $1.6\times10^{-6}$, largest for $a\sim10^{-6}$ just outside
-  the Doppler core, where the first-order expansion and Weideman's
+  the Doppler core, where the first-order expansion and \citeauthor{10.1137/0731077}'s
   approximation meet;
 \item the error relative to the line centre, $|H-H_\text{ref}|/H(a,0)$:
   $2.7\times10^{-10}$;
@@ -204,7 +209,7 @@ $\{1,x,\e^{\sigma x},\e^{-\sigma x}\}$. It tends to the cubic spline for
 $\sigma\to0$ and to linear interpolation for $\sigma\to\infty$; the test
 checks both limits and two tensions against \code{mpmath}.
 
-\paragraph{Cubic convolution.} Keys' (1981) kernel
+\paragraph{Cubic convolution.} The kernel of \citet{1981ITASS..29.1153K}
 \begin{equation}
 u(s) = \begin{cases}
 \tfrac32|s|^3-\tfrac52|s|^2+1, & |s|\le1,\\
@@ -213,7 +218,7 @@ u(s) = \begin{cases}
 \end{cases}
 \end{equation}
 is a partition of unity and reproduces quadratics, so interpolation is
-third order; with Keys' extrapolation of the data at the edges
+third order; with \citeauthor{1981ITASS..29.1153K}' extrapolation of the data at the edges
 ($f_{-1} = 3f_0-3f_1+f_2$) it is exact for biquadratic data in every
 cell, including the boundary cells. All three properties are checked.
 
@@ -248,8 +253,7 @@ $0\le\Delta\tau\le1000$, across all switches. (N-18: the former series
 was wrong by up to $2\times10^{-6}$ near $\Delta\tau=5\times10^{-4}$.)
 
 \subsection{Special functions (\code{test\_functions})}
-\paragraph{Exponential integrals.} $E_1$ uses Abramowitz \& Stegun
-5.1.53 (polynomial, absolute error $<2\times10^{-7}$ for $x\le1$) and
+\paragraph{Exponential integrals.} $E_1$ uses formula 5.1.53 of \citet{1972hmfw.book.....A} (polynomial, absolute error $<2\times10^{-7}$ for $x\le1$) and
 5.1.56 (rational, $x\e^xE_1$ to $2\times10^{-8}$ relative for $x\ge1$);
 the test holds them to those accuracies against \code{mpmath}.
 $E_2 = \e^{-x}-xE_1$ cancels at large $x$, where
@@ -355,7 +359,7 @@ I_c = \varepsilon I_u + \alpha S_u + \beta S_c + \gamma C_u + \theta C_c,
 \theta &= \frac{3\,[6-4\delta+\delta^2-(6+2\delta)\varepsilon]}{\delta^3}
 \end{aligned}
 \end{equation}
-(de la Cruz Rodr\'iguez \& Piskunov 2013). $\gamma$ belongs to the
+\citep{2013ApJ...764...33D}. $\gamma$ belongs to the
 upwind control point and $\theta$ to the central one: for large
 $\delta$, $\theta\approx3/\delta$ (near the central point, little
 attenuated) and $\gamma\approx6/\delta^2$. The control points of the
@@ -364,7 +368,7 @@ cubic Hermite interpolant with derivatives $S'_u$, $S'_c$ are
 C_u = S_u + \tfrac{\delta}{3}S'_u,\qquad C_c = S_c - \tfrac{\delta}{3}S'_c .
 \end{equation}
 RH estimates $S'_c$ from the upwind and downwind neighbours with
-Steffen's (1990) monotonic limiter: with the one-sided slopes
+the monotonic limiter of \citet{1990A&A...239..443S}: with the one-sided slopes
 $s_u = (S_c-S_u)/\delta_u$, $s_d = (S_d-S_c)/\delta_d$ and the parabolic
 estimate $p = (s_u\delta_d+s_d\delta_u)/(\delta_u+\delta_d)$,
 \begin{equation}
@@ -386,7 +390,7 @@ $10^{-8}\le\delta\le10^3$ (\code{make\_bezier\_reference.py}). (N-17:
 the former truncated series was wrong by up to $1.2\times10^{-5}$.)
 
 \subsection{What \code{test\_formal\_1d} checks, and why}
-\paragraph{Exactness.} If $S$ is linear in $\tau$, Steffen's estimate
+\paragraph{Exactness.} If $S$ is linear in $\tau$, \citeauthor{1990A&A...239..443S}'s estimate
 returns the exact slope (both one-sided slopes and $p$ are equal), the
 Bezier curve reproduces $S$, and the linear solver's interpolant is
 exact as well: both must give $I^\pm$ to rounding (measured
@@ -420,7 +424,7 @@ contributions cancel to higher order along the ray. At the two ends of
 the ray the derivative is one-sided (the secant), which breaks the
 cancellation; its error is carried inward and attenuated, which is why
 the interior converges more slowly than the emergent intensity.
-Feautrier--Hermite is fourth order with constant opacity, but its
+Feautrier--Hermite \citep{1976JQSRT..16..931A} is fourth order with constant opacity, but its
 trapezoidal optical depth makes it second order when $\chi$ varies.
 
 \paragraph{The diagonal operator.} MALI needs $\Psi_k = \partial
@@ -446,7 +450,7 @@ previous interval. With $k-1\to k$ the interval ending at $k$,
 + \Bigl(\gamma_k\frac{\delta_k}{3} - \varepsilon_k\theta_{k-1}\frac{\delta_{k-1}}{3}\Bigr)
   \frac{\partial S'_{k-1}}{\partial S_k},
 \end{equation}
-where the partial derivatives of Steffen's estimate follow from its
+where the partial derivatives of \citeauthor{1990A&A...239..443S}'s estimate follow from its
 active branch:
 \begin{equation}
 \Bigl(\frac{\partial S'_c}{\partial S_u},\frac{\partial S'_c}{\partial S_c},
@@ -592,7 +596,7 @@ semi-infinite solution) is forgotten within a few optical depths. The
 tests compare only $\tau\le10$.
 
 \subsection{DELO-Bezier}
-The polarized solvers write the transfer equation along the ray as
+The polarized solvers \citep[DELO;][]{1989ApJ...339.1093R} write the transfer equation along the ray as
 \begin{equation}
 \frac{\dd\vI}{\dd t} = \vS_\text{eff} - \vI,\qquad
 \vS_\text{eff} = \vS_K - \Kp\vI,
@@ -668,17 +672,7 @@ In \code{tests/unit}, each script writes a header to standard output:
 \end{itemize}
 All need \code{mpmath}.
 
-\section*{References}
-\begin{itemize}\setlength\itemsep{0pt}
-\item Abramowitz, M., \& Stegun, I.\,A.\ 1964, \emph{Handbook of
-  Mathematical Functions} (Washington: NBS)
-\item Auer, L.\ 1976, JQSRT 16, 931 (Hermite--Feautrier)
-\item de la Cruz Rodr\'iguez, J., \& Piskunov, N.\ 2013, ApJ 764, 33
-\item Keys, R.\,G.\ 1981, IEEE Trans.\ ASSP 29, 1153
-\item Rees, D.\,E., Murphy, G.\,A., \& Durrant, C.\,J.\ 1989, ApJ 339, 1093
-\item Schreier, F.\ 2018, JQSRT 213, 13
-\item Steffen, M.\ 1990, A\&A 239, 443
-\item Weideman, J.\,A.\,C.\ 1994, SIAM J.\ Numer.\ Anal.\ 31, 1497
-\end{itemize}
+\bibliographystyle{plainnat}
+\bibliography{unit-tests}
 
 \end{document}
