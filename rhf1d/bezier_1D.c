@@ -220,12 +220,18 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 		if (Psi) Psi[k] = beta + theta;
 		;
 
+		/* --- DELO-Bezier: along the ray dI/dtau = S_eff - I, with
+			   S_eff = S - K' I, so S_eff' = S' - dK' I - K' S + (K'^2 + K') I.
+			   The control points are S_eff(u) + dt/3 S_eff'(u) (weight
+			   gamma) and S_eff(0) - dt/3 S_eff'(0) (weight theta); the
+			   terms in I(0) go to the left-hand side, Md --  ---------- */
+
 		m4m(Ku, Ku, Ma); // Ku # Ku
 		m4m(K0, K0, A);  // K0 # K0
 
 		for (j = 0; j < 4; j++) {
 			for (i = 0; i < 4; i++) {
-				Md[j][i] = ident[j][i] + beta * K0[j][i] + theta * (dt03 * (A[j][i] + dK0[j][i] + K0[j][i]) + K0[j][i]);
+				Md[j][i] = ident[j][i] + beta * K0[j][i] + theta * (dt03 * (A[j][i] - dK0[j][i] + K0[j][i]) + K0[j][i]);
 
 				Ma[j][i] = eps * ident[j][i] - alpha * Ku[j][i] + gamma * (dt03 * (Ma[j][i] - dKu[j][i] + Ku[j][i]) - Ku[j][i]);
 
@@ -237,7 +243,7 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 		}
 
 		/* --- Here I am doing Ma*stk + Mb * Su + Mc * S0 +
-			   (gam * dS0 - theta * dSu) * dtau / 3.0 to compute the
+			   (gamma * dSu - theta * dS0) * dtau / 3.0 to compute the
 			   right-hand term
 			   --                                      ------------------ */
 
@@ -248,7 +254,7 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 				V0[i] += Ma[i][j] * I[j][k - dk] + Mb[i][j] * Su[j] +
 						 Mc[i][j] * S0[j];
 			}
-			V0[i] += dt03 * (gamma * dS0[i] - theta * dSu[i]);
+			V0[i] += dt03 * (gamma * dSu[i] - theta * dS0[i]);
 		}
 
 		/* --- Solve linear system to get the intensity -- -------------- */

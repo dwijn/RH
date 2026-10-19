@@ -26,10 +26,12 @@
 #include "spectrum.h"
 #include "inputs.h"
 #include "check.h"
-#include "slab_exact.h"
+#include "stokes_exact.h"
 
 extern InputData   input;
 extern CommandLine commandline;
+extern Atmosphere  atmos;
+extern Spectrum    spectrum;
 
 /* --- Rays (mux, muy, muz) in different octants and a vertical one - */
 
@@ -251,6 +253,113 @@ static void check_method(const Method *m, bool_t verbose)
 	}
 }
 
+/* --- Polarized (ShortChar_Stokes, DELO-Bezier), as in
+	   test_formal_2d: constant K' = kscale K_ELEMENTS, source vector
+	   K (S, 0, 0, 0) --                               -------------- */
+
+static double **stokes_S[NINTERP][NMESH], **stokes_I[NINTERP][NMESH];
+
+static void stokes_set(Slab *slab, double **Sv, const double s[NPOLY], double kscale)
+{
+	int        Nspace = NX * NY * slab->Nz;
+	ActiveSet *as     = &spectrum.as[0];
+	Mat        K;
+
+	atmos.Nspace = Nspace;
+	as->chi_c    = realloc(as->chi_c, 4 * Nspace * sizeof(double));
+	as->chip_c   = realloc(as->chip_c, 3 * Nspace * sizeof(double));
+	full_K(K_ELEMENTS, kscale, K);
+	set_source(slab, s);
+	for (int n = 0; n < Nspace; n++) {
+		as->chi_c[n]               = 1.0;
+		as->chi_c[Nspace + n]      = K[0][1];
+		as->chi_c[2 * Nspace + n]  = K[0][2];
+		as->chi_c[3 * Nspace + n]  = K[0][3];
+		as->chip_c[n]              = K[2][3]; /* rho_Q */
+		as->chip_c[Nspace + n]     = K[3][1]; /* rho_U */
+		as->chip_c[2 * Nspace + n] = K[1][2]; /* rho_V */
+		for (int i = 0; i < 4; i++) Sv[i][n] = K[i][0] * slab->S[n];
+	}
+}
+
+static void set_boundary(Slab *slab, const double s[NPOLY], int mu)
+{
+	double Ib = I_exact(s, slab->tau[slab->Nz - 1], 0.0, ray_mu[mu][2], TRUE);
+
+	for (int n = 0; n < NX * NY; n++) {
+		slab->geo.Itop[0][n]    = 0.0;
+		slab->geo.Ibottom[0][n] = Ib;
+	}
+}
+
+/* --- Measured (gcc, x86-64), both interpolations and meshes, Nz =
+	   81: K' = 0 equal to the unpolarized Bezier3 solver to 4.6e-16;
+	   linear S, I+ (tau <= 10, all columns, any Stokes component
+	   relative to I) exact to 1.2e-13 --              -------------- */
+
+static void check_stokes(bool_t verbose)
+{
+	const double lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
+	int          Nplane = NX * NY;
+
+	spectrum.as                      = calloc(1, sizeof(ActiveSet));
+	atmos.backgrflags                = calloc(1, sizeof(flags));
+	atmos.backgrflags[0].ispolarized = TRUE;
+	input.magneto_optical            = TRUE;
+	input.S_interpolation            = S_BEZIER3;
+	input.S_interpolation_stokes     = DELO_BEZIER3;
+
+	for (int i = 0; i < NINTERP; i++) {
+		input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
+		for (int mesh = 0; mesh < NMESH; mesh++) {
+			Slab    *slab   = slabs[i][1][mesh];
+			int      Nspace = Nplane * slab->Nz;
+			double **Sv = stokes_S[i][mesh] = matrix_double(4, Nspace),
+				   **I = stokes_I[i][mesh] = matrix_double(4, Nspace);
+			double unpol = 0.0, quv = 0.0, lin_err = 0.0;
+			Mat    K;
+
+			/* --- K' = 0: the unpolarized solution --     -------------- */
+
+			stokes_set(slab, Sv, cub, 0.0);
+			for (int mu = 0; mu < NRAYS; mu++)
+				for (int to_obs = 0; to_obs <= 1; to_obs++) {
+					set_boundary(slab, cub, mu);
+					ShortChar_Stokes(&slab->geo, 0, mu, to_obs, slab->chi, Sv, I, NULL);
+					ShortChar(&slab->geo, 0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
+					for (int n = 0; n < Nspace; n++) {
+						unpol = MAX(unpol, fabs(I[0][n] - slab->I[n]) / fabs(slab->I[n]));
+						for (int j = 1; j < 4; j++) quv = MAX(quv, fabs(I[j][n]));
+					}
+				}
+
+			/* --- Linear S: I+ exact --                   -------------- */
+
+			stokes_set(slab, Sv, lin, 1.0);
+			full_K(K_ELEMENTS, 1.0, K);
+			for (int mu = 0; mu < NRAYS; mu++) {
+				set_boundary(slab, lin, mu);
+				ShortChar_Stokes(&slab->geo, 0, mu, TRUE, slab->chi, Sv, I, NULL);
+				for (int k = 0; k < slab->Nz && slab->tau[k] <= 10.0; k++) {
+					Vec want;
+					I_exact_pol(lin, K, slab->tau[k], slab->tau[0], ray_mu[mu][2], TRUE, want);
+					for (int n = 0; n < Nplane; n++)
+						for (int j = 0; j < 4; j++)
+							lin_err = MAX(lin_err, fabs(I[j][k * Nplane + n] - want[j]) / want[0]);
+				}
+			}
+			if (verbose)
+				printf("STOKES %-7s %-8s K' = 0 vs unpolarized %.2e (QUV %.1e); linear S up %.2e\n",
+					   i ? "bicubic" : "linear", mesh_name[mesh], unpol, quv, lin_err);
+			CHECK(unpol <= 1.0e-13 && quv == 0.0,
+				  "STOKES, %s: K' = 0 differs from unpolarized by %.3g (QUV %.3g)",
+				  mesh_name[mesh], unpol, quv);
+			CHECK(lin_err <= 1.0e-12, "STOKES, %s: linear S, I+ error %.3g",
+				  mesh_name[mesh], lin_err);
+		}
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
@@ -266,6 +375,7 @@ int main(int argc, char *argv[])
 	}
 
 	for (int n = 0; n < N_METHODS; n++) check_method(&methods[n], verbose);
+	check_stokes(verbose);
 
 	return check_summary("test_formal_3d");
 }
