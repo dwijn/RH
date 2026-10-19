@@ -68,8 +68,17 @@ void Bproject()
 				b2 = csc_theta * (geometry.muy[mu] * bx - geometry.mux[mu] * by);
 
 				atmos.cos_gamma[mu][k] = b3;
-				atmos.cos_2chi[mu][k]  = (SQ(b1) - SQ(b2)) / (1.0 - SQ(b3));
-				atmos.sin_2chi[mu][k]  = 2.0 * b1 * b2 / (1.0 - SQ(b3));
+				/* --- No transverse field (B along the ray): the angle chi is
+					   undefined, and the terms it enters carry a factor
+					   sin^2(gamma) = 0 (B-28) --         -------------- */
+
+				if (1.0 - SQ(b3) > 0.0) {
+					atmos.cos_2chi[mu][k] = (SQ(b1) - SQ(b2)) / (1.0 - SQ(b3));
+					atmos.sin_2chi[mu][k] = 2.0 * b1 * b2 / (1.0 - SQ(b3));
+				} else {
+					atmos.cos_2chi[mu][k] = 1.0;
+					atmos.sin_2chi[mu][k] = 0.0;
+				}
 			}
 		}
 	}

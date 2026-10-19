@@ -661,6 +661,203 @@ emergent vector was off by $2\times10^{-9}$ (the top interval is
 optically very thin in the test).
 
 %======================================================================
+\section{Zeeman effect: splitting, profiles and Milne--Eddington}
+\label{sec:zeeman}
+
+\code{test\_zeeman} checks how RH turns an atomic line and a magnetic
+field into the propagation matrix: the Zeeman pattern (\code{zeeman.c}),
+the absorption and magneto-optical profiles (\code{profile.c}), the field
+angles (\code{Bproject}), and, through a Milne--Eddington slab, the
+emergent Stokes vector. The expectations are derived here from first
+principles, following the conventions of \citet{2004ASSL..307.....L},
+and only then compared with the code.
+
+\subsection{Zeeman pattern}
+In a field $B$ a level with total angular momentum $J$ and Land\'e factor
+$g$ splits into sublevels $M=-J\ldots J$ with energies
+$E_0+g\mu_\mathrm{B}BM$. A component $(M_u,M_l)$ of a line, with
+$q = M_l-M_u\in\{-1,0,1\}$, absorbs at
+$\nu = \nu_0+\nu_L(g_uM_u-g_lM_l)$, $\nu_L = eB/(4\pi m_ec)$. In the
+reduced wavelength of RH, $v = (\lambda-\lambda_0)/\Delta\lambda_D$, its
+centre is at
+\begin{equation}
+v_{M_uM_l} = (g_lM_l-g_uM_u)\,v_B,\qquad
+v_B = \frac{\Delta\lambda_B}{\Delta\lambda_D},\quad
+\Delta\lambda_B = \frac{\lambda_0^2\,eB}{4\pi m_ec^2},
+\end{equation}
+so $q=-1$ components are blue-shifted for $g>0$. The relative strengths
+are
+\begin{equation}
+S_q(M_u,M_l) = 3\begin{pmatrix}J_u&J_l&1\\-M_u&M_l&-q\end{pmatrix}^2,
+\qquad \sum_{M_uM_l}S_q = 1 \text{ for each } q,
+\end{equation}
+and in LS coupling $g = 1+[J(J+1)+S(S+1)-L(L+1)]/[2J(J+1)]$. The
+effective Land\'e factor
+\begin{equation}
+\bar g = \tfrac12(g_u+g_l)+\tfrac14(g_u-g_l)\,[J_u(J_u+1)-J_l(J_l+1)]
+\end{equation}
+is the barycentre of the $q=+1$ components,
+$\bar g = \sum S_{+1}(g_lM_l-g_uM_u)$; the test checks both forms.
+
+\subsection{The propagation matrix from the normal modes}
+With $H_q$ and $F_q$ the strength-weighted sums of the Voigt and
+Faraday--Voigt functions over the components of each $q$,
+$H_q(v) = \sum S_q H(a, v-v_{M_uM_l})$, the medium's response follows
+from two facts.
+
+\paragraph{Which components absorb which polarization.} A photon of
+positive helicity carries angular momentum $+\hbar$ along its direction
+of propagation; absorbed along $\boldsymbol B$, it raises $M$ by one:
+$M_u=M_l+1$, $q=-1$. In the IAU convention positive Stokes $V$ is
+positive helicity (the electric vector turns counterclockwise as seen by
+the observer). Classically the same follows from Larmor's theorem: an
+electron circling counterclockwise about $\boldsymbol B$ (seen from the
+tip of $\boldsymbol B$) has its frequency raised by $\nu_L$.
+
+\paragraph{Dispersion.} For a damped oscillator with time dependence
+$\e^{-i\omega t}$ the susceptibility near resonance is proportional to
+$1/(x-ia)$ with $x = (\omega_0-\omega)/\Delta\omega_D$; averaged over a
+Maxwellian, the complex refractive index of a mode is
+$N-1\propto F(a,x)+iH(a,x)$: $H$ gives absorption, $F$ the phase velocity
+(Kramers--Kronig). $x$ has the sign of $\lambda-\lambda_0$, so $x=v$.
+
+\paragraph{Field along the ray ($\theta=0$).} The normal modes are the
+two circular polarizations. Writing $I_\pm$ for the intensities of
+positive and negative helicity, $I = I_++I_-$ and $V = I_+-I_-$, the mode
+absorption gives $\eta_V = \tfrac12(H_{-1}-H_{+1})$. A linear
+polarization is the sum of the two modes with equal amplitude; their
+phase difference $\delta$ after a distance $s$ turns the plane of
+polarization by $-\delta/2$, clockwise as seen by the observer when the
+positive-helicity mode is the slower one. With the transfer equation
+$\dd\vI/\dd s = -K\vI+\ldots$ and $K$ in the form of
+eq.~(\ref{eq:Kmatrix}) below this gives $\rho_V = \tfrac12(F_{+1}-F_{-1})$.
+
+\paragraph{Field across the ray ($\theta=90^\circ$, $\chi=0$).} The
+modes are linear, along $\boldsymbol B$ (absorbed by the $\pi$ components,
+profile $H_0$) and perpendicular to it ($\tfrac12(H_{+1}+H_{-1})$):
+$\eta_Q = \tfrac12[H_0-\tfrac12(H_{+1}+H_{-1})]$. A phase lag between
+them turns $U$ into $V$, and working out the sense gives
+$\rho_Q = -\tfrac12[F_0-\tfrac12(F_{+1}+F_{-1})]$.
+
+\paragraph{General direction.} With $\theta$ the angle between
+$\boldsymbol B$ and the ray and $\chi$ the azimuth of its projection
+from $\boldsymbol e_1$ (Stokes $Q>0$ along $\boldsymbol e_1$,
+$(\boldsymbol e_1,\boldsymbol e_2,\boldsymbol n)$ right-handed, $\chi$
+counterclockwise as seen by the observer), in the IAU convention
+\begin{equation}
+\begin{aligned}
+\eta_I &= \tfrac12\bigl[H_0\sin^2\theta+\tfrac12(H_{+1}+H_{-1})(1+\cos^2\theta)\bigr],\\
+\eta_{Q,U} &= \tfrac12\bigl[H_0-\tfrac12(H_{+1}+H_{-1})\bigr]\sin^2\theta\,(\cos2\chi,\sin2\chi),\\
+\eta_V &= \tfrac12(H_{-1}-H_{+1})\cos\theta,\\
+\rho_{Q,U} &= -\tfrac12\bigl[F_0-\tfrac12(F_{+1}+F_{-1})\bigr]\sin^2\theta\,(\cos2\chi,\sin2\chi),\\
+\rho_V &= \tfrac12(F_{+1}-F_{-1})\cos\theta,
+\end{aligned}
+\end{equation}
+all times $1/(\sqrt\pi\,\Delta v_D)$, in
+\begin{equation}
+K = \begin{pmatrix}
+\eta_I & \eta_Q & \eta_U & \eta_V\\
+\eta_Q & \eta_I & \rho_V & -\rho_U\\
+\eta_U & -\rho_V & \eta_I & \rho_Q\\
+\eta_V & \rho_U & -\rho_Q & \eta_I
+\end{pmatrix}. \label{eq:Kmatrix}
+\end{equation}
+
+\subsection{RH's sign of Stokes V}
+RH's profiles agree with these expressions once Stokes $V$ changes sign,
+that is with $DKD$ in place of $K$, where $D=\operatorname{diag}(1,1,1,-1)$:
+$\eta_V$, $\rho_Q$ and $\rho_U$ change sign, $\rho_V$ does not. The test finds this to rounding
+($10^{-16}$) for every configuration, field and ray. RH is therefore
+internally consistent, with positive $V$ meaning negative helicity:
+clockwise as seen by the observer, which is ``right-handed'' in the
+optics convention and what the comment in the source of \code{Zeeman()}
+states: the red $\sigma$ component is right-handed for a field toward the
+observer. It
+is the opposite of IAU 1973. For a field toward the observer RH gives a
+positive blue lobe of $V$; in the weak-field limit (below)
+$V = -\bar g\,v_B\cos\theta\,\partial I/\partial v$.
+
+For rays going down (away from the observer) RH uses the frame
+$(\boldsymbol e_1',\boldsymbol e_2') = (\boldsymbol e_2,\boldsymbol e_1)$
+with $\boldsymbol n' = -\boldsymbol n$, which is right-handed: $\cos\theta$
+and $\cos2\chi$ change sign, $\sin2\chi$ does not. The test checks
+both directions.
+
+\subsection{Configurations}
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+line & $g_l$, $g_u$ & $\bar g$ & components\\
+\midrule
+$^1S_0\to{}^1P_1$ (normal triplet) & --, 1 & 1 & 3\\
+triplet with explicit $\bar g = 1.5$ & & 1.5 & 3\\
+$^2S_{1/2}\to{}^2P_{1/2}$ (as Na D$_1$) & 2, 2/3 & 4/3 & 4\\
+$^2S_{1/2}\to{}^2P_{3/2}$ (as Na D$_2$) & 2, 4/3 & 7/6 & 6\\
+$^5P_2\to{}^5D_2$ & 11/6, 3/2 & 5/3 & 13 ($\pi$ $M=0\to0$ of strength 0)\\
+$^5P_1\to{}^5D_0$ & 5/2, -- & 5/2 & 3\\
+$^5D_0\to{}^5F_1$ (null line) & --, 0 & 0 & 3, unshifted\\
+$^1S_0\to{}^3P_0$ & & & rejected\\
+\bottomrule
+\end{tabular}
+\end{center}
+The null line has $g(^5F_1) = 1+(2+6-12)/4 = 0$: no splitting, and
+$Q=U=V=0$ exactly at any field strength. The $J_u=J_l=1/2$ line is not
+special here: RH treats the Zeeman effect only (it is a multi-level, not
+a multi-term code), and for Zeeman splitting D$_1$ is an ordinary
+anomalous pattern. The field strengths (0 to 0.5\,T, $v_B$ up to
+$\approx3$), inclinations (toward and away from the observer, transverse,
+along the vertical) and two rays include a field exactly along the
+oblique ray.
+
+Magnetic-dipole (M1) lines, such as [O\,I] 630.03\,nm, have the same
+pattern and strengths (the transition is rank 1 as well), but their
+linear polarization is rotated by $90^\circ$: $\eta_{Q,U}$ and
+$\rho_{Q,U}$ change sign, $\eta_V$ and $\rho_V$ do not. RH has no M1
+lines (wishlist F-2); once it does, they belong in this test.
+
+\paragraph{Defects found.} B-27: a $J=0\to0$ line was marked polarizable
+($|J_u-J_l|\le1$), and \code{Zeeman()} normalized its only component, of
+strength 0, by zero, making every profile of the line NaN; such lines are
+now treated without polarization (\code{zeemanPolarizable()}). B-28:
+\code{Bproject} obtained $\cos2\chi$ and $\sin2\chi$ by dividing by
+$1-\cos^2\theta$, which is zero for a field exactly along an oblique ray:
+NaN in the $Q$ and $U$ profiles of every polarizable line at that point.
+The terms are multiplied by $\sin^2\theta=0$, so any finite $\chi$ will do.
+
+\subsection{Milne--Eddington}
+With RH's profiles $\Phi$ of one grid point, a slab with continuum
+opacity $\chi_c$, line opacity $\chi_l\Phi$ ($\chi_l$ constant,
+$\eta_0 = 5$ times the continuum at line centre) and the same source
+function $S = S_0+S_1\tau_c$ for line and continuum has, in continuum
+optical depth, the constant propagation matrix $\hat K = 1+\chi_l\Phi/\chi_c$
+and emission vector $\hat KS\boldsymbol e_I$. By
+eq.~(\ref{eq:Iplus}) in matrix form (section~\ref{sec:stokes}) the
+emergent Stokes vector is the Unno--Rachkovsky solution
+\begin{equation}
+\vI(0) = S_0\boldsymbol e_I+\mu S_1\hat K^{-1}\boldsymbol e_I .
+\end{equation}
+The test builds the slab's opacity and emissivity from RH's profiles the
+way \code{opacity.c} does, solves it with the polarized solver (exact for
+linear $S$ and constant $K$, section~\ref{sec:stokes}) and compares across
+the line with $\hat K$ from the derived profiles: $10^{-13}$ of $I$ for
+all Stokes parameters.
+
+\paragraph{Weak field.} To first order in $v_B$,
+$H_{\pm1}(v)\approx H(v)\mp\bar g\,v_B\,H'(v)$ in the sense that
+$\tfrac12(H_{+1}-H_{-1}) = -\bar g\,v_B H'$, so in RH's sign
+$\eta_V = -\bar g\,v_B\cos\theta\,H'/(\sqrt\pi\Delta v_D)$, and
+$\hat K^{-1}$ to first order gives
+\begin{equation}
+V = -\mu S_1\frac{\chi_l\phi_V}{(1+\chi_l\phi_I)^2}
+  = -\bar g\,v_B\cos\theta\,\frac{\partial I}{\partial v},
+\end{equation}
+with $I = S_0+\mu S_1/(1+\chi_l\phi_I)$ the field-free intensity. In
+the IAU sign this is $V = +\bar g v_B\cos\theta\,\partial I/\partial v$,
+or $V = -\bar g\,\nu_L\cos\theta\,\partial I/\partial\nu$ in frequency.
+At $v_B = 0.023$ RH's $V$ agrees with it to $4$--$6\times10^{-4}$ of
+$\max|V|$, the size of the neglected $O(v_B^2)$ terms.
+
+%======================================================================
 \section*{Regenerating the reference values}
 In \code{tests/unit}, each script writes a header to standard output:
 \begin{itemize}

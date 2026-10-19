@@ -55,3 +55,7 @@ rh_unit_test(test_formal_stokes test_formal_stokes.c
   ${PROJECT_SOURCE_DIR}/rhf1d/piecewise_1D.c
   ${PROJECT_SOURCE_DIR}/rhf1d/bezier_1D.c
   ${PROJECT_SOURCE_DIR}/rhf1d/project.c)
+rh_unit_test(test_zeeman test_zeeman.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/project.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/bezier_1D.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/piecewise_1D.c)

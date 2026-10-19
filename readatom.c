@@ -66,8 +66,8 @@ void readAtom(Atom *atom, char *atom_file)
 	bool_t exit_on_EOF, match;
 	int    i, j, Nlevel, Nline, Ncont, Nfixed,
 		Nspace = atmos.Nspace,
-		Nread, Nrequired, checkPoint, L, nq, status, Ndup;
-	double f, C, lambda0, lambdamin, vtherm, S, Ju, Jl,
+		Nread, Nrequired, checkPoint, status, Ndup;
+	double f, C, lambda0, lambdamin, vtherm,
 		c_sum, waveratio, lambda_air;
 
 	AtomicLine      *line;
@@ -336,10 +336,7 @@ void readAtom(Atom *atom, char *atom_file)
 			}
 
 			if (atmos.Stokes) {
-				if (line->g_Lande_eff != 0.0 ||
-					(determinate(atom->label[i], atom->g[i], &nq, &S, &L, &Jl) &&
-					 determinate(atom->label[j], atom->g[j], &nq, &S, &L, &Ju) &&
-					 fabs(Ju - Jl) <= 1.0)) {
+				if (zeemanPolarizable(atom, i, j, line->g_Lande_eff)) {
 
 					line->polarizable = TRUE;
 				} else {
