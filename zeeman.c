@@ -130,6 +130,27 @@ double effectiveLande(AtomicLine *line)
 }
 /* ------- end ---------------------------- effectiveLande.c -------- */
 
+/* ------- begin -------------------------- zeemanPolarizable.c ----- */
+
+/* --- Can line i -> j be treated with Zeeman splitting? With an
+	   explicit effective Lande factor always; otherwise both labels
+	   must give quantum numbers, with |Ju - Jl| <= 1 and not
+	   J = 0 -> 0, which has no Zeeman components with a non-zero
+	   strength (B-27) --                              -------------- */
+
+bool_t zeemanPolarizable(Atom *atom, int i, int j, double g_Lande_eff)
+{
+	int    n, L;
+	double S, Jl, Ju;
+
+	if (g_Lande_eff != 0.0) return TRUE;
+
+	return determinate(atom->label[i], atom->g[i], &n, &S, &L, &Jl) &&
+		   determinate(atom->label[j], atom->g[j], &n, &S, &L, &Ju) &&
+		   fabs(Ju - Jl) <= 1.0 && !(Ju == 0.0 && Jl == 0.0);
+}
+/* ------- end ---------------------------- zeemanPolarizable.c ----- */
+
 /* ------- begin -------------------------- Lande.c ----------------- */
 
 double Lande(double S, int L, double J)
@@ -296,7 +317,7 @@ void Zeeman(AtomicLine *line)
 			}
 		}
 		for (n = 0; n < zm->Ncomponent; n++)
-			zm->strength[n] /= norm[zm->q[n] + 1];
+			if (norm[zm->q[n] + 1] > 0.0) zm->strength[n] /= norm[zm->q[n] + 1];
 	}
 	zm->g_eff = effectiveLande(line);
 }

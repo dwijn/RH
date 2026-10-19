@@ -325,6 +325,7 @@ void   adjustStokesMode(void);
 bool_t determinate(char *label, double g, int *n, double *S, int *L,
 				   double *J);
 double effectiveLande(AtomicLine *line);
+bool_t zeemanPolarizable(Atom *atom, int i, int j, double g_Lande_eff);
 double Lande(double S, int L, double J);
 void   StokesProfile(AtomicLine *line);
 void   Zeeman(AtomicLine *line);
