@@ -13,6 +13,7 @@
 	   --------------------------                      ----------RH-- */
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "rh.h"
@@ -288,6 +289,14 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 }
 /* ------- end ------------------------- Piece_Stokes_Bezier3_2D.c -- */
 
+static int n24_avail(Stencil *st, enum direction d, const char *done)
+{
+	int n, N = (st->order[d] == SC_LINEAR) ? 2 : 3;
+	for (n = 0; n < N; n++)
+		if (!done[st->index[d][n]]) return 0;
+	return 1;
+}
+
 /* ------- begin -------------------------- Piecewise_Bezier3_2D.c -- */
 
 void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
@@ -315,6 +324,11 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 	double         mux = geometry->mux[mu], I_uw, *Iboundary, dtau_uw, dtau_dw;
 	double         c1, c2, dS_uw, S_uw, chi_uw, S_dw, chi_dw, dt03;
 	double         eps = 0, alpha = 0, beta = 0, gamma = 0, theta = 0;
+	/* N-24 prototype: directional derivatives stored per point */
+	int     n24_interp = (getenv("N24_INTERP") != NULL);
+	int     n24_quad   = n24_interp || (getenv("N24_QUAD") != NULL);
+	double *gS = calloc(Nx * Nz, sizeof(double)), *gchi = calloc(Nx * Nz, sizeof(double));
+	char   *done = calloc(Nx * Nz, 1);
 	double         dchi_dw, dchi_uw, dchi_c, dS_c, ds03;
 	double         Bnu_uw, Bnu, T_uw;
 
@@ -484,6 +498,10 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 				/* --- Upwind optical path length --          --------------- */
 
 				ds03    = st->ds[upwind] * 0.333333333333333333333333333;
+				if (n24_interp && n24_avail(st, upwind, done))
+					dchi_uw = Quadr(gchi, st, upwind, FALSE);
+				else if (n24_quad)
+					dchi_uw = 2.0 * dchi_uw - dchi_c;
 				c1      = chi[local] - ds03 * dchi_c;
 				c2      = chi_uw + ds03 * dchi_uw;
 				dtau_uw = st->ds[upwind] * (chi[local] + chi_uw + c1 + c2) * 0.25;
@@ -504,6 +522,17 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 
 			dt03  = dtau_uw * 0.333333333333333333333333333;
 			dS_uw = (S[local] - S_uw) / dtau_uw;
+			if (n24_interp && n24_avail(st, upwind, done)) {
+				double sec = dS_uw;
+				dS_uw      = Quadr(gS, st, upwind, FALSE) / chi_uw;
+				if (sec * dS_uw <= 0.0) dS_uw = 0.0;
+				else if (fabs(dS_uw) > 3.0 * fabs(sec)) dS_uw = 3.0 * sec;
+			} else if (n24_quad)
+				dS_uw = 2.0 * dS_uw - dS_c;
+			gS[local]   = dS_c * chi[local];
+			gchi[local] = (k == kend || (geometry->hboundary == FIXED && n == Nrow - 1))
+							  ? dchi_uw : dchi_c;
+			done[local] = 1;
 			c1    = S[local] - dt03 * dS_c;
 			c2    = S_uw + dt03 * dS_uw;
 
@@ -521,5 +550,8 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 			if (Psi) Psi[local] = beta + theta;
 		}
 	}
+	free(gS);
+	free(gchi);
+	free(done);
 }
 /* ------- end ---------------------------- Piecewise_Bezier3_2D.c -- */
