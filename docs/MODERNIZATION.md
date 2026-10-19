@@ -222,8 +222,8 @@ on perturbed FAL-C (82 depths):
 | [B-24](https://github.com/dwijn/RH/issues/149) | high | 2-D and 3-D long characteristics (periodic boundaries, used where a short characteristic crosses column lines or vertical planes before the next layer) stop one section short: `SolveLong`/`SolveLongStokes` treat the last crossing as the local point and return the intensity one crossing upwind of the true upwind point. Linear S on a uniform slab: emergent I 7% (2-D) and 11% (3-D) wrong, identical columns differ by 15%; the shipped uniform 2-D/3-D examples have column spreads of 2.4e-3 and 1e-2 (2e-4 and 1.9e-3 when fixed) | `rhsc2d/solvelong.c:60,140`, `rhsc3d/solvelong.c:58,138` | `test_formal_2d`, `test_formal_3d` (Q-14) | fixed |
 | [B-25](https://github.com/dwijn/RH/issues/155) | high | Polarized DELO-Bezier solvers wrong in two control-point terms (1-D, 2-D, 3-D): (i) the derivative terms are paired with the wrong weights, γ S'(c) − θ S'(u) instead of γ S'(u) − θ S'(c), which makes them second order (with K' = 0 they differ from the unpolarized Bezier solver by 2.4% at 81 points); (ii) the sign of dK'/dτ at the central point is wrong, which makes them first order when K varies with depth. Converged Ca II full Stokes on FALC (82 points): Stokes V 38% from the converged answer (3% when fixed), the 854.2 nm V amplitude 21% too large, 1.9x more iterations | `rhf1d/bezier_1D.c:228,251`, `rhsc2d/bezier_2D.c:254,277`, `rhsc3d/bezier_3D.c:151,173` | `test_formal_stokes` (Q-14) | fixed |
 | [B-26](https://github.com/dwijn/RH/issues/156) | medium | 2-D and 3-D polarized solvers use a stale or uninitialized source vector in the last layer of each ray: 2-D takes the value of the last point of the layer below, 3-D reads an uninitialized local variable. The emergent Stokes vector (top layer of the outgoing rays) is computed with the wrong source vector; on a test slab the bottom layer of I- was 38% off | `rhsc2d/bezier_2D.c:188,230`, `rhsc3d/bezier_3D.c:85,127` | `test_formal_2d`, `test_formal_3d` (Q-14) | fixed |
-| [B-27](https://github.com/dwijn/RH/issues/166) | low | A J = 0 -> 0 line is marked polarizable (`readAtom` only requires abs(Ju - Jl) <= 1) and `Zeeman()` normalizes its single component, of strength 0, by a zero sum: every profile of the line is NaN in a full-Stokes run. Such a line has no single-photon strength at all, but a mislabeled atom file poisons the whole run | `readatom.c:339`, `zeeman.c:290` | `test_zeeman` (Q-14) | open |
-| [B-28](https://github.com/dwijn/RH/issues/167) | low | `Bproject()` (1-D, 2-D, 3-D) divides by the squared transverse field, 1 - cos^2(gamma), to get cos 2chi and sin 2chi: a field exactly along an oblique ray gives 0/0, and phi_Q, phi_U, psi_Q, psi_U become NaN for every polarizable line at that point (the terms carry a factor sin^2(gamma) = 0). A uniform inclined field along one of the rays triggers it | `rhf1d/project.c:70`, `rhsc2d/project.c:71`, `rhsc3d/project.c:76` | `test_zeeman` (Q-14) | open |
+| [B-27](https://github.com/dwijn/RH/issues/166) | low | A J = 0 -> 0 line is marked polarizable (`readAtom` only requires abs(Ju - Jl) <= 1) and `Zeeman()` normalizes its single component, of strength 0, by a zero sum: every profile of the line is NaN in a full-Stokes run. Such a line has no single-photon strength at all, but a mislabeled atom file poisons the whole run | `readatom.c:339`, `zeeman.c:290` | `test_zeeman` (Q-14) | fixed |
+| [B-28](https://github.com/dwijn/RH/issues/167) | low | `Bproject()` (1-D, 2-D, 3-D) divides by the squared transverse field, 1 - cos^2(gamma), to get cos 2chi and sin 2chi: a field exactly along an oblique ray gives 0/0, and phi_Q, phi_U, psi_Q, psi_U become NaN for every polarizable line at that point (the terms carry a factor sin^2(gamma) = 0). A uniform inclined field along one of the rays triggers it | `rhf1d/project.c:70`, `rhsc2d/project.c:71`, `rhsc3d/project.c:76` | `test_zeeman` (Q-14) | fixed |
 
 ### 3.2 Numerics and convergence
 
@@ -332,7 +332,7 @@ New capabilities, not problems with the existing code.
 | ID | Sev | Item | Status |
 |---|---|---|---|
 | [F-1](https://github.com/dwijn/RH/issues/109) | medium | Tool for building RH model atoms from standard data sources: choosing the right model atom is one of the hard parts of running RH well. Assemble levels, lines, photoionization cross-sections and collisional data from standard sources (NIST, Kurucz, TOPbase/Opacity Project, CHIANTI, collision databases), with options to reduce a large model (level/line selection, superlevels) and checks of completeness. Replaces the removed `constructatom` (Kurucz lines only, levels and lines, Si only) | open |
-| [F-2](https://github.com/dwijn/RH/issues/164) | medium | Magnetic-dipole (M1) lines with polarization: RH treats every line as electric dipole (E1). For M1 the Zeeman pattern and strengths are the same (rank 1), but the linear polarization is rotated by 90°: eta_Q, eta_U, rho_Q and rho_U change sign, eta_V and rho_V do not. Needed for forbidden lines such as [O I] 630.03 nm (blended with Ni I 630.04 nm; it also has a small E2 admixture, which would need |dM| = 2 components and is left out). Minimal version: a per-line flag in the atom file and the sign changes in `profile.c`, covered by the Zeeman/profile unit tests | open |
+| [F-2](https://github.com/dwijn/RH/issues/164) | low | Forbidden (non-E1) lines with polarization: RH treats every line as electric dipole (E1). Magnetic-dipole (M1) lines have the same rank-1 Zeeman pattern and strengths, but their linear polarization is rotated by 90° (eta_Q, eta_U, rho_Q, rho_U change sign; eta_V, rho_V do not). Electric-quadrupole (E2) lines need rank-2 strengths and |dM| = 2 components; mixed M1+E2 lines (e.g. [O I] 630.03 nm, blended with Ni I 630.04 nm) need both plus their interference. Scope undecided: a per-line multipole flag with the M1 sign change is small; E2 and mixtures are a larger change to `zeeman.c` and `profile.c`, and RH may not be the right tool for such lines at all | open |
 
 ### 3.8 Solver redesign
 
@@ -466,6 +466,41 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-10-19 — Zeeman splitting and polarized profiles tested from first principles; NaN profiles for J = 0 -> 0 lines and fields along a ray (Q-14, B-27, B-28)
+
+- `test_zeeman` (new) builds fictional lines: the normal triplet, a
+  triplet with an explicit effective Lande factor, the anomalous
+  patterns of 2S1/2-2P1/2 and 2S1/2-2P3/2 (as Na D1, D2), 5P2-5D2
+  (dJ = 0), 5P1-5D0 (upper J smaller), the null line 5D0-5F1
+  (g(5F1) = 0) and 1S0-3P0 (J = 0 -> 0). It checks the components,
+  shifts and strengths (3j symbols), g from LS coupling and g_eff (its
+  formula and the barycentre of the sigma components), and the seven
+  profiles from `Profile()` for seven fields (0 to 0.5 T, toward and
+  away from the observer, transverse, along an oblique ray), two rays
+  and both directions, against the propagation matrix derived from the
+  circular and linear normal modes (docs/unit-tests, section 8).
+  All agree to 1e-16 once Stokes V changes sign: RH is internally
+  consistent, with positive V meaning negative helicity (opposite to
+  IAU 1973; positive blue lobe for a field toward the observer).
+- Milne-Eddington: RH's profiles of one point turned into a slab with
+  constant field and line-to-continuum ratio and S linear in tau_c,
+  solved with the polarized solver, agree with the Unno-Rachkovsky
+  solution to 1e-13 for every Stokes parameter across the line; in a
+  weak field V = -g_eff vB cos(theta) dI/dv holds to 4-6e-4 of max |V|
+  (the O(vB^2) terms).
+- B-27: a J = 0 -> 0 line was marked polarizable and `Zeeman()`
+  normalized its only component (strength 0) by zero: NaN profiles.
+  The decision moved to `zeemanPolarizable()` (zeeman.c), which rejects
+  J = 0 -> 0; `Zeeman()` no longer divides by an empty sum.
+- B-28: `Bproject()` (1-D, 2-D, 3-D) divided by 1 - cos^2(gamma) for the
+  field azimuth, 0/0 for a field exactly along an oblique ray: NaN in
+  the Q and U profiles of every polarizable line there. Now chi = 0
+  there (its terms carry sin^2(gamma) = 0). Results elsewhere are
+  bit-identical.
+- The unit-test report gains section 8: the Zeeman pattern, the
+  propagation matrix from the normal modes, RH's sign of V,
+  Milne-Eddington and the weak-field limit.
 
 ### 2026-10-18 — Polarized DELO-Bezier solvers fixed and tested (changes results) (B-25, B-26, Q-14)
 
