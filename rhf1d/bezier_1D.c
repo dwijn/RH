@@ -277,6 +277,45 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 
 /* ------- begin ----------------------- Piecewise_Bezier3_1D.c ----- */
 
+/* --- N-19 prototype: Steffen derivative and its partial derivatives
+	   with respect to the upwind, central and downwind values -- --- */
+
+static double cent_deriv_d(double hu, double hd, double yu, double y0,
+						   double yd, double *d_yu, double *d_y0, double *d_yd)
+{
+	const double Su = (y0 - yu) / hu, S0 = (yd - y0) / hd,
+				 P = (Su * hd + S0 * hu) / (hu + hd);
+
+	*d_yu = *d_y0 = *d_yd = 0.0;
+	if (Su * S0 <= 0.0) return 0.0;
+	if (fabs(P) <= 2.0 * fabs(Su) && fabs(P) <= 2.0 * fabs(S0)) {
+		*d_yu = -(hd / hu) / (hu + hd);
+		*d_yd = (hu / hd) / (hu + hd);
+		*d_y0 = -(*d_yu + *d_yd);
+		return P;
+	} else if (fabs(Su) <= fabs(S0)) {
+		*d_yu = -2.0 / hu;
+		*d_y0 = 2.0 / hu;
+		return 2.0 * Su;
+	} else {
+		*d_y0 = -2.0 / hd;
+		*d_yd = 2.0 / hd;
+		return 2.0 * S0;
+	}
+}
+
+static long n19_hist[40];
+static void n19_print(void)
+{
+	long tot = 0;
+	for (int b = 0; b < 40; b++) tot += n19_hist[b];
+	fprintf(stderr, "N19 ratio approx/exact Psi histogram (bin width 0.05 from 0):\n");
+	for (int b = 0; b < 40; b++)
+		if (n19_hist[b])
+			fprintf(stderr, "N19 %4.2f-%4.2f %8.5f\n", 0.05 * b, 0.05 * (b + 1),
+					(double) n19_hist[b] / tot);
+}
+
 void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 						  double *chi, double *S, double *I, double *Psi)
 {
@@ -360,6 +399,16 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 	I[k_start] = I_upw;
 	if (Psi) Psi[k_start] = 0.0;
 
+	static int n19_mode = -1;
+	if (n19_mode < 0) {
+		n19_mode = getenv("N19_EXACT") ? 1 : 0;
+		if (getenv("N19_STATS")) {
+			n19_mode |= 2;
+			atexit(n19_print);
+		}
+	}
+	double dDp_dSk, theta_p = 0.0, dt_p = 0.0, dD_y0, dD_yd, dD_yu;
+
 	/* --- Set variables for first iteration to allow simple
 		   shift for all next iterations --              -------------- */
 
@@ -381,7 +430,8 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 
 	/* --- dS/dtau at upwind point --                    -------------- */
 
-	dS_up = (S[k] - S[k - dk]) / dtau_uw;
+	dS_up   = (S[k] - S[k - dk]) / dtau_uw;
+	dDp_dSk = 1.0 / dtau_uw;
 
 	/* --- Solve transfer along ray --                   -------------- */
 
@@ -415,10 +465,13 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 
 			/* --- dS/dt at central point --                -------------- */
 
-			dS_c = cent_deriv(dtau_uw, dtau_dw, S[k - dk], S[k], S[k + dk]);
+			dS_c = cent_deriv_d(dtau_uw, dtau_dw, S[k - dk], S[k], S[k + dk],
+								&dD_yu, &dD_y0, &dD_yd);
 
 		} else {
-			dS_c = (S[k] - S[k - dk]) / dtau_uw;
+			dS_c  = (S[k] - S[k - dk]) / dtau_uw;
+			dD_y0 = 1.0 / dtau_uw;
+			dD_yd = 0.0;
 		}
 
 		/* --- Compute interpolation parameters --         -------------- */
@@ -438,7 +491,18 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 
 		/* --- Diagonal operator --                        -------------- */
 
-		if (Psi) Psi[k] = beta + theta;
+		if (Psi) {
+			double exact = beta + theta * (1.0 - dt03 * dD_y0) +
+						   (gamma * dt03 - eps * theta_p * dt_p / 3.0) * dDp_dSk;
+			if (n19_mode & 2) {
+				int b = (int) ((beta + theta) / exact / 0.05);
+				n19_hist[b < 0 ? 0 : (b > 39 ? 39 : b)]++;
+			}
+			Psi[k] = (n19_mode & 1) ? exact : beta + theta;
+		}
+		dDp_dSk = dD_yd;
+		theta_p = theta;
+		dt_p    = dtau_uw;
 
 		/* --- Re-use downwind quantities for next upwind position -- --- */
 
