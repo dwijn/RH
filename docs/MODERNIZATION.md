@@ -217,6 +217,8 @@ on perturbed FAL-C (82 depths):
 | [B-22](https://github.com/dwijn/RH/issues/136) | low | `w3js()` accepts non-integer j−m and j1+j2+j3 and returns nonzero values (`w3js(0.5,0.5,0.5,0.5,−0.5,0)` = 1); `fact()` returns 1 for non-integer arguments; the symbol loses accuracy above j ≈ 40 (1e-9) and returns ±inf for j = 50–56 and 0 from 58 (factorial overflow); only caller is `paschen.c` at small J | `wigner.c:49,167` | `test_functions` (Q-14) | open |
 | [B-23](https://github.com/dwijn/RH/issues/137) | low | `Hunt()` returns one index too low when hunting downward onto a value equal to a table node, disagreeing with `Locate()`; harmless for linear and spline interpolation | `hunt.c:40,55` | `test_interp` (Q-14) | open |
 | [B-24](https://github.com/dwijn/RH/issues/149) | high | 2-D and 3-D long characteristics (periodic boundaries, used where a short characteristic crosses column lines or vertical planes before the next layer) stop one section short: `SolveLong`/`SolveLongStokes` treat the last crossing as the local point and return the intensity one crossing upwind of the true upwind point. Linear S on a uniform slab: emergent I 7% (2-D) and 11% (3-D) wrong, identical columns differ by 15%; the shipped uniform 2-D/3-D examples have column spreads of 2.4e-3 and 1e-2 (2e-4 and 1.9e-3 when fixed) | `rhsc2d/solvelong.c:60,140`, `rhsc3d/solvelong.c:58,138` | `test_formal_2d`, `test_formal_3d` (Q-14) | fixed |
+| [B-25](https://github.com/dwijn/RH/issues/155) | high | Polarized DELO-Bezier solvers wrong in two control-point terms (1-D, 2-D, 3-D): (i) the derivative terms are paired with the wrong weights, γ S'(c) − θ S'(u) instead of γ S'(u) − θ S'(c), which makes them second order (with K' = 0 they differ from the unpolarized Bezier solver by 2.4% at 81 points); (ii) the sign of dK'/dτ at the central point is wrong, which makes them first order when K varies with depth. Converged Ca II full Stokes on FALC (82 points): Stokes V 38% from the converged answer (3% when fixed), the 854.2 nm V amplitude 21% too large, 1.9x more iterations | `rhf1d/bezier_1D.c:228,251`, `rhsc2d/bezier_2D.c:254,277`, `rhsc3d/bezier_3D.c:151,173` | `test_formal_stokes` (Q-14) | open |
+| [B-26](https://github.com/dwijn/RH/issues/156) | medium | 2-D and 3-D polarized solvers use a stale or uninitialized source vector in the last layer of each ray: 2-D takes the value of the last point of the layer below, 3-D reads an uninitialized local variable. The emergent Stokes vector (top layer of the outgoing rays) is computed with the wrong source vector; on a test slab the bottom layer of I- was 38% off | `rhsc2d/bezier_2D.c:188,230`, `rhsc3d/bezier_3D.c:85,127` | `test_formal_2d`, `test_formal_3d` (Q-14) | open |
 
 ### 3.2 Numerics and convergence
 
@@ -310,6 +312,8 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | [Q-16](https://github.com/dwijn/RH/issues/84) | medium | `Error(ERROR_LEVEL_1, …)` prints "Trying to continue" but terminates (exit status 2): the continue branch in `error.c` is unreachable. 74 call sites are written to recover afterwards (return FALSE, fall back, skip an output file), so their recovery code is dead, and `ERROR_LEVEL_1` and `_2` differ only in exit status (2 vs 3). Decide per site between a warning with recovery and a fatal error; define the exit statuses together with N-1 | open |
 | [Q-17](https://github.com/dwijn/RH/issues/96) | medium | ~30 unchecked I/O results: `fread`/`fwrite`, `xdr_*`, `fscanf`/`fgets` return values assigned and never tested (e.g. a truncated Barklem table goes unnoticed) | fixed |
 | [Q-18](https://github.com/dwijn/RH/issues/105) | medium | Multi-D test cases use perturbed FAL-C atmospheres; realistic cases need cut-outs of freely available 3-D RMHD snapshots (e.g. Bifrost, MURaM), small enough for the stress suite and CI, with converter scripts in `tests/` | open |
+| [Q-19](https://github.com/dwijn/RH/issues/157) | medium | Manual out of date and without source: only `docs/rhmanual.pdf` (26 pages, November 2010, pdfTeX) exists, its LaTeX source is not in the repository or upstream. It describes the makefile build and Fortran, keywords that have since been removed (`S_PARABOLIC`, the Voigt choices), and nothing of CMake, threads, the tests or the solver changes. To be revised once the code settles, with its source in the repository; `pdftotext` extracts the text cleanly as a starting point | open |
+| [Q-20](https://github.com/dwijn/RH/issues/158) | medium | Unit tests documented only in source comments: write up each problem, its analytic solution and the expected accuracy and order of convergence, with derivations, in a LaTeX document (`docs/unit-tests/`) | open |
 
 Output formats are a contract: the Python (`python/rhanalyze`) and IDL readers
 unpack the XDR files field by field, and `rhopacity.py` seeks into raw
@@ -356,6 +360,7 @@ upstream issue or pull request once filed. Most severe first.
 | ID | Sev | What happens upstream | Fixed here | Reported |
 |---|---|---|---|---|
 | [B-24](https://github.com/dwijn/RH/issues/149) | high | 2-D and 3-D long characteristics stop one section short: wrong intensities wherever short characteristics cross column lines or vertical planes before the next layer (deep or optically thick layers, fine horizontal grids). 7–11% error for a linear source function on a uniform slab; the shipped 2-D/3-D examples change by up to 25% at short wavelengths | [#152](https://github.com/dwijn/RH/pull/152) | — |
+| [B-25](https://github.com/dwijn/RH/issues/155) | high | The polarized DELO-Bezier solvers (all geometries) pair the derivative terms of the control points with the wrong weights and have the wrong sign of dK/dτ at the central point: first order where K varies with depth. Converged Ca II full Stokes on FALC: Stokes V 38% from the converged answer, the 854.2 nm V amplitude 21% too large | — | — |
 | [B-1](https://github.com/dwijn/RH/issues/2) | high | `SOLVE_NE = ITERATION` aborts on the second `Background()` call with active atoms | [#69](https://github.com/dwijn/RH/pull/69) | — |
 | [B-3](https://github.com/dwijn/RH/issues/4) | high | Collisional relaxation stops after one iteration and returns LTE populations reported as converged | [#70](https://github.com/dwijn/RH/pull/70) | — |
 | [B-2](https://github.com/dwijn/RH/issues/3) | high | `PRD_NG_ORDER > 0` with the default `PRD_NG_PERIOD = 0` divides by zero | [#67](https://github.com/dwijn/RH/pull/67) | — |
@@ -363,7 +368,8 @@ upstream issue or pull request once filed. Most severe first.
 | [N-17](https://github.com/dwijn/RH/issues/131) | medium | Cubic Bezier weights (default solver, all geometries) wrong by up to 1.2e-5 below dt = 0.05 (truncated series) and cancelling above; I off by ~1e-6 | [#147](https://github.com/dwijn/RH/pull/147) | — |
 | [B-5](https://github.com/dwijn/RH/issues/6) | medium | Linear short characteristics compute the last point of each 1-D ray with stale weights | [#147](https://github.com/dwijn/RH/pull/147) | — |
 | [B-16](https://github.com/dwijn/RH/issues/93) | medium | Collision data before a `TEMP` line read an uninitialized item count (crash) or inherit one (silently wrong rates) | [#99](https://github.com/dwijn/RH/pull/99) | — |
-| [N-23](https://github.com/dwijn/RH/issues/143) | medium | 1-D static atmospheres are always solved with second-order Feautrier; `S_INTERPOLATION` is silently ignored there (to be confirmed as unintended) | — | — |
+| [B-26](https://github.com/dwijn/RH/issues/156) | medium | The 2-D and 3-D polarized solvers compute the last layer of each ray, which includes the emergent Stokes vector, with a stale (2-D) or uninitialized (3-D) source vector | — | — |
+| [N-23](https://github.com/dwijn/RH/issues/143) | medium | 1-D static atmospheres are always solved with second-order Feautrier; `S_INTERPOLATION` is silently ignored there. Converged on FALC (82 points), Feautrier is up to 20% from the converged spectrum, Bezier3 3% | [#154](https://github.com/dwijn/RH/pull/154) (in review) | — |
 | [B-6](https://github.com/dwijn/RH/issues/7) | medium | Possible double counting of the cross-coupling term for multi-ion atoms (not yet confirmed) | — | — |
 | [B-7](https://github.com/dwijn/RH/issues/8) | medium | 3-D `Jgas` possibly double counted (not yet confirmed) | — | — |
 | [B-8](https://github.com/dwijn/RH/issues/9) | medium | `calcDistance()` (3-D) can fall off the end without a return value | [#76](https://github.com/dwijn/RH/pull/76) | — |
@@ -419,6 +425,12 @@ Ordered so that every step can be verified against upstream: byte-identical
    changes) and reports drift from upstream. Remaining: 2-D/3-D solvers on
    horizontally uniform slabs against the 1-D solutions, the spherical
    Feautrier solver, RMHD stress cases (Q-18).
+   *Progress 2026-10-18:* multi-D and spherical solvers tested (B-24
+   found and fixed); polarized solvers tested against the matrix form
+   of the analytic solution (B-25, B-26 found); 1-D static atmospheres
+   follow `S_INTERPOLATION` (N-23). The test problems and their
+   derivations are written up in `docs/unit-tests/` (Q-20). Remaining:
+   RMHD stress cases (Q-18).
 4. **Solver redesign** (S track, §3.8, [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)) replaces
    the earlier list of convergence patches (Ng safeguards, PRD
    sub-iteration rework, ne preconditioning, positivity): S-1 and S-2,
@@ -440,6 +452,8 @@ Ordered so that every step can be verified against upstream: byte-identical
 7. **Structure** — shared geometry layer to remove duplication (Q-5),
    self-contained headers, reduced global state, error handling (Q-4, Q-7,
    Q-9, Q-16). MPI domain decomposition (P-11) is a separate, larger project.
+   The manual is revised and rewritten with its source in the repository
+   once the code has settled (Q-19).
 
 ---
 
