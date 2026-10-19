@@ -35,6 +35,28 @@ extern Spectrum   spectrum;
 extern InputData  input;
 extern char       messageStr[];
 
+/* ------- begin -------------------------- Piecewise_1D.c ---------- */
+
+/* --- Unpolarized formal solution along one ray with the method chosen
+	   by S_INTERPOLATION --                          -------------- */
+
+static void Piecewise_1D(int nspect, int mu, bool_t to_obs, double *chi,
+						 double *S, double *I, double *Psi)
+{
+	const char routineName[] = "Piecewise_1D";
+
+	if (input.S_interpolation == S_LINEAR) {
+		Piecewise_Linear_1D(nspect, mu, to_obs, chi, S, I, Psi);
+	} else if (input.S_interpolation == S_BEZIER3) {
+		Piecewise_Bezier3_1D(nspect, mu, to_obs, chi, S, I, Psi);
+	} else {
+		sprintf(messageStr, "Unknown radiation solver: %d",
+				input.S_interpolation);
+		Error(ERROR_LEVEL_1, routineName, messageStr);
+	}
+}
+/* ------- end ---------------------------- Piecewise_1D.c ---------- */
+
 /* ------- begin -------------------------- Formal.c ---------------- */
 
 double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
@@ -44,10 +66,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	bool_t initialize, boundbound, polarized_as, polarized_c,
 		PRD_angle_dep, to_obs, solveStokes, angle_dep;
-	enum FeautrierOrder F_order;
-	int                 Nspace = atmos.Nspace, Nrays = atmos.Nrays, lamuk;
-	long int            idx, idx0;
-	double             *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
+	int      Nspace = atmos.Nspace, Nrays = atmos.Nrays, lamuk;
+	long int idx, idx0;
+	double  *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
 						 dJmax, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
 						 *J, *J20 = NULL, *lambda, sign,
 						 lambda_gas, lambda_prv, lambda_nxt, fac, dl, frac;
@@ -213,16 +234,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 					/* --- Intensity only --                     -------------- */
 
-					if (input.S_interpolation == S_LINEAR) {
-						Piecewise_Linear_1D(nspect, mu, to_obs, chi, S, I, Psi);
-					} else if (input.S_interpolation == S_BEZIER3) {
-						Piecewise_Bezier3_1D(nspect, mu, to_obs, chi, S, I, Psi);
-					} else {
-						sprintf(messageStr,
-								"Unknown radiation solver: %d",
-								input.S_interpolation);
-						Error(ERROR_LEVEL_1, routineName, messageStr);
-					}
+					Piecewise_1D(nspect, mu, to_obs, chi, S, I, Psi);
 				}
 
 				if (eval_operator) {
@@ -355,7 +367,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		}
 	} else {
 
-		/* --- The angle-independent case --               -------------- */
+		/* --- The angle-independent case: opacity and source function
+			   are the same for every ray, but each direction is still
+			   solved with the method of S_INTERPOLATION (N-23) -- ---- */
 
 		readBackground(nspect, 0, 0);
 		Opacity(nspect, 0, 0, initialize = TRUE);
@@ -368,26 +382,30 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 				   chi[k];
 		}
 		for (mu = 0; mu < Nrays; mu++) {
-			spectrum.I[nspect][mu] = Feautrier(nspect, mu, chi, S,
-											   F_order = STANDARD, I, Psi);
-			if (eval_operator) {
-				for (k = 0; k < Nspace; k++) Psi[k] /= chi[k];
-				addtoGamma(nspect, geometry.wmu[mu], I, Psi);
-			}
+			wmu = 0.5 * geometry.wmu[mu];
+			for (to_obs = 0; to_obs <= 1; to_obs++) {
+				Piecewise_1D(nspect, mu, to_obs, chi, S, I, Psi);
 
-			if (spectrum.updateJ) {
-				for (k = 0; k < Nspace; k++) J[k] += I[k] * geometry.wmu[mu];
-				addtoRates(nspect, mu, 0, geometry.wmu[mu], I, redistribute);
+				if (eval_operator) {
+					for (k = 0; k < Nspace; k++) Psi[k] /= chi[k];
+					addtoGamma(nspect, wmu, I, Psi);
+				}
 
-				/* --- Accumulate gas-frame mean intensity, which is the same
-					   as J in the angle-independent case --   -------------- */
+				if (spectrum.updateJ) {
+					for (k = 0; k < Nspace; k++) J[k] += wmu * I[k];
+					addtoRates(nspect, mu, to_obs, wmu, I, redistribute);
 
-				if (atmos.NPRDactive > 0 &&
-					input.PRD_angle_dep == PRD_ANGLE_APPROX) {
-					for (k = 0; k < Nspace; k++)
-						spectrum.Jgas[nspect][k] += I[k] * geometry.wmu[mu];
+					/* --- Accumulate gas-frame mean intensity, which is the
+						   same as J in the angle-independent case -- ----- */
+
+					if (atmos.NPRDactive > 0 &&
+						input.PRD_angle_dep == PRD_ANGLE_APPROX) {
+						for (k = 0; k < Nspace; k++)
+							spectrum.Jgas[nspect][k] += wmu * I[k];
+					}
 				}
 			}
+			spectrum.I[nspect][mu] = I[0];
 		}
 	}
 	/* --- Write new J for current position in the spectrum -- -------- */
