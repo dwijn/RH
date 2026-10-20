@@ -524,6 +524,8 @@ void initJgasLocks(void)
 
 	spectrum.Jgas_lock =
 		(pthread_mutex_t *) malloc(spectrum.Nspect * sizeof(pthread_mutex_t));
+	if (spectrum.Jgas_lock == NULL)
+		Error(ERROR_LEVEL_2, "initJgasLocks", "Out of memory");
 	for (nspect = 0; nspect < spectrum.Nspect; nspect++)
 		pthread_mutex_init(&spectrum.Jgas_lock[nspect], NULL);
 }
@@ -581,9 +583,9 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 	}
 	Nrow = imax - imin + 1;
 
-	/* --- At the ends of the wavelength grid the shift extrapolates
-		   onto all rows beyond it: add those few rays point by point
-		   rather than buffer most of the spectrum --   -------------- */
+	/* --- A band wider than JGAS_MAXROWS (not seen in practice: the
+		   widest in the test cases has 34 rows) is added point by
+		   point, to bound the buffer --                 -------------- */
 
 	if (Nrow > JGAS_MAXROWS) {
 		for (k = 0; k < Nspace; k++) {
@@ -596,11 +598,14 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 	}
 
 	if (Nrow > jgas_bufrows) {
+		free(jgas_buf);
+		free(jgas_used);
+		jgas_buf     = (double *) malloc((size_t) Nrow * Nspace * sizeof(double));
+		jgas_used    = (char *) malloc(Nrow);
 		jgas_bufrows = Nrow;
-		jgas_buf     = (double *) realloc(jgas_buf, (size_t) Nrow * Nspace * sizeof(double));
-		jgas_used    = (char *) realloc(jgas_used, Nrow);
+		if (jgas_buf == NULL || jgas_used == NULL)
+			Error(ERROR_LEVEL_2, "addJgasRay", "Out of memory");
 	}
-	memset(jgas_buf, 0, (size_t) Nrow * Nspace * sizeof(double));
 	memset(jgas_used, 0, Nrow);
 
 	for (k = 0; k < Nspace; k++) {
@@ -608,8 +613,14 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 		for (idx = (lamuk == 0) ? 0 : spectrum.nc[lamuk - 1];
 			 idx < spectrum.nc[lamuk]; idx++) {
 			row = spectrum.iprdh[idx] - imin;
+			if (!jgas_used[row]) {
+
+				/* --- Zero a row when the ray first reaches it -- ---- */
+
+				memset(jgas_buf + (size_t) row * Nspace, 0, Nspace * sizeof(double));
+				jgas_used[row] = 1;
+			}
 			jgas_buf[(size_t) row * Nspace + k] += wmu * spectrum.cprdh[idx] * I[k];
-			jgas_used[row] = 1;
 		}
 	}
 	for (row = 0; row < Nrow; row++) {
