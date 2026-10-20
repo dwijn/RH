@@ -269,8 +269,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 					/* --- Accumulate gas-frame mean intensity --   ----------- */
 
 					if (atmos.NPRDactive > 0 &&
-						input.PRD_angle_dep == PRD_ANGLE_APPROX &&
-						atmos.Nrays > 1) {
+						input.PRD_angle_dep == PRD_ANGLE_APPROX) {
 
 						if (input.prdh_limit_mem) {
 							sign = (to_obs) ? 1.0 : -1.0;

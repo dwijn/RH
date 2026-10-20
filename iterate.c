@@ -257,7 +257,7 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 
 	if (spectrum.updateJ &&
 		input.PRD_angle_dep == PRD_ANGLE_APPROX &&
-		atmos.Nrays > 1 && atmos.NPRDactive > 0) {
+		atmos.NPRDactive > 0) {
 		for (k = 0; k < atmos.Nspace; k++) {
 			for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
 				spectrum.Jgas[nspect][k] = 0.0;
