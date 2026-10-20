@@ -16,6 +16,11 @@
 #                    cases always run one at a time.
 #   --threads N      override N_THREADS of the multi-D cases
 #   --work DIR       scratch directory (default tests/work_stress)
+#   --bifrost DIR    directory with the FITS cubes of a Bifrost snapshot
+#                    (en024048_hion, Carlsson et al. 2016, A&A 585, A4; not
+#                    distributed with RH, download it yourself); also taken
+#                    from $RH_BIFROST_DIR. Without it the bifrost cases are
+#                    skipped
 #   --list           print the cases and exit
 #
 # Results go to WORK/results_<date-time>.tsv (one file per invocation, one line
@@ -25,6 +30,7 @@
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 TREES=(); ONLY=; SET=conv; JOBS=4; THREADS=; WORK="$HERE/work_stress"; LIST=0
+BIFROST=${RH_BIFROST_DIR:-}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -34,8 +40,9 @@ while [ $# -gt 0 ]; do
     --jobs)    JOBS=$2; shift 2;;
     --threads) THREADS=$2; shift 2;;
     --work)    WORK=$2; shift 2;;
+    --bifrost) BIFROST=$2; shift 2;;
     --list)    LIST=1; shift;;
-    -h|--help) sed -n '2,22p' "$0"; exit 0;;
+    -h|--help) sed -n '2,27p' "$0"; exit 0;;
     *) echo "unknown option: $1"; exit 1;;
   esac
 done
@@ -43,8 +50,14 @@ done
 # ---------------------------------------------------------------------------
 # Cases: NAME | SET | GEOM | ATMOS | ACTIVE ATOMS | KEYWORDS
 #
-# ATMOS is a file in Atmos/ or tests/atmos/, or gen:2d:NX / gen:3d:NX:NY for
-# a perturbed FALC (make_perturbed_atmos.py). ACTIVE ATOMS is a comma-separated
+# ATMOS is a file in Atmos/ or tests/atmos/, gen:2d:NX / gen:3d:NX:NY for
+# a perturbed FALC (make_perturbed_atmos.py), or a cut of the Bifrost snapshot
+# (make_bifrost_atmos.py, z from -0.5 to 3 Mm at every second point):
+# bifrost:1d:X (column X of row 0), bifrost:2d:S (row 0, every S-th column),
+# bifrost:3d:S (the whole box, every S-th point; S divides 504, so the cut is
+# periodic like the box), bifrost:3d:1:N (an N x N window at full resolution,
+# not periodic: for timing only). The keyword STOKES_INPUT=@B uses the
+# field of the cut. ACTIVE ATOMS is a comma-separated
 # list of atom files in Atoms/ to make active; each replaces the line of the
 # same element in the geometry's example atoms.input. KEYWORDS are
 # ';'-separated keyword.input settings, plus @NOMOL=NAME to drop a molecule
@@ -89,10 +102,20 @@ CASES=(
 "2d_perf_many      |perf|2d|gen:2d:128     |H_6,CaII,MgII,Fe33|N_MAX_ITER=5;N_THREADS=16;S_INTERPOLATION=S_BEZIER3;@NOMOL=MgH"
 "3d_perf_many      |perf|3d|gen:3d:24:24   |H_6,CaII,MgII,Fe33|N_MAX_ITER=3;N_THREADS=16;@NOMOL=MgH"
 "3d_perf_mgi66     |perf|3d|gen:3d:16:16   |MgI_66            |N_MAX_ITER=3;N_THREADS=16"
+# Bifrost cuts (need --bifrost). Ca II in CRD: with PRD the iteration
+# diverges in these moving atmospheres (B-29); the _prd cases reproduce that
+"1d_bf_c260_ca     |conv|1d|bifrost:1d:260 |CaII_CRD          |$L"
+"1d_bf_c260_prd    |conv|1d|bifrost:1d:260 |CaII              |$L"
+"2d_bf_s4_ca       |conv|2d|bifrost:2d:4   |CaII_CRD          |$L;N_THREADS=16"
+"2d_bf_s4_prd      |conv|2d|bifrost:2d:4   |CaII              |$L;N_THREADS=16"
+"3d_bf_s21_ca      |conv|3d|bifrost:3d:21  |CaII_CRD          |$L;N_THREADS=16"
+"2d_bf_s1_perf     |perf|2d|bifrost:2d:1   |CaII_CRD,H_6      |N_MAX_ITER=5;N_THREADS=16"
+"3d_bf_w32_perf    |perf|3d|bifrost:3d:1:32|CaII_CRD          |N_MAX_ITER=3;N_THREADS=16"
 )
 
 trim() { local s=$1; s=${s#"${s%%[![:space:]]*}"}; echo "${s%"${s##*[![:space:]]}"}"; }
 selected() { [ "$SET" = all ] || [ "$2" = "$SET" ] || return 1
+             case $3 in bifrost:*) [ -n "$BIFROST" ] || return 1;; esac
              [ -z "$ONLY" ] || echo "$1" | grep -Eq "$ONLY"; }
 
 if [ $LIST -eq 1 ]; then
@@ -137,6 +160,17 @@ atmos_path() {   # spec -> path of the atmosphere file (generates if needed)
               [ -f "$f" ] || python3 -I "$HERE/make_perturbed_atmos.py" \
                   "$REF/Atmos/FALC_03x82.atmos" "$f" ${s%%:*} ${s##*:} >/dev/null
               echo "$f";;
+    bifrost:*) local s=${1#bifrost:} g=${1#bifrost:}; g=${g%%:*}; s=${s#*:}
+              local f="$WORK/bifrost_${g}_${s/:/x}" opt
+              case $g:$s in
+                1d:*)   opt="--1d --x0 $s";;
+                2d:*)   opt="--stride $s";;
+                3d:*:*) opt="--3d --stride ${s%%:*} --nx ${s##*:} --ny ${s##*:}";;
+                3d:*)   opt="--3d --stride $s";;
+              esac
+              [ -f "$f.atmos" ] || python3 -I "$HERE/make_bifrost_atmos.py" \
+                  "$BIFROST" "$f" $opt --zstride 2 >/dev/null
+              echo "$f.atmos";;
     *)        if [ -f "$HERE/atmos/$1" ]; then echo "$HERE/atmos/$1"
               else echo "../../Atmos/$1"; fi;;
   esac
@@ -163,6 +197,7 @@ prepare() {   # NAME GEOM ATMOS ATOMS KEYWORDS TREENAME -> RUNDIR
                 awk 'done || /^[[:space:]]*#/ || NF == 0 { print; next }
                      { print $1 - 1; done = 1 }' "$RUNDIR/mol.tmp" > "$RUNDIR/molecules.input"
                 rm -f "$RUNDIR/mol.tmp";;
+      STOKES_INPUT=@B) local B=$(atmos_path $atm); setkw "$RUNDIR/keyword.input" STOKES_INPUT "${B%.atmos}.B";;
       ?*=*)     setkw "$RUNDIR/keyword.input" "${m%%=*}" "${m#*=}";;
     esac
   done
@@ -217,13 +252,14 @@ run_one() {   # case-line tree-index
 
 echo "trees: $(for i in "${!NAMES[@]}"; do printf '%s=%s ' "${NAMES[$i]}" "${DIRS[$i]}"; done)"
 echo "work : $WORK"
+[ -n "$BIFROST" ] || echo "bifrost cases skipped (no --bifrost DIR or RH_BIFROST_DIR)"
 # Pre-generate atmospheres serially (avoids races between parallel jobs)
 for c in "${CASES[@]}"; do IFS='|' read -r n s g a rest <<<"$c"
-  selected "$(trim "$n")" "$(trim "$s")" && atmos_path "$(trim "$a")" >/dev/null; done
+  selected "$(trim "$n")" "$(trim "$s")" "$(trim "$a")" && atmos_path "$(trim "$a")" >/dev/null; done
 
 for c in "${CASES[@]}"; do
-  IFS='|' read -r n s rest <<<"$c"; n=$(trim "$n"); s=$(trim "$s")
-  selected "$n" "$s" || continue
+  IFS='|' read -r n s g a rest <<<"$c"; n=$(trim "$n"); s=$(trim "$s")
+  selected "$n" "$s" "$(trim "$a")" || continue
   for i in "${!NAMES[@]}"; do
     if [ "$s" = perf ]; then
       run_one "$c" $i
