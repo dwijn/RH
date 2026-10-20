@@ -95,7 +95,8 @@ void initSolution(void)
 	if (input.PRD_angle_dep == PRD_ANGLE_APPROX &&
 		atmos.NPRDactive > 0) {
 
-		spectrum.Jgas  = matrix_double(spectrum.Nspect, atmos.Nspace);
+		spectrum.Jgas = matrix_double(spectrum.Nspect, atmos.Nspace);
+		initJgasLocks();
 		spectrum.v_los = matrix_double(atmos.Nrays, atmos.Nspace);
 
 		/* --- Calculate line of sight velocity --         -------------- */

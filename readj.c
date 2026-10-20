@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include "rh.h"
 #include "atom.h"
@@ -498,3 +499,126 @@ size_t pwrite_rh(int fd, const void *buffer, size_t count, off_t offset)
 	return fullIO(fd, (char *) buffer, count, offset, TRUE);
 }
 /* ------- end ---------------------------- pwrite_rh.c ------------- */
+
+/* ------- begin -------------------------- addJgas.c --------------- */
+
+/* --- The gas-frame mean intensity Jgas of the hybrid PRD approximation
+	   (PRD_ANGLE_APPROX). The formal solution of one wavelength adds its
+	   intensity, shifted to the gas frame, to the rows of neighbouring
+	   wavelengths, and with several threads neighbouring wavelengths are
+	   solved at the same time. Each row therefore has a lock (T-4).
+	   A ray's contributions are first summed in a buffer of the thread
+	   (they fall in a narrow band of rows around its own wavelength) and
+	   then added row by row: a few lock operations per ray instead of
+	   one per point and coefficient. --               -------------- */
+
+#define JGAS_MAXROWS 64 /* widest band that is buffered */
+
+static __thread double *jgas_buf;
+static __thread char   *jgas_used;
+static __thread int     jgas_bufrows;
+
+void initJgasLocks(void)
+{
+	int nspect;
+
+	spectrum.Jgas_lock =
+		(pthread_mutex_t *) malloc(spectrum.Nspect * sizeof(pthread_mutex_t));
+	for (nspect = 0; nspect < spectrum.Nspect; nspect++)
+		pthread_mutex_init(&spectrum.Jgas_lock[nspect], NULL);
+}
+
+void freeJgasBuffer(void)
+{
+	/* --- Worker threads end after each formal solution of the
+		   spectrum: free their buffers --               -------------- */
+
+	free(jgas_buf);
+	free(jgas_used);
+	jgas_buf     = NULL;
+	jgas_used    = NULL;
+	jgas_bufrows = 0;
+}
+
+void addJgas(int nspect, int k, double value)
+{
+	pthread_mutex_lock(&spectrum.Jgas_lock[nspect]);
+	spectrum.Jgas[nspect][k] += value;
+	pthread_mutex_unlock(&spectrum.Jgas_lock[nspect]);
+}
+
+void addJgasRow(int nspect, double wmu, double *I)
+{
+	int k;
+
+	pthread_mutex_lock(&spectrum.Jgas_lock[nspect]);
+	for (k = 0; k < atmos.Nspace; k++) spectrum.Jgas[nspect][k] += wmu * I[k];
+	pthread_mutex_unlock(&spectrum.Jgas_lock[nspect]);
+}
+/* ------- end ---------------------------- addJgas.c --------------- */
+
+/* ------- begin -------------------------- addJgasRay.c ------------ */
+
+void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
+{
+	/* --- Add the intensity I of ray (nspect, mu, to_obs) to Jgas with
+		   the precomputed coefficients spectrum.nc, iprdh and cprdh -- */
+
+	int      Nspace = atmos.Nspace, k, row, imin, imax, Nrow;
+	long int lamuk0, lamuk, idx, idx0, idx1;
+	double  *buf;
+
+	lamuk0 = (long) nspect * (atmos.Nrays * 2 * Nspace) + mu * (2 * Nspace) +
+			 to_obs * Nspace;
+	idx0 = (lamuk0 == 0) ? 0 : spectrum.nc[lamuk0 - 1];
+	idx1 = spectrum.nc[lamuk0 + Nspace - 1];
+	if (idx1 <= idx0) return;
+
+	imin = imax = spectrum.iprdh[idx0];
+	for (idx = idx0; idx < idx1; idx++) {
+		if (spectrum.iprdh[idx] < imin) imin = spectrum.iprdh[idx];
+		if (spectrum.iprdh[idx] > imax) imax = spectrum.iprdh[idx];
+	}
+	Nrow = imax - imin + 1;
+
+	/* --- At the ends of the wavelength grid the shift extrapolates
+		   onto all rows beyond it: add those few rays point by point
+		   rather than buffer most of the spectrum --   -------------- */
+
+	if (Nrow > JGAS_MAXROWS) {
+		for (k = 0; k < Nspace; k++) {
+			lamuk = lamuk0 + k;
+			for (idx = (lamuk == 0) ? 0 : spectrum.nc[lamuk - 1];
+				 idx < spectrum.nc[lamuk]; idx++)
+				addJgas(spectrum.iprdh[idx], k, wmu * spectrum.cprdh[idx] * I[k]);
+		}
+		return;
+	}
+
+	if (Nrow > jgas_bufrows) {
+		jgas_bufrows = Nrow;
+		jgas_buf     = (double *) realloc(jgas_buf, (size_t) Nrow * Nspace * sizeof(double));
+		jgas_used    = (char *) realloc(jgas_used, Nrow);
+	}
+	memset(jgas_buf, 0, (size_t) Nrow * Nspace * sizeof(double));
+	memset(jgas_used, 0, Nrow);
+
+	for (k = 0; k < Nspace; k++) {
+		lamuk = lamuk0 + k;
+		for (idx = (lamuk == 0) ? 0 : spectrum.nc[lamuk - 1];
+			 idx < spectrum.nc[lamuk]; idx++) {
+			row = spectrum.iprdh[idx] - imin;
+			jgas_buf[(size_t) row * Nspace + k] += wmu * spectrum.cprdh[idx] * I[k];
+			jgas_used[row] = 1;
+		}
+	}
+	for (row = 0; row < Nrow; row++) {
+		if (!jgas_used[row]) continue;
+		buf = jgas_buf + (size_t) row * Nspace;
+
+		pthread_mutex_lock(&spectrum.Jgas_lock[imin + row]);
+		for (k = 0; k < Nspace; k++) spectrum.Jgas[imin + row][k] += buf[k];
+		pthread_mutex_unlock(&spectrum.Jgas_lock[imin + row]);
+	}
+}
+/* ------- end ---------------------------- addJgasRay.c ------------ */

@@ -66,8 +66,8 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	bool_t initialize, boundbound, polarized_as, polarized_c,
 		PRD_angle_dep, to_obs, solveStokes, angle_dep;
-	int      Nspace = atmos.Nspace, Nrays = atmos.Nrays, lamuk;
-	long int idx, idx0;
+	int      Nspace = atmos.Nspace, Nrays = atmos.Nrays;
+	long int idx;
 	double  *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
 						 dJmax, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
 						 *J, *J20 = NULL, *lambda, sign,
@@ -299,7 +299,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 										if (lambda[idx] > lambda_prv &&
 											lambda[idx] <= lambda_gas) {
 											frac = (lambda[idx] - lambda_prv) / dl;
-											spectrum.Jgas[idx][k] += frac * wmu * I[k];
+											addJgas(idx, k, frac * wmu * I[k]);
 										}
 									}
 								} else {
@@ -309,7 +309,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 									for (idx = 0; idx < spectrum.Nspect; idx++) {
 										if (lambda[idx] < lambda_gas)
-											spectrum.Jgas[idx][k] += wmu * I[k];
+											addJgas(idx, k, wmu * I[k]);
 									}
 								}
 
@@ -323,7 +323,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 										if (lambda[idx] > lambda_gas &&
 											lambda[idx] < lambda_nxt) {
 											frac = (lambda[idx] - lambda_gas) / dl;
-											spectrum.Jgas[idx][k] += (1.0 - frac) * wmu * I[k];
+											addJgas(idx, k, (1.0 - frac) * wmu * I[k]);
 										}
 									}
 								} else {
@@ -333,21 +333,13 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 									for (idx = 0; idx < spectrum.Nspect; idx++) {
 										if (lambda[idx] > lambda_gas)
-											spectrum.Jgas[idx][k] += wmu * I[k];
+											addJgas(idx, k, wmu * I[k]);
 									}
 								}
 							}
 						} else {
 
-							for (k = 0; k < Nspace; k++) {
-								lamuk = nspect * (atmos.Nrays * 2 * Nspace) + mu * (2 * Nspace) + to_obs * (Nspace) + k;
-
-								idx0 = (lamuk == 0) ? 0 : spectrum.nc[lamuk - 1];
-
-								for (idx = idx0; idx < spectrum.nc[lamuk]; idx++)
-									spectrum.Jgas[spectrum.iprdh[idx]][k] +=
-										wmu * spectrum.cprdh[idx] * I[k];
-							}
+							addJgasRay(nspect, mu, to_obs, wmu, I);
 						}
 					}
 
@@ -400,8 +392,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 					if (atmos.NPRDactive > 0 &&
 						input.PRD_angle_dep == PRD_ANGLE_APPROX) {
-						for (k = 0; k < Nspace; k++)
-							spectrum.Jgas[nspect][k] += wmu * I[k];
+						addJgasRow(nspect, wmu, I);
 					}
 				}
 			}
