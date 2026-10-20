@@ -46,6 +46,64 @@ extern Spectrum   spectrum;
 extern InputData  input;
 extern char       messageStr[];
 
+/* ------- begin -------------------------- prdInflow.c -------------- */
+
+static void prdInflow(Atom *atom, AtomicLine *PRDline, AtomicLine **XRD,
+					  int Nsubordinate, double *Yj)
+{
+	register int k, kr, ip, kxrd;
+	bool_t       subordinate;
+
+	AtomicLine      *line;
+	AtomicContinuum *continuum;
+
+	/* --- Rate Yj into the upper level j of PRDline by every process
+		   except radiative excitation in the subordinate lines XRD,
+		   plus the elastic collisions n_j Q_elast. In statistical
+		   equilibrium n_j P_j = Yj + sum_x n_i(x) B_ij(x) Jbar(x), so the
+		   emission profile ratio
+
+			 rho = (1 + sum_x g_x <J>_R(x)) / (1 + sum_x g_x Jbar(x)),
+			 g_x = n_i(x) B_ij(x) / Yj,
+
+		   equals the familiar 1 + sum_x gamma_x (<J>_R(x) - Jbar(x)),
+		   gamma_x = n_i(x) B_ij(x) / (n_j P_j). Unlike that form it
+		   stays positive when the populations lag the radiation field
+		   during the PRD sub-iterations (B-29). --        -------------- */
+
+	for (k = 0; k < atmos.Nspace; k++) {
+		Yj[k] = atom->n[PRDline->j][k] * PRDline->Qelast[k];
+		for (ip = 0; ip < atom->Nlevel; ip++) {
+			if (ip == PRDline->j) continue;
+			Yj[k] += atom->n[ip][k] * atom->C[PRDline->j * atom->Nlevel + ip][k];
+		}
+	}
+	for (kr = 0; kr < atom->Nline; kr++) {
+		line = &atom->line[kr];
+		if (line->j == PRDline->j) {
+			subordinate = FALSE;
+			for (kxrd = 0; kxrd < Nsubordinate; kxrd++)
+				if (XRD[kxrd] == line) subordinate = TRUE;
+			if (!subordinate)
+				for (k = 0; k < atmos.Nspace; k++)
+					Yj[k] += atom->n[line->i][k] * line->Rij[k];
+		}
+		if (line->i == PRDline->j)
+			for (k = 0; k < atmos.Nspace; k++)
+				Yj[k] += atom->n[line->j][k] * line->Rji[k];
+	}
+	for (kr = 0; kr < atom->Ncont; kr++) {
+		continuum = &atom->continuum[kr];
+		if (continuum->j == PRDline->j)
+			for (k = 0; k < atmos.Nspace; k++)
+				Yj[k] += atom->n[continuum->i][k] * continuum->Rij[k];
+		if (continuum->i == PRDline->j)
+			for (k = 0; k < atmos.Nspace; k++)
+				Yj[k] += atom->n[continuum->j][k] * continuum->Rji[k];
+	}
+}
+/* ------- end ---------------------------- prdInflow.c -------------- */
+
 /* ------- begin -------------------------- PRDScatter.c ------------ */
 
 /* --- The loop over spatial locations is parallelized: the scattering
@@ -64,7 +122,7 @@ typedef struct {
 	enum Interpolation representation;
 	bool_t             initialize;
 	int                fd;
-	double             waveratio, *Pj, *adamp;
+	double             waveratio, *Yj, *adamp;
 	long              *blocksize; /* number of doubles in each block      */
 	off_t             *kstart;    /* byte offset of each location's block */
 } PRDjob;
@@ -196,7 +254,7 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 	size_t       Nwin = 0, wincap = 0;
 	double       q_emit, q0, qN, *q_abs = NULL, *qp = NULL, *wq = NULL,
 						   *qpp = NULL, *gii, *win = NULL, *wbuf, *J = NULL, *J_k = NULL,
-						   Jbar, scatInt, gnorm, gamma;
+						   scatInt, gnorm, g;
 
 	(void) nt;
 
@@ -246,9 +304,7 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 		}
 		wbuf = win + (job->kstart[k] - job->kstart[kwin_start]) / sizeof(double);
 
-		gamma = atom->n[XRDline->i][k] / atom->n[PRDline->j][k] *
-				XRDline->Bij / job->Pj[k];
-		Jbar = XRDline->Rij[k] / XRDline->Bij;
+		g = atom->n[XRDline->i][k] * XRDline->Bij / job->Yj[k];
 
 		/* --- Get local mean intensity and wavelength in Doppler units - */
 
@@ -343,7 +399,7 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 				gnorm += gii[lap];
 				scatInt += J[lap] * gii[lap];
 			}
-			PRDline->rho_prd[la][k] += gamma * (scatInt / gnorm - Jbar);
+			PRDline->rho_prd[la][k] += g * scatInt / gnorm;
 			pos += Np;
 		}
 	}
@@ -368,17 +424,16 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 
 void PRDScatter(AtomicLine *PRDline, enum Interpolation representation)
 {
-	const char       routineName[] = "PRDScatter";
-	register int     la, k, kr, ip, kxrd;
-	char             filename[MAX_LINE_SIZE];
-	bool_t           initialize;
-	int              ij, Nsubordinate, nthreads;
-	off_t            offset;
-	double           cDop, *adamp, *Pj;
-	Atom            *atom;
-	AtomicLine      *line, **XRD;
-	AtomicContinuum *continuum;
-	PRDjob           job;
+	const char   routineName[] = "PRDScatter";
+	register int la, k, kxrd;
+	char         filename[MAX_LINE_SIZE];
+	bool_t       initialize;
+	int          Nsubordinate, nthreads;
+	off_t        offset;
+	double       cDop, *adamp, *Yj, *denom;
+	Atom        *atom;
+	AtomicLine **XRD;
+	PRDjob       job;
 
 	/* --- Routine for angle-averaged and hybrid angle-dependent
 		   approximation. In the latter Jgas is used instead of J -- -- */
@@ -427,30 +482,20 @@ void PRDScatter(AtomicLine *PRDline, enum Interpolation representation)
 			PRDline->rho_prd[la][k] = 1.0;
 		}
 	}
-	Pj    = (double *) malloc(atmos.Nspace * sizeof(double));
+	Yj    = (double *) malloc(atmos.Nspace * sizeof(double));
+	denom = (double *) malloc(atmos.Nspace * sizeof(double));
 	adamp = (double *) malloc(atmos.Nspace * sizeof(double));
 	cDop  = (NM_TO_M * PRDline->lambda0) / (4.0 * PI);
 
+	prdInflow(atom, PRDline, XRD, Nsubordinate, Yj);
 	for (k = 0; k < atmos.Nspace; k++) {
 		adamp[k] = (PRDline->Grad + PRDline->Qelast[k]) * cDop / atom->vbroad[k];
 
-		/* --- Evaluate the total rate Pj out of the line's upper level - */
+		/* --- Denominator 1 + sum_x g_x Jbar(x) of rho (see prdInflow) - */
 
-		Pj[k] = PRDline->Qelast[k];
-		for (ip = 0; ip < atom->Nlevel; ip++) {
-			ij = ip * atom->Nlevel + PRDline->j;
-			Pj[k] += atom->C[ij][k];
-		}
-		for (kr = 0; kr < atom->Nline; kr++) {
-			line = &atom->line[kr];
-			if (line->j == PRDline->j) Pj[k] += line->Rji[k];
-			if (line->i == PRDline->j) Pj[k] += line->Rij[k];
-		}
-		for (kr = 0; kr < atom->Ncont; kr++) {
-			continuum = &atom->continuum[kr];
-			if (continuum->j == PRDline->j) Pj[k] += continuum->Rji[k];
-			if (continuum->i == PRDline->j) Pj[k] += continuum->Rij[k];
-		}
+		denom[k] = 1.0;
+		for (kxrd = 0; kxrd < Nsubordinate; kxrd++)
+			denom[k] += atom->n[XRD[kxrd]->i][k] * XRD[kxrd]->Rij[k] / Yj[k];
 	}
 
 	/* --- The spline interpolators keep their coefficients in static
@@ -463,7 +508,7 @@ void PRDScatter(AtomicLine *PRDline, enum Interpolation representation)
 	job.representation = representation;
 	job.initialize     = initialize;
 	job.fd             = fileno(PRDline->fp_GII);
-	job.Pj             = Pj;
+	job.Yj             = Yj;
 	job.adamp          = adamp;
 	job.blocksize      = (long *) malloc(atmos.Nspace * sizeof(long));
 	job.kstart         = (off_t *) malloc(atmos.Nspace * sizeof(off_t));
@@ -487,11 +532,15 @@ void PRDScatter(AtomicLine *PRDline, enum Interpolation representation)
 
 		parallelFor(atmos.Nspace, nthreads, prdIntegrate, &job);
 	}
+	for (la = 0; la < PRDline->Nlambda; la++) {
+		for (k = 0; k < atmos.Nspace; k++) PRDline->rho_prd[la][k] /= denom[k];
+	}
 
 	free(job.blocksize);
 	free(job.kstart);
 	free(XRD);
-	free(Pj);
+	free(Yj);
+	free(denom);
 	free(adamp);
 
 	sprintf(messageStr, "Scatter Int %5.1f", PRDline->lambda0);
@@ -505,17 +554,15 @@ void PRDAngleScatter(AtomicLine        *PRDline,
 					 enum Interpolation representation)
 {
 	const char   routineName[] = "PRDAngleScatter";
-	register int la, k, lap, kr, ip, mu, mup;
+	register int la, k, lap, mu, mup;
 
 	char    filename[MAX_LINE_SIZE];
 	bool_t  hunt, initialize, to_obs, to_obs_p;
-	int     Np, Nread, Nwrite, ij, lamu;
+	int     Np, Nread, Nwrite, lamu;
 	double *v_emit, v0, vN, *v_abs = NULL, *vp = NULL, *wv = NULL,
 							*rii = NULL, *adamp, *Jbar, cDop, *RIInorm, *I = NULL,
-							**Imup, *Ik, *Pj, *gamma, **v_los, *phi_emit, wmup, *sv;
-	Atom            *atom;
-	AtomicLine      *line;
-	AtomicContinuum *continuum;
+							**Imup, *Ik, *Yj, *g, **v_los, *phi_emit, wmup, *sv;
+	Atom *atom;
 
 	/* --- Calculate the angle-dependent scattering integral when
 		   angle-dependent scattering is requested. --   -------------- */
@@ -553,40 +600,19 @@ void PRDAngleScatter(AtomicLine        *PRDline,
 	v_abs   = (double *) malloc(PRDline->Nlambda * sizeof(double));
 	adamp   = (double *) malloc(atmos.Nspace * sizeof(double));
 	v_los   = matrix_double(atmos.Nrays, atmos.Nspace);
-	gamma   = (double *) malloc(atmos.Nspace * sizeof(double));
-	Pj      = (double *) malloc(atmos.Nspace * sizeof(double));
+	g       = (double *) malloc(atmos.Nspace * sizeof(double));
+	Yj      = (double *) malloc(atmos.Nspace * sizeof(double));
 	Jbar    = (double *) malloc(atmos.Nspace * sizeof(double));
 	RIInorm = (double *) malloc(atmos.Nspace * sizeof(double));
 	sv      = (double *) malloc(atmos.Nspace * sizeof(double));
 
-	/* --- Evaluate first the total rate Pj out of the line's upper level
-		   and then the coherency fraction gamma --      -------------- */
+	/* --- Inflow Yj into the upper level and the weight g of the
+		   scattering integral (see prdInflow) --         -------------- */
 
+	prdInflow(atom, PRDline, &PRDline, 1, Yj);
 	for (k = 0; k < atmos.Nspace; k++)
-		Pj[k] = PRDline->Qelast[k];
-	for (ip = 0; ip < atom->Nlevel; ip++) {
-		ij = ip * atom->Nlevel + PRDline->j;
-		for (k = 0; k < atmos.Nspace; k++)
-			Pj[k] += atom->C[ij][k];
-	}
-	for (kr = 0; kr < atom->Nline; kr++) {
-		line = &atom->line[kr];
-		if (line->j == PRDline->j)
-			for (k = 0; k < atmos.Nspace; k++) Pj[k] += line->Rji[k];
-		if (line->i == PRDline->j)
-			for (k = 0; k < atmos.Nspace; k++) Pj[k] += line->Rij[k];
-	}
-	for (kr = 0; kr < atom->Ncont; kr++) {
-		continuum = &atom->continuum[kr];
-		if (continuum->j == PRDline->j)
-			for (k = 0; k < atmos.Nspace; k++) Pj[k] += continuum->Rji[k];
-		if (continuum->i == PRDline->j)
-			for (k = 0; k < atmos.Nspace; k++) Pj[k] += continuum->Rij[k];
-	}
-	for (k = 0; k < atmos.Nspace; k++) {
-		gamma[k] = atom->n[PRDline->i][k] / atom->n[PRDline->j][k] *
-				   PRDline->Bij / Pj[k];
-	}
+		g[k] = atom->n[PRDline->i][k] * PRDline->Bij / Yj[k];
+
 	/* --- Store line-of-sight velocity in Doppler units to avoid
 		   having to recompute it for every wavelength -- ------------- */
 
@@ -774,8 +800,9 @@ void PRDAngleScatter(AtomicLine        *PRDline,
 				}
 
 				for (k = 0; k < atmos.Nspace; k++) {
-					PRDline->rho_prd[lamu][k] = 1.0 +
-												gamma[k] * (PRDline->rho_prd[lamu][k] / RIInorm[k] - Jbar[k]);
+					PRDline->rho_prd[lamu][k] =
+						(1.0 + g[k] * PRDline->rho_prd[lamu][k] / RIInorm[k]) /
+						(1.0 + g[k] * Jbar[k]);
 				}
 			}
 		}
@@ -789,8 +816,8 @@ void PRDAngleScatter(AtomicLine        *PRDline,
 	free(v_abs);
 	free(v_emit);
 	free(adamp);
-	free(gamma);
-	free(Pj);
+	free(g);
+	free(Yj);
 	free(wv);
 	free(I);
 	free(rii);
