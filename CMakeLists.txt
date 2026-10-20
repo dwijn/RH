@@ -2,7 +2,7 @@
 #
 #   cmake -B build                 configure (default build type RelWithDebInfo)
 #   cmake --build build -j         build librh, the four programs and the tools
-#   ctest --test-dir build         unit tests and a check that the programs start
+#   ctest --test-dir build         unit, end-to-end and start-up tests
 #   cmake --install build --prefix ~/rh
 #
 # Options (-D<option>=<value>):
@@ -198,6 +198,18 @@ endforeach()
 # --- Unit tests --------------------------------------------------------------
 
 add_subdirectory(tests/unit)
+
+# --- End-to-end tests ---------------------------------------------------------
+# Whole runs of the programs on problems with exact properties (label
+# "e2e"); the scripts need only a Python 3 interpreter.
+
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  add_test(NAME e2e_stokes_1d
+           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/stokes_1d.py
+                   --rhf1d $<TARGET_FILE:rhf1d> --src ${PROJECT_SOURCE_DIR})
+  set_tests_properties(e2e_stokes_1d PROPERTIES LABELS e2e)
+endif()
 
 message(STATUS "RH ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, "
                "native=${RH_NATIVE}, sanitize='${RH_SANITIZE}', "

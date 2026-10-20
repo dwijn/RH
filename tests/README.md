@@ -1,9 +1,11 @@
 # RH tests
 
-Three tiers:
+Four tiers:
 
 - **Unit tests** (`tests/unit/`, run by `ctest`): single routines on
   problems with known answers. Fast, no input files.
+- **End-to-end tests** (`tests/e2e/`, run by `ctest`): whole runs of a
+  program on problems with exact properties.
 - **Regression** (`run_tests.sh`, below): whole runs of a candidate build
   against a baseline build. Must pass on every pull request.
 - **Stress** (`run_stress.sh`, further below): convergence and performance
@@ -39,6 +41,19 @@ computations committed as data together with the script that made them
 The other tests also take `--table` to print the measured errors. Error bounds in the tests are about twice what is measured, so that other
 compilers and FMA contraction (Apple silicon) pass, while a real change in
 accuracy fails.
+
+## End-to-end tests
+
+```
+ctest --test-dir build -L e2e --output-on-failure
+tests/e2e/stokes_1d.py --rhf1d build/rhf1d/rhf1d --work DIR -v   # keep the runs, print the errors
+```
+
+| Test | What it covers |
+|---|---|
+| `stokes_1d.py` | `rhf1d` with a fictional atom (`TI_fict.atom`: two lines with anomalous Zeeman patterns, g_eff 4/3 and 7/6) in LTE, one formal solution with J = 0 in the background scattering, so every run solves the same linear problem: no field gives Q = U = V = 0; parity (mirror in the plane of the rays) gives (I, Q, -U, -V) to 1e-12, with and without magneto-optical effects; without them B -> -B gives (I, Q, U, -V); turning the field azimuth for a vertical ray turns (Q, U), up to a discretization error from the polarized solver's componentwise limiter that must vanish at third order; the weak-field V against the derivative of I with respect to a uniform velocity (no wavelength derivative), which must converge at fourth order on a grey atmosphere. Python 3 standard library only, about 10 s |
+
+Derivations: `docs/unit-tests`, section "End to end".
 
 # Regression tests
 

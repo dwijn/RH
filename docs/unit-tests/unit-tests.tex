@@ -47,11 +47,13 @@ defect is described with the evidence (identifiers such as B-24 refer to
 %======================================================================
 \section{Approach}
 
-RH has three tiers of tests:
+RH has four tiers of tests:
 \begin{description}
 \item[unit] (\code{ctest -L unit}): single routines, known answers,
   milliseconds to seconds; run in CI, also with AddressSanitizer and
   UndefinedBehaviorSanitizer;
+\item[end to end] (\code{ctest -L e2e}): whole runs of a program on
+  problems with exact properties (section~\ref{sec:e2e});
 \item[regression] (\code{tests/run\_tests.sh}): complete runs of the
   example problems compared with a baseline build. These runs stop after
   a few iterations and are \emph{not converged}; they detect change, not
@@ -59,7 +61,7 @@ RH has three tiers of tests:
 \item[stress] (\code{tests/run\_stress.sh}): runs to convergence on
   harder atmospheres, for convergence behaviour, timing and memory.
 \end{description}
-Only the unit tier can say whether an answer is \emph{right}. Its tests
+Only the unit and end-to-end tiers can say whether an answer is \emph{right}. Their tests
 follow a few rules:
 \begin{itemize}
 \item Reference values come from closed forms or from \code{mpmath} at
@@ -856,6 +858,129 @@ the IAU sign this is $V = +\bar g v_B\cos\theta\,\partial I/\partial v$,
 or $V = -\bar g\,\nu_L\cos\theta\,\partial I/\partial\nu$ in frequency.
 At $v_B = 0.023$ RH's $V$ agrees with it to $4$--$6\times10^{-4}$ of
 $\max|V|$, the size of the neglected $O(v_B^2)$ terms.
+
+%======================================================================
+\section{End to end: rhf1d with a fictional atom}\label{sec:e2e}
+\code{tests/e2e/stokes\_1d.py} (\code{ctest -L e2e}) runs the whole of
+\code{rhf1d}: reading the atom and the field, \code{Bproject},
+\code{Zeeman}, the profiles, the opacities and the polarized solver. The
+atom \code{TI\_fict.atom} has two lines from a $^2S_{1/2}$ ground level,
+analogues of the sodium D lines at made-up energies (588.24 and
+581.40\,nm), to $^2P_{1/2}$ ($\bar g = 4/3$) and $^2P_{3/2}$
+($\bar g = 7/6$), both with anomalous patterns that RH derives from the
+level labels. The atom is active with LTE populations and
+\code{N\_MAX\_ITER = 0}, so RH computes one formal solution;
+\code{N\_MAX\_SCATTER = 1} makes that solution use the initial $J=0$ in
+the background scattering of every run. Every run then solves the same
+linear problem, $S$ fixed, and the relations below hold to rounding or to
+discretization error, not to the accuracy of a physical approximation.
+The rays of the 1-D code lie in the $x$--$z$ plane.
+
+\subsection{Exact symmetries}
+\paragraph{No field.} $Q=U=V=0$ exactly.
+
+\paragraph{Parity.} Reflection in the plane of the rays, $y\to-y$, maps
+a solution of the transfer equation onto a solution: the Zeeman effect
+and the transfer equation are invariant under parity. $\boldsymbol B$ is
+an axial vector, so the reflected field is
+$-(B_x,-B_y,B_z) = (-B_x,B_y,-B_z)$, i.e.\ $\gamma\to\pi-\gamma$,
+$\chi\to\pi-\chi$. The reflection reverses the helicity ($V\to-V$) and
+mirrors the direction of linear polarization about $\boldsymbol e_1$,
+which lies in the plane of the rays ($U\to-U$). The test compares
+$(I,Q,-U,-V)$ of the reflected field with the original on FAL-C with a
+field that varies with depth (200\,G to 2\,kG, $\gamma$ from 70 to
+$20^\circ$, $\chi$ from 100 to $10^\circ$): $3\times10^{-13}$, with and
+without magneto-optical effects.
+
+\paragraph{Reversed field.} $\boldsymbol B\to-\boldsymbol B$
+($\gamma\to\pi-\gamma$, $\chi\to\chi+\pi$) changes the sign of $\eta_V$
+and $\rho_V$ and leaves the other elements of $K$. Without magneto-optical
+terms this is $K\to DKD$ with $D=\operatorname{diag}(1,1,1,-1)$, so the
+solution is $(I,Q,U,-V)$: $2\times10^{-13}$. With them it is no symmetry:
+$DKD$ would also change $\rho_Q$ and $\rho_U$ and keep $\rho_V$, and
+Faraday rotation, odd in $B$, turns the plane of linear polarization the
+other way (on FAL-C $Q$ changes by 66\% of its maximum).
+
+\subsection{Turning the reference frame}
+For a vertical ray, turning the field azimuth by $\Delta$ turns the frame:
+$K\to RKR^{\mathsf T}$ with $R$ the rotation by $2\Delta$ in the $(Q,U)$
+plane, and the transfer equation gives $(Q,U)\to R(Q,U)$ with $I$ and $V$
+unchanged. The DELO-Bezier solver is not covariant under this rotation:
+it limits the derivatives $\vS_K'$ and $\dot K$ element by element
+(Steffen's limiter in \code{cent\_deriv\_vec} and \code{cent\_deriv\_mat}),
+and limiting does not commute with mixing the $Q$ and $U$ components. On
+FAL-C (82 points) with the depth-dependent field and
+$\Delta = 35^\circ$, $Q$ and $U$ differ from the rotated ones by up to
+$7\times10^{-3}$ of their maximum, $V$ by $2\times10^{-4}$, $I$ by
+$10^{-5}$. With the limiter replaced by the unlimited centred derivative,
+the difference falls to $4\times10^{-14}$. The effect is a discretization
+error: on the grey atmosphere below it falls from $4.8\times10^{-3}$
+($N=40$) to $5.0\times10^{-6}$ ($N=320$), close to third order, and the
+test checks that it does.
+
+\subsection{Weak field without a wavelength derivative}
+Measure wavelength in velocity units, $u = c(\lambda-\lambda_0)/\lambda_0$.
+To first order in $B$, for a field constant along the ray, the
+transfer equation for $V$ is
+\begin{equation}
+\frac{\dd V}{\dd s} = -\eta_I V - \eta_V(I^{(0)}-S),
+\end{equation}
+with $I^{(0)}$ the field-free intensity and, in RH's sign
+(section~\ref{sec:zeeman}),
+$\eta_V=-\bar g\,u_B\cos\theta\,\partial\eta_I/\partial u$, where
+$u_B = e\lambda_0B/(4\pi m_e)$ is the Zeeman splitting in velocity, the
+same at every depth. Shift the line profiles rigidly by a velocity
+$\sigma$, the same at every depth; then $\partial I/\partial\sigma$ obeys
+\begin{equation}
+\frac{\dd}{\dd s}\frac{\partial I}{\partial\sigma}
+= -\eta_I\frac{\partial I}{\partial\sigma}
+ - \frac{\partial\eta_I}{\partial\sigma}(I^{(0)}-S),
+\qquad \frac{\partial\eta_I}{\partial\sigma} = -\frac{\partial\eta_I}{\partial u},
+\end{equation}
+with the same boundary condition ($S$ does not depend on $\sigma$: LTE,
+and $J=0$ in the background scattering). The two equations are the same,
+so
+\begin{equation}
+V = \bar g\,u_B\cos\theta\,\frac{\partial I}{\partial\sigma}
+\end{equation}
+for any depth dependence of $T$, $n_e$, the Doppler width and the
+opacities; where the continuum does not vary across the line,
+$\partial I/\partial\sigma = -\partial I/\partial u$ and this is the
+familiar $V=-\bar g\,u_B\cos\theta\,\partial I/\partial u$. A uniform
+vertical velocity $v_z$ is such a shift: for an outgoing ray at $\mu$,
+$\sigma=-\mu v_z$ (to the blue for an upflow; \code{profile.c} evaluates
+the profile at $v+\mu v_z/v_D$ in Doppler units), so
+\begin{equation}
+V = -\bar g\,u_B\,\frac{\cos\theta}{\mu}\,\frac{\partial I}{\partial v_z}.
+\end{equation}
+The test takes $\partial I/\partial v_z$ from four field-free runs with
+$v_z=\pm20$ and $\pm40\,\mathrm{m\,s^{-1}}$ (fourth-order central
+difference, error $\sim(\delta v/v_D)^4\approx10^{-8}$), and $V$ from a run
+with $B=1$\,G, $\gamma=30^\circ$, $\chi=20^\circ$, where the neglected
+$O(B^2)$ terms are $(u_B/v_D)^2\sim10^{-7}$. No wavelength derivative is
+taken, and nothing in the comparison depends on the wavelength grid.
+
+The two sides reach the solver by different routes, an extra source term
+in the polarized system against shifted opacities, so they agree to
+discretization error. The test uses a grey atmosphere with no kinks,
+$T^4=\tfrac34T_\text{eff}^4(\tau+\tfrac23)$ with $\tau$ the column mass in
+g\,cm$^{-2}$, $\log m$ from $-5$ to 1 at $N$ points, $n_e$ from
+\code{SOLVE\_NE}. For the three rays and both lines the largest
+$|V-V_\text{wf}|/\max|V|$ is
+\begin{center}
+\begin{tabular}{rcccc}
+\toprule
+$N$ & 40 & 80 & 160 & 320\\
+\midrule
+error & $5.6\times10^{-3}$ & $4.2\times10^{-4}$ & $2.7\times10^{-5}$ &
+$1.9\times10^{-6}$\\
+\bottomrule
+\end{tabular}
+\end{center}
+fourth order, as for the 1-D Bezier solver itself
+(section~\ref{sec:bezier}). This checks, end to end, the sign of $V$,
+$\bar g$ from the labels, the Larmor splitting, $\cos\theta$ for oblique
+rays and the units of the field input.
 
 %======================================================================
 \section*{Regenerating the reference values}
