@@ -370,6 +370,7 @@ void *Formal_pthread(void *argument)
 			}
 		}
 	}
+	freeJgasBuffer();
 
 	return (NULL);
 }

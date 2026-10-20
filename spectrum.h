@@ -40,9 +40,10 @@ typedef struct {
 	int     Nspect, *PRDindex, fd_J, fd_J20, fd_Imu;
 	double *lambda, **J, **I, **Stokes_Q, **Stokes_U, **Stokes_V, **J20,
 		**Jgas, **Ilast, **v_los;
-	ActiveSet *as;
-	int       *nc, *iprdh;
-	double    *cprdh;
+	ActiveSet       *as;
+	int             *nc, *iprdh;
+	double          *cprdh;
+	pthread_mutex_t *Jgas_lock; /* one per wavelength row of Jgas (T-4) */
 } Spectrum;
 
 /* --- Associated function prototypes --               -------------- */
@@ -77,6 +78,11 @@ void writeJlambda(int nspect, double *J);
 void readJ20lambda(int nspect, double *J20);
 void writeJ20lambda(int nspect, double *J20);
 void writeJgas(double **Jgas);
+void addJgas(int nspect, int k, double value);
+void addJgasRow(int nspect, double wmu, double *I);
+void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I);
+void initJgasLocks(void);
+void freeJgasBuffer(void);
 void readJgas(double **Jgas);
 
 void readImu(int nspect, int mu, bool_t to_obs, double *I);
