@@ -8,16 +8,18 @@
 
 name: CI
 
-# Changes that only touch documentation skip CI (the code, the tests and
-# their data are unaffected). Any other file in the change runs everything.
+# Changes that only touch documentation, or the files used only by the local
+# stress suite (tests/run_stress.sh and what it alone uses), skip CI: nothing
+# CI builds or runs is affected. Any other file in the change, including the
+# unit and end-to-end tests and the regression harness, runs everything.
 on:
   push:
     branches: [modernize]
-    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs']
+    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.sh', 'tests/analyze_run.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/atmos/**']
   pull_request:
     branches: [modernize]
     types: [opened, synchronize, reopened, labeled, unlabeled]
-    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs']
+    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.sh', 'tests/analyze_run.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/atmos/**']
   workflow_dispatch:
 
 concurrency:
