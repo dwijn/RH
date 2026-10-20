@@ -52,6 +52,7 @@ tests/e2e/stokes_1d.py --rhf1d build/rhf1d/rhf1d --work DIR -v   # keep the runs
 | Test | What it covers |
 |---|---|
 | `stokes_1d.py` | `rhf1d` with a fictional atom (`TI_fict.atom`: two lines with anomalous Zeeman patterns, g_eff 4/3 and 7/6) in LTE, one formal solution with J = 0 in the background scattering, so every run solves the same linear problem: no field gives Q = U = V = 0; parity (mirror in the plane of the rays) gives (I, Q, -U, -V) to 1e-12, with and without magneto-optical effects; without them B -> -B gives (I, Q, U, -V); turning the field azimuth for a vertical ray turns (Q, U), up to a discretization error from the polarized solver's componentwise limiter that must vanish at third order; the weak-field V against the derivative of I with respect to a uniform velocity (no wavelength derivative), which must converge at fourth order on a grey atmosphere. Python 3 standard library only, about 10 s |
+| `prd_hybrid_1d.py` | `rhf1d` with Ca II PRD on FAL-C, three iterations, one ray and three rays: in a static atmosphere the gas-frame mean intensity of hybrid PRD (`PRD_ANGLE_APPROX`) must equal J, and hybrid J must equal angle-averaged J, to 1e-12 (B-31: with one ray Jgas was never reset). About 1 s |
 
 Derivations: `docs/unit-tests`, section "End to end".
 
