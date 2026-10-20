@@ -71,12 +71,12 @@ static void prdInflow(Atom *atom, AtomicLine *PRDline, AtomicLine **XRD,
 		   stays positive when the populations lag the radiation field
 		   during the PRD sub-iterations (B-29). --        -------------- */
 
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < atmos.Nspace; k++)
 		Yj[k] = atom->n[PRDline->j][k] * PRDline->Qelast[k];
-		for (ip = 0; ip < atom->Nlevel; ip++) {
-			if (ip == PRDline->j) continue;
+	for (ip = 0; ip < atom->Nlevel; ip++) {
+		if (ip == PRDline->j) continue;
+		for (k = 0; k < atmos.Nspace; k++)
 			Yj[k] += atom->n[ip][k] * atom->C[PRDline->j * atom->Nlevel + ip][k];
-		}
 	}
 	for (kr = 0; kr < atom->Nline; kr++) {
 		line = &atom->line[kr];
@@ -561,7 +561,7 @@ void PRDAngleScatter(AtomicLine        *PRDline,
 	int     Np, Nread, Nwrite, lamu;
 	double *v_emit, v0, vN, *v_abs = NULL, *vp = NULL, *wv = NULL,
 							*rii = NULL, *adamp, *Jbar, cDop, *RIInorm, *I = NULL,
-							**Imup, *Ik, *Yj, *g, **v_los, *phi_emit, wmup, *sv;
+							**Imup, *Ik, *Yj, *g, *denom, **v_los, *phi_emit, wmup, *sv;
 	Atom *atom;
 
 	/* --- Calculate the angle-dependent scattering integral when
@@ -602,6 +602,7 @@ void PRDAngleScatter(AtomicLine        *PRDline,
 	v_los   = matrix_double(atmos.Nrays, atmos.Nspace);
 	g       = (double *) malloc(atmos.Nspace * sizeof(double));
 	Yj      = (double *) malloc(atmos.Nspace * sizeof(double));
+	denom   = (double *) malloc(atmos.Nspace * sizeof(double));
 	Jbar    = (double *) malloc(atmos.Nspace * sizeof(double));
 	RIInorm = (double *) malloc(atmos.Nspace * sizeof(double));
 	sv      = (double *) malloc(atmos.Nspace * sizeof(double));
@@ -623,8 +624,9 @@ void PRDAngleScatter(AtomicLine        *PRDline,
 	/* --- Depth-dependent damping parameter --          -------------- */
 
 	for (k = 0; k < atmos.Nspace; k++) {
-		Jbar[k] = PRDline->Rij[k] / PRDline->Bij;
-		sv[k]   = 1.0 / (SQRTPI * atom->vbroad[k]);
+		Jbar[k]  = PRDline->Rij[k] / PRDline->Bij;
+		denom[k] = 1.0 + g[k] * Jbar[k];
+		sv[k]    = 1.0 / (SQRTPI * atom->vbroad[k]);
 		adamp[k] =
 			(PRDline->Grad + PRDline->Qelast[k]) * cDop / atom->vbroad[k];
 	}
@@ -801,8 +803,7 @@ void PRDAngleScatter(AtomicLine        *PRDline,
 
 				for (k = 0; k < atmos.Nspace; k++) {
 					PRDline->rho_prd[lamu][k] =
-						(1.0 + g[k] * PRDline->rho_prd[lamu][k] / RIInorm[k]) /
-						(1.0 + g[k] * Jbar[k]);
+						(1.0 + g[k] * PRDline->rho_prd[lamu][k] / RIInorm[k]) / denom[k];
 				}
 			}
 		}
@@ -818,6 +819,7 @@ void PRDAngleScatter(AtomicLine        *PRDline,
 	free(adamp);
 	free(g);
 	free(Yj);
+	free(denom);
 	free(wv);
 	free(I);
 	free(rii);
