@@ -12,7 +12,11 @@ three iterations, rhf1d on FAL-C with one ray and with three rays, and
  1. Hybrid run: Jgas = J at every wavelength and depth.
  2. J of the hybrid run equals J of the angle-averaged run.
 
-Both hold to rounding. Before the fix of B-31, with one ray, Jgas grew by
+1 holds to 1e-12. In 2 the two runs sum the same intensities in a
+different order, and three iterations of the PRD and statistical
+equilibrium amplify the rounding (2e-12 on macOS/arm64, where the
+compiler fuses multiply-adds), so 2 is checked to 1e-9; the bug gave
+differences of order 1. Before the fix of B-31, with one ray, Jgas grew by
 J with every formal solution at the wavelengths without PRD line opacity
 and stayed zero at those of the PRD lines; in 2-D and 3-D it was 2 J at
 the wavelengths without PRD line opacity. Exit status 0 = pass.
@@ -25,7 +29,8 @@ import subprocess
 import sys
 import tempfile
 
-TOL = 1e-12
+TOL_JGAS = 1e-12   # Jgas vs J of the same run
+TOL_RUNS = 1e-9    # J of the hybrid run vs J of the angle-averaged run
 
 p = argparse.ArgumentParser()
 p.add_argument("--rhf1d", required=True)
@@ -120,14 +125,14 @@ for geo, prog, label, angles in cases:
     tag = f"{geo}_{label.replace(' ', '')}"
     J_av, _ = run(f"aver_{tag}", prog, angles, "PRD_ANGLE_AVER")
     J_hy, Jgas = run(f"hyb_{tag}", prog, angles, "PRD_ANGLE_APPROX")
-    checks = [(f"{geo}, {label}: hybrid Jgas vs J", maxrel(Jgas, J_hy)),
-              (f"{geo}, {label}: hybrid J vs angle-averaged J", maxrel(J_hy, J_av))]
-    for what, err in checks:
-        ok = len(J_hy) == len(J_av) == len(Jgas) and err <= TOL
+    checks = [(f"{geo}, {label}: hybrid Jgas vs J", maxrel(Jgas, J_hy), TOL_JGAS),
+              (f"{geo}, {label}: hybrid J vs angle-averaged J", maxrel(J_hy, J_av), TOL_RUNS)]
+    for what, err, tol in checks:
+        ok = len(J_hy) == len(J_av) == len(Jgas) and err <= tol
         failed += not ok
         nchecks += 1
         if a.verbose or not ok:
-            print(f"{'PASS' if ok else 'FAIL'}  {what}: {err:.2e} (tol {TOL:g})")
+            print(f"{'PASS' if ok else 'FAIL'}  {what}: {err:.2e} (tol {tol:g})")
 
 print(f"prd_hybrid: {nchecks} checks, {failed} failed")
 if not a.work:
