@@ -228,7 +228,7 @@ on perturbed FAL-C (82 depths):
 | [B-12](https://github.com/dwijn/RH/issues/13) | low | AR85-CHP collisions hard-code `atmos.H->n[5]` as protons (wrong unless H has 6 levels; no shipped atom uses it) | `collision.c:883` | code reading | open |
 | [B-13](https://github.com/dwijn/RH/issues/14) | low | `ERROR_LEVEL_1` for an unknown solver leaves I and Psi undefined and continues. **Not a bug:** `ERROR_LEVEL_1` terminates the run (see Q-16), and the keyword parser already rejects unknown solvers | `rhf1d/formal.c:209-231` | code reading | wontfix |
 | [B-14](https://github.com/dwijn/RH/issues/15) | low | `error.c` `sprintf`s a 512-byte message plus routine name into a 512-byte buffer | `error.c:51` | code reading | open |
-| [B-15](https://github.com/dwijn/RH/issues/80) | low | `Atoms/CaII_large.atom` has 13 `OMEGA` collision records equal to `Inf`; since B-4 the run stops at setup with a clear error instead of a SIGFPE | `Atoms/CaII_large.atom` | `1d_falc_cail`: "collision record OMEGA 11 10 has a non-finite value (inf)" | open |
+| [B-15](https://github.com/dwijn/RH/issues/80) | low | `Atoms/CaII_large.atom` has 13 `OMEGA` collision records equal to `Inf`; since B-4 the run stops at setup with a clear error instead of a SIGFPE | `Atoms/CaII_large.atom` | `1d_falc_cail`: "collision record OMEGA 11 10 has a non-finite value (inf)" | fixed |
 | [B-16](https://github.com/dwijn/RH/issues/93) | medium | Collision data must follow a `TEMP` line, but this is not enforced: a tabulated keyword (OMEGA, CE, CI, CP, CH0, CH+, CH) before any `TEMP` reads an uninitialized item count and a NULL temperature grid (crash); after a fixed-size keyword (AR85-*, BURGESS, SHULL82, BADNELL, SUMMERS) without a new `TEMP` it inherits that keyword's item count, so a line with that many numbers gives silently wrong rates | `collision.c:469` | -Wmaybe-uninitialized triage; no shipped atom file is affected | fixed |
 | [B-17](https://github.com/dwijn/RH/issues/94) | low | `writeMULTIatmos()` writes an uninitialized `height` for a GEOMETRIC depth scale (no branch for it); latent, both callers use other scales | `tools/writemulti.c:89` | -Wmaybe-uninitialized triage | fixed |
 | [B-18](https://github.com/dwijn/RH/issues/95) | low | `solve1d` reads the boundary-condition codes `btop`/`bbot` from stdin without validating them; an out-of-range code now gives a zero boundary intensity | `rhf1d/solve1d.c` | -Wmaybe-uninitialized triage | fixed |
@@ -420,7 +420,7 @@ upstream issue or pull request once filed. Most severe first.
 | [B-11](https://github.com/dwijn/RH/issues/12) | low | Memory leaks in `Background()` and 3-D Stokes setup | — | — |
 | [B-12](https://github.com/dwijn/RH/issues/13) | low | AR85-CHP collisions assume the 6th hydrogen level is the proton | — | — |
 | [B-14](https://github.com/dwijn/RH/issues/15) | low | `error.c` can overflow its 512-byte message buffer | — | — |
-| [B-15](https://github.com/dwijn/RH/issues/80) | low | `Atoms/CaII_large.atom` contains `Inf` collision strengths | — | — |
+| [B-15](https://github.com/dwijn/RH/issues/80) | low | `Atoms/CaII_large.atom` contains `Inf` collision strengths | [#203](https://github.com/dwijn/RH/pull/203) | — |
 | [B-18](https://github.com/dwijn/RH/issues/95) | low | `solve1d` does not validate its boundary-condition codes | [#196](https://github.com/dwijn/RH/pull/196) | — |
 | [B-19](https://github.com/dwijn/RH/issues/113) | low | `StopRequested()` never closes the file it opens | [#197](https://github.com/dwijn/RH/pull/197) | — |
 | [B-21](https://github.com/dwijn/RH/issues/135) | low | `BiLinear()` reads past its table at the upper edge | [#198](https://github.com/dwijn/RH/pull/198) | — |
@@ -504,6 +504,10 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-10-21 — CaII_large.atom without the Inf collision records (B-15)
+
+The 13 `OMEGA` records of `Atoms/CaII_large.atom` that were `Inf` are removed, as was done by hand in `CaII_medium.atom`. All collision data in the file are van Regemorter estimates from `tools/impact.c`, which divides by the energy difference of the two levels; the model gives the two fine-structure levels of the nF terms and of the nD terms with n >= 11 the same energy (NIST lists 4f 7/2 and 5/2 at the same energy too), so these records were infinite. The collision rates between these levels are small compared with the radiative rates in and out of them. The model's other collision strengths between fine-structure levels are far too large as well (3d 3/2-5/2: 2100, against 15 from Meléndez et al. 2007), which is left as it is. `1d_falc_cail` now converges (23 iterations).
 
 ### 2026-10-21 — solve1d validates its boundary-condition codes (B-18)
 
