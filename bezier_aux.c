@@ -105,18 +105,79 @@ inline double cent_deriv(double odx, double dx,
 }
 /* ------- end ---------------------------- cent_deriv.c ------------ */
 
+/* ------- begin -------------------------- cent_deriv_pair.c ------- */
+
+static inline void cent_deriv_pair(double odx, double dx, double yu[2],
+								   double y0[2], double yd[2], double d[2])
+{
+	/* --- Steffen (1990) derivative of a 2-vector that turns with the
+		   reference frame of linear polarization, such as (S_Q, S_U)
+		   or (eta_Q, eta_U) (N-25). Limiting each component on its own
+		   does not commute with turning the frame; this uses only
+		   lengths and a dot product, so it does. The derivative is
+		   zero where the one-sided slopes a, b point in opposite
+		   directions (a . b <= 0, an extremum), and otherwise the
+		   weighted centred slope p, shortened to at most twice the
+		   shorter of a and b:
+
+			 d = p min(1, 2 |a| / |p|, 2 |b| / |p|).
+
+		   For a single component this is cent_deriv. --  -------------- */
+
+	double a[2], b[2], p[2], na2, nb2, np2, f;
+	int    i;
+
+	for (i = 0; i < 2; i++) {
+		a[i] = (y0[i] - yu[i]) / odx;
+		b[i] = (yd[i] - y0[i]) / dx;
+		p[i] = (a[i] * dx + b[i] * odx) / (odx + dx);
+	}
+	na2 = a[0] * a[0] + a[1] * a[1];
+	nb2 = b[0] * b[0] + b[1] * b[1];
+	np2 = p[0] * p[0] + p[1] * p[1];
+
+	if (a[0] * b[0] + a[1] * b[1] <= 0.0 || np2 == 0.0) {
+		d[0] = d[1] = 0.0;
+		return;
+	}
+	f    = fmin(1.0, 2.0 * sqrt(fmin(na2, nb2) / np2));
+	d[0] = f * p[0];
+	d[1] = f * p[1];
+}
+/* ------- end ---------------------------- cent_deriv_pair.c ------- */
+
 /* ------- begin -------------------------- cent_deriv_mat.c -------- */
 
 inline void cent_deriv_mat(double wprime[4][4], double dsup, double dsdn,
 						   double chiup[4][4], double chic[4][4],
 						   double chidn[4][4])
 {
-	register int i, j;
+	/* --- The pairs (K[0][1], K[0][2]) and (K[1][0], K[2][0]) hold
+		   (eta_Q, eta_U), (K[1][3], K[2][3]) and (K[3][1], K[3][2])
+		   hold (rho_Q, rho_U) up to signs: they turn with the frame and
+		   are limited as vectors. The other elements do not change
+		   when the frame turns --                       -------------- */
 
-	for (j = 0; j < 4; j++)
-		for (i = 0; i < 4; i++)
-			wprime[j][i] = cent_deriv(dsup, dsdn, chiup[j][i], chic[j][i],
-									  chidn[j][i]);
+	static const int pair[4][2][2] = {{{0, 1}, {0, 2}}, {{1, 0}, {2, 0}}, {{1, 3}, {2, 3}}, {{3, 1}, {3, 2}}};
+	static const int single[8][2]  = {{0, 0}, {1, 1}, {2, 2}, {3, 3}, {0, 3}, {3, 0}, {1, 2}, {2, 1}};
+	register int     i, j, n;
+	double           yu[2], y0[2], yd[2], d[2];
+
+	for (n = 0; n < 8; n++) {
+		i            = single[n][0];
+		j            = single[n][1];
+		wprime[i][j] = cent_deriv(dsup, dsdn, chiup[i][j], chic[i][j], chidn[i][j]);
+	}
+
+	for (n = 0; n < 4; n++) {
+		for (i = 0; i < 2; i++) {
+			yu[i] = chiup[pair[n][i][0]][pair[n][i][1]];
+			y0[i] = chic[pair[n][i][0]][pair[n][i][1]];
+			yd[i] = chidn[pair[n][i][0]][pair[n][i][1]];
+		}
+		cent_deriv_pair(dsup, dsdn, yu, y0, yd, d);
+		for (i = 0; i < 2; i++) wprime[pair[n][i][0]][pair[n][i][1]] = d[i];
+	}
 }
 /* ------- end ---------------------------- cent_deriv_mat.c -------- */
 
@@ -125,10 +186,11 @@ inline void cent_deriv_mat(double wprime[4][4], double dsup, double dsdn,
 inline void cent_deriv_vec(double wprime[4], double dsup, double dsdn,
 						   double chiup[4], double chic[4], double chidn[4])
 {
-	register int i;
+	/* --- I and V on their own, (Q, U) as a vector (N-25) -- -------- */
 
-	for (i = 0; i < 4; i++)
-		wprime[i] = cent_deriv(dsup, dsdn, chiup[i], chic[i], chidn[i]);
+	wprime[0] = cent_deriv(dsup, dsdn, chiup[0], chic[0], chidn[0]);
+	wprime[3] = cent_deriv(dsup, dsdn, chiup[3], chic[3], chidn[3]);
+	cent_deriv_pair(dsup, dsdn, chiup + 1, chic + 1, chidn + 1, wprime + 1);
 }
 /* ------- end ---------------------------- cent_deriv_vec.c -------- */
 

@@ -919,18 +919,35 @@ other way (on FAL-C $Q$ changes by 66\% of its maximum).
 For a vertical ray, turning the field azimuth by $\Delta$ turns the frame:
 $K\to RKR^{\mathsf T}$ with $R$ the rotation by $2\Delta$ in the $(Q,U)$
 plane, and the transfer equation gives $(Q,U)\to R(Q,U)$ with $I$ and $V$
-unchanged. The DELO-Bezier solver is not covariant under this rotation:
-it limits the derivatives $\vS_K'$ and $\dot K$ element by element
-(Steffen's limiter in \code{cent\_deriv\_vec} and \code{cent\_deriv\_mat}),
-and limiting does not commute with mixing the $Q$ and $U$ components. On
-FAL-C (82 points) with the depth-dependent field and
-$\Delta = 35^\circ$, $Q$ and $U$ differ from the rotated ones by up to
-$7\times10^{-3}$ of their maximum, $V$ by $2\times10^{-4}$, $I$ by
-$10^{-5}$. With the limiter replaced by the unlimited centred derivative,
-the difference falls to $4\times10^{-14}$. The effect is a discretization
-error: on the grey atmosphere below it falls from $4.8\times10^{-3}$
-($N=40$) to $5.0\times10^{-6}$ ($N=320$), close to third order, and the
-test checks that it does.
+unchanged. Steffen's limiter (\code{cent\_deriv}) is nonlinear, so
+applied to each element of $\vS_K'$ and $\dot K$ on its own it does not
+commute with mixing the $Q$ and $U$ components (N-25). Take $Q$ with a
+maximum at a point (one-sided slopes $1$ and $-1$: derivative $0$) and $U$
+rising (slopes $1$ and $5$: derivative $2$). Limited first and then turned
+by $45^\circ$ in the $(Q,U)$ plane (the frame by $22.5^\circ$, so that
+$Q'=(Q+U)/\sqrt2$), $Q'$ gets the derivative $(0+2)/\sqrt2\approx1.41$; turned
+first, $Q'$ has slopes $2/\sqrt2$ and $4/\sqrt2$ and gets $3/\sqrt2\approx2.12$.
+The solver therefore limits the pairs that turn with the frame,
+$(S_Q,S_U)$, $(\eta_Q,\eta_U)$ and $(\rho_Q,\rho_U)$ (the elements
+$K_{01},K_{02}$; $K_{10},K_{20}$; $K_{13},K_{23}$; $K_{31},K_{32}$), as
+vectors. With one-sided slopes $\mathbf a$, $\mathbf b$ and the weighted
+centred slope $\mathbf p$,
+\begin{equation}
+\mathbf d = \begin{cases}
+0, & \mathbf a\cdot\mathbf b \le 0,\\
+\mathbf p\,\min\bigl(1,\ 2|\mathbf a|/|\mathbf p|,\ 2|\mathbf b|/|\mathbf p|\bigr), & \text{otherwise},
+\end{cases}
+\end{equation}
+which uses only lengths and a dot product, so it turns with the frame, and
+which for a single component is Steffen's limiter. On FAL-C (82 points)
+with the depth-dependent field and $\Delta = 35^\circ$, $Q$ and $U$ now
+equal the rotated ones to $3\times10^{-14}$ of their maximum, $V$ to
+$2\times10^{-14}$, $I$ to $2\times10^{-15}$; on the grey atmosphere below
+to $10^{-14}$ at every $N$. Limited element by element they differed by
+$7\times10^{-3}$, $2\times10^{-4}$ and $10^{-5}$ on FAL-C, and on the grey
+atmosphere by $4.8\times10^{-3}$ ($N=40$) to $5.0\times10^{-6}$ ($N=320$),
+a discretization error close to third order. The test requires the
+rotation to hold to $10^{-12}$ on both.
 
 \subsection{Weak field without a wavelength derivative}
 Measure wavelength in velocity units, $u = c(\lambda-\lambda_0)/\lambda_0$.

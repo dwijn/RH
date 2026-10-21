@@ -19,11 +19,12 @@ linear problem:
  3. Without magneto-optical effects, B -> -B (gamma -> pi - gamma,
     chi -> chi + pi): (I, Q, U, -V), exact. With them it is not a symmetry:
     Faraday rotation is odd in B.
- 4. Vertical ray, field azimuth turned by d: (Q, U) turn by 2 d. True of
-    the transfer equation, but not exactly of the polarized Bezier solver,
-    which limits the derivatives of each Stokes component and each element
-    of K separately (Steffen), and that does not commute with turning the
-    frame. The deviation must vanish with depth refinement (third order).
+ 4. Vertical ray, field azimuth turned by d: (Q, U) turn by 2 d. Exact
+    for the transfer equation and, since the polarized Bezier solver
+    limits the derivatives of (S_Q, S_U), (eta_Q, eta_U) and (rho_Q, rho_U)
+    as vectors (N-25), also for the solver, at every depth resolution.
+    (Limited component by component, the deviation was 7e-3 of max |Q|,
+    |U| on FAL-C and vanished only with refinement.)
  5. Weak field. To first order in B, for a field that is constant along
     the ray and LTE (RH's sign of V, see docs/unit-tests, section 8):
         V = -g_eff v_B cos(theta) dI/dv,
@@ -36,8 +37,8 @@ linear problem:
     agree to discretization error: checked on a smooth grey atmosphere at
     40, 80, 160 and 320 depth points, where the difference must converge.
 
-Tests 1-3 use FAL-C with a depth-dependent field, 4 and 5 the grey
-atmosphere. Exit status 0 = pass.
+Tests 1-3 use FAL-C with a depth-dependent field, 4 FAL-C and the grey
+atmosphere, 5 the grey atmosphere. Exit status 0 = pass.
 """
 import argparse
 import math
@@ -281,9 +282,19 @@ for mo in ("TRUE", "FALSE"):
             check(f"B -> -B, no MO: {s}",
                   maxdiff(neg[i], base[i], -1.0 if s == "V" else 1.0) / scale[i], 1e-12)
 
+# --- 4 on FAL-C: vertical ray, field azimuth turned by 35 deg ----------------
+
+turn = math.radians(35.0)                       # also used on the grey atmosphere
+_, vb = run("rot_falc", atm, ndep, (B0, G0, C0), vertical=True)
+_, vt = run("rot_falc_turned", atm, ndep, (B0, G0, [c + turn for c in C0]), vertical=True)
+Qr, Ur = rotate(vb, turn)
+check("frame rotation, FAL-C: I", maxdiff(vt[0], vb[0]) / maxabs(vb[0]), 1e-12)
+check("frame rotation, FAL-C: V", maxdiff(vt[3], vb[3]) / maxabs(vb[3]), 1e-12)
+check("frame rotation, FAL-C: Q, U",
+      max(maxdiff(vt[1], Qr), maxdiff(vt[2], Ur)) / max(maxabs(vb[1]), maxabs(vb[2])), 1e-12)
+
 # --- 4, 5: frame rotation and weak field on smooth grey atmospheres ---------
 
-turn = math.radians(35.0)
 Bw, gw, cw = 1e-4, math.radians(30.0), math.radians(20.0)   # 1 G
 dv = 0.02                                                   # km/s
 errs, rots = [], []
@@ -326,10 +337,10 @@ for n in (40, 80, 160, 320):
     errs.append(err)
 
 check("weak field, N = 320: max|V - V_wf| / max|V|", errs[-1], 1e-5)
-check("frame rotation, N = 320: largest deviation", rots[-1], 2e-5)
-for n, e0, e1, r0, r1 in zip((80, 160, 320), errs, errs[1:], rots, rots[1:]):
+for n, r in zip((40, 80, 160, 320), rots):
+    check(f"frame rotation, N = {n}: largest deviation", r, 1e-12)
+for n, e0, e1 in zip((80, 160, 320), errs, errs[1:]):
     check(f"weak field, error ratio N = {n // 2} -> {n}", e0 / e1, 8.0, at_least=True)
-    check(f"frame rotation, deviation ratio N = {n // 2} -> {n}", r0 / r1, 4.0, at_least=True)
 
 if not a.work:
     shutil.rmtree(work)
