@@ -84,16 +84,10 @@ static void check_bracketing(int n, const double *a)
 			ilow = guess;
 			Hunt(n, (double *) a, values[iv], &ilow);
 
-			/* --- Known deviation from Locate: when hunting away from
-				   the start in the direction of decreasing values
-				   hits a node exactly equal to value, that node is
-				   taken as the upper end of the bracket and the index
-				   is one too low (hunt.c:55 when ascending; hunt.c:40 when descending). Then
-				   value is still in the closed bracket, so linear
-				   interpolation is unaffected -- ----------------- */
+			/* --- Hunt must agree with Locate and with the bracketing
+				   convention, also when value equals a node exactly -- */
 
-			CHECK(ilow == want || (ilow == want - 1 && a[want] == values[iv]),
-				  "Hunt: n = %d, value %.17g, guess %d: got %d, want %d",
+			CHECK(ilow == want, "Hunt: n = %d, value %.17g, guess %d: got %d, want %d",
 				  n, values[iv], guess, ilow, want);
 		}
 	}
