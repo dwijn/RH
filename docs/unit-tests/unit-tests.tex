@@ -289,8 +289,12 @@ $\{a\,b\,c;0\,c\,b\} = (-1)^{a+b+c}/\sqrt{(2b+1)(2c+1)}$, the sum rules
 \sum_x(-1)^{a+b+x}(2x+1)\begin{Bmatrix}a&b&x\\b&a&f\end{Bmatrix} =
 \sqrt{(2a+1)(2b+1)}\,\delta_{f0},
 \end{gather}
-and the orthogonality of the 6$j$ symbols. (B-22: \code{w3js} accepts
-invalid arguments and overflows from $j=50$.)
+and the orthogonality of the 6$j$ symbols. The selection rules include
+$j_i-m_i$ and $j_1+j_2+j_3$ integer, which \code{w3js} did not check
+before B-22. The Racah sum loses digits with $j$ ($10^{-9}$ at $j=40$),
+and its factorials overflow from $j=49$; the symbols then stop with an
+error, which the test checks in a child process, instead of returning
+$\pm\infty$ or $0$ (B-22).
 
 %======================================================================
 \section{Formal solution in one dimension}
