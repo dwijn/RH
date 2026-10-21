@@ -100,7 +100,8 @@ def residual(rundir, ID, verbose):
         inflow[j] += up
         outflow[j] += down
         inflow[i] += down
-    r = np.abs(inflow - outflow) / outflow
+    # --- levels with no outflow (population underflowed to 0) are skipped
+    r = np.where(outflow > 0, np.abs(inflow - outflow) / np.where(outflow > 0, outflow, 1), 0.0)
     c, k = np.unravel_index(np.argmax(r), r.shape)
     note = f"  ({Nfixed} fixed transitions not included)" if Nfixed else ""
     print(f"{ID}: max residual {r.max():.3e} at level {c} ({labels[c]}), "
@@ -115,6 +116,14 @@ def main():
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
         sys.exit(__doc__)
     rundir, verbose = sys.argv[1], "-v" in sys.argv[2:]
+    kw = os.path.join(rundir, "keyword.input")
+    if os.path.exists(kw):
+        for l in open(kw):
+            f = l.split("#")[0].split("=")
+            if len(f) == 2 and f[0].strip() == "STOKES_MODE" and f[1].strip() != "NO_STOKES":
+                print(f"warning: STOKES_MODE = {f[1].strip()}: the polarized final "
+                      "solution changes J, the rates do not belong to the populations",
+                      file=sys.stderr)
     found = False
     for f in sorted(glob.glob(os.path.join(rundir, "atom.*.out"))):
         ID = os.path.basename(f)[5:-4]

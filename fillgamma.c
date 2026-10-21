@@ -186,7 +186,7 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 	register int k;
 
 	int    ij = i * Nlevel + j, ji = j * Nlevel + i;
-	double Ieff, chi, w, wlamu;
+	double Ieff, vw, chi, w, wlamu;
 
 	/* --- Radiative rates of transition i -> j (i lower) with the
 		   preconditioning of Rybicki & Hummer (1992, A&A 262, 209),
@@ -218,9 +218,10 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 
 	for (k = 0; k < Nspace; k++) {
 		Ieff  = I[k] - Psi[k] * (n_j[k] * U_j[k] + n_i[k] * U_i[k]);
-		chi   = Vij[k] * wla[k] * (n_i[k] - gij[k] * n_j[k]);
+		vw    = Vij[k] * wla[k];
+		chi   = vw * (n_i[k] - gij[k] * n_j[k]);
 		w     = (wk != NULL) ? wmu * wk[k] : wmu;
-		wlamu = Vij[k] * wla[k] * w;
+		wlamu = vw * w;
 
 		Gam[ji][k] += Ieff * wlamu + chi * Psi[k] * U_i[k] * w;
 		Gam[ij][k] += (twohnu3_c2 + Ieff) * gij[k] * wlamu -
@@ -288,8 +289,10 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 			/* --- Gam is either the shared Gamma (one thread) or this
 				   thread's own copy rhth[nt].Gamma, which only thread nt
 				   touches and which is merged into atom->Gamma once the
-				   sweep is done (see iterate.c). Cross-coupling terms,
-				   currently only for Stokes_I --             -------------- */
+				   sweep is done (see iterate.c). --         -------------- */
+
+			/* --- Rates with the cross-coupling terms, currently only
+				   for Stokes_I --                            -------------- */
 
 			addPreconditionedRates(atom->Nlevel, i, j, twohnu3_c2,
 								   atom->rhth[nt].Vij[n], atom->rhth[nt].wla[n],
@@ -398,7 +401,6 @@ void addtoCoupling(int nspect)
 			default:
 				sprintf(messageStr, "Invalid transition type");
 				Error(ERROR_LEVEL_1, routineName, messageStr);
-				j          = 0;
 				twohnu3_c2 = 0.0;
 			}
 			if (twohnu3_c2) {
