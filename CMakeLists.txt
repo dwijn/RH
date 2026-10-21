@@ -209,6 +209,11 @@ if(Python3_Interpreter_FOUND)
            COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/stokes_1d.py
                    --rhf1d $<TARGET_FILE:rhf1d> --src ${PROJECT_SOURCE_DIR})
   set_tests_properties(e2e_stokes_1d PROPERTIES LABELS e2e)
+  add_test(NAME e2e_prd_hybrid
+           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/prd_hybrid.py
+                   --rhf1d $<TARGET_FILE:rhf1d> --rhsc2d $<TARGET_FILE:rhsc2d>
+                   --src ${PROJECT_SOURCE_DIR})
+  set_tests_properties(e2e_prd_hybrid PROPERTIES LABELS e2e TIMEOUT 900)
 endif()
 
 message(STATUS "RH ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, "
