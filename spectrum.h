@@ -41,7 +41,8 @@ typedef struct {
 	double *lambda, **J, **I, **Stokes_Q, **Stokes_U, **Stokes_V, **J20,
 		**Jgas, **Ilast, **v_los;
 	ActiveSet       *as;
-	int             *nc, *iprdh;
+	long            *nc; /* cumulative coefficient counts (B-32) */
+	int             *iprdh;
 	double          *cprdh;
 	pthread_mutex_t *Jgas_lock; /* one per wavelength row of Jgas (T-4) */
 } Spectrum;

@@ -35,7 +35,7 @@ char **matrix_char(int Nrow, int Ncol)
 	char *theMatrix, **Matrix;
 	int   typeSize = sizeof(char), pointerSize = sizeof(char *);
 
-	theMatrix = (char *) calloc(Nrow * Ncol, typeSize);
+	theMatrix = (char *) calloc((size_t) Nrow * Ncol, typeSize);
 	Matrix    = (char **) malloc(Nrow * pointerSize);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
@@ -53,7 +53,7 @@ int **matrix_int(int Nrow, int Ncol)
 	int *theMatrix, **Matrix, typeSize = sizeof(int),
 							  pointerSize = sizeof(int *);
 
-	theMatrix = (int *) calloc(Nrow * Ncol, typeSize);
+	theMatrix = (int *) calloc((size_t) Nrow * Ncol, typeSize);
 	Matrix    = (int **) malloc(Nrow * pointerSize);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
