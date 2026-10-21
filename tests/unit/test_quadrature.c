@@ -44,7 +44,7 @@ static void check_rule(int n, double a, double b, double *worst_poly)
 {
 	/* --- see test_gaussleg_rules for the bounds -- ------------ */
 
-	double bound_nodes = 1.2e-15, bound_poly = (n <= 48) ? 1.3e-13 : 1.1e-12;
+	double bound_nodes = 1.2e-15, bound_poly = 5e-14;
 	double x[128], w[128], sum = 0.0, worst = 0.0;
 
 	GaussLeg(a, b, x, w, n);
@@ -59,7 +59,7 @@ static void check_rule(int n, double a, double b, double *worst_poly)
 		CHECK_CLOSE(w[i], w[n - 1 - i], 0.0, 1e-15 * (b - a), "n = %d: weight symmetry, i = %d", n, i);
 		sum += w[i];
 	}
-	CHECK_CLOSE(sum, b - a, 5e-14, 0.0, "n = %d: sum of the weights", n);
+	CHECK_CLOSE(sum, b - a, 2e-15, 0.0, "n = %d: sum of the weights", n);
 
 	/* --- Exact for degree <= 2n-1. The error relative to the integral
 		   of |x|^k (which is what rounding is relative to) -- ----- */
@@ -80,15 +80,16 @@ static void test_gaussleg_rules(void)
 	static const int sizes[] = {1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16, 20, 24, 32, 48, 64, 100};
 	double           w1 = 0.0, w2 = 0.0;
 
-	/* --- The weights are only accurate to ~1e-14 (relative), not to the
-		   1e-16 of the arithmetic: they come out systematically too
-		   small (the sum of the weights is below the length by up to
-		   2.4e-14 at n = 64) and polynomial integrals are off by up to
-		   6e-14 for n <= 48 and 5e-13 for n = 64 and 100 (relative to
-		   the integral of |x|^k). Cause: gaussleg.c:49-56 computes the
-		   weight from the derivative pp at the previous Newton iterate,
-		   and iterates only until the step is below 3e-14. Bounds: about
-		   twice the measured values; the nodes are symmetric to 1.2e-15 -- */
+	/* --- The weights are accurate to 2e-15 at n = 8, 1e-14 at n = 24
+		   to 32 and 1.2e-13 at n = 100 (against mpmath; the worst is the
+		   outermost node), which is how much the weight formula changes
+		   when the node is rounded to double; they sum to the
+		   length to 1e-15. Polynomial integrals are off by up to
+		   2.6e-14 (relative to the integral of |x|^k). Before N-20 the
+		   weights used P_n' at the previous Newton iterate: 2e-12 at
+		   n = 64, sums short by 2.4e-14, polynomials off by 5e-13.
+		   Bounds: about twice the measured values; the nodes are
+		   symmetric to 1.2e-15 -- */
 
 	for (size_t s = 0; s < sizeof(sizes) / sizeof(sizes[0]); s++) {
 		check_rule(sizes[s], -1.0, 1.0, &w1);
@@ -113,16 +114,15 @@ static void test_gaussleg_remainder(void)
 		for (int i = 0; i < n; i++) q += w[i] * pow(x[i], 2 * n);
 		/* --- the quadrature gives less than the integral by rem;
 			   the difference of two O(1) numbers, so the precision is
-			   absolute: measured 7e-15 at most (see test_gaussleg_rules) -- ------------------------------ */
-		CHECK_CLOSE(2.0 / (2.0 * n + 1.0) - q, rem, 0.0, 1.5e-14, "n = %d: remainder for x^(2n)", n);
+			   absolute: measured 2.7e-16 at most -- -------------- */
+		CHECK_CLOSE(2.0 / (2.0 * n + 1.0) - q, rem, 0.0, 1e-15, "n = %d: remainder for x^(2n)", n);
 		if (table) printf("GaussLeg n = %2d, x^(2n): remainder %.6e, error in it %.1e\n",
 						  n, rem, fabs(2.0 / (2.0 * n + 1.0) - q - rem));
 	}
 }
 
-/* --- Closed forms for n = 2, 3, 4. The weights are off by 1e-14 or
-	   less (relative; see test_gaussleg_rules), measured 5e-15 at n = 3
-	   and 1.8e-14 at n = 4 -- ----------------------------------- */
+/* --- Closed forms for n = 2, 3, 4. The weights agree to rounding
+	   (see test_gaussleg_rules) -- ------------------------------- */
 
 static void test_gaussleg_closed(void)
 {
@@ -138,9 +138,9 @@ static void test_gaussleg_closed(void)
 	CHECK_CLOSE(x[0], -sqrt(0.6), 1e-15, 0.0, "n = 3, node %d", 0);
 	CHECK(fabs(x[1]) < 1e-15, "n = 3, middle node %.3g", x[1]);
 	CHECK_CLOSE(x[2], sqrt(0.6), 1e-15, 0.0, "n = 3, node %d", 2);
-	CHECK_CLOSE(w[0], 5.0 / 9.0, 4e-14, 0.0, "n = 3, weight %d", 0);
-	CHECK_CLOSE(w[1], 8.0 / 9.0, 4e-14, 0.0, "n = 3, weight %d", 1);
-	CHECK_CLOSE(w[2], 5.0 / 9.0, 4e-14, 0.0, "n = 3, weight %d", 2);
+	CHECK_CLOSE(w[0], 5.0 / 9.0, 1e-15, 0.0, "n = 3, weight %d", 0);
+	CHECK_CLOSE(w[1], 8.0 / 9.0, 1e-15, 0.0, "n = 3, weight %d", 1);
+	CHECK_CLOSE(w[2], 5.0 / 9.0, 1e-15, 0.0, "n = 3, weight %d", 2);
 
 	GaussLeg(-1.0, 1.0, x, w, 4);
 	{
@@ -151,10 +151,10 @@ static void test_gaussleg_closed(void)
 		CHECK_CLOSE(x[1], -xi, 1e-15, 0.0, "n = 4, node %d", 1);
 		CHECK_CLOSE(x[2], xi, 1e-15, 0.0, "n = 4, node %d", 2);
 		CHECK_CLOSE(x[3], xo, 1e-15, 0.0, "n = 4, node %d", 3);
-		CHECK_CLOSE(w[0], wo, 4e-14, 0.0, "n = 4, weight %d", 0);
-		CHECK_CLOSE(w[1], wi, 4e-14, 0.0, "n = 4, weight %d", 1);
-		CHECK_CLOSE(w[2], wi, 4e-14, 0.0, "n = 4, weight %d", 2);
-		CHECK_CLOSE(w[3], wo, 4e-14, 0.0, "n = 4, weight %d", 3);
+		CHECK_CLOSE(w[0], wo, 1e-15, 0.0, "n = 4, weight %d", 0);
+		CHECK_CLOSE(w[1], wi, 1e-15, 0.0, "n = 4, weight %d", 1);
+		CHECK_CLOSE(w[2], wi, 1e-15, 0.0, "n = 4, weight %d", 2);
+		CHECK_CLOSE(w[3], wo, 1e-15, 0.0, "n = 4, weight %d", 3);
 	}
 }
 
@@ -164,7 +164,9 @@ static void test_gaussleg_other(void)
 {
 	double x[16], w[16], q = 0.0, qr = 0.0;
 
-	/* --- int_0^pi sin x dx = 2, with 8 points; reversed: -2 -- --- */
+	/* --- int_0^pi sin x dx = 2, with 8 points; reversed: -2. The
+		   error is the truncation error of the rule, pi^17 (8!)^4 /
+		   (17 (16!)^3) = 4.8e-15 (measured 4.4e-15), not rounding -- */
 
 	GaussLeg(0.0, acos(-1.0), x, w, 8);
 	for (int i = 0; i < 8; i++) q += w[i] * sin(x[i]);

@@ -237,6 +237,12 @@ weights summing to the length; the closed forms for $n=2,3,4$
 ($\pm1/\sqrt3$; $0,\pm\sqrt{3/5}$ with weights $8/9, 5/9$;
 $\pm\sqrt{3/7\mp\frac27\sqrt{6/5}}$ with weights
 $(18\pm\sqrt{30})/36$); a reversed interval changes the sign.
+The weight $w_i = 2/\bigl((1-x_i^2)P_n'(x_i)^2\bigr)$ needs $P_n'$ at
+the converged node; with the node rounded to double its relative
+sensitivity, $2x_i\,\delta x_i/(1-x_i^2)$, limits the weights to
+$2\times10^{-15}$ at $n=8$, $10^{-14}$ at $n=24$--$32$ and
+$1.2\times10^{-13}$ at $n=100$ (the outermost node), which is what the
+code reaches (N-20).
 
 \paragraph{Weights of piecewise integration.} \code{w3.c} returns
 \begin{equation}
