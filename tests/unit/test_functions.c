@@ -28,11 +28,15 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "rh.h"
 #include "atom.h"
 #include "spectrum.h"
 #include "constant.h"
+#include "inputs.h"
+#include "error.h"
 #include "check.h"
 #include "kernels_reference.h"
 
@@ -421,18 +425,46 @@ static void test_w3js_selection(void)
 	CHECK(w3js(1.0, 1.0, 1.0, 0.0, 0.0, 0.0) == 0.0, "(1 1 1; 0 0 0) odd J, value %g", w3js(1.0, 1.0, 1.0, 0.0, 0.0, 0.0));
 	CHECK(w3js(0.3, 1.0, 1.0, 0.0, 0.0, 0.0) == 0.0, "j1 not a half-integer, value %g", w3js(0.3, 1.0, 1.0, 0.0, 0.0, 0.0));
 	CHECK(w3js(1.0, 1.0, 1.0, 0.25, -0.25, 0.0) == 0.0, "m1 not a half-integer, value %g", w3js(1.0, 1.0, 1.0, 0.25, -0.25, 0.0));
+
+	/* --- j - m not whole, and j1 + j2 + j3 not whole (before B-22
+		   (1/2 1/2 1/2; 1/2 -1/2 0) gave 1) -- ------------------ */
+
+	CHECK(w3js(1.0, 0.5, 0.5, 0.5, 0.0, -0.5) == 0.0, "j1 - m1 not whole, value %g", w3js(1.0, 0.5, 0.5, 0.5, 0.0, -0.5));
+	CHECK(w3js(0.5, 0.5, 1.0, 0.0, 0.0, 0.0) == 0.0, "j1 - m1, j2 - m2 not whole, value %g", w3js(0.5, 0.5, 1.0, 0.0, 0.0, 0.0));
+	CHECK(w3js(0.5, 0.5, 0.5, 0.5, -0.5, 0.0) == 0.0, "j1 + j2 + j3 not whole, value %g", w3js(0.5, 0.5, 0.5, 0.5, -0.5, 0.0));
+	CHECK(w3js(1.5, 1.0, 0.5, 0.5, 0.0, -0.5) != 0.0, "valid half-integer symbol, value %g", w3js(1.5, 1.0, 0.5, 0.5, 0.0, -0.5));
 }
 
 /* --- Large j: the symbol is a sum of alternating terms with products
 	   of factorials. Closed form for (j j j; 0 0 0), j even. The
 	   relative error grows with j, and depends on the rounding:
 	   2e-13 at j = 20, 1e-9 at j = 40, 1.2e-8 at j = 44, 1.5e-7 at
-	   j = 48. Above that it breaks down: the product of six
-	   factorials in the square root overflows, giving +-inf at
-	   j = 50 .. 56 (j! > 1e51 from j = 42, (j!)^6 > 1e308 from
-	   j = 49), and 0 from j = 58, where the (3j+1)! of the triangle
-	   coefficient overflows (170! is the largest finite factorial).
-	   Bounds: 5e-13 for j <= 20 and 1e-6 for j = 32 .. 48 -- ---- */
+	   j = 48. Above that the factorials overflow: the product of six
+	   in the square root from j = 49 ((j!)^6 > 1e308), the (3j+1)!
+	   of the triangle coefficient from j = 57 (170! is the largest
+	   finite factorial). Before B-22 that gave +-inf at j = 50 .. 56
+	   and 0 from j = 58; now the run stops with an error, which is
+	   checked in a child process. Bounds: 5e-13 for j <= 20 and 1e-6
+	   for j = 32 .. 48 -- ------------------------------------- */
+
+extern CommandLine commandline;
+
+static bool_t w3js_stops(double j)
+{
+	pid_t pid;
+	int   status;
+
+	fflush(stdout);
+	fflush(stderr);
+	if ((pid = fork()) == 0) {
+		if (!freopen("/dev/null", "w", stdout) || !freopen("/dev/null", "w", stderr)) _exit(1);
+		commandline.logfile = stderr;
+		w3js(j, j, j, 0.0, 0.0, 0.0);
+		_exit(0);
+	}
+	if (pid < 0 || waitpid(pid, &status, 0) != pid) return FALSE;
+	return WIFEXITED(status) && WEXITSTATUS(status) == RH_EXIT_FATAL;
+}
 
 static void test_w3js_large(void)
 {
@@ -453,6 +485,10 @@ static void test_w3js_large(void)
 	}
 	if (table)
 		printf("w3js (j j j; 0 0 0): max relative error %.2e for j <= 20, %.2e for 32 <= j <= 48\n", worst20, worst48);
+
+	CHECK(w3js_stops(50.0), "(j j j; 0 0 0), j = %d: no error on overflow", 50);
+	CHECK(w3js_stops(58.0), "(j j j; 0 0 0), j = %d: no error on overflow", 58);
+	CHECK(!w3js_stops(48.0), "(j j j; 0 0 0), j = %d: error without overflow", 48);
 }
 
 /* --- 6-j symbols -- ----------------------------------------------- */

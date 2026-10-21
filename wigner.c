@@ -9,12 +9,14 @@
 /* --- Functions for evaluation of the Wigner 3-J, 6-J symbols -- --- */
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 
 #include "rh.h"
 #include "atom.h"
+#include "error.h"
 
-#define NFACT 301
+#define NFACT 171 /* --- 170! is the largest finite factorial -- */
 
 /* --- Function prototypes --                          -------------- */
 
@@ -22,6 +24,8 @@ double fact(double xi);
 double triangleCoefficient(double a, double b, double c);
 
 /* --- Global variables --                             -------------- */
+
+extern char messageStr[];
 
 /* ------- begin -------------------------- w3js.c ------------------ */
 
@@ -58,6 +62,12 @@ double w3js(double j1, double j2, double j3,
 
 	if (m1 + m2 + m3 != 0.0) return w3js;
 
+	/* --- j_i and m_i both whole or both half-integer, and j1 + j2 + j3
+		   whole -- --------------------------------------------- */
+
+	if (fmod(j1 - m1, 1.0) || fmod(j2 - m2, 1.0) || fmod(j3 - m3, 1.0) ||
+		fmod(j1 + j2 + j3, 1.0)) return w3js;
+
 	/* --- Check maximum value of j3, given j1,2 --      -------------- */
 
 	if (j3 > j1 + j2 || j3 < fabs(j1 - j2)) return w3js;
@@ -85,6 +95,13 @@ double w3js(double j1, double j2, double j3,
 				fact(j3 + m3) * fact(j3 - m3)) *
 		   sumt;
 
+	/* --- The products of factorials overflow from j ~ 50 -- -------- */
+
+	if (!isfinite(w3js)) {
+		sprintf(messageStr, "3j symbol (%g %g %g; %g %g %g) overflows",
+				j1, j2, j3, m1, m2, m3);
+		Error(ERROR_LEVEL_2, "w3js", messageStr);
+	}
 	return w3js;
 }
 /* ------- end ---------------------------- w3js.c ------------------ */
@@ -148,6 +165,11 @@ double w6js(double j1, double j2, double j3,
 
 	w6js = sqrt(tc1 * tc2 * tc3 * tc4) * sumz;
 
+	if (!isfinite(w6js)) {
+		sprintf(messageStr, "6j symbol {%g %g %g; %g %g %g} overflows",
+				j1, j2, j3, J1, J2, J3);
+		Error(ERROR_LEVEL_2, "w6js", messageStr);
+	}
 	return w6js;
 }
 /* ------- begin -------------------------- fact.c ------------------ */
@@ -155,7 +177,7 @@ double w6js(double j1, double j2, double j3,
 double fact(double xi)
 {
 	/* --- Returns the factorial of xi. On first call the factorials
-		   for the numbers 0 through 300 are stored in the static
+		   for the numbers 0 through 170 are stored in the static
 		   variable factorial. --                        -------------- */
 
 	register int n;
@@ -171,9 +193,12 @@ double fact(double xi)
 
 		initialize = FALSE;
 	}
-	/* --- Test whether xi is an integer, otherwise return 1.0 -- ----- */
-
-	return (fmod(xi, 1.0)) ? factorial[0] : factorial[(int) xi];
+	if (fmod(xi, 1.0) || xi < 0.0 || xi >= NFACT) {
+		sprintf(messageStr, "Factorial of %g: needs an integer from 0 to %d",
+				xi, NFACT - 1);
+		Error(ERROR_LEVEL_2, "fact", messageStr);
+	}
+	return factorial[(int) xi];
 }
 /* ------- end ---------------------------- fact.c ------------------ */
 
