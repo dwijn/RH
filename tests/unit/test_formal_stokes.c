@@ -33,7 +33,12 @@
 	   -- convergence order of I+ and I- for cubic S, against the exact
 		  solution;
 	   -- convergence order with depth-dependent K, from three grids
-		  (no closed form; Richardson).
+		  (no closed form; Richardson);
+	   -- the derivative limiter turns with the reference frame (N-25):
+		  for random data, cent_deriv_vec and cent_deriv_mat of the
+		  rotated input equal the rotated output, and with U and the
+		  U-elements of K constant they reduce to Steffen's limiter of
+		  each element.
 	   -v prints the measured errors.
 	   --                                              -------------- */
 
@@ -309,6 +314,112 @@ static void check_varying_K(bool_t verbose, double min_order)
 	CHECK(order >= min_order, "varying K: order %.2f < %.2f", order, min_order);
 }
 
+/* --- Frame rotation by angle t: (Q, U) and the pairs of K that hold
+	   (eta_Q, eta_U) and (rho_Q, rho_U) turn by 2 t, K -> R K R^T -- */
+
+static void rot_vec(double out[4], const double in[4], double t)
+{
+	double c = cos(2.0 * t), s = sin(2.0 * t);
+
+	out[0] = in[0];
+	out[1] = c * in[1] - s * in[2];
+	out[2] = s * in[1] + c * in[2];
+	out[3] = in[3];
+}
+
+static void rot_mat(double out[4][4], double in[4][4], double t)
+{
+	double R[4][4] = {{0}}, tmp[4][4];
+	double c = cos(2.0 * t), s = sin(2.0 * t);
+
+	R[0][0] = R[3][3] = 1.0;
+	R[1][1] = R[2][2] = c;
+	R[1][2]           = -s;
+	R[2][1]           = s;
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++) {
+			tmp[i][j] = 0.0;
+			for (int k = 0; k < 4; k++) tmp[i][j] += R[i][k] * in[k][j];
+		}
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++) {
+			out[i][j] = 0.0;
+			for (int k = 0; k < 4; k++) out[i][j] += tmp[i][k] * R[j][k];
+		}
+}
+
+static void random_K(double K[4][4])
+{
+	/* --- Structure of K' (see StokesK): symmetric eta, antisymmetric
+		   rho, ones on the diagonal --                   -------------- */
+
+	double eQ = drand48() - 0.5, eU = drand48() - 0.5, eV = drand48() - 0.5,
+		   rQ = drand48() - 0.5, rU = drand48() - 0.5, rV = drand48() - 0.5;
+	double k[4][4] = {{1.0, eQ, eU, eV},
+					  {eQ, 1.0, rV, -rU},
+					  {eU, -rV, 1.0, rQ},
+					  {eV, rU, -rQ, 1.0}};
+
+	memcpy(K, k, sizeof(k));
+}
+
+static void check_limiter(bool_t verbose)
+{
+	double worst_vec = 0.0, worst_mat = 0.0, worst_scalar = 0.0;
+
+	srand48(25);
+	for (int n = 0; n < 2000; n++) {
+		double dup = 0.1 + drand48(), ddn = 0.1 + drand48(),
+			   t = 2.0 * M_PI * drand48();
+		double su[4], s0[4], sd[4], d[4], rsu[4], rs0[4], rsd[4], rd[4], dr[4];
+		double Ku[4][4], K0[4][4], Kd[4][4], dK[4][4], rKu[4][4], rK0[4][4],
+			rKd[4][4], rdK[4][4], dKr[4][4];
+
+		for (int i = 0; i < 4; i++) {
+			su[i] = drand48() - 0.5;
+			s0[i] = drand48() - 0.5;
+			sd[i] = drand48() - 0.5;
+		}
+		cent_deriv_vec(d, dup, ddn, su, s0, sd);
+		rot_vec(rsu, su, t);
+		rot_vec(rs0, s0, t);
+		rot_vec(rsd, sd, t);
+		cent_deriv_vec(dr, dup, ddn, rsu, rs0, rsd);
+		rot_vec(rd, d, t);
+		for (int i = 0; i < 4; i++)
+			worst_vec = fmax(worst_vec, fabs(dr[i] - rd[i]));
+
+		random_K(Ku);
+		random_K(K0);
+		random_K(Kd);
+		cent_deriv_mat(dK, dup, ddn, Ku, K0, Kd);
+		rot_mat(rKu, Ku, t);
+		rot_mat(rK0, K0, t);
+		rot_mat(rKd, Kd, t);
+		cent_deriv_mat(dKr, dup, ddn, rKu, rK0, rKd);
+		rot_mat(rdK, dK, t);
+		for (int i = 0; i < 4; i++)
+			for (int j = 0; j < 4; j++)
+				worst_mat = fmax(worst_mat, fabs(dKr[i][j] - rdK[i][j]));
+
+		/* --- U constant: (Q, U) limited as Q alone --  -------------- */
+
+		su[2] = s0[2] = sd[2] = 0.3;
+		cent_deriv_vec(d, dup, ddn, su, s0, sd);
+		for (int i = 0; i < 4; i++)
+			worst_scalar = fmax(worst_scalar,
+								fabs(d[i] - cent_deriv(dup, ddn, su[i], s0[i], sd[i])));
+	}
+	if (verbose)
+		printf("limiter: rotated input vs rotated derivative: vector %.2e, "
+			   "matrix %.2e; U constant vs Steffen per element %.2e\n",
+			   worst_vec, worst_mat, worst_scalar);
+	CHECK(worst_vec <= 1.0e-14, "limiter, vector: not frame covariant (%.3g)", worst_vec);
+	CHECK(worst_mat <= 1.0e-14, "limiter, matrix: not frame covariant (%.3g)", worst_mat);
+	CHECK(worst_scalar <= 1.0e-15, "limiter, U constant: differs from Steffen (%.3g)",
+		  worst_scalar);
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
@@ -329,6 +440,7 @@ int main(int argc, char *argv[])
 	check_linear(verbose);
 	check_cubic(verbose);
 	check_varying_K(verbose, 3.7);
+	check_limiter(verbose);
 
 	return check_summary("test_formal_stokes");
 }
