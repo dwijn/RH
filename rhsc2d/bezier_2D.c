@@ -212,6 +212,13 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 				dchi_c = cent_deriv(st->ds[upwind], st->ds[downwind],
 									chi_uw, chi[local], chi_dw);
 
+				/* --- Upwind slope of the quadratic Bezier curve through the
+				   upwind and local points with the local derivative:
+				   2 x secant - local derivative (N-24). The secant alone
+				   is exact only for linear functions -- -------------- */
+
+				dchi_uw = 2.0 * dchi_uw - dchi_c;
+
 				/* --- Upwind optical path length --           -------------- */
 
 				ds03    = st->ds[upwind] * 0.3333333333333333333333333;
@@ -236,6 +243,14 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 
 				cent_deriv_vec(dS_c, dtau_uw, dtau_dw, S_uw, S_loc, S_dw);
 				cent_deriv_mat(dK_c, dtau_uw, dtau_dw, K_uw, K_loc, K_dw);
+
+				/* --- Quadratic Bezier upwind slopes (N-24) -- ------- */
+
+				for (n = 0; n < 4; n++) {
+					dS_uw[n] = 2.0 * dS_uw[n] - dS_c[n];
+					for (m = 0; m < 4; m++)
+						dK_uw[n][m] = 2.0 * dK_uw[n][m] - dK_c[n][m];
+				}
 			}
 			m4m(K_uw, K_uw, Ma);  // Ku # Ku
 			m4m(K_loc, K_loc, A); // K0 # K0
@@ -481,6 +496,13 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 				dchi_c = cent_deriv(st->ds[upwind], st->ds[downwind],
 									chi_uw, chi[local], chi_dw);
 
+				/* --- Upwind slope of the quadratic Bezier curve through the
+				   upwind and local points with the local derivative:
+				   2 x secant - local derivative (N-24). The secant alone
+				   is exact only for linear functions -- -------------- */
+
+				dchi_uw = 2.0 * dchi_uw - dchi_c;
+
 				/* --- Upwind optical path length --          --------------- */
 
 				ds03    = st->ds[upwind] * 0.333333333333333333333333333;
@@ -503,7 +525,7 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 			/* --- Source function control points --       ---------------- */
 
 			dt03  = dtau_uw * 0.333333333333333333333333333;
-			dS_uw = (S[local] - S_uw) / dtau_uw;
+			dS_uw = 2.0 * (S[local] - S_uw) / dtau_uw - dS_c; /* N-24 */
 			c1    = S[local] - dt03 * dS_c;
 			c2    = S_uw + dt03 * dS_uw;
 

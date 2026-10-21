@@ -217,9 +217,14 @@ typedef struct {
 				order 2.00; Nz = 161: emergent 9.7e-4, interior 3.2e-3
 				on both meshes (the same as in 1-D)
 	   BEZIER3  linear S up 2.8e-13 / 1.0e-13, down 4.0e-13 / 7.6e-4;
-				order 1.99; emergent 4.8e-4, interior 1.4e-3 on both:
-				second order where the 1-D solver is fourth, because the
-				upwind control point uses the secant slope (N-24)
+				"layers": order 2.82, emergent 2.5e-5, interior 1.2e-4;
+				"columns": order 2.58, emergent 1.0e-4, interior 4.6e-4
+				("uneven" 2.58, 1.1e-4, 4.3e-4). The upwind control
+				point uses the slope of the quadratic Bezier curve,
+				2 x secant - local derivative (N-24; with the secant
+				alone: order 1.99, emergent 4.8e-4 on all meshes). On
+				"columns" the vertical interpolation of I limits the
+				order
 	   Columns of the uniform slab agree to 8.0e-3 on "columns" (in
 	   the two layers nearest the bottom), exactly on "layers" -- --- */
 
@@ -229,8 +234,8 @@ static const Method methods[] = {
 	 {1e-14, 1e-14, 1e-14}, {1e-14, 1.6e-3, 1.5e-3}, {1.7, 1.7, 1.7},
 	 {2e-3, 2e-3, 2e-3}, {7e-3, 7e-3, 7e-3}, 1.6e-2},
 	{"BEZIER3", Piecewise_Bezier3_2D,
-	 {1e-12, 1e-12, 1e-12}, {1e-12, 1.6e-3, 1.5e-3}, {1.7, 1.7, 1.7},
-	 {1e-3, 1e-3, 1e-3}, {3e-3, 3e-3, 3e-3}, 1.6e-2}};
+	 {1e-12, 1e-12, 1e-12}, {1e-12, 1.6e-3, 1.5e-3}, {2.6, 2.4, 2.4},
+	 {5e-5, 2e-4, 2e-4}, {2.5e-4, 1e-3, 1e-3}, 1.6e-2}};
 /* clang-format on */
 
 #define N_METHODS (int) (sizeof(methods) / sizeof(methods[0]))
@@ -404,8 +409,9 @@ static void stokes_solve(Slab *slab, double **Sv, double **I, const double s[NPO
 	   / 1.1e-13 (before the fix of B-26 the emergent vector was
 	   computed with the source vector of a point in the layer below:
 	   error 1.8e-9, and 38% at K' = 0 in the bottom layer of I-);
-	   cubic S on "layers": order 1.96, emergent 5.8e-4 at Nz = 161,
-	   second order as unpolarized (N-24) --          -------------- */
+	   cubic S on "layers": order 2.80, emergent 3.3e-5 at Nz = 161,
+	   as unpolarized (N-24; with the secant upwind slope order 1.96,
+	   emergent 5.8e-4) --                            -------------- */
 
 static void check_stokes(bool_t verbose)
 {
@@ -476,8 +482,8 @@ static void check_stokes(bool_t verbose)
 		if (r > 0) order = MIN(order, log2(em[r - 1] / em[r]));
 	}
 	if (verbose) printf("STOKES   layers   order emergent %.2f\n", order);
-	CHECK(order >= 1.7, "STOKES, layers: order %.2f < 1.7", order);
-	CHECK(em[2] <= 1.0e-3, "STOKES, layers: emergent error %.3g > 1e-3", em[2]);
+	CHECK(order >= 2.6, "STOKES, layers: order %.2f < 2.6", order);
+	CHECK(em[2] <= 7.0e-5, "STOKES, layers: emergent error %.3g > 7e-5", em[2]);
 }
 
 int main(int argc, char *argv[])

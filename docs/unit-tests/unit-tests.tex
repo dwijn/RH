@@ -517,12 +517,25 @@ was 7\% (2-D) and 11\% (3-D) wrong and identical columns differed by
 point; $I^+$ for linear $S$ is now exact to $2\times10^{-15}$.
 
 \subsection{Orders of convergence}
-On ``layers'' the linear solver is second order, as in 1-D, but Bezier3 is
-also only second order (N-24): at the upwind point it uses the secant
-slope $(S_c-S_u)/\delta$ instead of a derivative, so the Bezier curve is
-exact only for linear $S$. On ``columns'' the vertical interpolation and
-the long characteristics limit both solvers to order $\approx1.5$ at
-these resolutions. Columns of the uniform slab agree to $8\times10^{-3}$
+On ``layers'' the linear solver is second order, as in 1-D. Bezier3 was
+also only second order (N-24): at the upwind point it used the secant
+slope $(S_c-S_u)/\delta$ instead of a derivative, so the Bezier curve was
+exact only for linear $S$ (emergent error $4.8\times10^{-4}$ at
+$N_z=161$, order 1.99). It now uses the slope of the quadratic Bezier
+curve through the two points with the local derivative $S'_c$,
+\begin{equation}
+S'_u = 2\,\frac{S_c-S_u}{\delta} - S'_c ,
+\end{equation}
+which is the cubic form of the quadratic Bezier interpolant with one
+control point $S_c - \tfrac\delta2 S'_c$ and is exact for quadratic $S$;
+the same for $\chi$ (and, polarized, $\vS$ and $K$). The Steffen limiter
+keeps $S'_c$ between 0 and twice the secant, so $S'_u$ lies there too and
+the curve stays monotonic. On ``layers'' the order is now 2.82, emergent
+$2.5\times10^{-5}$ at $N_z=161$ (2-D and 3-D); the 1-D solver, which
+carries a centred derivative to the upwind point, is fourth order. On
+``columns'' the vertical interpolation of $I$ limits Bezier3 to order
+2.6 in 2-D, and the long characteristics both solvers to order
+$\approx1.5$ in 3-D at these resolutions. Columns of the uniform slab agree to $8\times10^{-3}$
 on ``columns'' (2-D, the two layers nearest the bottom) and exactly on
 ``layers''.
 
@@ -639,7 +652,8 @@ $\boldsymbol C_c = \vS_{\text{eff},c}-\tfrac\delta3\vS'_{\text{eff},c}$
   no closed form; the order is measured from successive grids,
   $\log_2\bigl(|\vI_N-\vI_{N/2}|/|\vI_{2N}-\vI_N|\bigr)$: 4.00.
 \item In 2-D, on ``layers'', the emergent Stokes vector for the cubic $S$
-  converges at second order, like the unpolarized solver (N-24).
+  converges at order 2.80, $3.3\times10^{-5}$ at $N_z=161$, like the
+  unpolarized solver (N-24; second order before).
 \end{itemize}
 
 \paragraph{B-25.} These checks found two errors in the DELO-Bezier
