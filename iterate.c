@@ -213,7 +213,7 @@ void Iterate(int NmaxIter, double iterLimit)
 
 double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 {
-	register int nspect, nt, k;
+	register int nspect, nt;
 
 	int         lambda_max;
 	double      dJ, dJmax;
