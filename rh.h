@@ -106,11 +106,8 @@ int qsdescend(const void *v1, const void *v2);
 void Hunt(int n, double *array, double value, int *iLower);
 void Locate(int n, double *array, double value, int *theIndex);
 
-void   Linear(int Ntable, double *xtable, double *ytable,
-			  int N, double *x, double *y, bool_t hunt);
-double BiLinear(int Na, double *a_table, double a,
-				int Nb, double *b_table, double b,
-				double **f, bool_t hunt);
+void Linear(int Ntable, double *xtable, double *ytable,
+			int N, double *x, double *y, bool_t hunt);
 
 void splineCoef(int Ntable, double *xtable, double *ytable);
 void splineEval(int N, double *x, double *y, bool_t hunt);

@@ -1,14 +1,14 @@
 /* ------- file: -------------------------- test_interp.c -----------
 
 	   Table look-up and interpolation: hunt.c (Hunt, Locate), linear.c
-	   (Linear, BiLinear), spline.c, expspline.c (natural cubic and
+	   (Linear), spline.c, expspline.c (natural cubic and
 	   exponential splines) and cubeconvol.c (cubic convolution).
 
 	   -- Hunt, Locate: the bracketing index i with table[i] <= value <
 		  table[i+1] for all values at, between, below and above the
 		  nodes, for ascending and descending tables, tables of 1, 2, 3
 		  and many elements, and every possible starting guess of Hunt;
-	   -- Linear, BiLinear: exact for linear (bilinear) data, the end
+	   -- Linear: exact for linear data, the end
 		  values outside the table, error of at most h^2 max|f''|/8 and
 		  order 2 for a smooth function;
 	   -- splineCoef/splineEval, exp_splineCoef/exp_splineEval: exact for
@@ -141,7 +141,7 @@ static void test_hunt_locate(void)
 	}
 }
 
-/* --- Linear and BiLinear -- --------------------------------------- */
+/* --- Linear -- --------------------------------------- */
 
 static void test_linear(void)
 {
@@ -197,46 +197,6 @@ static void test_linear(void)
 		}
 	}
 }
-
-/* --- Bilinear data f = 2 + 3a - b + a b / 2 is reproduced exactly,
-	   also by extrapolation below the table. Above the last node
-	   BiLinear reads beyond the table (see the report on linear.c),
-	   so that is not tested -- ------------------------------- */
-
-#define F(a, b) (2.0 + 3.0 * (a) - (b) + 0.5 * (a) * (b))
-
-static void test_bilinear(void)
-{
-	enum { NA = 6,
-		   NB = 8 };
-	double a[NA], b[NB], **f = matrix_double(NA, NB);
-
-	for (int i = 0; i < NA; i++) a[i] = -1.0 + 0.3 * i * i + 0.2 * i;
-	for (int j = 0; j < NB; j++) b[j] = 10.0 + 0.7 * j + 0.1 * j * j;
-	for (int i = 0; i < NA; i++)
-		for (int j = 0; j < NB; j++) f[i][j] = F(a[i], b[j]);
-
-	for (int hunt = 0; hunt < 2; hunt++) {
-		for (int n = 0; n < 200; n++) {
-			/* --- a pseudo-random order of points in
-				   [a_0 - 0.5, a_top), [b_0 - 1, b_top) -- ------- */
-
-			double aa = a[0] - 0.5 + (a[NA - 1] - a[0] + 0.5) * ((n * 37) % 200) / 200.0;
-			double bb = b[0] - 1.0 + (b[NB - 1] - b[0] + 1.0) * ((n * 91) % 200) / 200.0;
-
-			CHECK_CLOSE(BiLinear(NA, a, aa, NB, b, bb, f, hunt), F(aa, bb), 1e-14, 1e-13,
-						"hunt = %d, a = %g, b = %g", hunt, aa, bb);
-		}
-		/* --- the nodes (except the last row and column) -- ------ */
-
-		for (int i = 0; i < NA - 1; i++)
-			for (int j = 0; j < NB - 1; j++)
-				CHECK_CLOSE(BiLinear(NA, a, a[i], NB, b, b[j], f, hunt), f[i][j], 1e-14, 1e-13,
-							"node %d %d", i, j);
-	}
-	freeMatrix((void **) f);
-}
-#undef F
 
 /* --- Cubic splines -- --------------------------------------------- */
 
@@ -568,7 +528,6 @@ int main(int argc, char *argv[])
 
 	test_hunt_locate();
 	test_linear();
-	test_bilinear();
 	test_spline_linear_data();
 	test_spline_reference();
 	test_spline_order();
