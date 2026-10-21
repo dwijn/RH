@@ -50,10 +50,12 @@ static bool_t table;
 /* --- Measured (gcc, x86-64): E1 absolute error at most 2.0e-7 for
 	   x <= 1 (the stated accuracy of 5.1.53: 2e-7), relative error of
 	   E1 at most 1.5e-7 over the grid and 2.0e-8 for x > 1 (5.1.56).
-	   E2 relative error 1.3e-7 for x < 1, 1.1e-7 in 1 <= x < 10 and
-	   growing to 1.2e-6 at x = 80 from the cancellation in
-	   exp(-x) - x E1 (x E1 exp(x) -> 1, so the relative error of E2 is
-	   ~ x times that of E1). Bounds: about twice -- ------------- */
+	   E2 relative error 1.3e-7 for x < 1 (from E1, through the
+	   recurrence), and from the continued fraction 5.8e-15 at x = 1
+	   and 6.4e-16 for x >= 10. Before N-22 E2 used the recurrence
+	   everywhere and lost accuracy to the cancellation in exp(-x) - x E1
+	   (1.2e-6 at x = 80), and both returned 0 beyond x = 80.
+	   Bounds: about twice -- ----------------------------------- */
 
 static void test_expint(void)
 {
@@ -82,19 +84,22 @@ static void test_expint(void)
 	CHECK(max_rel_e1 < 3e-7, "E1: max relative error %.3g", max_rel_e1);
 	CHECK(max_rel_large < 4e-8, "E1, x > 1: max relative error %.3g", max_rel_large);
 	CHECK(max_rel_e2_small < 2.6e-7, "E2, x < 1: max relative error %.3g", max_rel_e2_small);
-	CHECK(max_rel_e2_mid < 2.3e-7, "E2, 1 <= x < 10: max relative error %.3g", max_rel_e2_mid);
-	CHECK(max_rel_e2_large < 2.5e-6, "E2, x >= 10: max relative error %.3g", max_rel_e2_large);
+	CHECK(max_rel_e2_mid < 1.2e-14, "E2, 1 <= x < 10: max relative error %.3g", max_rel_e2_mid);
+	CHECK(max_rel_e2_large < 1.3e-15, "E2, x >= 10: max relative error %.3g", max_rel_e2_large);
 	if (table)
 		printf("E1: abs. %.2e (x <= 1), rel. %.2e (x > 1), rel. %.2e (all)\n"
 			   "E2: rel. %.2e (x < 1), %.2e (1 .. 10), %.2e (>= 10)\n",
 			   max_abs_small, max_rel_large, max_rel_e1, max_rel_e2_small,
 			   max_rel_e2_mid, max_rel_e2_large);
 
-	/* --- Beyond x = 80 the functions return 0 (E1(100) is 3.7e-46),
-		   at x = 80 they do not -- ------------------------------ */
+	/* --- Zero only where exp(-x)/x underflows (x ~ 740; subnormal from
+		   x ~ 708), and for x = inf (fixedrate.c with T = 0); before N-22
+		   both returned 0 beyond x = 80 -- ----------------------- */
 
-	CHECK(E1(80.0) > 0.0 && E2(80.0) > 0.0, "E1(80) = %g, E2(80) = %g", E1(80.0), E2(80.0));
-	CHECK(E1(80.5) == 0.0 && E2(100.0) == 0.0, "beyond 80: E1(80.5) = %g, E2(100) = %g", E1(80.5), E2(100.0));
+	CHECK(E1(700.0) > 0.0 && E2(700.0) > 0.0, "E1(700) = %g, E2(700) = %g", E1(700.0), E2(700.0));
+	CHECK(E1(800.0) == 0.0 && E2(800.0) == 0.0, "underflow: E1(800) = %g, E2(800) = %g", E1(800.0), E2(800.0));
+	CHECK(E1(1e200) == 0.0 && E2(1e200) == 0.0, "E1(1e200) = %g, E2(1e200) = %g", E1(1e200), E2(1e200));
+	CHECK(E1(HUGE_VAL) == 0.0 && E2(HUGE_VAL) == 0.0, "E1(inf) = %g, E2(inf) = %g", E1(HUGE_VAL), E2(HUGE_VAL));
 
 	/* --- Properties: E1 and E2 positive and decreasing, E2 < E1
 		   (for x > 0), E2(x) -> 1 as x -> 0 (E2(0) = 1) and
@@ -103,10 +108,9 @@ static void test_expint(void)
 	{
 		double prev1 = HUGE_VAL, prev2 = HUGE_VAL;
 
-		for (int k = 1; k <= 400; k++) {
+		for (int k = 1; k <= 3000; k++) {
 			double x = 0.2 * k, e1 = E1(x), e2 = E2(x);
 
-			if (x > 80.0) break;
 			CHECK(e1 > 0.0 && e2 > 0.0 && e1 < prev1 && e2 < prev2 && e2 < e1,
 				  "monotonic and positive at x = %g: E1 %g, E2 %g", x, e1, e2);
 			prev1 = e1;
@@ -128,11 +132,12 @@ static double x_of(double lambda, double T)
 
 /* --- The relative error is not the rounding error of one operation:
 	   B ~ 1 / (exp(x) - 1), where x = h nu / kT carries a relative
-	   error of a few eps, which becomes x eps in B (large x), and
-	   exp(x) - 1 is evaluated without expm1, losing eps / x (small x).
-	   The test bounds the error by c eps (1 + x + 1/x) over the
-	   reference grid (x from 1.4e-8 to 149), where the largest
-	   error / (eps (1 + x + 1/x)) measured is 0.77 (gcc, x86-64); c = 1.6 -- */
+	   error of a few eps, which becomes x eps in B (large x). Before
+	   N-22 exp(x) - 1 was evaluated without expm1, which lost eps / x
+	   at small x; the bound c eps (1 + x + 1/x) still allows for that,
+	   over the reference grid (x from 1.4e-8 to 149); the largest
+	   error / (eps (1 + x + 1/x)) measured is 0.77 (gcc, x86-64),
+	   set by large x; c = 1.6 -- */
 
 static void test_planck_reference(void)
 {
@@ -173,9 +178,10 @@ static void test_planck_limits(void)
 	}
 
 	/* --- Rayleigh-Jeans: B = 2 nu^2 k T / c^2 (1 - x/2 + x^2/12 -
-		   x^4/720 + ...). exp(x) - 1 is evaluated without expm1, so the
-		   relative error is ~ eps / x: measured 4.5e-14 at x = 1e-3 and
-		   5.7e-10 at 1e-7; bound eps / (2 x) -- --------------------- */
+		   x^4/720 + ...). With expm1 the error is rounding plus the
+		   truncated x^4/720 term: measured 1.6e-15 at x = 1e-3 (the
+		   x^4 term) and 1.1e-16 at 1e-7; before N-22 (exp(x) - 1)
+		   4.5e-14 and 5.7e-10. Bound 4 eps + x^4/360 -- --------- */
 
 	for (int k = 0; k < 2; k++) {
 		double x    = (k == 0) ? 1e-3 : 1e-7;
@@ -184,7 +190,7 @@ static void test_planck_limits(void)
 		T = x_of(lambda, 1.0) / x;
 		Planck(1, &T, lambda, &B);
 		if (table) printf("Planck, Rayleigh-Jeans x = %g: relative error %.2e\n", x, fabs(B / (2.0 * KBOLTZMANN * T * nu_c * nu_c * series) - 1.0));
-		CHECK_CLOSE(B, 2.0 * KBOLTZMANN * T * nu_c * nu_c * series, 0.5 * DBL_EPSILON / x, 0.0,
+		CHECK_CLOSE(B, 2.0 * KBOLTZMANN * T * nu_c * nu_c * series, 4.0 * DBL_EPSILON + x * x * x * x / 360.0, 0.0,
 					"Rayleigh-Jeans, x = %g", x);
 	}
 
