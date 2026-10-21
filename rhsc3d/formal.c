@@ -355,7 +355,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 					if (atmos.NPRDactive > 0 &&
 						input.PRD_angle_dep == PRD_ANGLE_APPROX) {
-						addJgasRow(nspect, geometry.wmu[mu], I);
+						addJgasRow(nspect, wmu, I);
 					}
 				}
 			}

@@ -374,6 +374,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 				for (k = 0; k < Nspace; k++)
 					spectrum.J[nspect][k] += I[k] * geometry.wmu[0];
 				addtoRates(nspect, 0, 0, geometry.wmu[0], I, redistribute);
+				if (atmos.NPRDactive > 0 &&
+					input.PRD_angle_dep == PRD_ANGLE_APPROX)
+					addJgasRow(nspect, geometry.wmu[0], I);
 			}
 		} else {
 			for (mu = 0; mu < Nrays; mu++) {
@@ -405,7 +408,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 						if (atmos.NPRDactive > 0 &&
 							input.PRD_angle_dep == PRD_ANGLE_APPROX) {
-							addJgasRow(nspect, geometry.wmu[mu], I);
+							addJgasRow(nspect, wmu, I);
 						}
 					}
 				}

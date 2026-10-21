@@ -258,11 +258,8 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 	if (spectrum.updateJ &&
 		input.PRD_angle_dep == PRD_ANGLE_APPROX &&
 		atmos.NPRDactive > 0) {
-		for (k = 0; k < atmos.Nspace; k++) {
-			for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
-				spectrum.Jgas[nspect][k] = 0.0;
-			}
-		}
+		memset(spectrum.Jgas[0], 0,
+			   (size_t) spectrum.Nspect * atmos.Nspace * sizeof(double));
 	}
 
 	if (input.Nthreads > 1) {
