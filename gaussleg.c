@@ -18,6 +18,8 @@
 
 /* --- Function prototypes --                          -------------- */
 
+static double legendre(int n, double z, double *dP);
+
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- GaussLeg.c -------------- */
@@ -26,10 +28,8 @@
 
 void GaussLeg(double x1, double x2, double *x, double *w, int n)
 {
-	register int j;
-
 	int    i, m;
-	double xm, xl, zz, z1, dz, p1, p2, p3, pp;
+	double xm, xl, zz, z1, dz, p1, pp;
 
 	m  = (n + 1) / 2;
 	xm = 0.5 * (x2 + x1);
@@ -39,18 +39,16 @@ void GaussLeg(double x1, double x2, double *x, double *w, int n)
 		zz = cos(PI * (i + 0.75) / (n + 0.5));
 
 		do {
-			p1 = 1.0;
-			p2 = 0.0;
-			for (j = 1; j <= n; j++) {
-				p3 = p2;
-				p2 = p1;
-				p1 = (2.0 * (j - 0.5) * zz * p2 - (j - 1.0) * p3) / j;
-			}
-			pp = n * (zz * p1 - p2) / (zz * zz - 1.0);
+			p1 = legendre(n, zz, &pp);
 			z1 = zz;
 			zz = z1 - p1 / pp;
 			dz = fabs(p1 / pp);
 		} while (dz > ERROR);
+
+		/* --- The weight needs P_n' at the root itself, not at the
+			   previous iterate, where it is off by P_n'' dz -- ------- */
+
+		legendre(n, zz, &pp);
 
 		x[i]         = (xm - xl * zz);
 		w[i]         = (2.0 * xl / ((1.0 - zz * zz) * pp * pp));
@@ -59,3 +57,25 @@ void GaussLeg(double x1, double x2, double *x, double *w, int n)
 	}
 }
 /* ------ end ------------------------------ GaussLeg.c ------------- */
+
+/* ------- begin -------------------------- legendre.c -------------- */
+
+static double legendre(int n, double z, double *dP)
+{
+	/* --- Legendre polynomial P_n(z) by its recurrence, and its
+		   derivative in dP --                           -------------- */
+
+	register int j;
+
+	double p1 = 1.0, p2 = 0.0, p3;
+
+	for (j = 1; j <= n; j++) {
+		p3 = p2;
+		p2 = p1;
+		p1 = (2.0 * (j - 0.5) * z * p2 - (j - 1.0) * p3) / j;
+	}
+	*dP = n * (z * p1 - p2) / (z * z - 1.0);
+
+	return p1;
+}
+/* ------- end ---------------------------- legendre.c -------------- */
