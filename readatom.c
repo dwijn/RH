@@ -751,14 +751,8 @@ void freeAtom(Atom *atom)
 				freeMatrix((void **) th->wla);
 			}
 			if (th->Gamma != NULL) freeMatrix((void **) th->Gamma);
-			if (th->chi_up != NULL) {
-				for (i = 0; i < atom->Nlevel; i++) {
-					free(th->chi_up[i]);
-					free(th->chi_down[i]);
-					free(th->Uji_down[i]);
-				}
-				free(th->chi_up);
-				free(th->chi_down);
+			if (th->Uji_down != NULL) {
+				for (i = 0; i < atom->Nlevel; i++) free(th->Uji_down[i]);
 				free(th->Uji_down);
 			}
 		}

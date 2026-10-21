@@ -15,11 +15,11 @@ name: CI
 on:
   push:
     branches: [modernize]
-    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.sh', 'tests/analyze_run.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/atmos/**']
+    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.sh', 'tests/analyze_run.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/se_residual.py', 'tests/atmos/**']
   pull_request:
     branches: [modernize]
     types: [opened, synchronize, reopened, labeled, unlabeled]
-    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.sh', 'tests/analyze_run.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/atmos/**']
+    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.sh', 'tests/analyze_run.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/se_residual.py', 'tests/atmos/**']
   workflow_dispatch:
 
 concurrency:

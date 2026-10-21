@@ -138,7 +138,7 @@ struct MolTransition {
 };
 
 struct rhthread {
-	double **gij, **Vij, **wla, **chi_up, **chi_down, **Uji_down, *eta,
+	double **gij, **Vij, **wla, **Uji_down, *eta,
 		**Gamma;
 	int Nrt_alloc;
 };
