@@ -12,6 +12,16 @@
 
 #include "rh.h"
 
+/* --- TRUE when node a has been reached in the direction of the table,
+	   i.e. value >= a for an ascending and value <= a for a descending
+	   table. The bracket index is the last node for which this holds
+	   (the same convention as in the bisection and in Locate). --- -- */
+
+static inline bool_t at_or_past(bool_t ascend, double value, double a)
+{
+	return ascend ? (value >= a) : (value <= a);
+}
+
 /* ------- begin -------------------------- Hunt.c ------------------ */
 
 void Hunt(int n, double *array, double value, int *ilow)
@@ -31,13 +41,13 @@ void Hunt(int n, double *array, double value, int *ilow)
 		/* --- Else hunt up or down to bracket value --    -------------- */
 
 		increment = 1;
-		if (((value >= array[*ilow]) ? TRUE : FALSE) == ascend) {
+		if (at_or_past(ascend, value, array[*ilow])) {
 			ihigh = *ilow + increment;
 			if (*ilow == n - 1) return;
 
 			/* --- Hunt up --                                -------------- */
 
-			while (((value >= array[ihigh]) ? TRUE : FALSE) == ascend) {
+			while (at_or_past(ascend, value, array[ihigh])) {
 				*ilow = ihigh;
 				increment += increment;
 				ihigh = *ilow + increment;
@@ -52,7 +62,7 @@ void Hunt(int n, double *array, double value, int *ilow)
 
 			/* --- Hunt down --                              -------------- */
 
-			while (((value <= array[*ilow]) ? TRUE : FALSE) == ascend) {
+			while (!at_or_past(ascend, value, array[*ilow])) {
 				ihigh = *ilow;
 				increment += increment;
 				*ilow = ihigh - increment;

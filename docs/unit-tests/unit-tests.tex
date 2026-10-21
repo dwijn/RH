@@ -183,8 +183,9 @@ pivoting) is tested on
 \paragraph{Table look-up.} \code{Hunt} and \code{Locate} must return
 $i$ with $x_i\le x<x_{i+1}$ for values at, between, below and above the
 nodes, ascending and descending tables, tables of $1,2,3$ and many
-elements, and every starting guess of \code{Hunt}. (This found B-23:
-\code{Hunt} one index low when hunting downward onto a node.)
+elements, and every starting guess of \code{Hunt}. The two must agree exactly, also when the value equals a node.
+(This found B-23, fixed: \code{Hunt} was one index low when hunting
+onto a node.)
 
 \paragraph{Linear interpolation.} Exact for linear data; for smooth $f$
 on a spacing $h$,
