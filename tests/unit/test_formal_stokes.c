@@ -37,8 +37,8 @@
 	   -- the derivative limiter turns with the reference frame (N-25):
 		  for random data, cent_deriv_vec and cent_deriv_mat of the
 		  rotated input equal the rotated output, and with U and the
-		  U-elements of K constant they reduce to Steffen's limiter of
-		  each element.
+		  U-elements of K (eta_U, rho_U) constant they reduce to
+		  Steffen's limiter of each element, to rounding.
 	   -v prints the measured errors.
 	   --                                              -------------- */
 
@@ -363,6 +363,13 @@ static void random_K(double K[4][4])
 	memcpy(K, k, sizeof(k));
 }
 
+static double reldiff(double x, double y)
+{
+	double m = fmax(fabs(x), fabs(y));
+
+	return (m == 0.0) ? 0.0 : fabs(x - y) / m;
+}
+
 static void check_limiter(bool_t verbose)
 {
 	double worst_vec = 0.0, worst_mat = 0.0, worst_scalar = 0.0;
@@ -408,15 +415,27 @@ static void check_limiter(bool_t verbose)
 		cent_deriv_vec(d, dup, ddn, su, s0, sd);
 		for (int i = 0; i < 4; i++)
 			worst_scalar = fmax(worst_scalar,
-								fabs(d[i] - cent_deriv(dup, ddn, su[i], s0[i], sd[i])));
+								reldiff(d[i], cent_deriv(dup, ddn, su[i], s0[i], sd[i])));
+
+		/* --- eta_U and rho_U constant: K limited per element -- --- */
+
+		Ku[0][2] = Ku[2][0] = K0[0][2] = K0[2][0] = Kd[0][2] = Kd[2][0] = 0.2;
+		Ku[1][3] = K0[1][3] = Kd[1][3] = -0.1;
+		Ku[3][1] = K0[3][1] = Kd[3][1] = 0.1;
+		cent_deriv_mat(dK, dup, ddn, Ku, K0, Kd);
+		for (int i = 0; i < 4; i++)
+			for (int j = 0; j < 4; j++)
+				worst_scalar = fmax(worst_scalar,
+									reldiff(dK[i][j], cent_deriv(dup, ddn, Ku[i][j],
+																 K0[i][j], Kd[i][j])));
 	}
 	if (verbose)
 		printf("limiter: rotated input vs rotated derivative: vector %.2e, "
-			   "matrix %.2e; U constant vs Steffen per element %.2e\n",
+			   "matrix %.2e; U constant vs Steffen per element (relative) %.2e\n",
 			   worst_vec, worst_mat, worst_scalar);
 	CHECK(worst_vec <= 1.0e-14, "limiter, vector: not frame covariant (%.3g)", worst_vec);
 	CHECK(worst_mat <= 1.0e-14, "limiter, matrix: not frame covariant (%.3g)", worst_mat);
-	CHECK(worst_scalar <= 1.0e-15, "limiter, U constant: differs from Steffen (%.3g)",
+	CHECK(worst_scalar <= 1.0e-14, "limiter, U constant: differs from Steffen (%.3g)",
 		  worst_scalar);
 }
 

@@ -284,7 +284,7 @@ for mo in ("TRUE", "FALSE"):
 
 # --- 4 on FAL-C: vertical ray, field azimuth turned by 35 deg ----------------
 
-turn = math.radians(35.0)
+turn = math.radians(35.0)                       # also used on the grey atmosphere
 _, vb = run("rot_falc", atm, ndep, (B0, G0, C0), vertical=True)
 _, vt = run("rot_falc_turned", atm, ndep, (B0, G0, [c + turn for c in C0]), vertical=True)
 Qr, Ur = rotate(vb, turn)
@@ -295,7 +295,6 @@ check("frame rotation, FAL-C: Q, U",
 
 # --- 4, 5: frame rotation and weak field on smooth grey atmospheres ---------
 
-turn = math.radians(35.0)
 Bw, gw, cw = 1e-4, math.radians(30.0), math.radians(20.0)   # 1 G
 dv = 0.02                                                   # km/s
 errs, rots = [], []

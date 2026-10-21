@@ -124,7 +124,7 @@ static inline void cent_deriv_pair(double odx, double dx, double yu[2],
 
 		   For a single component this is cent_deriv. --  -------------- */
 
-	double a[2], b[2], p[2], na, nb, np, f;
+	double a[2], b[2], p[2], na2, nb2, np2, f;
 	int    i;
 
 	for (i = 0; i < 2; i++) {
@@ -132,15 +132,15 @@ static inline void cent_deriv_pair(double odx, double dx, double yu[2],
 		b[i] = (yd[i] - y0[i]) / dx;
 		p[i] = (a[i] * dx + b[i] * odx) / (odx + dx);
 	}
-	na = hypot(a[0], a[1]);
-	nb = hypot(b[0], b[1]);
-	np = hypot(p[0], p[1]);
+	na2 = a[0] * a[0] + a[1] * a[1];
+	nb2 = b[0] * b[0] + b[1] * b[1];
+	np2 = p[0] * p[0] + p[1] * p[1];
 
-	if (a[0] * b[0] + a[1] * b[1] <= 0.0 || np == 0.0) {
+	if (a[0] * b[0] + a[1] * b[1] <= 0.0 || np2 == 0.0) {
 		d[0] = d[1] = 0.0;
 		return;
 	}
-	f    = fmin(1.0, 2.0 * fmin(na, nb) / np);
+	f    = fmin(1.0, 2.0 * sqrt(fmin(na2, nb2) / np2));
 	d[0] = f * p[0];
 	d[1] = f * p[1];
 }
@@ -159,13 +159,15 @@ inline void cent_deriv_mat(double wprime[4][4], double dsup, double dsdn,
 		   when the frame turns --                       -------------- */
 
 	static const int pair[4][2][2] = {{{0, 1}, {0, 2}}, {{1, 0}, {2, 0}}, {{1, 3}, {2, 3}}, {{3, 1}, {3, 2}}};
+	static const int single[8][2]  = {{0, 0}, {1, 1}, {2, 2}, {3, 3}, {0, 3}, {3, 0}, {1, 2}, {2, 1}};
 	register int     i, j, n;
 	double           yu[2], y0[2], yd[2], d[2];
 
-	for (j = 0; j < 4; j++)
-		for (i = 0; i < 4; i++)
-			wprime[j][i] = cent_deriv(dsup, dsdn, chiup[j][i], chic[j][i],
-									  chidn[j][i]);
+	for (n = 0; n < 8; n++) {
+		i            = single[n][0];
+		j            = single[n][1];
+		wprime[i][j] = cent_deriv(dsup, dsdn, chiup[i][j], chic[i][j], chidn[i][j]);
+	}
 
 	for (n = 0; n < 4; n++) {
 		for (i = 0; i < 2; i++) {
