@@ -187,7 +187,9 @@ typedef struct {
 	   linear S, upward 1.7e-15 / 2.0e-15 (LINEAR), 1.2e-13 / 1.0e-13
 	   (BEZIER3); both directions exact on "layers", 1.5e-3 on
 	   "columns" (I- is not linear in height). On "layers" the same as
-	   2-D and, for LINEAR, 1-D (BEZIER3 second order, N-24). On
+	   2-D and, for LINEAR, 1-D (BEZIER3: order 2.82, emergent 2.5e-5,
+	   interior 1.2e-4 with the quadratic Bezier upwind slope of N-24;
+	   order 1.99, emergent 4.8e-4 with the secant). On
 	   "columns" the vertical interpolation between two layers and the
 	   long characteristics limit the order to ~1.5 at these
 	   resolutions: emergent 3.8e-3 to 3.9e-3, interior 9.5e-3 to
@@ -201,9 +203,9 @@ static const Method methods[] = {
 	{"LINEAR/bicubic", S_LINEAR, BICUBIC_3D,
 	 {1e-14, 1e-14}, {1e-14, 3.1e-3}, {1.7, 1.2}, {2e-3, 8e-3}, {7e-3, 2e-2}, 6.1e-2},
 	{"BEZIER3/bilinear", S_BEZIER3, LINEAR_3D,
-	 {1e-12, 1e-12}, {1e-12, 3.1e-3}, {1.7, 1.2}, {1e-3, 8e-3}, {3e-3, 2e-2}, 6.1e-2},
+	 {1e-12, 1e-12}, {1e-12, 3.1e-3}, {2.6, 1.2}, {5e-5, 8e-3}, {2.5e-4, 2e-2}, 6.1e-2},
 	{"BEZIER3/bicubic", S_BEZIER3, BICUBIC_3D,
-	 {1e-12, 1e-12}, {1e-12, 3.1e-3}, {1.7, 1.2}, {1e-3, 8e-3}, {3e-3, 2e-2}, 6.1e-2}};
+	 {1e-12, 1e-12}, {1e-12, 3.1e-3}, {2.6, 1.2}, {5e-5, 8e-3}, {2.5e-4, 2e-2}, 6.1e-2}};
 /* clang-format on */
 
 #define N_METHODS (int) (sizeof(methods) / sizeof(methods[0]))
