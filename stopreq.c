@@ -14,6 +14,7 @@
 	   directory as suggested by Jo Bruls (KIS) --     -------------- */
 
 #include <stdio.h>
+#include <unistd.h>
 
 #include "rh.h"
 #include "error.h"
@@ -32,7 +33,7 @@ bool_t StopRequested()
 {
 	const char routineName[] = "StopRequested";
 
-	if (fopen(STOP_REQUEST_FILE, "r")) {
+	if (access(STOP_REQUEST_FILE, F_OK) == 0) {
 		sprintf(messageStr, "Stopping iterations because file %s is present",
 				STOP_REQUEST_FILE);
 		Error(WARNING, routineName, messageStr);
