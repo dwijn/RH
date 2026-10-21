@@ -43,7 +43,7 @@ void Planck(int Nspace, double *T, double lambda, double *Bnu)
 	for (k = 0; k < Nspace; k++) {
 		hc_Tkla = hc_kla / T[k];
 		if (hc_Tkla <= MAX_EXPONENT)
-			Bnu[k] = twohnu3_c2 / (exp(hc_Tkla) - 1.0);
+			Bnu[k] = twohnu3_c2 / expm1(hc_Tkla);
 		else
 			Bnu[k] = 0.0;
 	}

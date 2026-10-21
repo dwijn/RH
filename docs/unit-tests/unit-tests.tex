@@ -258,12 +258,22 @@ was wrong by up to $2\times10^{-6}$ near $\Delta\tau=5\times10^{-4}$.)
 \paragraph{Exponential integrals.} $E_1$ uses formula 5.1.53 of \citet{1972hmfw.book.....A} (polynomial, absolute error $<2\times10^{-7}$ for $x\le1$) and
 5.1.56 (rational, $x\e^xE_1$ to $2\times10^{-8}$ relative for $x\ge1$);
 the test holds them to those accuracies against \code{mpmath}.
-$E_2 = \e^{-x}-xE_1$ cancels at large $x$, where
-$\e^{-x}$ and $xE_1\approx\e^{-x}(1-1/x)$ nearly agree, so its relative
-accuracy degrades as $x$ grows; both return $0$ above $x=80$.
+For $x<1$, $E_2 = \e^{-x}-xE_1$ (5.1.14). At larger $x$ this cancels,
+since $\e^{-x}$ and $xE_1\approx\e^{-x}(1-1/x)$ nearly agree, and the
+relative error of $E_2$ grows as $x$ times that of $E_1$; for $x\ge1$
+$E_2$ therefore comes from the continued fraction
+\begin{equation}
+E_n(x) = \e^{-x}\left(\frac{1}{x+n-}\,\frac{1\cdot n}{x+n+2-}\,
+\frac{2(n+1)}{x+n+4-}\cdots\right)
+\end{equation}
+(5.1.22), evaluated by the modified Lentz method, which the test holds
+to $10^{-14}$. Both functions are zero only where $\e^{-x}/x$ underflows ($x\approx740$)
+(N-22; before, both returned $0$ above $x=80$).
 
 \paragraph{Planck function.} Against the formula in high precision with
-the constants of \code{constant.h}; the Wien ($h\nu\gg kT$:
+the constants of \code{constant.h} (the denominator is evaluated with
+\code{expm1}, so the relative error does not grow as $1/x$ at
+radio wavelengths); the Wien ($h\nu\gg kT$:
 $B_\nu\to 2h\nu^3c^{-2}\e^{-h\nu/kT}$) and Rayleigh--Jeans
 ($B_\nu\to2\nu^2kT/c^2$) limits; and
 \begin{equation}
