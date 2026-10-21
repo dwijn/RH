@@ -893,6 +893,200 @@ At $v_B = 0.023$ RH's $V$ agrees with it to $4$--$6\times10^{-4}$ of
 $\max|V|$, the size of the neglected $O(v_B^2)$ terms.
 
 %======================================================================
+\section{Cross-coupling in the preconditioned rate equations (B-6)}
+\label{sec:coupling}
+
+\subsection{Preconditioning}
+At one frequency and direction let the active transitions be
+$t=(l,u)$, with $l$ the lower and $u$ the upper level, absorption and
+emission coefficients $V_t$ and $U_t$ \citep[eqs.~2.2--2.3]{1992A&A...262..209R},
+quadrature weight $w$ (frequency and angle), and stimulated-emission
+factor $g_t$. The radiative part of the net rate from $l$ to $u$ is
+\begin{equation}
+  w\left[(n_l - g_t n_u)V_t\, I - n_u U_t\right].
+  \label{eq:plain}
+\end{equation}
+Preconditioning \citep{1992A&A...262..209R} writes the intensity as
+$I = \Psi^*[\eta] + I_\text{eff}$, where $\eta$ is (part of) the
+emissivity of the active transitions in the new populations and
+$I_\text{eff}$ is the same part evaluated with the old populations
+(dagger) and subtracted from the old intensity:
+$I_\text{eff} = I^\dagger - \Psi^*[\eta^\dagger]$. With the opacity factor
+taken from the old populations, $\chi_t = (n_l-g_tn_u)^\dagger V_t\,w$,
+the rate equations stay linear in the new populations. The emissivity
+of all transitions with upper level $a$ is $n_a\bar U_a$, with
+$\bar U_a = \sum_{t:\,u_t=a} U_t$ (\code{Uji\_down}, accumulated in
+\code{addtoCoupling}).
+
+At convergence the new and the old populations are the same, so
+$\Psi^*[\eta]+I_\text{eff} = I$, and eq.~\eqref{eq:plain} holds exactly
+however much of the emissivity is put in $\eta$. That holds \emph{provided
+that the part of $\eta$ subtracted in $I_\text{eff}$ is the same part
+that $\Gamma$ puts back with the new populations}. Preconditioning should
+change the path of the iteration, not its end point.
+
+\subsection[Writing the terms into Gamma]{Writing the terms into $\Gamma$}
+RH solves $\sum_{l'}\Gamma_{ll'}n_{l'} = 0$, with the diagonal set from
+the column sums, $\Gamma_{ll} = -\sum_{l'\ne l}\Gamma_{l'l}$
+(\code{statequil.c}). Each off-diagonal element $\Gamma_{ca}$ is therefore a
+rate from $a$ to $c$ per particle in $a$. A flow from $l$ to $u$ that
+is proportional to $n_a$ is written $\Gamma_{ua} \mathrel{+}= f$,
+$\Gamma_{la} \mathrel{-}= f$; the changes to the diagonal of column $a$
+cancel. If transition $t$ puts back the emissivity of a set $A_t$ of
+upper levels, the extra net rate from $l$ to $u$ is
+\begin{equation}
+  F_t = \chi_t\,\Psi^*\sum_{a\in A_t} n_a \bar U_a ,
+  \label{eq:Ft}
+\end{equation}
+proportional to the populations of all levels in $A_t$.
+
+\emph{Full preconditioning} \citep[\S2.3]{1992A&A...262..209R} takes
+$A_t$ to be all active upper levels. Collecting eq.~\eqref{eq:Ft} by level,
+with $\chi^\uparrow_c$ and $\chi^\downarrow_c$ the sums of $\chi_t$ over
+the transitions with lower and upper level $c$, gives
+\begin{equation}
+  \Gamma_{ca} \mathrel{+}= (\chi^\downarrow_c - \chi^\uparrow_c)\,
+  \Psi^*\,\bar U_a \qquad\text{for all active levels } c \ne a ,
+  \label{eq:coupling}
+\end{equation}
+which is the cross-coupling term of their eq.~2.19,
+$-\bigl(\sum_{l''}\chi^\dagger_{l''l}\bigr)\Psi^*\bigl(\sum_{l'''}U_{l'l'''}\bigr)$,
+since $\chi_{l''l}$ is antisymmetric. As they note, it couples levels that
+no transition connects.
+
+\subsection{The defect}
+RH subtracted the emissivity of \emph{all} active transitions in
+$I_\text{eff}$, as full preconditioning does, but $\Gamma$ did not get the
+whole of eq.~\eqref{eq:coupling} back. For each active transition $(i,j)$ it
+added $\Gamma_{ij}\mathrel{-}=\chi^\uparrow_i\Psi^*\bar U_j$, and
+$\Gamma_{ji}\mathrel{+}=\chi^\downarrow_j\Psi^*\bar U_i$ once for every active
+transition with upper level $i$. That differs from eq.~\eqref{eq:coupling}
+in three ways:
+\begin{itemize}
+\item pairs $(c,a)$ that no active transition connects were left out,
+  for example the two upper levels of lines with a common lower level
+  (Ca\,\textsc{ii} H and K overlapping in their wings), or levels $0$ and
+  $2$ of a ladder $0$--$1$--$2$ (Ly$\alpha$ inside the Balmer continuum);
+\item on connected pairs, one of the two $\chi$ terms was missing; this
+  matters when a level is both a lower and an upper level at the same
+  wavelength;
+\item the second term was counted once for every active transition with
+  upper level $i$, although $\bar U_i$ already sums over those
+  transitions. This happens in multi-ion atoms, where the ion ground
+  level is the upper level of overlapping continua and the lower level
+  of an ion line. It is the double counting first suspected in B-6.
+\end{itemize}
+Only lines that share an upper level, and overlap in no other way,
+were treated exactly. The converged populations therefore do not
+satisfy statistical equilibrium with the radiation field they produce.
+
+\subsection{Why not full preconditioning}
+Eq.~\eqref{eq:coupling} has the right fixed point (table~\ref{tab:coupling}),
+but $\chi^\downarrow_c-\chi^\uparrow_c$ is negative for a level that is
+mostly a lower level. It then puts negative rates between levels that
+no transition connects, so $\Gamma$ is no longer a rate matrix with
+non-negative off-diagonal elements. In the 53-level He atom
+(\code{He\_large}: He\,\textsc{i}, \textsc{ii}, \textsc{iii}) about 7500
+off-diagonal elements per iteration are negative (summed over the 82
+depths), negative populations appear in the sixth iteration, and the
+iteration diverges, with or without Ng acceleration. The six stages of
+carbon (\code{CI-VI\_Judge}) diverge in the first iteration.
+
+\subsection{Preconditioning within each transition}
+RH therefore restricts $A_t$ to the two levels of the transition,
+$A_t=\{u,l\}$ ($\bar U_l$ is zero unless $l$ is also an upper level at
+this wavelength). That generalizes the strategy of
+\citet[\S2.4, eqs.~2.24--2.25]{1992A&A...262..209R} to overlapping
+transitions. Each transition gets its own
+\begin{equation}
+  I_{\text{eff},t} = I^\dagger - \Psi^*\left(n_u^\dagger\bar U_u + n_l^\dagger\bar U_l\right),
+\end{equation}
+its rates are eq.~\eqref{eq:plain} with $I_{\text{eff},t}$ for $I$, and
+eq.~\eqref{eq:Ft} adds
+\begin{equation}
+  \Gamma_{lu} \mathrel{-}= \chi_t\Psi^*\bar U_u, \qquad
+  \Gamma_{ul} \mathrel{+}= \chi_t\Psi^*\bar U_l
+  \label{eq:pertrans}
+\end{equation}
+(\code{addPreconditionedRates} in \code{fillgamma.c}, also used by the
+spherical solver). Emission from other levels stays in
+$I_{\text{eff},t}$, lagged by one iteration. Because what $\Gamma$ puts
+back is exactly what $I_{\text{eff},t}$ took out, the fixed point is
+exact. $\Gamma$ has entries only between the levels of a transition,
+the cost is that of the old form, and photons emitted in a transition
+and absorbed in the same one or in overlapping transitions with the
+same upper level are still preconditioned.
+
+\subsection{What \code{test\_coupling} checks}
+\code{test\_coupling} uses random opacities, stimulated-emission factors
+(inversions included), intensities, $\Psi^*$, angle weights and two sets
+of populations. $\bar U$ is accumulated as \code{addtoCoupling} does it,
+and $\Gamma$ is built with \code{addPreconditionedRates}. The net rate
+into each level, $\sum_{a\ne c}\Gamma_{ca}n_a - n_c\sum_{b\ne c}\Gamma_{bc}$,
+must equal:
+\begin{itemize}
+\item at the old populations, the plain rates eq.~\eqref{eq:plain} with $I$,
+  i.e.\ the fixed point is exact;
+\item at the new populations, the preconditioned rates with
+  $I_{\text{eff},t}$ plus eq.~\eqref{eq:Ft}, i.e.\ the equations are
+  the linear ones derived above.
+\end{itemize}
+Both hold to rounding ($<4\times10^{-16}$ of the size of the rates). The
+active sets used are:
+\begin{itemize}
+\item a shared upper level;
+\item a shared lower level;
+\item a ladder;
+\item continua into an ion level that is the lower level of an ion line;
+\item 20 random sets.
+\end{itemize}
+The test also checks that $\Gamma$ is zero between unconnected levels,
+and that per-point angle weights give the same $\Gamma$ as a scalar
+weight. The old form passes the first set only: its fixed point is off
+by 13, 4 and 33\,\% of the rates in the others.
+
+\subsection{Evidence from converged runs}
+The test against the full code is whether the converged populations
+satisfy the \emph{plain} rate equations, with the radiative rates that
+RH computes from them. Table~\ref{tab:coupling} gives the largest
+relative residual,
+$\max_{c,k}\bigl|\sum_b n_b P_{bc} - n_c\sum_b P_{cb}\bigr|/(n_c\sum_bP_{cb})$,
+after convergence to $10^{-10}$ (FAL-C, one active atom with complete
+redistribution, no polarization). The variants are:
+\begin{itemize}
+\item the old form;
+\item the old form without the double counting;
+\item the form used by Lightweaver (net $\chi$ on connected pairs, total
+  emissivity in $I_\text{eff}$);
+\item full preconditioning, eq.~\eqref{eq:coupling};
+\item per-transition preconditioning, eq.~\eqref{eq:pertrans}.
+\end{itemize}
+Only the last two converge to statistical equilibrium. With them the
+Mg\,\textsc{ii} 4s and 3d populations (the upper levels of the triplet lines
+at 279--293\,nm) move by 2--4\,\% (median over depth). In the
+chromosphere they move by up to $22\,\%$, or $34\,\%$ with h and k in partial
+redistribution. The Mg\,\textsc{iii} ground level moves by up to $15\,\%$, and
+the upper levels of h and k by $10^{-3}$.
+\begin{table}[h]
+\centering
+\caption{Fixed-point residual of statistical equilibrium after convergence,
+and the number of iterations.}
+\label{tab:coupling}
+\begin{tabular}{lccccc}
+\toprule
+atom & old & no double count & Lightweaver & full & per transition\\
+\midrule
+Ca\,\textsc{ii} (5+1 levels)  & $1.0\times10^{-7}$ & $1.0\times10^{-7}$ & $1.0\times10^{-7}$ & $9\times10^{-11}$ & $6\times10^{-11}$\\
+                              & 42 & 42 & 42 & 42 & 42 \\
+H (5+1 levels)                & $6.8\times10^{-4}$ & $6.8\times10^{-4}$ & $7.2\times10^{-4}$ & $2\times10^{-11}$ & $2\times10^{-11}$\\
+                              & 67 & 67 & 70 & 67 & 67 \\
+Mg\,\textsc{i}+\textsc{ii} (76 levels) & $3.4\times10^{-2}$ & $3.4\times10^{-2}$ & $3.3\times10^{-2}$ & $9\times10^{-10}$ & $8\times10^{-10}$\\
+                              & 87 & 111 & 93 & 96 & 99 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%======================================================================
 \section{End to end: rhf1d with a fictional atom}\label{sec:e2e}
 \code{tests/e2e/stokes\_1d.py} (\code{ctest -L e2e}) runs the whole of
 \code{rhf1d}: reading the atom and the field, \code{Bproject},
