@@ -41,7 +41,8 @@ typedef struct {
 	double *lambda, **J, **I, **Stokes_Q, **Stokes_U, **Stokes_V, **J20,
 		**Jgas, **Ilast, **v_los;
 	ActiveSet       *as;
-	int             *nc, *iprdh;
+	long            *nc; /* cumulative coefficient counts (B-32) */
+	int             *iprdh;
 	double          *cprdh;
 	pthread_mutex_t *Jgas_lock; /* one per wavelength row of Jgas (T-4) */
 } Spectrum;
@@ -81,6 +82,7 @@ void writeJgas(double **Jgas);
 void addJgas(int nspect, int k, double value);
 void addJgasRow(int nspect, double wmu, double *I);
 void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I);
+long prdhIndex(int nspect, int mu, int to_obs, int k);
 void initJgasLocks(void);
 void freeJgasBuffer(void);
 void readJgas(double **Jgas);

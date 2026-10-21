@@ -559,6 +559,18 @@ void addJgasRow(int nspect, double wmu, double *I)
 }
 /* ------- end ---------------------------- addJgas.c --------------- */
 
+/* ------- begin -------------------------- prdhIndex.c ------------- */
+
+long prdhIndex(int nspect, int mu, int to_obs, int k)
+{
+	/* --- Index of (wavelength, ray, direction, location) in the hybrid
+		   PRD table spectrum.nc, in long arithmetic: the table has
+		   2 Nrays Nspect Nspace entries (B-32) --         -------------- */
+
+	return (((long) nspect * atmos.Nrays + mu) * 2 + to_obs) * atmos.Nspace + k;
+}
+/* ------- end ---------------------------- prdhIndex.c ------------- */
+
 /* ------- begin -------------------------- addJgasRay.c ------------ */
 
 void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
@@ -570,10 +582,9 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 	long int lamuk0, lamuk, idx, idx0, idx1;
 	double  *buf;
 
-	lamuk0 = (long) nspect * (atmos.Nrays * 2 * Nspace) + mu * (2 * Nspace) +
-			 to_obs * Nspace;
-	idx0 = (lamuk0 == 0) ? 0 : spectrum.nc[lamuk0 - 1];
-	idx1 = spectrum.nc[lamuk0 + Nspace - 1];
+	lamuk0 = prdhIndex(nspect, mu, to_obs, 0);
+	idx0   = (lamuk0 == 0) ? 0 : spectrum.nc[lamuk0 - 1];
+	idx1   = spectrum.nc[lamuk0 + Nspace - 1];
 	if (idx1 <= idx0) return;
 
 	imin = imax = spectrum.iprdh[idx0];

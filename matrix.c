@@ -26,6 +26,19 @@
 
 extern char messageStr[];
 
+/* ------- begin -------------------------- checkAlloc.c ------------ */
+
+static void checkAlloc(const char *routineName, void *theMatrix, void *Matrix,
+					   int Nrow, int Ncol)
+{
+	if ((theMatrix == NULL && (size_t) Nrow * Ncol > 0) ||
+		(Matrix == NULL && Nrow > 0)) {
+		sprintf(messageStr, "Unable to allocate a %d x %d matrix", Nrow, Ncol);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+}
+/* ------- end ---------------------------- checkAlloc.c ------------ */
+
 /* ------- begin -------------------------- matrix_char.c ----------- */
 
 char **matrix_char(int Nrow, int Ncol)
@@ -35,8 +48,9 @@ char **matrix_char(int Nrow, int Ncol)
 	char *theMatrix, **Matrix;
 	int   typeSize = sizeof(char), pointerSize = sizeof(char *);
 
-	theMatrix = (char *) calloc(Nrow * Ncol, typeSize);
-	Matrix    = (char **) malloc(Nrow * pointerSize);
+	theMatrix = (char *) calloc((size_t) Nrow * Ncol, typeSize);
+	Matrix    = (char **) malloc((size_t) Nrow * pointerSize);
+	checkAlloc("matrix_char", theMatrix, Matrix, Nrow, Ncol);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
 
@@ -53,8 +67,9 @@ int **matrix_int(int Nrow, int Ncol)
 	int *theMatrix, **Matrix, typeSize = sizeof(int),
 							  pointerSize = sizeof(int *);
 
-	theMatrix = (int *) calloc(Nrow * Ncol, typeSize);
-	Matrix    = (int **) malloc(Nrow * pointerSize);
+	theMatrix = (int *) calloc((size_t) Nrow * Ncol, typeSize);
+	Matrix    = (int **) malloc((size_t) Nrow * pointerSize);
+	checkAlloc("matrix_int", theMatrix, Matrix, Nrow, Ncol);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
 
@@ -72,9 +87,10 @@ double **matrix_double(int Nrow, int Ncol)
 	size_t  memSize;
 	double *theMatrix, **Matrix;
 
-	memSize   = ((long) Nrow * (long) Ncol);
+	memSize   = (size_t) Nrow * Ncol;
 	theMatrix = (double *) calloc(memSize, typeSize);
-	Matrix    = (double **) malloc(Nrow * pointerSize);
+	Matrix    = (double **) malloc((size_t) Nrow * pointerSize);
+	checkAlloc("matrix_double", theMatrix, Matrix, Nrow, Ncol);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
 

@@ -9,6 +9,7 @@
 /* --- Administers iterations to redistribute intensity in PRD line while
 	   keeping the population number fixed. --         -------------- */
 
+#include <limits.h>
 #include <stdlib.h>
 #include <math.h>
 
@@ -40,6 +41,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 	bool_t             quiet, accel, eval_operator, redistribute;
 	enum Interpolation representation;
 	int                niter, Nlamu;
+	long               NlamuL;
 	double             drho, drhomax, drhomaxa;
 	Atom              *atom;
 	AtomicLine        *line;
@@ -52,10 +54,17 @@ void Redistribute(int NmaxIter, double iterLimit)
 		for (kr = 0; kr < atom->Nline; kr++) {
 			line = &atom->line[kr];
 			if (line->PRD && line->Ng_prd == NULL) {
-				if (input.PRD_angle_dep == PRD_ANGLE_DEP)
-					Nlamu = 2 * atmos.Nrays * line->Nlambda * atmos.Nspace;
-				else
-					Nlamu = line->Nlambda * atmos.Nspace;
+				NlamuL = (input.PRD_angle_dep == PRD_ANGLE_DEP)
+							 ? 2L * atmos.Nrays * line->Nlambda * atmos.Nspace
+							 : (long) line->Nlambda * atmos.Nspace;
+				if (NlamuL > INT_MAX) {
+					sprintf(messageStr,
+							"PRD line %d -> %d: %ld values of rho, too many for"
+							" the Ng acceleration of the PRD iteration",
+							line->j, line->i, NlamuL);
+					Error(ERROR_LEVEL_2, routineName, messageStr);
+				}
+				Nlamu = (int) NlamuL;
 
 				line->Ng_prd = NgInit(Nlamu, input.PRD_Ngdelay,
 									  input.PRD_Ngorder, input.PRD_Ngperiod,
