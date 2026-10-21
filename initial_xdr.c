@@ -201,7 +201,7 @@ void initSolution(void)
 
 						for (k = 0; k < atmos.Nspace; k++) {
 
-							lamuk = (long) la * (atmos.Nrays * 2 * atmos.Nspace) + mu * (2 * atmos.Nspace) + to_obs * (atmos.Nspace) + k;
+							lamuk = prdhIndex(la, mu, to_obs, k);
 
 							ncoef = 0;
 
@@ -266,7 +266,7 @@ void initSolution(void)
 			idx            = spectrum.nc[Nlamuk - 1];
 			spectrum.iprdh = (int *) malloc(idx * sizeof(int));
 			spectrum.cprdh = (double *) malloc(idx * sizeof(double));
-			if (spectrum.iprdh == NULL || spectrum.cprdh == NULL) {
+			if (idx > 0 && (spectrum.iprdh == NULL || spectrum.cprdh == NULL)) {
 				sprintf(messageStr,
 						"Unable to allocate the hybrid PRD interpolation table"
 						" (%ld points, %ld coefficients)",
@@ -286,7 +286,7 @@ void initSolution(void)
 
 						for (k = 0; k < atmos.Nspace; k++) {
 
-							lamuk = (long) la * (atmos.Nrays * 2 * atmos.Nspace) + mu * (2 * atmos.Nspace) + to_obs * (atmos.Nspace) + k;
+							lamuk = prdhIndex(la, mu, to_obs, k);
 
 							/* --- Starting index for storage for this lamuk point- */
 

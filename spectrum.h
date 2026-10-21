@@ -82,6 +82,7 @@ void writeJgas(double **Jgas);
 void addJgas(int nspect, int k, double value);
 void addJgasRow(int nspect, double wmu, double *I);
 void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I);
+long prdhIndex(int nspect, int mu, int to_obs, int k);
 void initJgasLocks(void);
 void freeJgasBuffer(void);
 void readJgas(double **Jgas);
