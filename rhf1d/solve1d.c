@@ -118,10 +118,20 @@ int main(int argc, char *argv[])
 		sprintf(messageStr, "Unable to read btop from standard input");
 		Error(ERROR_LEVEL_2, argv[0], messageStr);
 	}
+	if (btop < IRRADIATED || btop > REFLECTIVE) {
+		sprintf(messageStr, "Invalid btop boundary condition code %d (must be %d to %d)",
+				btop, IRRADIATED, REFLECTIVE);
+		Error(ERROR_LEVEL_2, argv[0], messageStr);
+	}
 	geometry.vboundary[TOP] = btop;
 	Nread                   = fread(&bbot, sizeof(int), 1, stdin);
 	if (Nread != 1) {
 		sprintf(messageStr, "Unable to read bbot from standard input");
+		Error(ERROR_LEVEL_2, argv[0], messageStr);
+	}
+	if (bbot < IRRADIATED || bbot > REFLECTIVE) {
+		sprintf(messageStr, "Invalid bbot boundary condition code %d (must be %d to %d)",
+				bbot, IRRADIATED, REFLECTIVE);
 		Error(ERROR_LEVEL_2, argv[0], messageStr);
 	}
 	geometry.vboundary[BOTTOM] = bbot;
