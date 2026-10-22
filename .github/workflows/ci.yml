@@ -74,6 +74,15 @@ jobs:
           n=$(grep -c 'warning:' build.log || true)
           echo "$n compiler warnings"
           echo "### ${{ matrix.os }} ${{ matrix.cc }}: $n compiler warnings" >> "$GITHUB_STEP_SUMMARY"
+      - name: Runner CPU and libc
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            grep -m1 'model name' /proc/cpuinfo
+            echo "flags: $(grep -m1 -wo -e fma -e avx2 -e avx512f /proc/cpuinfo | tr '\n' ' ')"
+            ldd --version | head -1
+          else
+            sysctl -n machdep.cpu.brand_string; sw_vers -productVersion
+          fi
       - name: Unit and smoke tests
         run: ctest --test-dir build --output-on-failure
 
@@ -145,6 +154,15 @@ jobs:
           cmake -B build-san -G Ninja -DCMAKE_C_COMPILER=${{ matrix.cc }} \
                 -DRH_SANITIZE=${{ matrix.sanitize }}
           cmake --build build-san
+      - name: Runner CPU and libc
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            grep -m1 'model name' /proc/cpuinfo
+            echo "flags: $(grep -m1 -wo -e fma -e avx2 -e avx512f /proc/cpuinfo | tr '\n' ' ')"
+            ldd --version | head -1
+          else
+            sysctl -n machdep.cpu.brand_string; sw_vers -productVersion
+          fi
       - name: Unit tests with sanitizers
         if: matrix.sanitize
         run: ctest --test-dir build-san -L unit --output-on-failure

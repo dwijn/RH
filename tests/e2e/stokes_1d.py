@@ -202,7 +202,8 @@ def run(name, atmos_text, ndep, field, vertical=False, solve_ne=False, mo="TRUE"
                        stderr=subprocess.STDOUT, text=True)
     open(os.path.join(d, "out.log"), "w").write(r.stdout)
     if r.returncode != 0 or "ERROR" in r.stdout:
-        sys.exit(f"rhf1d failed in {d} (status {r.returncode}); see out.log")
+        tail = "\n".join(r.stdout.splitlines()[-40:])   # FP trap backtrace (B-33)
+        sys.exit(f"rhf1d failed in {d} (status {r.returncode}); end of out.log:\n{tail}")
     raw = open(os.path.join(d, "spectrum.out"), "rb").read()
     ns = struct.unpack(">i", raw[:4])[0]
     lam = struct.unpack(f">{ns}d", raw[4:4 + 8 * ns])

@@ -104,7 +104,8 @@ def run(name, prog, angles, mode):
     open(os.path.join(d, "out.log"), "w").write(r.stdout)
     # --- Three iterations do not converge: exit status 1 is expected
     if r.returncode not in (0, 1) or "ERROR" in r.stdout:
-        sys.exit(f"{program} failed in {d} (status {r.returncode}); see out.log")
+        tail = "\n".join(r.stdout.splitlines()[-40:])   # FP trap backtrace (B-33)
+        sys.exit(f"{program} failed in {d} (status {r.returncode}); end of out.log:\n{tail}")
     J = read_doubles(os.path.join(d, "J.dat"))
     Jgas = read_doubles(os.path.join(d, "Jgas.dat")) if mode == "PRD_ANGLE_APPROX" else None
     return J, Jgas
