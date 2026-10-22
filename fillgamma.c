@@ -173,15 +173,72 @@ void mergeGammaThreadsMolecule(Molecule *molecule)
 }
 /* ------- end ---------------------------- mergeGammaThreadsMolecule.c */
 
+/* ------- begin -------------------------- addPreconditionedRates.c */
+
+void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
+							const double *Vij, const double *wla,
+							const double *gij, const double *n_i,
+							const double *n_j, const double *U_i,
+							const double *U_j, const double *I,
+							const double *Psi, double wmu, const double *wk, int Nspace,
+							double **Gam)
+{
+	register int k;
+
+	int    ij = i * Nlevel + j, ji = j * Nlevel + i;
+	double Ieff, vw, chi, w, wlamu;
+
+	/* --- Radiative rates of transition i -> j (i lower) with the
+		   preconditioning of Rybicki & Hummer (1992, A&A 262, 209),
+		   for angle weight wmu, times wk[k] if wk is not NULL,
+		   restricted to the two levels of the transition (their sect.
+		   2.4, extended to overlapping transitions).
+
+		   U_a is the emission coefficient summed over the active
+		   transitions with upper level a (Uji_down), n_i, n_j the
+		   populations of the current (old) iteration, chi the old
+		   opacity of this transition. Writing
+
+			 I = Ieff + Psi (n_j U_j + n_i U_i),
+			 Ieff = I - Psi (n_j U_j + n_i U_i)   (old populations),
+
+		   and keeping the populations in the bracket as unknowns adds
+		   to the net rate from i to j the term chi Psi (n_j U_j + n_i U_i):
+		   -chi Psi U_j to Gamma[i][j] (j -> i) and +chi Psi U_i to
+		   Gamma[j][i] (i -> j). Emission from other levels stays in Ieff.
+
+		   At convergence Ieff + Psi (n_j U_j + n_i U_i) = I exactly, so
+		   the populations solve statistical equilibrium. Before (B-6)
+		   Ieff subtracted the emission of all active transitions while
+		   Gamma represented only part of it, which moved the converged
+		   populations, by up to 30 % in Mg II. Coupling every pair of
+		   levels instead (full preconditioning, their eq. 2.19) is also
+		   exact but puts negative rates between levels that no transition
+		   connects, and diverges for multi-ion atoms. --  -------------- */
+
+	for (k = 0; k < Nspace; k++) {
+		Ieff  = I[k] - Psi[k] * (n_j[k] * U_j[k] + n_i[k] * U_i[k]);
+		vw    = Vij[k] * wla[k];
+		chi   = vw * (n_i[k] - gij[k] * n_j[k]);
+		w     = (wk != NULL) ? wmu * wk[k] : wmu;
+		wlamu = vw * w;
+
+		Gam[ji][k] += Ieff * wlamu + chi * Psi[k] * U_i[k] * w;
+		Gam[ij][k] += (twohnu3_c2 + Ieff) * gij[k] * wlamu -
+					  chi * Psi[k] * U_j[k] * w;
+	}
+}
+/* ------- end ---------------------------- addPreconditionedRates.c */
+
 /* ------- begin -------------------------- addtoGamma.c ------------ */
 
 void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 {
 	const char   routineName[] = "addtoGamma";
-	register int nact, n, k, m;
+	register int nact, n, k;
 
-	int    i, j, ij, ji, jp = 0, nt;
-	double twohnu3_c2, twohc, wlamu, *Ieff = NULL, **Gam;
+	int    i, j, ij, ji, nt;
+	double twohnu3_c2, twohc, wlamu, **Gam;
 
 	Atom            *atom;
 	AtomicLine      *line;
@@ -195,9 +252,6 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 	as = &spectrum.as[nspect];
 	nt = nspect % input.Nthreads;
 
-	if (containsActive(as)) {
-		Ieff = (double *) malloc(atmos.Nspace * sizeof(double));
-	}
 	/* --- Contributions from the active transitions in atoms -- ------ */
 
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
@@ -209,12 +263,6 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 			   shared one after the sweep. --              -------------- */
 
 		Gam = (input.Nthreads > 1) ? atom->rhth[nt].Gamma : atom->Gamma;
-
-		if (as->Nactiveatomrt[nact] > 0) {
-			for (k = 0; k < atmos.Nspace; k++) {
-				Ieff[k] = I[k] - Psi[k] * atom->rhth[nt].eta[k];
-			}
-		}
 
 		for (n = 0; n < as->Nactiveatomrt[nact]; n++) {
 			switch (as->art[nact][n].type) {
@@ -243,43 +291,15 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 				   touches and which is merged into atom->Gamma once the
 				   sweep is done (see iterate.c). --         -------------- */
 
-			ij = i * atom->Nlevel + j;
-			ji = j * atom->Nlevel + i;
+			/* --- Rates with the cross-coupling terms, currently only
+				   for Stokes_I --                            -------------- */
 
-			for (k = 0; k < atmos.Nspace; k++) {
-				wlamu = atom->rhth[nt].Vij[n][k] * atom->rhth[nt].wla[n][k] * wmu;
-
-				Gam[ji][k] += Ieff[k] * wlamu;
-				Gam[ij][k] += (twohnu3_c2 + Ieff[k]) *
-							  atom->rhth[nt].gij[n][k] * wlamu;
-			}
-			/* --- Cross-coupling terms, currently only for Stokes_I -- --- */
-
-			for (k = 0; k < atmos.Nspace; k++) {
-				Gam[ij][k] -= atom->rhth[nt].chi_up[i][k] *
-							  Psi[k] * atom->rhth[nt].Uji_down[j][k] * wmu;
-			}
-			/* --- If rt->i is also an upper level of another transition that
-				   is active at this wavelength then Gamma[ji] needs to be
-				   updated as well --                        -------------- */
-
-			for (m = 0; m < as->Nactiveatomrt[nact]; m++) {
-				switch (as->art[nact][m].type) {
-				case ATOMIC_LINE:
-					jp = as->art[nact][m].ptype.line->j;
-					break;
-				case ATOMIC_CONTINUUM:
-					jp = as->art[nact][m].ptype.continuum->j;
-					break;
-				default:;
-				}
-				if (jp == i) {
-					for (k = 0; k < atmos.Nspace; k++) {
-						Gam[ji][k] += atom->rhth[nt].chi_down[j][k] *
-									  Psi[k] * atom->rhth[nt].Uji_down[i][k] * wmu;
-					}
-				}
-			}
+			addPreconditionedRates(atom->Nlevel, i, j, twohnu3_c2,
+								   atom->rhth[nt].Vij[n], atom->rhth[nt].wla[n],
+								   atom->rhth[nt].gij[n], atom->n[i], atom->n[j],
+								   atom->rhth[nt].Uji_down[i],
+								   atom->rhth[nt].Uji_down[j], I, Psi, wmu, NULL,
+								   atmos.Nspace, Gam);
 		}
 	}
 	/* --- Add the active molecular contributions --     -------------- */
@@ -320,8 +340,6 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 			}
 		}
 	}
-
-	if (containsActive(as)) free(Ieff);
 }
 /* ------- end ---------------------------- addtoGamma.c ------------ */
 
@@ -333,7 +351,7 @@ void addtoCoupling(int nspect)
 	register int nact, n, k;
 
 	int              i, j, nt;
-	double           twohnu3_c2, chicc, twohc, *n_i, *n_j;
+	double           twohnu3_c2, twohc;
 	Atom            *atom;
 	AtomicLine      *line;
 	AtomicContinuum *continuum;
@@ -344,7 +362,10 @@ void addtoCoupling(int nspect)
 	as = &spectrum.as[nspect];
 	nt = nspect % input.Nthreads;
 
-	/* --- Zero the cross coupling matrices --           -------------- */
+	/* --- Emission coefficient Uji_down[a] summed over the active
+		   transitions with upper level a, for the preconditioning in
+		   addPreconditionedRates. It is zero for levels that are only
+		   lower levels at this wavelength --             -------------- */
 
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
 		atom = atmos.activeatoms[nact];
@@ -352,19 +373,14 @@ void addtoCoupling(int nspect)
 		for (n = 0; n < as->Nlower[nact]; n++) {
 			i = as->lower_levels[nact][n];
 			for (k = 0; k < atmos.Nspace; k++)
-				atom->rhth[nt].chi_up[i][k] = 0.0;
+				atom->rhth[nt].Uji_down[i][k] = 0.0;
 		}
 		for (n = 0; n < as->Nupper[nact]; n++) {
 			j = as->upper_levels[nact][n];
-			for (k = 0; k < atmos.Nspace; k++) {
-				atom->rhth[nt].chi_down[j][k] = 0.0;
+			for (k = 0; k < atmos.Nspace; k++)
 				atom->rhth[nt].Uji_down[j][k] = 0.0;
-			}
 		}
 	}
-	/* --- Gather terms for cross-coupling between overlapping
-	   transitions --                                -------------- */
-
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
 		atom = atmos.activeatoms[nact];
 
@@ -372,19 +388,13 @@ void addtoCoupling(int nspect)
 			switch (as->art[nact][n].type) {
 			case ATOMIC_LINE:
 				line       = as->art[nact][n].ptype.line;
-				i          = line->i;
 				j          = line->j;
-				n_i        = atom->n[i];
-				n_j        = atom->n[j];
 				twohnu3_c2 = line->Aji / line->Bji;
 				break;
 
 			case ATOMIC_CONTINUUM:
 				continuum  = as->art[nact][n].ptype.continuum;
-				i          = continuum->i;
 				j          = continuum->j;
-				n_i        = atom->n[i];
-				n_j        = atom->n[j];
 				twohnu3_c2 = twohc / CUBE(spectrum.lambda[nspect]);
 				break;
 
@@ -393,15 +403,8 @@ void addtoCoupling(int nspect)
 				Error(ERROR_LEVEL_1, routineName, messageStr);
 				twohnu3_c2 = 0.0;
 			}
-			/* --- Evaluate the cross-coupling coefficients -- ------------ */
-
 			if (twohnu3_c2) {
 				for (k = 0; k < atmos.Nspace; k++) {
-					chicc = atom->rhth[nt].Vij[n][k] * atom->rhth[nt].wla[n][k] *
-							(n_i[k] - atom->rhth[nt].gij[n][k] * n_j[k]);
-					atom->rhth[nt].chi_up[i][k] += chicc;
-					atom->rhth[nt].chi_down[j][k] += chicc;
-
 					atom->rhth[nt].Uji_down[j][k] +=
 						twohnu3_c2 * atom->rhth[nt].gij[n][k] * atom->rhth[nt].Vij[n][k];
 				}

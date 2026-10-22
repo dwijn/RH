@@ -59,6 +59,13 @@ void initScatter(void);
 
 void StokesK(int nspect, int k, double chi_I, double K[4][4]);
 void addtoCoupling(int nspect);
+void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
+							const double *Vij, const double *wla,
+							const double *gij, const double *n_i,
+							const double *n_j, const double *U_i,
+							const double *U_j, const double *I,
+							const double *Psi, double wmu, const double *wk, int Nspace,
+							double **Gam);
 
 /* --- What type of lines are present in active set as? -- ---------- */
 

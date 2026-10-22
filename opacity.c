@@ -596,19 +596,11 @@ void alloc_as(int nspect, bool_t crosscoupling)
 				   once per thread, sized for every level of the atom so it
 				   never needs to grow or be freed again --     -------------- */
 
-			if (crosscoupling && atom->rhth[nt].chi_up == NULL) {
-				atom->rhth[nt].chi_down =
-					(double **) calloc(atom->Nlevel, sizeof(double *));
-				atom->rhth[nt].chi_up =
-					(double **) calloc(atom->Nlevel, sizeof(double *));
+			if (crosscoupling && atom->rhth[nt].Uji_down == NULL) {
 				atom->rhth[nt].Uji_down =
 					(double **) calloc(atom->Nlevel, sizeof(double *));
 
 				for (i = 0; i < atom->Nlevel; i++) {
-					atom->rhth[nt].chi_up[i] =
-						(double *) malloc(atmos.Nspace * sizeof(double));
-					atom->rhth[nt].chi_down[i] =
-						(double *) malloc(atmos.Nspace * sizeof(double));
 					atom->rhth[nt].Uji_down[i] =
 						(double *) malloc(atmos.Nspace * sizeof(double));
 				}

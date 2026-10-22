@@ -277,10 +277,10 @@ void addtoRates_sphere(int nspect, Ray *ray, double *P,
 void addtoGamma_sphere(int nspect, Ray *ray, double *P, double *Psi)
 {
 	const char   routineName[] = "addtoGamma_sphere";
-	register int n, k, m, nact;
+	register int n, k, nact;
 
-	int    i, j, ij, ji, jp = 0, nt;
-	double twohnu3_c2, twohc, wmula, *Ieff = NULL;
+	int    i, j, ij, ji, nt;
+	double twohnu3_c2, twohc, wmula;
 
 	Atom            *atom;
 	Molecule        *molecule;
@@ -294,16 +294,8 @@ void addtoGamma_sphere(int nspect, Ray *ray, double *P, double *Psi)
 	as = &spectrum.as[nspect];
 	nt = nspect % input.Nthreads;
 
-	if (containsActive(as))
-		Ieff = (double *) malloc(atmos.Nspace * sizeof(double));
-
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
 		atom = atmos.activeatoms[nact];
-
-		if (as->Nactiveatomrt[nact] > 0) {
-			for (k = 0; k < atmos.Nspace; k++)
-				Ieff[k] = P[k] - Psi[k] * atom->rhth[nt].eta[k];
-		}
 
 		for (n = 0; n < as->Nactiveatomrt[nact]; n++) {
 			switch (as->art[nact][n].type) {
@@ -326,48 +318,18 @@ void addtoGamma_sphere(int nspect, Ray *ray, double *P, double *Psi)
 				Error(ERROR_LEVEL_1, routineName, messageStr);
 				twohnu3_c2 = 0.0;
 			}
-			/* --- In case of atomic transitions --            -------------- */
+			/* --- In case of atomic transitions, with the cross-coupling
+				   terms (see addPreconditionedRates) --      -------------- */
 
 			if (input.Nthreads > 1) pthread_mutex_lock(&atom->Gamma_lock);
 
-			ij = i * atom->Nlevel + j;
-			ji = j * atom->Nlevel + i;
+			addPreconditionedRates(atom->Nlevel, i, j, twohnu3_c2,
+								   atom->rhth[nt].Vij[n], atom->rhth[nt].wla[n],
+								   atom->rhth[nt].gij[n], atom->n[i], atom->n[j],
+								   atom->rhth[nt].Uji_down[i],
+								   atom->rhth[nt].Uji_down[j], P, Psi, 1.0,
+								   ray->wmu, ray->Ns, atom->Gamma);
 
-			for (k = 0; k < ray->Ns; k++) {
-				wmula = atom->rhth[nt].Vij[n][k] *
-						atom->rhth[nt].wla[n][k] * ray->wmu[k];
-
-				atom->Gamma[ji][k] += Ieff[k] * wmula;
-				atom->Gamma[ij][k] +=
-					(twohnu3_c2 + Ieff[k]) * atom->rhth[nt].gij[n][k] * wmula;
-			}
-			/* --- Cross-coupling terms --                   -------------- */
-
-			for (k = 0; k < ray->Ns; k++) {
-				atom->Gamma[ij][k] -= atom->rhth[nt].chi_up[i][k] *
-									  Psi[k] * atom->rhth[nt].Uji_down[j][k] * ray->wmu[k];
-			}
-			/* --- If rt->i is also an upper level of another transition that
-				   is active at this wavelength then Gamma[ij] needs to be
-				   updated as well --                        -------------- */
-
-			for (m = 0; m < as->Nactiveatomrt[nact]; m++) {
-				switch (as->art[nact][m].type) {
-				case ATOMIC_LINE:
-					jp = as->art[nact][m].ptype.line->j;
-					break;
-				case ATOMIC_CONTINUUM:
-					jp = as->art[nact][m].ptype.continuum->j;
-					break;
-				default:;
-				}
-				if (jp == i) {
-					for (k = 0; k < ray->Ns; k++) {
-						atom->Gamma[ji][k] += atom->rhth[nt].chi_down[j][k] *
-											  Psi[k] * atom->rhth[nt].Uji_down[i][k] * ray->wmu[k];
-					}
-				}
-			}
 			if (input.Nthreads > 1) pthread_mutex_unlock(&atom->Gamma_lock);
 		}
 	}
@@ -409,8 +371,6 @@ void addtoGamma_sphere(int nspect, Ray *ray, double *P, double *Psi)
 			if (input.Nthreads > 1) pthread_mutex_unlock(&molecule->Gamma_lock);
 		}
 	}
-
-	if (containsActive(as)) free(Ieff);
 }
 /* ------- end ---------------------------- addtoGamma_sphere.c ----- */
 
