@@ -299,6 +299,58 @@ static void test_spline_reference(void)
 	}
 }
 
+/* --- The reentrant spline (SplineTable) is bit-identical to the
+	   splineCoef/splineEval pair, for ascending and descending tables,
+	   with Hunt and Locate, with points outside the table, and when
+	   evaluated one point at a time -- ------------------------------- */
+
+static void test_spline_table(void)
+{
+	enum { N = 17,
+		   M = 61 };
+	double x[N], y[N], xd[N], yd[N], xe[M], ye[M], yt[M];
+	int    nbad = 0;
+
+	for (int k = 0; k < N; k++) {
+		x[k]          = 3.0 + 0.37 * k + 0.05 * k * k;
+		y[k]          = sin(0.7 * x[k]) + 0.1 * x[k];
+		xd[N - 1 - k] = x[k];
+		yd[N - 1 - k] = y[k];
+	}
+	for (int k = 0; k < M; k++) xe[k] = x[0] - 1.0 + (x[N - 1] - x[0] + 2.0) * k / (M - 1.0);
+	xe[5] = x[3];
+	xe[6] = x[0];
+	xe[7] = x[N - 1];
+
+	for (int desc = 0; desc < 2; desc++) {
+		for (int hunt = 0; hunt < 2; hunt++) {
+			double     *xt = desc ? xd : x, *yt_ = desc ? yd : y;
+			SplineTable st;
+
+			splineCoef(N, xt, yt_);
+			splineEval(M, xe, ye, hunt);
+
+			splineTableInit(&st, N, xt, yt_);
+			splineTableEval(&st, M, xe, yt, hunt);
+			nbad += (memcmp(ye, yt, sizeof(ye)) != 0);
+
+			/* --- one point at a time, as Metal_bf uses it -- --------- */
+
+			for (int k = 0; k < M; k++) {
+				double y1, y2;
+
+				splineCoef(N, xt, yt_);
+				splineEval(1, &xe[k], &y1, FALSE);
+				splineTableEval(&st, 1, &xe[k], &y2, FALSE);
+				nbad += (memcmp(&y1, &y2, sizeof(double)) != 0);
+			}
+			splineTableFree(&st);
+			CHECK(st.M == NULL, "desc %d, hunt %d: table freed", desc, hunt);
+		}
+	}
+	CHECK(nbad == 0, "reentrant spline differs from splineCoef/splineEval in %d cases", nbad);
+}
+
 /* --- Order of convergence of the natural spline -- ---------------- */
 
 static double spline_error(int n, double (*f)(double), double x0, double x1, bool_t one_point)
@@ -524,6 +576,7 @@ int main(int argc, char *argv[])
 	test_linear();
 	test_spline_linear_data();
 	test_spline_reference();
+	test_spline_table();
 	test_spline_order();
 	test_spline_limits();
 	test_cc_kernel();

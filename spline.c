@@ -95,3 +95,92 @@ void splineEval(int N, double *x, double *y, bool_t hunt)
 	}
 }
 /* ------- end ---------------------------- splineEval.c ------------ */
+
+/* ------- begin -------------------------- splineTable.c ----------- */
+
+/* --- Reentrant cubic spline. The coefficients live in a SplineTable
+	   that is owned by the caller, and the evaluation keeps no state,
+	   so a table can be used by several threads at once. The algorithm
+	   and the order of the operations are those of splineCoef and
+	   splineEval above, so the results are bit-identical. The table
+	   (x, y) is not copied and has to stay alive and unchanged as long
+	   as the SplineTable is used. --                 -------------- */
+
+void splineTableInit(SplineTable *st, int N, double *x, double *y)
+{
+	register int j;
+
+	double p, *q, *u, *M, hj, hj1, D, D1, mu;
+
+	st->ascend = (x[1] > x[0]) ? TRUE : FALSE;
+	st->xmin   = (st->ascend) ? x[0] : x[N - 1];
+	st->xmax   = (st->ascend) ? x[N - 1] : x[0];
+
+	q = M = (double *) malloc(N * sizeof(double));
+	u     = (double *) malloc(N * sizeof(double));
+	hj    = x[1] - x[0];
+	D     = (y[1] - y[0]) / hj;
+
+	q[0] = u[0] = 0.0;
+	for (j = 1; j < N - 1; j++) {
+		hj1 = x[j + 1] - x[j];
+		mu  = hj / (hj + hj1);
+		D1  = (y[j + 1] - y[j]) / hj1;
+
+		p    = mu * q[j - 1] + 2;
+		q[j] = (mu - 1) / p;
+		u[j] = ((D1 - D) * 6 / (hj + hj1) - mu * u[j - 1]) / p;
+
+		hj = hj1;
+		D  = D1;
+	}
+
+	M[N - 1] = 0.0;
+	for (j = N - 2; j >= 0; j--) {
+		M[j] = q[j] * M[j + 1] + u[j];
+	}
+	free(u);
+
+	st->N = N;
+	st->x = x;
+	st->y = y;
+	st->M = M;
+}
+
+void splineTableFree(SplineTable *st)
+{
+	free(st->M);
+	st->M = NULL;
+	st->x = st->y = NULL;
+	st->N         = 0;
+}
+
+void splineTableEval(const SplineTable *st, int N, double *x, double *y, bool_t hunt)
+{
+	register int n;
+
+	int           j = 0, Ntable = st->N;
+	double        hj, fx, fx1;
+	const double *xtable = st->x, *ytable = st->y, *M = st->M;
+
+	for (n = 0; n < N; n++) {
+		if (x[n] <= st->xmin)
+			y[n] = (st->ascend) ? ytable[0] : ytable[Ntable - 1];
+		else if (x[n] >= st->xmax)
+			y[n] = (st->ascend) ? ytable[Ntable - 1] : ytable[0];
+		else {
+			if (hunt)
+				Hunt(Ntable, (double *) xtable, x[n], &j);
+			else
+				Locate(Ntable, (double *) xtable, x[n], &j);
+
+			hj  = xtable[j + 1] - xtable[j];
+			fx  = (x[n] - xtable[j]) / hj;
+			fx1 = 1 - fx;
+
+			y[n] = fx1 * ytable[j] + fx * ytable[j + 1] +
+				   (fx1 * (SQ(fx1) - 1) * M[j] + fx * (SQ(fx) - 1) * M[j + 1]) * SQ(hj) / 6.0;
+		}
+	}
+}
+/* ------- end ---------------------------- splineTable.c ----------- */

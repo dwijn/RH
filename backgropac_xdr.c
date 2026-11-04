@@ -110,6 +110,8 @@ void backgrOpac(int Nlambda, double *lambda)
 
 	He = (atmos.elements[1].model) ? atmos.elements[1].model : NULL;
 
+	backgroundPrepare();
+
 	/* --- Go through wavelengths one-by-one --          -------------- */
 
 	for (nspect = 0; nspect < Nlambda; nspect++) {
@@ -251,11 +253,9 @@ void backgrOpac(int Nlambda, double *lambda)
 		freeMolecule(atmos.molecules + n);
 	if (atmos.Nmolecule > 0) free(atmos.molecules);
 
-	/* --- Free the temporary space allocated in the ff routines -- --- */
+	/* --- Free the temporary space set up by backgroundPrepare -- --- */
 
-	Hminus_ff(0.0, NULL);
-	H2minus_ff(0.0, NULL);
-	H2plus_ff(0.0, NULL);
+	backgroundCleanup();
 
 	free(chi);
 	free(eta);

@@ -280,25 +280,32 @@ double Gaunt_ff(double lambda, int charge, double T)
 
 #define NBF 34
 
+/* --- H-minus Bound-Free coefficients (in units of 1.0E-21 m^2).
+
+ From: S. Geltman (1962), ApJ 136, 935-945
+ Also: Mihalas (1978), p. 102
+
+ Note: The spline coefficients of this constant table are set up once
+	   in hydrogenPrepare, so that Hminus_bf can be called from several
+	   threads. --                                   -------------- */
+
+static double lambdaBF[NBF] = {
+	0.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 450.0,
+	500.0, 550.0, 600.0, 650.0, 700.0, 750.0, 800.0, 850.0, 900.0, 950.0,
+	1000.0, 1050.0, 1100.0, 1150.0, 1200.0, 1250.0, 1300.0, 1350.0,
+	1400.0, 1450.0, 1500.0, 1550.0, 1600.0, 1641.9};
+
+static double alphaBF[NBF] = {
+	0.0, 0.15, 0.33, 0.57, 0.85, 1.17, 1.52, 1.89, 2.23, 2.55, 2.84,
+	3.11, 3.35, 3.56, 3.71, 3.83, 3.92, 3.95, 3.93, 3.85, 3.73, 3.58,
+	3.38, 3.14, 2.85, 2.54, 2.20, 1.83, 1.46, 1.06, 0.71, 0.40, 0.17, 0.0};
+
+static SplineTable Hmbf_spline = {FALSE, 0, 0.0, 0.0, NULL, NULL, NULL};
+
 bool_t Hminus_bf(double lambda, double *chi, double *eta)
 {
+	const char   routineName[] = "Hminus_bf";
 	register int k;
-
-	/* --- H-minus Bound-Free coefficients (in units of 1.0E-21 m^2).
-
-	 From: S. Geltman (1962), ApJ 136, 935-945
-	 Also: Mihalas (1978), p. 102 --                     -------------- */
-
-	static double lambdaBF[NBF] = {
-		0.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 450.0,
-		500.0, 550.0, 600.0, 650.0, 700.0, 750.0, 800.0, 850.0, 900.0, 950.0,
-		1000.0, 1050.0, 1100.0, 1150.0, 1200.0, 1250.0, 1300.0, 1350.0,
-		1400.0, 1450.0, 1500.0, 1550.0, 1600.0, 1641.9};
-
-	static double alphaBF[NBF] = {
-		0.0, 0.15, 0.33, 0.57, 0.85, 1.17, 1.52, 1.89, 2.23, 2.55, 2.84,
-		3.11, 3.35, 3.56, 3.71, 3.83, 3.92, 3.95, 3.93, 3.85, 3.73, 3.58,
-		3.38, 3.14, 2.85, 2.54, 2.20, 1.83, 1.46, 1.06, 0.71, 0.40, 0.17, 0.0};
 
 	bool_t hunt;
 	int    Nspace = atmos.Nspace;
@@ -307,8 +314,12 @@ bool_t Hminus_bf(double lambda, double *chi, double *eta)
 	if ((lambda <= lambdaBF[0]) || (lambda >= lambdaBF[NBF - 1]))
 		return FALSE;
 
-	splineCoef(NBF, lambdaBF, alphaBF);
-	splineEval(1, &lambda, &alpha_bf, hunt = FALSE);
+	if (Hmbf_spline.M == NULL) {
+		sprintf(messageStr, "Spline coefficients not set up "
+							"(call hydrogenPrepare first)");
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+	splineTableEval(&Hmbf_spline, 1, &lambda, &alpha_bf, hunt = FALSE);
 	alpha_bf *= 1.0E-21;
 
 	hc_kla     = (HPLANCK * CLIGHT) / (KBOLTZMANN * NM_TO_M * lambda);
@@ -329,13 +340,39 @@ bool_t Hminus_bf(double lambda, double *chi, double *eta)
 #define NFF    17
 #define NTHETA 16
 
-bool_t Hminus_ff(double lambda, double *chi)
+static double *Hmff_theta_index = NULL;
+
+static double thetaFF_Hm[NTHETA] = {
+	0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2,
+	1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0};
+
+static void Hminus_ff_prepare(void)
 {
 	register int k;
 
-	static bool_t  initialize = TRUE;
-	static int     index;
-	static double *theta_index;
+	int    index = 0;
+	double theta;
+
+	Hmff_theta_index = (double *) malloc(atmos.Nspace * sizeof(double));
+	for (k = 0; k < atmos.Nspace; k++) {
+		theta = THETA0 / atmos.T[k];
+		if (theta <= thetaFF_Hm[0])
+			Hmff_theta_index[k] = 0;
+		else if (theta >= thetaFF_Hm[NTHETA - 1])
+			Hmff_theta_index[k] = NTHETA - 1;
+		else {
+			Hunt(NTHETA, thetaFF_Hm, theta, &index);
+			Hmff_theta_index[k] = (double) index +
+								  (theta - thetaFF_Hm[index]) /
+									  (thetaFF_Hm[index + 1] - thetaFF_Hm[index]);
+		}
+	}
+}
+
+bool_t Hminus_ff(double lambda, double *chi)
+{
+	const char   routineName[] = "Hminus_ff";
+	register int k;
 
 	/* --- H-minus Free-Free coefficients (in units of 1.0E-29 m^5/J)
 
@@ -344,11 +381,10 @@ bool_t Hminus_ff(double lambda, double *chi)
 		   R. Mathisen (1984), Master's thesis, Inst. Theor.
 			Astroph., University of Oslo. p. 17
 
-		   When called the first time (or when initialize==TRUE) the
-		   fractional indices for atmospheric temperatures into the
-		   theta table are stored in theta_index. This memory can be
-		   freed by calling the routine with lambda==0.0
-		   --                                            -------------- */
+		   The fractional indices for atmospheric temperatures into
+		   the theta table are stored in Hmff_theta_index by
+		   hydrogenPrepare, so that this routine only reads them and
+		   can be called from several threads. --      -------------- */
 
 	static double lambdaFF[NFF] = {
 		0.0, 303.8, 455.6, 506.3, 569.5, 650.9, 759.4, 911.3, 1013.0, 1139.0,
@@ -356,9 +392,6 @@ bool_t Hminus_ff(double lambda, double *chi)
 
 	/* --- theta = 5040.0/T --                           -------------- */
 
-	static double thetaFF[NTHETA] = {
-		0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2,
-		1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0};
 
 	static double kappaFF[NFF * NTHETA] = {
 		/* --- lambda =    0.0 [nm] --                     -------------- */
@@ -430,42 +463,18 @@ bool_t Hminus_ff(double lambda, double *chi)
 		5.62e+01, 6.04e+01, 6.45e+01, 6.84e+01, 7.23e+01, 7.60e+01,
 		7.97e+01, 8.32e+01, 8.67e+01, 9.01e+01};
 
-	int    Nspace = atmos.Nspace;
-	double theta, pe, lambda_index, kappa;
+	int    Nspace = atmos.Nspace, index = 0;
+	double pe, lambda_index, kappa;
 
-	if (lambda == 0.0) {
-
-		/* --- When called with zero wavelength free memory for fractional
-			   indices --                                  -------------- */
-
-		if (theta_index) free(theta_index);
-		initialize = TRUE;
-		return FALSE;
-	}
 	/* --- Use long-wavelength expansion if wavelength beyond 9113 nm - */
 
 	if (lambda >= lambdaFF[NFF - 1])
 		return Hminus_ff_long(lambda, chi);
 
-	if (initialize) {
-
-		/* --- Store the fractional indices of temperature only the
-			   first time around --                        -------------- */
-
-		theta_index = (double *) malloc(Nspace * sizeof(double));
-		for (k = 0; k < Nspace; k++) {
-			theta = THETA0 / atmos.T[k];
-			if (theta <= thetaFF[0])
-				theta_index[k] = 0;
-			else if (theta >= thetaFF[NTHETA - 1])
-				theta_index[k] = NTHETA - 1;
-			else {
-				Hunt(NTHETA, thetaFF, theta, &index);
-				theta_index[k] = (double) index +
-								 (theta - thetaFF[index]) / (thetaFF[index + 1] - thetaFF[index]);
-			}
-		}
-		initialize = FALSE;
+	if (Hmff_theta_index == NULL) {
+		sprintf(messageStr, "Index table not set up "
+							"(call hydrogenPrepare first)");
+		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
 	Hunt(NFF, lambdaFF, lambda, &index);
@@ -475,7 +484,7 @@ bool_t Hminus_ff(double lambda, double *chi)
 	for (k = 0; k < Nspace; k++) {
 		pe     = atmos.ne[k] * KBOLTZMANN * atmos.T[k];
 		kappa  = bilinear(NTHETA, NFF, kappaFF,
-						  theta_index[k], lambda_index);
+						  Hmff_theta_index[k], lambda_index);
 		chi[k] = (atmos.H->n[0][k] * 1.0E-29) * pe * kappa;
 	}
 	return TRUE;
@@ -539,14 +548,37 @@ bool_t Hminus_ff_long(double lambda, double *chi)
 #define NFF_H2    19
 #define NTHETA_H2 8
 
-bool_t H2minus_ff(double lambda, double *chi)
-{
+static double *H2mff_theta_index = NULL;
 
+static double thetaFF_H2m[NTHETA_H2] = {
+	0.5, 0.8, 1.0, 1.2, 1.6, 2.0, 2.8, 3.6};
+
+static void H2minus_ff_prepare(void)
+{
 	register int k;
 
-	static bool_t  initialize = TRUE;
-	static int     index;
-	static double *theta_index;
+	int    index = 0;
+	double theta;
+
+	H2mff_theta_index = (double *) malloc(atmos.Nspace * sizeof(double));
+	for (k = 0; k < atmos.Nspace; k++) {
+		theta = THETA0 / atmos.T[k];
+		if (theta <= thetaFF_H2m[0])
+			H2mff_theta_index[k] = 0;
+		else if (theta >= thetaFF_H2m[NTHETA_H2 - 1])
+			H2mff_theta_index[k] = NTHETA_H2 - 1;
+		else {
+			Hunt(NTHETA_H2, thetaFF_H2m, theta, &index);
+			H2mff_theta_index[k] = index + (theta - thetaFF_H2m[index]) /
+											   (thetaFF_H2m[index + 1] - thetaFF_H2m[index]);
+		}
+	}
+}
+
+bool_t H2minus_ff(double lambda, double *chi)
+{
+	const char   routineName[] = "H2minus_ff";
+	register int k;
 
 	/* --- H2-minus Free-Free absorption coefficients (in units of
 		   10E-29 m^5/J). Stimulated emission is included.
@@ -555,19 +587,16 @@ bool_t H2minus_ff(double lambda, double *chi)
 	 Also: R. Mathisen (1984), Master's thesis, Inst. Theor.
 			Astroph., University of Oslo, p. 18
 
-		   When called the first time (or when initialize==TRUE) the
-		   fractional indices for atmospheric temperatures into the
-		   theta table are stored in theta_index. This memory can be
-		   freed by calling the routine with lambda==0.0
-		   --                                            -------------- */
+		   The fractional indices for atmospheric temperatures into
+		   the theta table are stored in H2mff_theta_index by
+		   hydrogenPrepare, so that this routine only reads them and
+		   can be called from several threads. --      -------------- */
 
 	static double lambdaFF[NFF_H2] = {
 		0.0, 350.5, 414.2, 506.3, 569.6, 650.9, 759.4, 911.3,
 		1139.1, 1518.8, 1822.6, 2278.3, 3037.7, 3645.2, 4556.5, 6075.3,
 		9113.0, 11391.3, 15188.3};
 
-	static double thetaFF[NTHETA_H2] = {
-		0.5, 0.8, 1.0, 1.2, 1.6, 2.0, 2.8, 3.6};
 
 	static double kappaFF[NFF_H2 * NTHETA_H2] = {
 		/* --- lambda =     0.0 [nm] --                    -------------- */
@@ -628,36 +657,16 @@ bool_t H2minus_ff(double lambda, double *chi)
 		7.16e+01, 9.23e+01, 1.01e+02, 1.08e+02, 1.18e+02,
 		1.26e+02, 1.38e+02, 1.47e+02};
 
-	int    Nspace = atmos.Nspace;
-	double theta, pe, lambda_index, kappa, *nH2;
+	int    Nspace = atmos.Nspace, index = 0;
+	double pe, lambda_index, kappa, *nH2;
 
-	if (lambda == 0.0) {
-
-		/* --- When called with zero wavelength free memory for fractional
-			   indices --                                  -------------- */
-
-		if (theta_index) free(theta_index);
-		initialize = TRUE;
-		return FALSE;
-	}
 	if (lambda >= lambdaFF[NFF_H2 - 1])
 		return FALSE;
 
-	if (initialize) {
-		theta_index = (double *) malloc(Nspace * sizeof(double));
-		for (k = 0; k < Nspace; k++) {
-			theta = THETA0 / atmos.T[k];
-			if (theta <= thetaFF[0])
-				theta_index[k] = 0;
-			else if (theta >= thetaFF[NTHETA_H2 - 1])
-				theta_index[k] = NTHETA_H2 - 1;
-			else {
-				Hunt(NTHETA_H2, thetaFF, theta, &index);
-				theta_index[k] = index + (theta - thetaFF[index]) /
-											 (thetaFF[index + 1] - thetaFF[index]);
-			}
-		}
-		initialize = FALSE;
+	if (H2mff_theta_index == NULL) {
+		sprintf(messageStr, "Index table not set up "
+							"(call hydrogenPrepare first)");
+		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
 	Hunt(NFF_H2, lambdaFF, lambda, &index);
@@ -669,7 +678,7 @@ bool_t H2minus_ff(double lambda, double *chi)
 		if (nH2[k] > 0.0) {
 			pe     = atmos.ne[k] * KBOLTZMANN * atmos.T[k];
 			kappa  = bilinear(NTHETA_H2, NFF_H2, kappaFF,
-							  theta_index[k], lambda_index);
+							  H2mff_theta_index[k], lambda_index);
 			chi[k] = (nH2[k] * 1.0E-29) * pe * kappa;
 		} else
 			chi[k] = 0.0;
@@ -683,13 +692,38 @@ bool_t H2minus_ff(double lambda, double *chi)
 #define NFF_H2P   15
 #define NTEMP_H2P 10
 
-bool_t H2plus_ff(double lambda, double *chi)
+static double *H2pff_temp_index = NULL;
+
+static double tempFF_H2p[NTEMP_H2P] = {
+	2.5E+03, 3.0E+03, 3.5E+03, 4.0E+03, 5.0E+03,
+	6.0E+03, 7.0E+03, 8.0E+03, 1.0E+04, 1.2E+04};
+
+static void H2plus_ff_prepare(void)
 {
 	register int k;
 
-	static bool_t  initialize = TRUE;
-	static int     index;
-	static double *temp_index;
+	int    index = 0;
+	double T;
+
+	H2pff_temp_index = (double *) malloc(atmos.Nspace * sizeof(double));
+	for (k = 0; k < atmos.Nspace; k++) {
+		T = atmos.T[k];
+		if (T <= tempFF_H2p[0])
+			H2pff_temp_index[k] = 0;
+		else if (T >= tempFF_H2p[NTEMP_H2P - 1])
+			H2pff_temp_index[k] = NTEMP_H2P - 1;
+		else {
+			Hunt(NTEMP_H2P, tempFF_H2p, T, &index);
+			H2pff_temp_index[k] = index + (T - tempFF_H2p[index]) /
+											  (tempFF_H2p[index + 1] - tempFF_H2p[index]);
+		}
+	}
+}
+
+bool_t H2plus_ff(double lambda, double *chi)
+{
+	const char   routineName[] = "H2plus_ff";
+	register int k;
 
 	/* --- H2+ Free-Free scattering coefficients in units of
 		   1.0E-49 m^-1 / (H atom/m^3) / (proton/M^3). Stimulated emission
@@ -701,19 +735,15 @@ bool_t H2plus_ff(double lambda, double *chi)
 	 Also: R. Mathisen (1984), Master's thesis, Inst. Theor.
 			Astroph., University of Oslo, p. 45
 
-		   When called the first time (or when initialize==TRUE) the
-		   fractional indices for atmospheric temperatures into the
-		   temperature table are stored in temp_index. This memory can be
-		   freed by calling the routine with lambda==0.0
-		   --                                            -------------- */
+		   The fractional indices for atmospheric temperatures into
+		   the temperature table are stored in H2pff_temp_index by
+		   hydrogenPrepare, so that this routine only reads them and
+		   can be called from several threads. --      -------------- */
 
 	static double lambdaFF[NFF_H2P] = {
 		0.0, 384.6, 555.6, 833.3, 1111.1, 1428.6, 1666.7,
 		2000.0, 2500.0, 2857.1, 3333.3, 4000.0, 5000.0, 6666.7, 10000.0};
 
-	static double tempFF[NTEMP_H2P] = {
-		2.5E+03, 3.0E+03, 3.5E+03, 4.0E+03, 5.0E+03,
-		6.0E+03, 7.0E+03, 8.0E+03, 1.0E+04, 1.2E+04};
 
 	static double kappaFF[NFF_H2P * NTEMP_H2P] = {
 		/* --- lambda =      0.0 [nm] --                   -------------- */
@@ -747,36 +777,16 @@ bool_t H2plus_ff(double lambda, double *chi)
 		/* --- lambda =  10000.0 [nm] --                   -------------- */
 		1.39, 1.18, 1.02, 0.90, 0.73, 0.60, 0.52, 0.46, 0.37, 0.31};
 
-	int    Nspace = atmos.Nspace;
-	double T, lambda_index, kappa, *np;
+	int    Nspace = atmos.Nspace, index = 0;
+	double lambda_index, kappa, *np;
 
-	if (lambda == 0.0) {
-
-		/* --- When called with zero wavelength free memory for fractional
-			   indices --                                  -------------- */
-
-		if (temp_index) free(temp_index);
-		initialize = TRUE;
-		return FALSE;
-	}
 	if (lambda >= lambdaFF[NFF_H2P - 1])
 		return FALSE;
 
-	if (initialize) {
-		temp_index = (double *) malloc(Nspace * sizeof(double));
-		for (k = 0; k < Nspace; k++) {
-			T = atmos.T[k];
-			if (T <= tempFF[0])
-				temp_index[k] = 0;
-			else if (T >= tempFF[NTEMP_H2P - 1])
-				temp_index[k] = NTEMP_H2P - 1;
-			else {
-				Hunt(NTEMP_H2P, tempFF, T, &index);
-				temp_index[k] = index + (T - tempFF[index]) /
-											(tempFF[index + 1] - tempFF[index]);
-			}
-		}
-		initialize = FALSE;
+	if (H2pff_temp_index == NULL) {
+		sprintf(messageStr, "Index table not set up "
+							"(call hydrogenPrepare first)");
+		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
 	Hunt(NFF_H2P, lambdaFF, lambda, &index);
@@ -786,7 +796,7 @@ bool_t H2plus_ff(double lambda, double *chi)
 	np = atmos.H->n[atmos.H->Nlevel - 1];
 	for (k = 0; k < Nspace; k++) {
 		kappa  = bilinear(NTEMP_H2P, NFF_H2P, kappaFF,
-						  temp_index[k], lambda_index);
+						  H2pff_temp_index[k], lambda_index);
 		chi[k] = (atmos.H->n[0][k] * 1.0E-29) * (np[k] * 1.0E-20) * kappa;
 	}
 
@@ -878,3 +888,36 @@ double bilinear(int Ncol, int Nrow, double *f, double x, double y)
 		   fx * fy * f[j1 * Ncol + i1];
 }
 /* ------- end ---------------------------- bilinear.c -------------- */
+
+/* ------- begin -------------------------- hydrogenPrepare.c ------- */
+
+void hydrogenPrepare(void)
+{
+	/* --- One-time setup for the opacity routines above. After this
+		   they only read their tables, and can be called concurrently
+		   for different wavelengths. The temperature indices depend on
+		   atmos.T, which should not change until hydrogenCleanup. - - */
+
+	hydrogenCleanup();
+
+	if (Hmbf_spline.M == NULL)
+		splineTableInit(&Hmbf_spline, NBF, lambdaBF, alphaBF);
+	Hminus_ff_prepare();
+	H2minus_ff_prepare();
+	H2plus_ff_prepare();
+}
+/* ------- end ---------------------------- hydrogenPrepare.c ------- */
+
+/* ------- begin -------------------------- hydrogenCleanup.c ------- */
+
+void hydrogenCleanup(void)
+{
+	/* --- Free the temperature index tables. The spline coefficients
+		   of the constant H-minus table are kept. --  -------------- */
+
+	free(Hmff_theta_index);
+	free(H2mff_theta_index);
+	free(H2pff_temp_index);
+	Hmff_theta_index = H2mff_theta_index = H2pff_temp_index = NULL;
+}
+/* ------- end ---------------------------- hydrogenCleanup.c ------- */

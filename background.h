@@ -43,6 +43,8 @@ void   Hydrostatic(int NmaxIter, double iterLimit);
 
 void   Background(bool_t analyze_output, bool_t equilibria_only);
 void   backgrOpac(int Nlambda, double *lambda);
+void   backgroundPrepare(void);
+void   backgroundCleanup(void);
 bool_t duplicateLevel(Atom *atom, char *label);
 bool_t duplicateLine(Atom *atom, char *labeli, char *labelj);
 void   readBackground(int nspect, int mu, bool_t top_to_bottom);
@@ -55,6 +57,8 @@ void   readBRS(void);
 void readKuruczLines(char *fileName);
 int  rlk_ascend(const void *v1, const void *v2);
 void rlk_locate(int N, RLK_Line *lines, double lambda, int *low);
+void rlk_prepare(void);
+void rlk_cleanup(void);
 
 bool_t Hminus_bf(double lambda, double *chi, double *eta);
 bool_t Hminus_ff(double lambda, double *chi);
@@ -63,11 +67,14 @@ bool_t Hydrogen_bf(double lambda, double *chi, double *eta);
 void   Hydrogen_ff(double lambda, double *chi);
 bool_t H2minus_ff(double lambda, double *chi);
 bool_t H2plus_ff(double lambda, double *chi);
+void   hydrogenPrepare(void);
+void   hydrogenCleanup(void);
 bool_t Rayleigh(double lambda, Atom *atom, double *chi);
 bool_t Rayleigh_H2(double lambda, double *chi);
 void   Thomson(double *chi);
 bool_t Metal_bf(double lambda, int Nmetal, Atom *metals,
 				double *chi, double *eta);
+void   metalPrepare(void);
 bool_t OH_bf_opac(double lambda, double *chi, double *eta);
 bool_t CH_bf_opac(double lambda, double *chi, double *eta);
 

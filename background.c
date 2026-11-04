@@ -146,9 +146,10 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 		Hmin_fudge, scatt_fudge, metal_fudge, *lambda_fudge = NULL,
 											  **fudge = NULL,
 											  *Bnu, *chi_c, *eta_c, *sca_c, *chip, *chip_c;
-	Atom *He;
-	FILE *fp_fudge;
-	flags backgrflags;
+	Atom           *He;
+	FILE           *fp_fudge;
+	flags           backgrflags;
+	PassiveBBCache *passivecache;
 
 	getCPU(2, TIME_START, NULL);
 
@@ -321,6 +322,13 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 				input.background_File);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
+	/* --- One-time setup for the opacity routines called in the main
+		   loop, and the cache for passive_bb --         -------------- */
+
+	backgroundPrepare();
+	passivecache = passiveBBCacheCreate();
+	if (atmos.Nrlk > 0) rlk_prepare();
+
 	/* --- Go through the spectrum and add the different opacity and
 		   emissivity contributions. This is the main loop --  -------- */
 
@@ -489,8 +497,8 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 						   hydrogen) --                          -------------- */
 
 					if (input.allow_passive_bb) {
-						backgrflags = passive_bb(wavelength, nspect, mu, to_obs,
-												 chi, eta, chip);
+						backgrflags = passive_bb(passivecache, wavelength, nspect, mu,
+												 to_obs, chi, eta, chip);
 						if (backgrflags.hasline) {
 							atmos.backgrflags[nspect].hasline = TRUE;
 							if (backgrflags.ispolarized) {
@@ -576,8 +584,8 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 			   atomic lines (including hydrogen) --      -------------- */
 
 			if (input.allow_passive_bb) {
-				backgrflags = passive_bb(wavelength, nspect, 0, TRUE,
-										 chi, eta, NULL);
+				backgrflags = passive_bb(passivecache, wavelength, nspect, 0,
+										 TRUE, chi, eta, NULL);
 				if (backgrflags.hasline) {
 					atmos.backgrflags[nspect].hasline = TRUE;
 					for (k = 0; k < atmos.Nspace; k++) {
@@ -624,6 +632,8 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 		}
 	}
 
+	if (atmos.Nrlk > 0) rlk_cleanup();
+
 	if (write_analyze_output) {
 		/* --- Write background record structure --          ------------ */
 
@@ -669,11 +679,10 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 	}
 	getCPU(3, TIME_POLL, "Background Opacity");
 
-	/* --- Free the temporary space allocated in the ff routines -- --- */
+	/* --- Free the temporary space set up by backgroundPrepare -- --- */
 
-	Hminus_ff(0.0, NULL);
-	H2minus_ff(0.0, NULL);
-	H2plus_ff(0.0, NULL);
+	passiveBBCacheFree(passivecache);
+	backgroundCleanup();
 
 	free(chi);
 	free(eta);
@@ -707,3 +716,32 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 	getCPU(2, TIME_POLL, "Total Background");
 }
 /* ------- end ---------------------------- Background.c ------------ */
+
+/* ------- begin -------------------------- backgroundPrepare.c ----- */
+
+void backgroundPrepare(void)
+{
+	/* --- One-time setup of the state that the continuum and passive
+		   line opacity routines would otherwise initialize lazily at
+		   the first wavelength. After this they only read shared data,
+		   and can be called concurrently for different wavelengths.
+		   Call after the atmosphere (T), the passive atoms, and the
+		   molecules are in place. --                  -------------- */
+
+	hydrogenPrepare();
+	metalPrepare();
+	molecularPrepare();
+}
+/* ------- end ---------------------------- backgroundPrepare.c ----- */
+
+/* ------- begin -------------------------- backgroundCleanup.c ----- */
+
+void backgroundCleanup(void)
+{
+	/* --- Free the temporary space allocated by backgroundPrepare. The
+		   spline coefficients of the passive atoms are freed with the
+		   atoms. --                                   -------------- */
+
+	hydrogenCleanup();
+}
+/* ------- end ---------------------------- backgroundCleanup.c ----- */
