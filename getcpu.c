@@ -97,8 +97,15 @@ void printTotalCPU()
 	system = ((double) tms.tms_stime) / sysconf(_SC_CLK_TCK);
 	total  = user + system;
 
+	/* --- times() counts in clock ticks (typically 10 ms): a short run
+		   can use none at all, and 0/0 would trap with FP exceptions
+		   enabled (B-33) --                              -------------- */
+
 	fprintf(stats.fp_CPU, "\nTotal_time____: %8.3f [sec] ", total);
-	fprintf(stats.fp_CPU, " (user: %4.1f%%, system: %4.1f%%)\n\n",
-			100 * user / total, 100 * system / total);
+	if (total > 0.0)
+		fprintf(stats.fp_CPU, " (user: %4.1f%%, system: %4.1f%%)\n\n",
+				100 * user / total, 100 * system / total);
+	else
+		fprintf(stats.fp_CPU, " (less than one clock tick)\n\n");
 }
 /* ------- end ---------------------------- printTotalCPU ----------- */
