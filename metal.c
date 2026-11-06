@@ -305,7 +305,14 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 						entry                 = (*Nlist)++;
 						linelist[entry]->line = line;
 
-						/* --- Calculate and store the line's damping parameter */
+						/* --- Calculate and store the line's damping parameter.
+
+							   Note: Damping stores the elastic collision rate in
+							   line->Qelast if line->PRD and Qelast != NULL. That
+							   array is only allocated in Profile, for lines of
+							   active atoms, and this loop only visits passive
+							   atoms, so passive_bb never writes shared state
+							   here and can run concurrently. --   ----------- */
 
 						if (line->Voigt) {
 							linelist[entry]->adamp =

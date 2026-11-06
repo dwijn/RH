@@ -105,7 +105,9 @@
 	   --                                              -------------- */
 
 #include <fcntl.h>
+#include <limits.h>
 #include <math.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -119,6 +121,7 @@
 #include "statistics.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "parallel.h"
 
 #define COMMENT_CHAR "#"
 
@@ -131,208 +134,151 @@ extern Spectrum   spectrum;
 extern InputData  input;
 extern char       messageStr[];
 
-/* ------- begin -------------------------- Background.c ------------ */
+/* ------- begin -------------------------- backgroundRange.c ------- */
 
-void Background(bool_t write_analyze_output, bool_t equilibria_only)
-{
-	const char   routineName[] = "Background";
-	register int k, nspect, n, mu, to_obs;
+/* --- Per-worker scratch space of the main loop in Background(). The
+	   quantities have the roles described in Background(). In the static
+	   unpolarized case chi_ai, eta_ai, and sca_ai alias chi_c, eta_c, and
+	   sca_c. pending holds the indices into atmos.backgrrecno of the
+	   (mu, to_obs) entries of the current wavelength that have not been
+	   written yet. Memory per worker, in units of Nspace doubles:
+	   7 for a static unpolarized atmosphere, 10 if it is moving, 22 with
+	   Stokes (28 with magneto-optical effects), plus the PassiveBBCache
+	   and 2 * Nrays ints. --                          -------------- */
 
-	static int ne_iter = 0;
-	char       inputLine[MAX_LINE_SIZE];
-	bool_t     exit_on_EOF, do_fudge, fromscratch;
-	int        backgrrecno, index, Nfudge, NrecStokes;
-	double    *chi, *eta, *scatt, wavelength, *thomson, *chi_ai, *eta_ai, *sca_ai,
-		Hmin_fudge, scatt_fudge, metal_fudge, *lambda_fudge = NULL,
-											  **fudge = NULL,
-											  *Bnu, *chi_c, *eta_c, *sca_c, *chip, *chip_c;
-	Atom           *He;
-	FILE           *fp_fudge;
-	flags           backgrflags;
+typedef struct {
+	double         *chi, *eta, *scatt, *chip, *chi_c, *eta_c, *sca_c, *chip_c,
+		*chi_ai, *eta_ai, *sca_ai, *Bnu;
 	PassiveBBCache *passivecache;
+	int            *pending, Npending;
+} BackgroundScratch;
 
-	getCPU(2, TIME_START, NULL);
+/* --- Data shared by the workers: read-only inputs, the scratch space
+	   per worker, and the counter of records in background.dat. -- --- */
 
-	if (input.solve_ne == ONCE || input.solve_ne == ITERATION) {
-		fromscratch = (input.solve_ne == ONCE ||
-					   (input.solve_ne == ITERATION && ne_iter == 0))
-						  ? TRUE
-						  : FALSE;
-		Solve_ne(atmos.ne, fromscratch);
-		ne_iter++;
-	}
-	SetLTEQuantities();
+typedef struct {
+	BackgroundScratch **scratch;
+	bool_t              do_fudge;
+	int                Nfudge;
+	double            *lambda_fudge, **fudge, *thomson;
+	Atom              *He;
+	atomic_llong       backgrrecno;
+} BackgroundJob;
 
-	if (input.NonICE)
-		readMolecules(MOLECULAR_CONCENTRATION_FILE);
-	else
-		ChemicalEquilibrium(N_MAX_CHEM_ITER, CHEM_ITER_LIMIT);
+static BackgroundScratch *backgroundScratchCreate(void)
+{
+	int                NrecStokes;
+	BackgroundScratch *sc;
 
-	if (equilibria_only) {
+	/* --- Allocate the temporary storage space of one worker. See
+		   Background() for what the quantities are used for -- ------- */
 
-		/* --- If we only need ne, LTE populations and collisions, and
-			   chemical equilibrium leave here --          -------------- */
+	NrecStokes = (atmos.Stokes) ? 4 : 1;
 
-		getCPU(2, TIME_POLL, "Total Background");
-		return;
-	}
+	sc = (BackgroundScratch *) malloc(sizeof(BackgroundScratch));
 
-	if (input.old_background) {
-		if ((atmos.fd_background =
-				 open(input.background_File, O_RDONLY, 0)) == -1) {
-			sprintf(messageStr, "Unable to open input file %s",
-					input.background_File);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
-		}
-		readBRS();
-		return;
-	}
+	sc->chi_c = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
+	sc->eta_c = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
+	sc->sca_c = (double *) malloc(atmos.Nspace * sizeof(double));
 
-	getCPU(3, TIME_START, NULL);
-
-	do_fudge = FALSE;
-
-	if (strcmp(input.fudgeData, "none")) {
-		do_fudge = TRUE;
-
-		/* --- Read wavelength-dependent fudge factors to compensate for
-			   missing UV backround line haze --           -------------- */
-
-		if ((fp_fudge = fopen(input.fudgeData, "r")) == NULL) {
-			sprintf(messageStr, "Unable to open input file %s", input.fudgeData);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
-		}
-		sprintf(messageStr,
-				"\n-Fudging background opacities with file\n  %s\n\n",
-				input.fudgeData);
-		Error(MESSAGE, routineName, messageStr);
-
-		getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
-		sscanf(inputLine, "%d", &Nfudge);
-		lambda_fudge = (double *) malloc(Nfudge * sizeof(double));
-		fudge        = matrix_double(3, Nfudge);
-		for (n = 0; n < Nfudge; n++) {
-			getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
-			sscanf(inputLine, "%lf %lf %lf %lf", &lambda_fudge[n],
-				   &fudge[0][n], &fudge[1][n], &fudge[2][n]);
-		}
-		for (n = 0; n < 3 * Nfudge; n++) fudge[0][n] += 1.0;
-		fclose(fp_fudge);
-	}
-
-	/* --- Allocate temporary storage space. The quantities are used
-		   for the following purposes:
-
-		 - chi, eta, scatt: Get contributions to opacity, emissivity,
-		   and scattering opacity, respectively, from a specific process
-		   for a given wavelength and possibly angle.
-
-		 - chi_c, eta_c, sca_c: Collect the total opacity, emissivity
-		   and scattering opacity for a given wavelength and possibly
-		   angle.
-
-		 - chi_ai, eta_ai: Collect the angle-independent part of
-		   opacity and emissivity for each wavelength so that these
-		   need not be recalculated in an angle-dependent case.
-		   When the atmosphere is not moving and has no magnetic fields
-		   these just point to the total quantities chi_c and eta_c.
-
-	 Note: In case of magnetic fields in the atmosphere chi, eta and
-		   chip, and chi_c, eta_c and chip_c contain all four Stokes
-		   parameters, and should be allocated a 4 and 3 times larger
-		   storage space, respectively.
-		   --                                            -------------- */
-
-	if (atmos.Stokes)
-		NrecStokes = 4;
-	else
-		NrecStokes = 1;
-
-	chi_c = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
-	eta_c = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
-	sca_c = (double *) malloc(atmos.Nspace * sizeof(double));
-
-	chi   = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
-	eta   = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
-	scatt = (double *) malloc(atmos.Nspace * sizeof(double));
+	sc->chi   = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
+	sc->eta   = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
+	sc->scatt = (double *) malloc(atmos.Nspace * sizeof(double));
 
 	if (atmos.Stokes && input.magneto_optical) {
-		chip   = (double *) malloc(3 * atmos.Nspace * sizeof(double));
-		chip_c = (double *) malloc(3 * atmos.Nspace * sizeof(double));
+		sc->chip   = (double *) malloc(3 * atmos.Nspace * sizeof(double));
+		sc->chip_c = (double *) malloc(3 * atmos.Nspace * sizeof(double));
 	} else {
-		chip   = NULL;
-		chip_c = NULL;
+		sc->chip   = NULL;
+		sc->chip_c = NULL;
 	}
 
 	if (atmos.moving || atmos.Stokes) {
-		chi_ai = (double *) malloc(atmos.Nspace * sizeof(double));
-		eta_ai = (double *) malloc(atmos.Nspace * sizeof(double));
-		sca_ai = (double *) malloc(atmos.Nspace * sizeof(double));
+		sc->chi_ai = (double *) malloc(atmos.Nspace * sizeof(double));
+		sc->eta_ai = (double *) malloc(atmos.Nspace * sizeof(double));
+		sc->sca_ai = (double *) malloc(atmos.Nspace * sizeof(double));
 	} else {
-		chi_ai = chi_c;
-		eta_ai = eta_c;
-		sca_ai = sca_c;
+		sc->chi_ai = sc->chi_c;
+		sc->eta_ai = sc->eta_c;
+		sc->sca_ai = sc->sca_c;
 	}
-	Bnu = (double *) malloc(atmos.Nspace * sizeof(double));
+	sc->Bnu = (double *) malloc(atmos.Nspace * sizeof(double));
 
-	/* --- Thomson scattering by free electrons is wavelength independent
-		   in non-relativistic limit so we compute it only once -- ---- */
+	sc->passivecache = passiveBBCacheCreate();
+	sc->pending      = (int *) malloc(2 * atmos.Nrays * sizeof(int));
+	sc->Npending     = 0;
 
-	thomson = (double *) malloc(atmos.Nspace * sizeof(double));
-	Thomson(thomson);
+	return sc;
+}
 
-	/* --- Check whether an atomic model is present for He -- --------- */
-
-	He = (atmos.elements[1].model) ? atmos.elements[1].model : NULL;
-
-	/* --- Read background files from Kurucz data file -- ------------- */
-
-	atmos.Nrlk = 0;
-	readKuruczLines(input.KuruczData);
-	if (atmos.Nrlk > 0) {
-		qsort(atmos.rlk_lines, atmos.Nrlk, sizeof(RLK_Line), rlk_ascend);
-	}
-	/* --- Allocate memory for the boolean array that stores whether
-		   a wavelength overlaps with a Bound-Bound transition in the
-		   background, or whether it is polarized --     -------------- */
-
-	atmos.backgrflags = (flags *) malloc(spectrum.Nspect * sizeof(flags));
-	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
-		atmos.backgrflags[nspect].hasline     = FALSE;
-		atmos.backgrflags[nspect].ispolarized = FALSE;
-	}
-	/* --- Allocate memory for the list of record numbers that specifies
-		   for each wavelength where to find the background opacity,
-		   scattering opacity, and emissivity --         -------------- */
-
-	backgrrecno = 0;
+static void backgroundScratchFree(BackgroundScratch *sc)
+{
+	free(sc->chi);
+	free(sc->eta);
+	free(sc->scatt);
+	free(sc->Bnu);
+	free(sc->chi_c);
+	free(sc->eta_c);
+	free(sc->sca_c);
 
 	if (atmos.moving || atmos.Stokes) {
-		atmos.backgrrecno =
-			(int *) malloc(2 * spectrum.Nspect * atmos.Nrays * sizeof(int));
-	} else
-		atmos.backgrrecno = (int *) malloc(spectrum.Nspect * sizeof(int));
-
-	/* --- Open output file for background opacity, emissivity,
-		   scattering --                                 -------------- */
-
-	if ((atmos.fd_background =
-			 open(input.background_File, O_RDWR | O_CREAT, PERMISSIONS)) == -1) {
-		sprintf(messageStr, "Unable to open output file %s",
-				input.background_File);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		free(sc->chi_ai);
+		free(sc->eta_ai);
+		free(sc->sca_ai);
 	}
-	/* --- One-time setup for the opacity routines called in the main
-		   loop, and the cache for passive_bb --         -------------- */
+	if (atmos.Stokes && input.magneto_optical) {
+		free(sc->chip);
+		free(sc->chip_c);
+	}
+	passiveBBCacheFree(sc->passivecache);
+	free(sc->pending);
+	free(sc);
+}
 
-	backgroundPrepare();
-	passivecache = passiveBBCacheCreate();
-	if (atmos.Nrlk > 0) rlk_prepare();
+static int reserveRecords(BackgroundJob *job, int nspect)
+{
+	const char routineName[] = "reserveRecords";
 
-	/* --- Go through the spectrum and add the different opacity and
-		   emissivity contributions. This is the main loop --  -------- */
+	long long recno;
+	int       Nrec;
 
-	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+	/* --- Reserve the records for a block of background data of
+		   wavelength nspect and return the number of the first. The
+		   counter is 64-bit, but atmos.backgrrecno is int. With one
+		   worker the blocks follow each other in wavelength order. -- */
+
+	Nrec  = backgroundRecords(nspect);
+	recno = atomic_fetch_add(&job->backgrrecno, Nrec);
+	if (recno + Nrec > INT_MAX)
+		Error(ERROR_LEVEL_2, routineName,
+			  "Record number of background data exceeds INT_MAX");
+
+	return (int) recno;
+}
+
+static void backgroundRange(int begin, int end, int nt, void *arg)
+{
+	const char routineName[] = "backgroundRange";
+	register int k, nspect, n, mu, to_obs;
+
+	int                index, recno, Nwrite, NrecStokes;
+	double             wavelength, Hmin_fudge, scatt_fudge, metal_fudge;
+	flags              backgrflags;
+	BackgroundJob     *job = (BackgroundJob *) arg;
+	BackgroundScratch *sc  = job->scratch[nt];
+
+	bool_t   do_fudge     = job->do_fudge;
+	int      Nfudge       = job->Nfudge;
+	double  *lambda_fudge = job->lambda_fudge, **fudge = job->fudge,
+		   *thomson       = job->thomson;
+	Atom   *He            = job->He;
+	double *chi = sc->chi, *eta = sc->eta, *scatt = sc->scatt, *chip = sc->chip,
+		   *chi_c = sc->chi_c, *eta_c = sc->eta_c, *sca_c = sc->sca_c,
+		   *chip_c = sc->chip_c, *chi_ai = sc->chi_ai, *eta_ai = sc->eta_ai,
+		   *sca_ai = sc->sca_ai, *Bnu = sc->Bnu;
+
+	for (nspect = begin; nspect < end; nspect++) {
+		sc->Npending = 0;
 		wavelength = spectrum.lambda[nspect];
 
 		/* --- The Planck function at this wavelength --   -------------- */
@@ -497,7 +443,7 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 						   hydrogen) --                          -------------- */
 
 					if (input.allow_passive_bb) {
-						backgrflags = passive_bb(passivecache, wavelength, nspect, mu,
+						backgrflags = passive_bb(sc->passivecache, wavelength, nspect, mu,
 												 to_obs, chi, eta, chip);
 						if (backgrflags.hasline) {
 							atmos.backgrflags[nspect].hasline = TRUE;
@@ -570,13 +516,28 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 					/* --- Store angle-dependent results only if at least one
 							   line was found at this wavelength --  -------------- */
 
-					atmos.backgrrecno[index] = backgrrecno;
 					if ((mu == atmos.Nrays - 1 && to_obs) ||
 						(atmos.backgrflags[nspect].hasline &&
 						 (atmos.moving || atmos.backgrflags[nspect].ispolarized))) {
-						backgrrecno += writeBackground(nspect, mu, to_obs,
-													   chi_c, eta_c, sca_c, chip_c);
-					}
+
+						/* --- Reserve the records of this block. Entries
+							   that were not written since the previous
+							   block of this wavelength point to this one,
+							   as they did when the counter ran in
+							   wavelength order -- --------------------- */
+
+						recno = reserveRecords(job, nspect);
+						for (n = 0; n < sc->Npending; n++)
+							atmos.backgrrecno[sc->pending[n]] = recno;
+						sc->Npending             = 0;
+						atmos.backgrrecno[index] = recno;
+						Nwrite                   = writeBackground(nspect, mu, to_obs,
+																   chi_c, eta_c, sca_c, chip_c);
+						if (Nwrite != backgroundRecords(nspect))
+							Error(ERROR_LEVEL_2, routineName,
+								  "Reserved and written number of records differ");
+					} else
+						sc->pending[sc->Npending++] = index;
 				}
 			}
 		} else {
@@ -584,7 +545,7 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 			   atomic lines (including hydrogen) --      -------------- */
 
 			if (input.allow_passive_bb) {
-				backgrflags = passive_bb(passivecache, wavelength, nspect, 0,
+				backgrflags = passive_bb(sc->passivecache, wavelength, nspect, 0,
 										 TRUE, chi, eta, NULL);
 				if (backgrflags.hasline) {
 					atmos.backgrflags[nspect].hasline = TRUE;
@@ -626,11 +587,207 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 			}
 			/* --- Store results --                          -------------- */
 
-			atmos.backgrrecno[nspect] = backgrrecno;
-			backgrrecno += writeBackground(nspect, 0, 0,
-										   chi_c, eta_c, sca_c, NULL);
+			atmos.backgrrecno[nspect] = reserveRecords(job, nspect);
+			Nwrite                    = writeBackground(nspect, 0, 0,
+														chi_c, eta_c, sca_c, NULL);
+			if (Nwrite != backgroundRecords(nspect))
+				Error(ERROR_LEVEL_2, routineName,
+					  "Reserved and written number of records differ");
 		}
 	}
+}
+/* ------- end ---------------------------- backgroundRange.c ------- */
+
+/* ------- begin -------------------------- Background.c ------------ */
+
+void Background(bool_t write_analyze_output, bool_t equilibria_only)
+{
+	const char   routineName[] = "Background";
+	register int nspect, n;
+
+	static int ne_iter = 0;
+	char       inputLine[MAX_LINE_SIZE];
+	bool_t     exit_on_EOF, do_fudge, fromscratch;
+	int        Nfudge, Nworker, chunk;
+	double    *thomson, *lambda_fudge = NULL, **fudge = NULL;
+	Atom      *He;
+	FILE      *fp_fudge;
+	BackgroundJob job;
+
+	getCPU(2, TIME_START, NULL);
+
+	if (input.solve_ne == ONCE || input.solve_ne == ITERATION) {
+		fromscratch = (input.solve_ne == ONCE ||
+					   (input.solve_ne == ITERATION && ne_iter == 0))
+						  ? TRUE
+						  : FALSE;
+		Solve_ne(atmos.ne, fromscratch);
+		ne_iter++;
+	}
+	SetLTEQuantities();
+
+	if (input.NonICE)
+		readMolecules(MOLECULAR_CONCENTRATION_FILE);
+	else
+		ChemicalEquilibrium(N_MAX_CHEM_ITER, CHEM_ITER_LIMIT);
+
+	if (equilibria_only) {
+
+		/* --- If we only need ne, LTE populations and collisions, and
+			   chemical equilibrium leave here --          -------------- */
+
+		getCPU(2, TIME_POLL, "Total Background");
+		return;
+	}
+
+	if (input.old_background) {
+		if ((atmos.fd_background =
+				 open(input.background_File, O_RDONLY, 0)) == -1) {
+			sprintf(messageStr, "Unable to open input file %s",
+					input.background_File);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
+		readBRS();
+		return;
+	}
+
+	getCPU(3, TIME_START, NULL);
+
+	do_fudge = FALSE;
+
+	if (strcmp(input.fudgeData, "none")) {
+		do_fudge = TRUE;
+
+		/* --- Read wavelength-dependent fudge factors to compensate for
+			   missing UV backround line haze --           -------------- */
+
+		if ((fp_fudge = fopen(input.fudgeData, "r")) == NULL) {
+			sprintf(messageStr, "Unable to open input file %s", input.fudgeData);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
+		sprintf(messageStr,
+				"\n-Fudging background opacities with file\n  %s\n\n",
+				input.fudgeData);
+		Error(MESSAGE, routineName, messageStr);
+
+		getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		sscanf(inputLine, "%d", &Nfudge);
+		lambda_fudge = (double *) malloc(Nfudge * sizeof(double));
+		fudge        = matrix_double(3, Nfudge);
+		for (n = 0; n < Nfudge; n++) {
+			getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			sscanf(inputLine, "%lf %lf %lf %lf", &lambda_fudge[n],
+				   &fudge[0][n], &fudge[1][n], &fudge[2][n]);
+		}
+		for (n = 0; n < 3 * Nfudge; n++) fudge[0][n] += 1.0;
+		fclose(fp_fudge);
+	}
+
+	/* --- The temporary storage space is allocated per worker, further
+		   down, in backgroundScratchCreate. The quantities are used
+		   for the following purposes:
+
+		 - chi, eta, scatt: Get contributions to opacity, emissivity,
+		   and scattering opacity, respectively, from a specific process
+		   for a given wavelength and possibly angle.
+
+		 - chi_c, eta_c, sca_c: Collect the total opacity, emissivity
+		   and scattering opacity for a given wavelength and possibly
+		   angle.
+
+		 - chi_ai, eta_ai: Collect the angle-independent part of
+		   opacity and emissivity for each wavelength so that these
+		   need not be recalculated in an angle-dependent case.
+		   When the atmosphere is not moving and has no magnetic fields
+		   these just point to the total quantities chi_c and eta_c.
+
+	 Note: In case of magnetic fields in the atmosphere chi, eta and
+		   chip, and chi_c, eta_c and chip_c contain all four Stokes
+		   parameters, and should be allocated a 4 and 3 times larger
+		   storage space, respectively.
+		   --                                            -------------- */
+
+	/* --- Thomson scattering by free electrons is wavelength independent
+		   in non-relativistic limit so we compute it only once -- ---- */
+
+	thomson = (double *) malloc(atmos.Nspace * sizeof(double));
+	Thomson(thomson);
+
+	/* --- Check whether an atomic model is present for He -- --------- */
+
+	He = (atmos.elements[1].model) ? atmos.elements[1].model : NULL;
+
+	/* --- Read background files from Kurucz data file -- ------------- */
+
+	atmos.Nrlk = 0;
+	readKuruczLines(input.KuruczData);
+	if (atmos.Nrlk > 0) {
+		qsort(atmos.rlk_lines, atmos.Nrlk, sizeof(RLK_Line), rlk_ascend);
+	}
+	/* --- Allocate memory for the boolean array that stores whether
+		   a wavelength overlaps with a Bound-Bound transition in the
+		   background, or whether it is polarized --     -------------- */
+
+	atmos.backgrflags = (flags *) malloc(spectrum.Nspect * sizeof(flags));
+	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+		atmos.backgrflags[nspect].hasline     = FALSE;
+		atmos.backgrflags[nspect].ispolarized = FALSE;
+	}
+	/* --- Allocate memory for the list of record numbers that specifies
+		   for each wavelength where to find the background opacity,
+		   scattering opacity, and emissivity --         -------------- */
+
+	if (atmos.moving || atmos.Stokes) {
+		atmos.backgrrecno =
+			(int *) malloc(2 * spectrum.Nspect * atmos.Nrays * sizeof(int));
+	} else
+		atmos.backgrrecno = (int *) malloc(spectrum.Nspect * sizeof(int));
+
+	/* --- Open output file for background opacity, emissivity,
+		   scattering --                                 -------------- */
+
+	if ((atmos.fd_background =
+			 open(input.background_File, O_RDWR | O_CREAT, PERMISSIONS)) == -1) {
+		sprintf(messageStr, "Unable to open output file %s",
+				input.background_File);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+	/* --- One-time setup for the opacity routines called in the main
+		   loop, and the cache for passive_bb --         -------------- */
+
+	backgroundPrepare();
+	if (atmos.Nrlk > 0) rlk_prepare();
+
+	/* --- Go through the spectrum and add the different opacity and
+		   emissivity contributions. This is the main loop, over
+		   wavelengths. Each worker has its own scratch space, and the
+		   wavelengths are handed out in chunks with dynamic scheduling,
+		   because the cost per wavelength varies a lot (dense line
+		   forests versus continuum). The chunk is about 1/8 of a
+		   thread's share of the spectrum, at most 32 wavelengths: small
+		   enough to balance the load, large enough to keep the counter
+		   uncontended. With input.Nthreads <= 1 everything runs in this
+		   thread, in wavelength order, and the layout of background.dat
+		   is the sequential one. With more threads the order of the
+		   blocks in the file varies from run to run; readers find them
+		   through atmos.backgrrecno. --                 -------------- */
+
+	Nworker = (input.Nthreads > 1) ? input.Nthreads : 1;
+	chunk   = spectrum.Nspect / (8 * Nworker);
+	if (chunk > 32) chunk = 32;
+	if (chunk < 1) chunk = 1;
+
+	job.scratch      = (BackgroundScratch **) malloc(Nworker * sizeof(BackgroundScratch *));
+	job.do_fudge     = do_fudge;
+	job.Nfudge       = Nfudge;
+	job.lambda_fudge = lambda_fudge;
+	job.fudge        = fudge;
+	job.thomson      = thomson;
+	job.He           = He;
+	atomic_init(&job.backgrrecno, 0);
+	for (n = 0; n < Nworker; n++) job.scratch[n] = backgroundScratchCreate();
+
+	parallelForDynamic(spectrum.Nspect, chunk, Nworker, backgroundRange, &job);
 
 	if (atmos.Nrlk > 0) rlk_cleanup();
 
@@ -681,27 +838,11 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 
 	/* --- Free the temporary space set up by backgroundPrepare -- --- */
 
-	passiveBBCacheFree(passivecache);
 	backgroundCleanup();
 
-	free(chi);
-	free(eta);
-	free(scatt);
-	free(Bnu);
+	for (n = 0; n < Nworker; n++) backgroundScratchFree(job.scratch[n]);
+	free(job.scratch);
 	free(thomson);
-	free(chi_c);
-	free(eta_c);
-	free(sca_c);
-
-	if (atmos.moving || atmos.Stokes) {
-		free(chi_ai);
-		free(eta_ai);
-		free(sca_ai);
-	}
-	if (atmos.Stokes && input.magneto_optical) {
-		free(chip);
-		free(chip_c);
-	}
 
 	if (do_fudge) {
 		free(lambda_fudge);
