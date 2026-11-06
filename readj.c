@@ -319,6 +319,31 @@ void readBackground(int nspect, int mu, bool_t to_obs)
 }
 /* ------- end ---------------------------- readBackground.c -------- */
 
+/* ------- begin -------------------------- backgroundRecords.c ----- */
+
+int backgroundRecords(int nspect)
+{
+	int NrecStokes, Nrec;
+
+	/* --- Number of records (of size atmos.Nspace doubles) that a block
+		   of background data for wavelength nspect occupies: opacity,
+		   possibly the off-diagonal elements of the propagation matrix,
+		   emissivity, and scattering opacity. This is the one place that
+		   defines the layout; writeBackground and the reservation of
+		   record numbers in Background() both use it. --  ------------ */
+
+	NrecStokes = (atmos.backgrflags[nspect].ispolarized) ? 4 : 1;
+
+	Nrec = NrecStokes;
+	if (atmos.backgrflags[nspect].ispolarized && input.magneto_optical)
+		Nrec += 3;
+	Nrec += NrecStokes;
+	Nrec += 1;
+
+	return Nrec;
+}
+/* ------- end ---------------------------- backgroundRecords.c ----- */
+
 /* ------- begin -------------------------- writeBackground.c ------- */
 
 int writeBackground(int nspect, int mu, bool_t to_obs,
@@ -383,6 +408,10 @@ int writeBackground(int nspect, int mu, bool_t to_obs,
 
 	if (!result)
 		Error(ERROR_LEVEL_2, routineName, "Error writing file");
+
+	if (Nwrite != backgroundRecords(nspect))
+		Error(ERROR_LEVEL_2, routineName,
+			  "Number of records written differs from backgroundRecords");
 
 	/* --- Return the number of written records --       -------------- */
 

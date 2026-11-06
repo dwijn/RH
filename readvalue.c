@@ -291,22 +291,13 @@ void setStokesMode(char *value, void *pointer)
 
 /* ------- begin -------------------------- setThreadValue.c -------- */
 
-#define N_THREAD_LIMIT 32
-
 void setThreadValue(char *value, void *pointer)
 {
 	const char routineName[] = "setThreadValue";
 
 	int Nthreads = atoi(value), return_value;
 
-	if (Nthreads > N_THREAD_LIMIT) {
-		sprintf(messageStr,
-				"Value of keyword N_THREADS (%d) larger than allowed limit (%d)",
-				Nthreads, N_THREAD_LIMIT);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
-	} else if (Nthreads < 1) {
-		Nthreads = 1;
-	}
+	if (Nthreads < 1) Nthreads = 1;
 
 	if (Nthreads > 1) {
 

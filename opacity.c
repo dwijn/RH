@@ -796,11 +796,56 @@ void mrt_locate(int N, MolecularLine *lines, double lambda, int *low)
 }
 /* ------- end ---------------------------- mrt_locate.c ------------ */
 
+/* ------- begin -------------------------- molecularPrepare.c ----- */
+
+void molecularPrepare(void)
+{
+	register int n, kr, la;
+
+	double         lamin, lamax, w, ratio;
+	Molecule      *molecule;
+	MolecularLine *mrt;
+
+	/* --- One-time setup for MolecularOpacity, so that it only reads
+		   the Zeeman multiplets, and can be called from several
+		   threads. The multiplets are set up for the polarizable lines
+		   of passive molecules that can fall within the wing of any
+		   wavelength of the spectrum. The criterion is a superset of
+		   the one in MolecularOpacity (it uses the range of the
+		   spectrum, not the individual wavelengths). -- -------------- */
+
+	if (!atmos.Stokes || spectrum.Nspect < 1) return;
+
+	lamin = lamax = spectrum.lambda[0];
+	for (la = 1; la < spectrum.Nspect; la++) {
+		lamin = MIN(lamin, spectrum.lambda[la]);
+		lamax = MAX(lamax, spectrum.lambda[la]);
+	}
+	for (n = 0; n < atmos.Nmolecule; n++) {
+		molecule = &atmos.molecules[n];
+		if (molecule->Nrt > 0 && !molecule->active) {
+			for (kr = 0; kr < molecule->Nrt; kr++) {
+				mrt = &molecule->mrt[kr];
+				if (mrt->polarizable && mrt->zm == NULL) {
+					w     = mrt->qwing * (atmos.vmicro_char / CLIGHT);
+					ratio = (w < 1.0) ? 1.0 / (1.0 - w) : 1.0E+300;
+					if (mrt->lambda0 / (1.0 + w) <= lamax &&
+						mrt->lambda0 * ratio >= lamin)
+						MolZeeman(mrt);
+				}
+			}
+		}
+	}
+}
+/* ------- end ---------------------------- molecularPrepare.c ----- */
+
 /* ------- begin -------------------------- MolecularOpacity.c ------ */
 
 flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
 					   double *chi, double *eta, double *chip)
 {
+	const char routineName[] = "MolecularOpacity";
+
 	register int n, k, kr;
 
 	/* --- Opacity due to molecular lines in the background. LTE
@@ -884,7 +929,11 @@ flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
 						backgrflags.hasline = TRUE;
 						if (mrt->polarizable) {
 							backgrflags.ispolarized = TRUE;
-							if (mrt->zm == NULL) MolZeeman(mrt);
+							if (mrt->zm == NULL) {
+								sprintf(messageStr, "Zeeman multiplet not set up "
+													"(call molecularPrepare first)");
+								Error(ERROR_LEVEL_2, routineName, messageStr);
+							}
 						}
 
 						for (k = 0; k < atmos.Nspace; k++) {

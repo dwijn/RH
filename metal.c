@@ -56,17 +56,57 @@
 
 /* --- Function prototypes --                          -------------- */
 
+/* --- Cache of line damping parameters kept by passive_bb across
+	   wavelengths. Created by the caller with passiveBBCacheCreate and
+	   freed with passiveBBCacheFree, so that every thread can have its
+	   own. --                                         -------------- */
+
+struct PassiveBBCache {
+	int              Nlist;
+	struct Linelist *linelist[N_MAX_OVERLAP];
+};
+
 /* --- Global variables --                             -------------- */
 
 extern Atmosphere atmos;
 extern char       messageStr[];
 extern InputData  input;
 
+/* ------- begin -------------------------- metalPrepare.c ---------- */
+
+void metalPrepare(void)
+{
+	register int m, kr;
+
+	Atom            *metal;
+	AtomicContinuum *continuum;
+
+	/* --- Set up the spline coefficients of the tabulated bound-free
+		   cross-sections of the passive atoms once, so that Metal_bf
+		   only reads them and can be called from several threads.
+		   The coefficients live in, and are freed with, the
+		   continuum. --                               -------------- */
+
+	for (m = 1; m < atmos.Natom; m++) {
+		metal = atmos.atoms + m;
+		if (!metal->active) {
+			for (kr = 0; kr < metal->Ncont; kr++) {
+				continuum = metal->continuum + kr;
+				if (!continuum->hydrogenic && continuum->spline.M == NULL)
+					splineTableInit(&continuum->spline, continuum->Nlambda,
+									continuum->lambda, continuum->alpha);
+			}
+		}
+	}
+}
+/* ------- end ---------------------------- metalPrepare.c ---------- */
+
 /* ------- begin -------------------------- Metal_bf.c -------------- */
 
 bool_t Metal_bf(double lambda, int Nmetal, struct Atom *metals,
 				double *chi, double *eta)
 {
+	const char   routineName[] = "Metal_bf";
 	register int m, k, kr;
 
 	bool_t hunt;
@@ -123,9 +163,13 @@ bool_t Metal_bf(double lambda, int Nmetal, struct Atom *metals,
 						alpha_la = continuum->alpha0 * CUBE(lambda / continuum->lambda0) *
 								   Gaunt_bf(lambda, n_eff, Z) / gbf_0;
 					} else {
-						splineCoef(continuum->Nlambda, continuum->lambda,
-								   continuum->alpha);
-						splineEval(1, &lambda, &alpha_la, hunt = FALSE);
+						if (continuum->spline.M == NULL) {
+							sprintf(messageStr, "Spline coefficients not set up "
+												"(call metalPrepare first)");
+							Error(ERROR_LEVEL_2, routineName, messageStr);
+						}
+						splineTableEval(&continuum->spline, 1, &lambda,
+										&alpha_la, hunt = FALSE);
 					}
 
 					for (k = 0; k < atmos.Nspace; k++) {
@@ -147,15 +191,33 @@ bool_t Metal_bf(double lambda, int Nmetal, struct Atom *metals,
 
 /* ------- begin -------------------------- passive_bb.c ------------ */
 
-flags passive_bb(double lambda, int nspect, int mu, bool_t to_obs,
-				 double *chi, double *eta, double *chip)
+PassiveBBCache *passiveBBCacheCreate(void)
+{
+	return (PassiveBBCache *) calloc(1, sizeof(PassiveBBCache));
+}
+
+void passiveBBCacheFree(PassiveBBCache *cache)
+{
+	register int l;
+
+	if (cache == NULL) return;
+	for (l = 0; l < N_MAX_OVERLAP; l++) {
+		if (cache->linelist[l]) {
+			if (cache->linelist[l]->adamp) free(cache->linelist[l]->adamp);
+			free(cache->linelist[l]);
+		}
+	}
+	free(cache);
+}
+
+flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
+				 bool_t to_obs, double *chi, double *eta, double *chip)
 {
 	const char   routineName[] = "passive_bb";
 	register int k, kr, l, m, nc;
 
-	static bool_t           initialize = TRUE;
-	static int              Nlist;
-	static struct Linelist *linelist[N_MAX_OVERLAP];
+	int              *Nlist    = &cache->Nlist;
+	struct Linelist **linelist = cache->linelist;
 
 	bool_t add_to_list;
 	int    i, j, entry;
@@ -177,12 +239,6 @@ flags passive_bb(double lambda, int nspect, int mu, bool_t to_obs,
 	backgrflags.hasline     = FALSE;
 	backgrflags.ispolarized = FALSE;
 
-	if (initialize) {
-		for (l = 0; l < N_MAX_OVERLAP; l++) linelist[l] = NULL;
-		Nlist      = 0;
-		initialize = FALSE;
-	}
-
 	hc     = HPLANCK * CLIGHT;
 	fourPI = 4.0 * PI;
 	hc_4PI = hc / fourPI;
@@ -201,7 +257,7 @@ flags passive_bb(double lambda, int nspect, int mu, bool_t to_obs,
 	}
 	/* --- Reset the used tags in the linelist --        -------------- */
 
-	for (l = 0; l < Nlist; l++) linelist[l]->used = FALSE;
+	for (l = 0; l < *Nlist; l++) linelist[l]->used = FALSE;
 
 	/* --- Go through the bound-bound transitions, First hydrogen, then
 		   the metals, and add the opacity and emissivity for each
@@ -230,7 +286,7 @@ flags passive_bb(double lambda, int nspect, int mu, bool_t to_obs,
 					/* --- Add line to list if not yet present -- ----------- */
 
 					add_to_list = TRUE;
-					for (l = 0; l < Nlist; l++) {
+					for (l = 0; l < *Nlist; l++) {
 						if (line == linelist[l]->line) {
 							add_to_list = FALSE;
 							entry       = l;
@@ -238,18 +294,25 @@ flags passive_bb(double lambda, int nspect, int mu, bool_t to_obs,
 						}
 					}
 					if (add_to_list) {
-						if (Nlist == N_MAX_OVERLAP) {
+						if (*Nlist == N_MAX_OVERLAP) {
 							sprintf(messageStr, "Too many overlapping transitions");
 							Error(ERROR_LEVEL_2, routineName, messageStr);
 						}
 						/* --- Create a new entry in the list -- -------------- */
 
-						linelist[Nlist] =
+						linelist[*Nlist] =
 							(struct Linelist *) malloc(sizeof(struct Linelist));
-						entry                 = Nlist++;
+						entry                 = (*Nlist)++;
 						linelist[entry]->line = line;
 
-						/* --- Calculate and store the line's damping parameter */
+						/* --- Calculate and store the line's damping parameter.
+
+							   Note: Damping stores the elastic collision rate in
+							   line->Qelast if line->PRD and Qelast != NULL. That
+							   array is only allocated in Profile, for lines of
+							   active atoms, and this loop only visits passive
+							   atoms, so passive_bb never writes shared state
+							   here and can run concurrently. --   ----------- */
 
 						if (line->Voigt) {
 							linelist[entry]->adamp =
@@ -293,7 +356,7 @@ flags passive_bb(double lambda, int nspect, int mu, bool_t to_obs,
 	/* --- Remove lines from the line list that have not been used at this
 		   wavelength, and sort list --                  -------------- */
 
-	for (l = 0; l < Nlist; l++) {
+	for (l = 0; l < *Nlist; l++) {
 		if (!linelist[l]->used) {
 			if (linelist[l]->adamp) free(linelist[l]->adamp);
 			free(linelist[l]);
@@ -313,9 +376,9 @@ flags passive_bb(double lambda, int nspect, int mu, bool_t to_obs,
 	}
 	/* --- Count number of entries in the list --        -------------- */
 
-	Nlist = 0;
+	*Nlist = 0;
 	for (l = 0; l < N_MAX_OVERLAP; l++)
-		if (linelist[l]) Nlist++;
+		if (linelist[l]) (*Nlist)++;
 
 	return backgrflags;
 }
