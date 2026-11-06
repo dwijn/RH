@@ -110,16 +110,16 @@ bool_t xdr_radrate(XDR *xdrs, Atom *atom)
 	for (kr = 0; kr < atom->Nline; kr++) {
 		line = &atom->line[kr];
 		result &= xdr_vector(xdrs, (char *) line->Rij, atmos.Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(xdrs, (char *) line->Rji, atmos.Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	}
 	for (kr = 0; kr < atom->Ncont; kr++) {
 		continuum = &atom->continuum[kr];
 		result &= xdr_vector(xdrs, (char *) continuum->Rij, atmos.Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(xdrs, (char *) continuum->Rji, atmos.Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	}
 	return result;
 }

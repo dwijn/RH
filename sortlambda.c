@@ -73,7 +73,7 @@ void SortLambda()
 		result &= xdr_int(&xdrs, &Nwave);
 		wavetable = (double *) malloc(Nwave * sizeof(double));
 		result &= xdr_vector(&xdrs, (char *) wavetable, Nwave,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
 			sprintf(messageStr, "Unable to read from input file %s",
 					input.wavetable_input);

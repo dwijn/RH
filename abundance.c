@@ -155,7 +155,7 @@ void readAbundance(Atmosphere *atmos)
 	result &= xdr_int(&xdrs, &atmos->Npf);
 	atmos->Tpf = (double *) malloc(atmos->Npf * sizeof(double));
 	result &= xdr_vector(&xdrs, (char *) atmos->Tpf, atmos->Npf,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	totalAbund = avgWeight = 0.0;
 	for (n = 0; n < atmos->Nelem; n++) {
@@ -190,10 +190,10 @@ void readAbundance(Atmosphere *atmos)
 
 		result &= xdr_vector(&xdrs, (char *) element->pf[0],
 							 element->Nstage * atmos->Npf,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) element->ionpot,
 							 element->Nstage,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 		/* --- Store the logarithmic values of the partition functions
 		   to facilitate logarithmic interpolation in temperature

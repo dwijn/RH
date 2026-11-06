@@ -63,11 +63,11 @@ bool_t readB(Atmosphere *atmos)
 		xdrstdio_create(&xdrs, fp_stokes, XDR_DECODE);
 
 		result &= xdr_vector(&xdrs, (char *) atmos->B, atmos->Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) atmos->gamma_B, atmos->Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) atmos->chi_B, atmos->Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		xdr_destroy(&xdrs);
 	} else {
 		recordsize = atmos->Nspace;

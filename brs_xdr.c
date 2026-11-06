@@ -114,14 +114,14 @@ bool_t xdr_BRS(XDR *xdrs)
 		for (nspect = 0; nspect < spectrum.Nspect; nspect++)
 			hasline[nspect] = atmos.backgrflags[nspect].hasline;
 		result &= xdr_vector(xdrs, (char *) hasline, spectrum.Nspect,
-							 sizeof(bool_t), (xdrproc_t) xdr_bool);
+							 sizeof(bool_t), (xdrproc_t) rh_xdr_bool);
 
 		/* --- Flags for presence of polarized background -- ------------ */
 
 		for (nspect = 0; nspect < spectrum.Nspect; nspect++)
 			ispolarized[nspect] = atmos.backgrflags[nspect].ispolarized;
 		result &= xdr_vector(xdrs, (char *) ispolarized, spectrum.Nspect,
-							 sizeof(bool_t), (xdrproc_t) xdr_bool);
+							 sizeof(bool_t), (xdrproc_t) rh_xdr_bool);
 	} else {
 		atmos.backgrflags = (flags *) malloc(spectrum.Nspect * sizeof(flags));
 		atmos.backgrrecno = (int *) malloc(Nrecno * sizeof(int));
@@ -144,20 +144,20 @@ bool_t xdr_BRS(XDR *xdrs)
 		/* --- Flags for presence of background line --    -------------- */
 
 		result &= xdr_vector(xdrs, (char *) hasline, spectrum.Nspect,
-							 sizeof(bool_t), (xdrproc_t) xdr_bool);
+							 sizeof(bool_t), (xdrproc_t) rh_xdr_bool);
 		for (nspect = 0; nspect < spectrum.Nspect; nspect++)
 			atmos.backgrflags[nspect].hasline = hasline[nspect];
 
 		/* --- Flags for presence of polarized background -- ------------ */
 
 		result &= xdr_vector(xdrs, (char *) ispolarized, spectrum.Nspect,
-							 sizeof(bool_t), (xdrproc_t) xdr_bool);
+							 sizeof(bool_t), (xdrproc_t) rh_xdr_bool);
 		for (nspect = 0; nspect < spectrum.Nspect; nspect++)
 			atmos.backgrflags[nspect].ispolarized = ispolarized[nspect];
 	}
 
 	result &= xdr_vector(xdrs, (char *) atmos.backgrrecno, Nrecno,
-						 sizeof(int), (xdrproc_t) xdr_int);
+						 sizeof(int), (xdrproc_t) rh_xdr_int);
 
 	free(hasline);
 	free(ispolarized);

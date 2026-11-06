@@ -71,17 +71,17 @@ void writeGeometry(Geometry *geometry)
 		wmu0[mu] = geometry->rays[mu].wmu[0];
 	}
 	result = xdr_vector(&xdrs, (char *) xmu0, Nrays,
-						sizeof(double), (xdrproc_t) xdr_double);
+						sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) wmu0, Nrays,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) geometry->r, Nradius,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) geometry->cmass, Nradius,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) geometry->tau_ref, Nradius,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) geometry->vel, Nradius,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
 		sprintf(messageStr, "Unable to write geometry arrays to file %s", input.geometry_output);
 		Error(ERROR_LEVEL_2, routineName, messageStr);

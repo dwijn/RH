@@ -54,18 +54,18 @@ void writeGeometry(Geometry *geometry)
 	result &= xdr_int(&xdrs, &geometry->Ndep);
 
 	result &= xdr_vector(&xdrs, (char *) geometry->muz, geometry->Nrays,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) geometry->wmu, geometry->Nrays,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	result &= xdr_vector(&xdrs, (char *) geometry->height, geometry->Ndep,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) geometry->cmass, geometry->Ndep,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) geometry->tau_ref, geometry->Ndep,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) geometry->vel, geometry->Ndep,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
 		sprintf(messageStr, "Unable to write geometry to file %s",
 				input.geometry_output);

@@ -57,7 +57,7 @@ bool_t writeFlux(char *flux_output)
 		flux[nspect] *= 2.0 * PI;
 	}
 	result &= xdr_vector(&xdrs, (char *) flux, spectrum.Nspect,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	xdr_destroy(&xdrs);
 	fclose(fp_flux);

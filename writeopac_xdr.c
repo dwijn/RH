@@ -95,17 +95,17 @@ void writeOpacity(void)
 					initialize = (mu == 0);
 					Opacity(nspect, mu, to_obs = TRUE, initialize);
 					result &= xdr_vector(&xdrs, (char *) as->chi, Nspace,
-										 sizeof(double), (xdrproc_t) xdr_double);
+										 sizeof(double), (xdrproc_t) rh_xdr_double);
 					result &= xdr_vector(&xdrs, (char *) as->eta, Nspace,
-										 sizeof(double), (xdrproc_t) xdr_double);
+										 sizeof(double), (xdrproc_t) rh_xdr_double);
 					as_rn[nspect * atmos.Nrays + mu] = ++record;
 				}
 			} else {
 				Opacity(nspect, 0, to_obs = TRUE, initialize = TRUE);
 				result &= xdr_vector(&xdrs, (char *) as->chi, Nspace,
-									 sizeof(double), (xdrproc_t) xdr_double);
+									 sizeof(double), (xdrproc_t) rh_xdr_double);
 				result &= xdr_vector(&xdrs, (char *) as->eta, Nspace,
-									 sizeof(double), (xdrproc_t) xdr_double);
+									 sizeof(double), (xdrproc_t) rh_xdr_double);
 				if (atmos.moving || atmos.Stokes ||
 					(atmos.NPRDactive > 0 && input.PRD_angle_dep)) {
 					record++;
@@ -140,7 +140,7 @@ void writeOpacity(void)
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
 	result &= xdr_vector(&xdrs, (char *) as_rn, Nrecord,
-						 sizeof(int), (xdrproc_t) xdr_int);
+						 sizeof(int), (xdrproc_t) rh_xdr_int);
 	free(as_rn);
 	if (!result) {
 		sprintf(messageStr, "Unable to write record numbers to file %s",

@@ -189,7 +189,7 @@ bool_t writeFlux(char *fileName)
 		flux[nspect] *= 2.0 * PI * scale_to_surface;
 	}
 	result &= xdr_vector(&xdrs, (char *) flux, spectrum.Nspect,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	xdr_destroy(&xdrs);
 	fclose(fp_flux);

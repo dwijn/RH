@@ -279,7 +279,7 @@ bool_t write_contrib_xdr(XDR *xdrs, char *label, enum opac_type type,
 	result &= xdr_counted_string(xdrs, &label);
 	result &= xdr_enum(xdrs, (enum_t *) &type);
 	result &= xdr_vector(xdrs, (char *) scatt, Nspace,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	return result;
 }

@@ -91,11 +91,11 @@ bool_t xdr_atom(XDR *xdrs, struct Atom *atom)
 		result &= xdr_counted_string(xdrs, &atom->label[i]);
 
 	result &= xdr_vector(xdrs, (char *) atom->g, atom->Nlevel,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(xdrs, (char *) atom->E, atom->Nlevel,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(xdrs, (char *) atom->stage, atom->Nlevel,
-						 sizeof(int), (xdrproc_t) xdr_int);
+						 sizeof(int), (xdrproc_t) rh_xdr_int);
 
 	/* --- Write the bound-bound and bound-free transitions -- -------- */
 
@@ -158,10 +158,10 @@ bool_t xdr_atom(XDR *xdrs, struct Atom *atom)
 		} else {
 			result &= xdr_vector(xdrs, (char *) continuum->lambda,
 								 continuum->Nlambda,
-								 sizeof(double), (xdrproc_t) xdr_double);
+								 sizeof(double), (xdrproc_t) rh_xdr_double);
 			result &= xdr_vector(xdrs, (char *) continuum->alpha,
 								 continuum->Nlambda,
-								 sizeof(double), (xdrproc_t) xdr_double);
+								 sizeof(double), (xdrproc_t) rh_xdr_double);
 		}
 	}
 	/* --- Write the fixed transtitions --               -------------- */
@@ -208,7 +208,7 @@ bool_t xdr_adamp(XDR *xdrs, Atom *atom)
 			for (k = 0; k < atmos.Nspace; k++) adamp[k] = 0.0;
 
 		result &= xdr_vector(xdrs, (char *) adamp, atmos.Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	}
 	free(adamp);
 	return result;

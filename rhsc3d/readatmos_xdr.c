@@ -136,7 +136,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	geometry->y_boundary = PERIODIC;
 
 	result = xdr_vector(&xdrs, (char *) bc, 2,
-						sizeof(int), (xdrproc_t) xdr_int);
+						sizeof(int), (xdrproc_t) rh_xdr_int);
 	if (!result) {
 		sprintf(messageStr, "Unable to read boundary conditions from file %s", input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
@@ -182,7 +182,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 
 	geometry->z = (double *) malloc(Nz * sizeof(double));
 	result      = xdr_vector(&xdrs, (char *) geometry->z, Nz,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
 		sprintf(messageStr, "Unable to read z grid from file %s", input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
@@ -196,11 +196,11 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	atmos->vturb = (double *) malloc(Nspace * sizeof(double));
 
 	result = xdr_vector(&xdrs, (char *) atmos->T, Nspace,
-						sizeof(double), (xdrproc_t) xdr_double);
+						sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) atmos->ne, Nspace,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) atmos->vturb, Nspace,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
 		sprintf(messageStr, "Unable to read atmospheric quantities from file %s", input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
@@ -211,11 +211,11 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	geometry->vz = (double *) malloc(Nspace * sizeof(double));
 
 	result = xdr_vector(&xdrs, (char *) geometry->vx, Nspace,
-						sizeof(double), (xdrproc_t) xdr_double);
+						sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) geometry->vy, Nspace,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) geometry->vz, Nspace,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
 		sprintf(messageStr, "Unable to read velocities from file %s", input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
@@ -243,7 +243,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 
 	atmos->nH = matrix_double(atmos->NHydr, Nspace);
 	result    = xdr_vector(&xdrs, (char *) atmos->nH[0], atmos->NHydr * Nspace,
-						   sizeof(double), (xdrproc_t) xdr_double);
+						   sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
 		sprintf(messageStr, "Unable to read hydrogen density from file %s", input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
@@ -285,7 +285,7 @@ void getBoundary(Atmosphere *atmos, Geometry *geometry)
 		geometry->Itop = matrix_double(Nspect, Nplane);
 		result &= xdr_vector(&xdrs, (char *) geometry->Itop[0],
 							 Nspect * Nplane, sizeof(double),
-							 (xdrproc_t) xdr_double);
+							 (xdrproc_t) rh_xdr_double);
 		break;
 	default:
 		geometry->Itop = NULL;
@@ -296,7 +296,7 @@ void getBoundary(Atmosphere *atmos, Geometry *geometry)
 		geometry->Ibottom = matrix_double(Nspect, Nplane);
 		result &= xdr_vector(&xdrs, (char *) geometry->Ibottom[0],
 							 Nspect * Nplane, sizeof(double),
-							 (xdrproc_t) xdr_double);
+							 (xdrproc_t) rh_xdr_double);
 		break;
 	default:
 		geometry->Ibottom = NULL;
