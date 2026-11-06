@@ -10,5 +10,7 @@
 typedef void (*ParallelRange)(int begin, int end, int nt, void *arg);
 
 void parallelFor(int N, int nthreads, ParallelRange work, void *arg);
+void parallelForDynamic(int N, int chunk, int nthreads,
+						ParallelRange work, void *arg);
 
 #endif /* __RH_PARALLEL_H__ */

@@ -198,10 +198,9 @@
   PRINT_CPU = TRUE
 
 # Enable program to do the formal solution for N_THREADS wavelengths
-# concurrently (KEYWORD_OPTIONAL). Maximum number of threads is limited
-# by the value of N_THREAD_LIMIT in routine setThreadValue in file
-# readvalue.c. Typically, N_THREADS should be equal to the number of
-# processors in a multi-processor machine, or zero (the default) otherwise.
+# concurrently (KEYWORD_OPTIONAL). There is no upper limit; typically
+# N_THREADS should equal the number of cores, or be zero (the default)
+# for a serial run.
 
   N_THREADS = 0
 

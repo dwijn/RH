@@ -718,6 +718,7 @@ void initAtomicContinuum(AtomicContinuum *continuum)
 	continuum->alpha = continuum->Rij = continuum->Rji = NULL;
 	continuum->Rij_thread = continuum->Rji_thread = NULL;
 	continuum->atom                               = NULL;
+	continuum->spline.M                           = NULL;
 }
 /* ------- end ---------------------------- initAtomicContinuum.c --- */
 
@@ -847,6 +848,7 @@ void freeAtomicContinuum(AtomicContinuum *continuum)
 		}
 	}
 	if (!continuum->hydrogenic) free(continuum->alpha);
+	if (continuum->spline.M) splineTableFree(&continuum->spline);
 }
 /* ------- end ---------------------------- freeAtomicContinuum.c --- */
 

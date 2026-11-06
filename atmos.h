@@ -82,11 +82,18 @@ void initAngleSet(AngleSet *angleSet);
 
 /* --- Background opacities due to various lines --    -------------- */
 
-flags passive_bb(double lambda, int nspect, int mu, bool_t to_obs,
-				 double *chi, double *eta, double *chip);
+typedef struct PassiveBBCache PassiveBBCache;
+
+PassiveBBCache *passiveBBCacheCreate(void);
+void            passiveBBCacheFree(PassiveBBCache *cache);
+
+flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
+				 bool_t to_obs, double *chi, double *eta, double *chip);
 
 flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 				  double *chi, double *eta, double *scatt, double *chip);
+
+void molecularPrepare(void);
 
 flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
 					   double *chi, double *eta, double *chip);
