@@ -436,7 +436,7 @@ upstream issue or pull request once filed. Most severe first.
 | [B-34](https://github.com/dwijn/RH/issues/215) | medium | 2-D and 3-D `solveray`: a derived direction cosine is NaN when the given ones' squares sum to just over 1 (no clamp, no check); in 2-D every polarized result is NaN, silently | — | — |
 | [N-29](https://github.com/dwijn/RH/issues/216) | low | 2-D long characteristics: columns of a horizontally uniform periodic slab differ by up to 1e-2 of I (2e-3 here after B-24) | — | — |
 | [B-33](https://github.com/dwijn/RH/issues/204) | low | A run that uses less than one clock tick (10 ms) of CPU dies with SIGFPE at the very end: `printTotalCPU()` divides by the total CPU time, 0/0 with FP traps enabled. Hits tiny runs on fast machines | — | — |
-| [B-35](https://github.com/dwijn/RH/issues/221) | low | `rhanalyze` returns the Stokes-V emissivity as the background scattering opacity at polarized wavelengths (skips 3 records instead of 4) | — | — |
+| [B-35](https://github.com/dwijn/RH/issues/221) | low | `rhanalyze` returns the Stokes-V emissivity as the background scattering opacity at polarized wavelengths (skips 3 records instead of 4) | [#222](https://github.com/dwijn/RH/pull/222) | — |
 
 ---
 
