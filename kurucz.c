@@ -446,10 +446,10 @@ void rlk_prepare(void)
 {
 	register int k, n;
 
-	bool_t   hunt, unsold = FALSE;
-	int      Nelem = atmos.Nelem;
-	double   vtherm;
-	Element *element;
+	bool_t    hunt, unsold = FALSE;
+	int       Nelem = atmos.Nelem;
+	double    vtherm;
+	Element  *element;
 	RLK_Line *rlk;
 
 	/* --- Do all the one-time work that rlk_opacity needs, so that it

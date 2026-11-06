@@ -147,7 +147,7 @@ extern char       messageStr[];
 	   and 2 * Nrays ints. --                          -------------- */
 
 typedef struct {
-	double         *chi, *eta, *scatt, *chip, *chi_c, *eta_c, *sca_c, *chip_c,
+	double *chi, *eta, *scatt, *chip, *chi_c, *eta_c, *sca_c, *chip_c,
 		*chi_ai, *eta_ai, *sca_ai, *Bnu;
 	PassiveBBCache *passivecache;
 	int            *pending, Npending;
@@ -159,10 +159,10 @@ typedef struct {
 typedef struct {
 	BackgroundScratch **scratch;
 	bool_t              do_fudge;
-	int                Nfudge;
-	double            *lambda_fudge, **fudge, *thomson;
-	Atom              *He;
-	atomic_llong       backgrrecno;
+	int                 Nfudge;
+	double             *lambda_fudge, **fudge, *thomson;
+	Atom               *He;
+	atomic_llong        backgrrecno;
 } BackgroundJob;
 
 static BackgroundScratch *backgroundScratchCreate(void)
@@ -258,7 +258,7 @@ static int reserveRecords(BackgroundJob *job, int nspect)
 
 static void backgroundRange(int begin, int end, int nt, void *arg)
 {
-	const char routineName[] = "backgroundRange";
+	const char   routineName[] = "backgroundRange";
 	register int k, nspect, n, mu, to_obs;
 
 	int                index, recno, Nwrite, NrecStokes;
@@ -267,11 +267,11 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 	BackgroundJob     *job = (BackgroundJob *) arg;
 	BackgroundScratch *sc  = job->scratch[nt];
 
-	bool_t   do_fudge     = job->do_fudge;
-	int      Nfudge       = job->Nfudge;
-	double  *lambda_fudge = job->lambda_fudge, **fudge = job->fudge,
-		   *thomson       = job->thomson;
-	Atom   *He            = job->He;
+	bool_t  do_fudge     = job->do_fudge;
+	int     Nfudge       = job->Nfudge;
+	double *lambda_fudge = job->lambda_fudge, **fudge = job->fudge,
+		   *thomson = job->thomson;
+	Atom   *He      = job->He;
 	double *chi = sc->chi, *eta = sc->eta, *scatt = sc->scatt, *chip = sc->chip,
 		   *chi_c = sc->chi_c, *eta_c = sc->eta_c, *sca_c = sc->sca_c,
 		   *chip_c = sc->chip_c, *chi_ai = sc->chi_ai, *eta_ai = sc->eta_ai,
@@ -279,7 +279,7 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 
 	for (nspect = begin; nspect < end; nspect++) {
 		sc->Npending = 0;
-		wavelength = spectrum.lambda[nspect];
+		wavelength   = spectrum.lambda[nspect];
 
 		/* --- The Planck function at this wavelength --   -------------- */
 
@@ -605,13 +605,13 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 	const char   routineName[] = "Background";
 	register int nspect, n;
 
-	static int ne_iter = 0;
-	char       inputLine[MAX_LINE_SIZE];
-	bool_t     exit_on_EOF, do_fudge, fromscratch;
-	int        Nfudge, Nworker, chunk;
-	double    *thomson, *lambda_fudge = NULL, **fudge = NULL;
-	Atom      *He;
-	FILE      *fp_fudge;
+	static int    ne_iter = 0;
+	char          inputLine[MAX_LINE_SIZE];
+	bool_t        exit_on_EOF, do_fudge, fromscratch;
+	int           Nfudge, Nworker, chunk;
+	double       *thomson, *lambda_fudge = NULL, **fudge = NULL;
+	Atom         *He;
+	FILE         *fp_fudge;
 	BackgroundJob job;
 
 	getCPU(2, TIME_START, NULL);

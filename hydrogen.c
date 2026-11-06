@@ -392,7 +392,6 @@ bool_t Hminus_ff(double lambda, double *chi)
 
 	/* --- theta = 5040.0/T --                           -------------- */
 
-
 	static double kappaFF[NFF * NTHETA] = {
 		/* --- lambda =    0.0 [nm] --                     -------------- */
 		0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00,
@@ -597,7 +596,6 @@ bool_t H2minus_ff(double lambda, double *chi)
 		1139.1, 1518.8, 1822.6, 2278.3, 3037.7, 3645.2, 4556.5, 6075.3,
 		9113.0, 11391.3, 15188.3};
 
-
 	static double kappaFF[NFF_H2 * NTHETA_H2] = {
 		/* --- lambda =     0.0 [nm] --                    -------------- */
 		0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00,
@@ -743,7 +741,6 @@ bool_t H2plus_ff(double lambda, double *chi)
 	static double lambdaFF[NFF_H2P] = {
 		0.0, 384.6, 555.6, 833.3, 1111.1, 1428.6, 1666.7,
 		2000.0, 2500.0, 2857.1, 3333.3, 4000.0, 5000.0, 6666.7, 10000.0};
-
 
 	static double kappaFF[NFF_H2P * NTEMP_H2P] = {
 		/* --- lambda =      0.0 [nm] --                   -------------- */
