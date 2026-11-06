@@ -62,11 +62,11 @@ void writeSpectrum(Spectrum *spectrum)
 		lambda_air = (double *) malloc(spectrum->Nspect * sizeof(double));
 		vacuum_to_air(spectrum->Nspect, spectrum->lambda, lambda_air);
 		result &= xdr_vector(&xdrs, (char *) lambda_air, spectrum->Nspect,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		free(lambda_air);
 	} else
 		result &= xdr_vector(&xdrs, (char *) spectrum->lambda, spectrum->Nspect,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	switch (topology) {
 	case ONE_D_PLANE:
@@ -86,18 +86,18 @@ void writeSpectrum(Spectrum *spectrum)
 		break;
 	}
 	result &= xdr_vector(&xdrs, (char *) spectrum->I[0], Nintensity,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	result &= xdr_bool(&xdrs, &spectrum->vacuum_to_air);
 	result &= xdr_double(&xdrs, &vacuum_to_air_limit);
 
 	if (atmos.Stokes || input.backgr_pol) {
 		result &= xdr_vector(&xdrs, (char *) spectrum->Stokes_Q[0], Nintensity,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) spectrum->Stokes_U[0], Nintensity,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) spectrum->Stokes_V[0], Nintensity,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	}
 
 	if (!result) {

@@ -105,7 +105,7 @@ bool_t xdr_collrate(XDR *xdrs, Atom *atom)
 
 	for (ij = 0; ij < SQ(atom->Nlevel); ij++) {
 		result &= xdr_vector(xdrs, (char *) atom->C[ij], atmos.Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	}
 	return result;
 }

@@ -107,7 +107,7 @@ bool_t xdr_damping(XDR *xdrs, Atom *atom)
 	double *adamp;
 
 	result += xdr_vector(xdrs, (char *) atom->vbroad, atmos.Nspace,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	/* --- We only export the damping parameters and don't do anything
 		   on import since we do not store adamp in any structure -- -- */
@@ -122,7 +122,7 @@ bool_t xdr_damping(XDR *xdrs, Atom *atom)
 				for (k = 0; k < atmos.Nspace; k++) adamp[k] = 0.0;
 
 			result += xdr_vector(xdrs, (char *) adamp, atmos.Nspace,
-								 sizeof(double), (xdrproc_t) xdr_double);
+								 sizeof(double), (xdrproc_t) rh_xdr_double);
 		}
 		free(adamp);
 	}

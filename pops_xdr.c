@@ -62,7 +62,7 @@ bool_t xdr_populations(XDR *xdrs, char *atmosID, int Nlevel, int Nspace,
 
 	if (n != NULL) {
 		result &= xdr_vector(xdrs, (char *) n, Npop,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	} else
 		return FALSE;
 
@@ -71,7 +71,7 @@ bool_t xdr_populations(XDR *xdrs, char *atmosID, int Nlevel, int Nspace,
 
 	if (nstar != NULL)
 		result &= xdr_vector(xdrs, (char *) nstar, Npop,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	return result;
 }

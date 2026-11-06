@@ -61,7 +61,7 @@ bool_t writeFlux(char *fileName)
 		}
 		for (k = 0; k < Nplane; k++) flux[k] *= 2.0 * PI;
 		result &= xdr_vector(&xdrs, (char *) flux, Nplane,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	}
 
 	xdr_destroy(&xdrs);

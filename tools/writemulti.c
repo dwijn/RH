@@ -115,11 +115,11 @@ void writeMULTIatmos(Geometry *geometry, Atmosphere *atmos,
 		xdrstdio_create(&xdrs, fp_MULTI, XDR_ENCODE);
 
 		result &= xdr_vector(&xdrs, (char *) atmos->B, atmos->Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) atmos->gamma_B, atmos->Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) atmos->chi_B, atmos->Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
 			fprintf(stderr, "Unable to write magnetic field to file %s\n", fileName);
 			exit(1);

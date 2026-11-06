@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
 
 	lambda = (double *) malloc(Nlambda * sizeof(double));
 	result &= xdr_vector(&xdrs, (char *) lambda, Nlambda,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	if (!result) {
 		sprintf(messageStr, "Unable to read from input file %s",

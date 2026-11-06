@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
 
 	result = xdr_double(&xdrs, &muz);
 	result &= xdr_vector(&xdrs, (char *) spectrum.I[0], spectrum.Nspect,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
 		sprintf(messageStr, "Unable to write spectrum to file %s", rayFileName);
 		Error(ERROR_LEVEL_2, argv[0], messageStr);
@@ -256,9 +256,9 @@ int main(int argc, char *argv[])
 		}
 		result = xdr_int(&xdrs, &wave_index[n]);
 		result &= xdr_vector(&xdrs, (char *) chi, atmos.Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) S, atmos.Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
 			sprintf(messageStr, "Unable to write chi and S to file %s", rayFileName);
 			Error(ERROR_LEVEL_2, argv[0], messageStr);
@@ -273,13 +273,13 @@ int main(int argc, char *argv[])
 	if (atmos.Stokes || input.backgr_pol) {
 		result = xdr_vector(&xdrs, (char *) spectrum.Stokes_Q[0],
 							spectrum.Nspect, sizeof(double),
-							(xdrproc_t) xdr_double);
+							(xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) spectrum.Stokes_U[0],
 							 spectrum.Nspect, sizeof(double),
-							 (xdrproc_t) xdr_double);
+							 (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) spectrum.Stokes_V[0],
 							 spectrum.Nspect, sizeof(double),
-							 (xdrproc_t) xdr_double);
+							 (xdrproc_t) rh_xdr_double);
 		if (!result) {
 			sprintf(messageStr, "Unable to write Stokes spectra to file %s", rayFileName);
 			Error(ERROR_LEVEL_2, argv[0], messageStr);

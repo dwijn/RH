@@ -358,7 +358,7 @@ void getBoundary(Geometry *geometry)
 
 		result &= xdr_vector(&xdrs, (char *) geometry->Itop[0],
 							 spectrum.Nspect * geometry->Nrays,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
 			sprintf(messageStr,
 					"Unable to read irradiation data at TOP of atmosphere");

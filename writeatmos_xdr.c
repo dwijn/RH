@@ -77,14 +77,14 @@ void writeAtmos(Atmosphere *atmos)
 	result &= xdr_bool(&xdrs, &atmos->moving);
 
 	result &= xdr_vector(&xdrs, (char *) atmos->T, Nspace,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) atmos->ne, Nspace,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) atmos->vturb, Nspace,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	result &= xdr_vector(&xdrs, (char *) atmos->H->n[0],
 						 Nspace * atmos->H->Nlevel,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	atmosID = atmos->ID;
 	result &= xdr_counted_string(&xdrs, &atmosID);
@@ -101,11 +101,11 @@ void writeAtmos(Atmosphere *atmos)
 		result &= xdr_bool(&xdrs, &atmos->Stokes);
 
 		result &= xdr_vector(&xdrs, (char *) atmos->B, Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) atmos->gamma_B, Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) atmos->chi_B, Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	}
 
 	if (!result) {

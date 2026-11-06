@@ -107,7 +107,7 @@ bool_t xdr_molecules(XDR *xdrs, Molecule *molecules)
 		result &= xdr_double(xdrs, &molecule->Tmax);
 
 		result &= xdr_vector(xdrs, (char *) molecule->n, atmos.Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 		if (molecule->Nv > 0 && molecule->NJ > 0) {
 			E = matrix_double(molecule->Nv, molecule->NJ);
@@ -121,12 +121,12 @@ bool_t xdr_molecules(XDR *xdrs, Molecule *molecules)
 				}
 			}
 			result &= xdr_vector(xdrs, (char *) E[0], molecule->Nv * molecule->NJ,
-								 sizeof(double), (xdrproc_t) xdr_double);
+								 sizeof(double), (xdrproc_t) rh_xdr_double);
 			freeMatrix((void **) E);
 		}
 	}
 	result &= xdr_vector(xdrs, (char *) atmos.nHmin, atmos.Nspace,
-						 sizeof(double), (xdrproc_t) xdr_double);
+						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	return result;
 }

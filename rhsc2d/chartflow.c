@@ -254,9 +254,9 @@ int main(int argc, char *argv[])
 
 		result = xdr_int(&xdrs, &wave_index[n]);
 		result &= xdr_vector(&xdrs, (char *) Fx, atmos.Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) Fz, atmos.Nspace,
-							 sizeof(double), (xdrproc_t) xdr_double);
+							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
 			sprintf(messageStr, "Unable to write flow data to file %s", chartFileName);
 			Error(ERROR_LEVEL_2, argv[0], messageStr);
