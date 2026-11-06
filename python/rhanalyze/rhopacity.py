@@ -175,7 +175,7 @@ class opacity:
                                    offset=offset)
         
         if self.atmos.stokes and self.backgrflags.ispolarized[waveno]:
-            offset += 3 * dim1 * SIZE_OF_DOUBLE
+            offset += 4 * dim1 * SIZE_OF_DOUBLE
         else:
             offset += dim1 * SIZE_OF_DOUBLE
 
