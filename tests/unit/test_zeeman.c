@@ -27,7 +27,10 @@
 		  directions along them, against the propagation matrix derived
 		  from the polarization of the circular and linear normal modes,
 		  in the IAU convention, with RH's sign of Stokes V applied (RH:
-		  positive V is negative helicity, opposite to IAU 1973);
+		  positive V is negative helicity, opposite to IAU 1973). The
+		  profiles are stored in single precision, so they agree to
+		  float rounding (2^-24 of each value, here at most 2^-23 of
+		  the largest phi_I);
 	   -- Milne-Eddington: RH's profiles at one point turned into the
 		  opacity and emissivity of a slab with constant field, constant
 		  line-to-continuum ratio and S linear in continuum optical
@@ -465,7 +468,7 @@ static void check_profiles(const Config *c, bool_t verbose)
 
 	const char *what[7] = {"phi_I", "phi_Q", "phi_U", "phi_V", "psi_Q", "psi_U", "psi_V"};
 	for (int i = 0; i < 7; i++)
-		CHECK(err[i] <= 1.0e-13, "%s: %s off by %.3g (relative to max phi_I)", c->name,
+		CHECK(err[i] <= 0x1p-23, "%s: %s off by %.3g (relative to max phi_I)", c->name,
 			  what[i], err[i]);
 	free_line();
 }
@@ -637,7 +640,10 @@ int main(int argc, char *argv[])
 
 	/* --- Milne-Eddington: (config, point, ray, bound) -- ---------- */
 
-	static const MECase me[]         = {{0, 2, 0, 1e-12}, {0, 2, 1, 1e-12}, {0, 3, 1, 1e-12}, {2, 4, 1, 1e-12}, {3, 1, 0, 1e-12}, {4, 3, 0, 1e-12}, {4, 6, 1, 1e-12}, {6, 3, 1, 1e-12}, {0, 1, 0, 1e-12}};
+	/* --- The emergent Stokes vector agreed with the analytic one to
+		   1e-12 with double profiles; stored as float (M-1) they bring
+		   it to a few times 1e-8 --                     -------------- */
+	static const MECase me[]         = {{0, 2, 0, 1e-7}, {0, 2, 1, 1e-7}, {0, 3, 1, 1e-7}, {2, 4, 1, 1e-7}, {3, 1, 0, 1e-7}, {4, 3, 0, 1e-7}, {4, 6, 1, 1e-7}, {6, 3, 1, 1e-7}, {0, 1, 0, 1e-7}};
 	spectrum.as                      = calloc(1, sizeof(ActiveSet));
 	atmos.backgrflags                = calloc(1, sizeof(flags));
 	atmos.backgrflags[0].ispolarized = TRUE;

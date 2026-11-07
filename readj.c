@@ -421,7 +421,7 @@ int writeBackground(int nspect, int mu, bool_t to_obs,
 
 /* ------- begin -------------------------- readProfile.c ----------- */
 
-void readProfile(AtomicLine *line, int lamu, double *phi)
+void readProfile(AtomicLine *line, int lamu, float *phi)
 {
 	const char routineName[] = "readProfile";
 
@@ -446,8 +446,8 @@ void readProfile(AtomicLine *line, int lamu, double *phi)
 	} else
 		Nrecphi = 1;
 
-	recordsize = Nrecphi * atmos.Nspace * sizeof(double);
-	offset     = NrecSkip * atmos.Nspace * sizeof(double) * lamu;
+	recordsize = Nrecphi * atmos.Nspace * sizeof(float);
+	offset     = NrecSkip * atmos.Nspace * sizeof(float) * (off_t) lamu;
 
 	result &= (pread_rh(line->fd_profile, phi, recordsize, offset) ==
 			   recordsize);
@@ -458,7 +458,7 @@ void readProfile(AtomicLine *line, int lamu, double *phi)
 
 /* ------- begin -------------------------- writeProfile.c ---------- */
 
-void writeProfile(AtomicLine *line, int lamu, double *phi)
+void writeProfile(AtomicLine *line, int lamu, float *phi)
 {
 	const char routineName[] = "writeProfile";
 
@@ -475,8 +475,8 @@ void writeProfile(AtomicLine *line, int lamu, double *phi)
 	} else
 		Nrecphi = 1;
 
-	recordsize = Nrecphi * atmos.Nspace * sizeof(double);
-	offset     = recordsize * lamu;
+	recordsize = Nrecphi * atmos.Nspace * sizeof(float);
+	offset     = recordsize * (off_t) lamu;
 
 	result &= (pwrite_rh(line->fd_profile, phi, recordsize, offset) ==
 			   recordsize);
