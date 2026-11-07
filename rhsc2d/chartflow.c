@@ -63,9 +63,8 @@ int main(int argc, char *argv[])
 	bool_t result, exit_on_EOF, crosscoupling, to_obs, initialize,
 		boundbound, PRD_angle_dep, polarized_as,
 		polarized_c, angle_dep, analyze_output, equilibria_only;
-	int    Nspect, Nread, *wave_index, checkPoint;
-	double wmux, wmuz, *I, *J, *Psi, *S, *chi, *chi_as, *eta_as,
-		*Fx, *Fz;
+	int        Nspect, Nread, *wave_index, checkPoint;
+	double     wmux, wmuz, *I, *J, *Psi, *S, *chi, *Fx, *Fz;
 	FILE      *fp_out = NULL, *fp_flow = NULL;
 	XDR        xdrs;
 	ActiveSet *as;
@@ -123,12 +122,10 @@ int main(int argc, char *argv[])
 	checkNread(Nread, Nspect + 1, argv[0], checkPoint = 2);
 	fclose(fp_flow);
 
-	I      = (double *) malloc(atmos.Nspace * sizeof(double));
-	Psi    = (double *) malloc(atmos.Nspace * sizeof(double));
-	chi    = (double *) malloc(atmos.Nspace * sizeof(double));
-	chi_as = (double *) malloc(atmos.Nspace * sizeof(double));
-	eta_as = (double *) malloc(atmos.Nspace * sizeof(double));
-	S      = (double *) malloc(atmos.Nspace * sizeof(double));
+	I   = (double *) malloc(atmos.Nspace * sizeof(double));
+	Psi = (double *) malloc(atmos.Nspace * sizeof(double));
+	chi = (double *) malloc(atmos.Nspace * sizeof(double));
+	S   = (double *) malloc(atmos.Nspace * sizeof(double));
 
 	Fx = (double *) malloc(atmos.Nspace * sizeof(double));
 	Fz = (double *) malloc(atmos.Nspace * sizeof(double));
@@ -214,9 +211,14 @@ int main(int argc, char *argv[])
 			Opacity(wave_index[n], 0, 0, initialize = TRUE);
 			readBackground(wave_index[n], 0, 0);
 
+			/* --- The active opacity and emissivity are in as->chi and
+				   as->eta, as in the angle-dependent case above. This
+				   used chi_as and eta_as, which were allocated and never
+				   filled (B-37) --                       -------------- */
+
 			for (k = 0; k < atmos.Nspace; k++) {
-				chi[k] = chi_as[k] + as->chi_c[k];
-				S[k]   = (eta_as[k] + as->eta_c[k] +
+				chi[k] = as->chi[k] + as->chi_c[k];
+				S[k]   = (as->eta[k] + as->eta_c[k] +
                         as->sca_c[k] * J[k]) /
 					   chi[k];
 			}
