@@ -70,9 +70,16 @@ struct AtomicLine {
 	int          i, j, Nlambda, Nblue, Ncomponent, Nxrd, fd_profile,
 		**id0, **id1;
 	double lambda0, *lambda, isotope_frac, g_Lande_eff,
-		Aji, Bji, Bij, *Rij, *Rji, **phi, **phi_Q, **phi_U, **phi_V,
-		**psi_Q, **psi_U, **psi_V, *wphi, *Qelast, Grad, cvdWaals[4],
+		Aji, Bji, Bij, *Rij, *Rji, *wphi, *Qelast, Grad, cvdWaals[4],
 		cStark, qcore, qwing, **rho_prd, *c_shift, *c_fraction, **frac;
+
+	/* --- Absorption profiles (and the Stokes and magneto-optical
+		   profiles), stored in single precision: they are by far the
+		   largest arrays in angle-dependent runs (M-1). They are
+		   computed in double, rounded once on storage, and wphi
+		   normalizes the stored values. --             -------------- */
+
+	float          **phi, **phi_Q, **phi_U, **phi_V, **psi_Q, **psi_U, **psi_V;
 	FILE            *fp_GII;
 	struct Ng       *Ng_prd;
 	Atom            *atom;
@@ -107,8 +114,9 @@ typedef struct {
 	char      configi[3], configj[3], parityi[2], parityj[2];
 	int       vi, vj, Nlambda, Nblue, subi, subj, Lambdai, Lambdaj, ecnoi, ecnoj;
 	double    lambda0, *lambda, isotope_frac, Ei, Ej, gi, gj, Si, Sj,
-		Omegai, Omegaj, **phi, *wphi, g_Lande_eff,
+		Omegai, Omegaj, *wphi, g_Lande_eff,
 		Grad, qcore, qwing, Aji, Bji, Bij;
+	float          **phi; /* Absorption profile, single precision (M-1) */
 	Molecule        *molecule;
 	ZeemanMultiplet *zm;
 } MolecularLine;
@@ -260,8 +268,8 @@ void LTEpops_elem(Element *element);
 void SetLTEQuantities(void);
 void getProfiles(void);
 void Profile(AtomicLine *line);
-void readProfile(AtomicLine *line, int lamu, double *phi);
-void writeProfile(AtomicLine *line, int lamu, double *phi);
+void readProfile(AtomicLine *line, int lamu, float *phi);
+void writeProfile(AtomicLine *line, int lamu, float *phi);
 void readAtom(Atom *atom, char *atomFileName);
 void readPopulations(Atom *atom);
 void SortLambda(void);

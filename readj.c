@@ -15,6 +15,8 @@
 			 sequentially to overcome this. --         -------------- */
 
 #include <errno.h>
+#include <float.h>
+#include <math.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -247,6 +249,88 @@ void writeImu(int nspect, int mu, bool_t to_obs, double *I)
 }
 /* ------- end ---------------------------- writeImu.c -------------- */
 
+/* ------- begin -------------------------- backgroundIO.c ---------- */
+
+static float *backgroundBuffer(void)
+{
+	float *buffer = NULL;
+
+	/* --- Conversion buffer for backgroundIO: the largest part of a
+		   block is 4 records (the Stokes opacity or emissivity) -- -- */
+
+	if (atmos.backgrbytes == sizeof(float)) {
+		buffer = (float *) malloc(4 * (size_t) atmos.Nspace * sizeof(float));
+		if (buffer == NULL)
+			Error(ERROR_LEVEL_2, "backgroundBuffer", "Out of memory");
+	}
+	return buffer;
+}
+
+static bool_t backgroundIO(double *values, int Nrec, off_t recordno,
+						   bool_t write_it, bool_t emissivity, float *buffer)
+{
+	const char routineName[] = "backgroundIO";
+
+	size_t Nvalues = (size_t) Nrec * atmos.Nspace, n, count;
+	off_t  offset;
+	double scale = 1.0, v;
+
+	/* --- Transfer Nrec records (of atmos.Nspace values each) starting
+		   at record recordno of the background file. Values are double
+		   in memory and atmos.backgrbytes wide on disk: float since M-1,
+		   so that the file is half the size, double in files written
+		   by older versions (read with OLD_BACKGROUND). The rounding to
+		   float changes the background opacities by at most 6e-8
+		   relative.
+
+		   Emissivities in SI units go far below the smallest float
+		   (1.2e-38) at short wavelengths and low temperatures (1e-50 in
+		   FAL-C below 100 nm), and a zero emissivity can make J vanish.
+		   They are stored multiplied by 2^atmos.backgretaexp (exact, a
+		   power of two), which maps 1e-68 to the smallest float and
+		   leaves room up to 2.7e8 before overflow. A value beyond the
+		   range of float is an error rather than an infinity in the
+		   file. buffer holds at least Nrec records (backgroundBuffer).
+		   --                                            -------------- */
+
+	if (emissivity && atmos.backgretaexp != 0)
+		scale = ldexp(1.0, atmos.backgretaexp);
+
+	count  = Nvalues * atmos.backgrbytes;
+	offset = recordno * (off_t) atmos.Nspace * atmos.backgrbytes;
+
+	if (atmos.backgrbytes == sizeof(double) && scale == 1.0) {
+		if (write_it)
+			return (pwrite_rh(atmos.fd_background, values, count, offset) == count);
+		else
+			return (pread_rh(atmos.fd_background, values, count, offset) == count);
+	} else if (atmos.backgrbytes != sizeof(float) || buffer == NULL) {
+		sprintf(messageStr, "Unknown format of the background file: %d bytes"
+							" per value, emissivity scale 2^%d",
+				atmos.backgrbytes, atmos.backgretaexp);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+	if (write_it) {
+		for (n = 0; n < Nvalues; n++) {
+			v = values[n] * scale;
+			if (fabs(v) > FLT_MAX && isfinite(v)) {
+				sprintf(messageStr, "Background %s %.3e out of the range of"
+									" the (single-precision) background file",
+						(emissivity) ? "emissivity" : "opacity", values[n]);
+				Error(ERROR_LEVEL_2, routineName, messageStr);
+			}
+			buffer[n] = (float) v;
+		}
+		return (pwrite_rh(atmos.fd_background, buffer, count, offset) == count);
+	} else {
+		if (pread_rh(atmos.fd_background, buffer, count, offset) != count)
+			return FALSE;
+		for (n = 0; n < Nvalues; n++) values[n] = buffer[n] / scale;
+		return TRUE;
+	}
+}
+/* ------- end ---------------------------- backgroundIO.c ---------- */
+
 /* ------- begin -------------------------- readBackground.c -------- */
 
 void readBackground(int nspect, int mu, bool_t to_obs)
@@ -254,9 +338,8 @@ void readBackground(int nspect, int mu, bool_t to_obs)
 	const char routineName[] = "readBackground";
 
 	int        recordno, NrecStokes, NskipStokes;
-	size_t     recordsize;
-	off_t      offset;
 	bool_t     result = TRUE;
+	float     *buffer = backgroundBuffer();
 	ActiveSet *as;
 
 	/* --- Read background opacity, emissivity and scattering opacity
@@ -267,13 +350,10 @@ void readBackground(int nspect, int mu, bool_t to_obs)
 
 	as = &spectrum.as[nspect];
 
-	recordsize = atmos.Nspace * sizeof(double);
-
 	if (atmos.moving || atmos.Stokes)
 		recordno = atmos.backgrrecno[2 * (nspect * atmos.Nrays + mu) + to_obs];
 	else
 		recordno = atmos.backgrrecno[nspect];
-	offset = recordno * recordsize;
 
 	/* --- Read emissivity and opacity for Q, U, and V only if we are
 		   solving explicitly for all four Stokes quantities, but always
@@ -288,30 +368,25 @@ void readBackground(int nspect, int mu, bool_t to_obs)
 
 	/* --- Read background opacity --                    -------------- */
 
-	result &= (pread_rh(atmos.fd_background, as->chi_c,
-						NrecStokes * recordsize,
-						offset) == NrecStokes * recordsize);
-	offset += NskipStokes * recordsize;
+	result &= backgroundIO(as->chi_c, NrecStokes, recordno, FALSE, FALSE, buffer);
+	recordno += NskipStokes;
 
 	/* --- Read off-diagonal elements propagation matrix K -- --------- */
 
 	if (atmos.backgrflags[nspect].ispolarized && input.magneto_optical) {
 		if (input.StokesMode == FULL_STOKES)
-			result &= (pread_rh(atmos.fd_background, as->chip_c, 3 * recordsize,
-								offset) == 3 * recordsize);
-		offset += 3 * recordsize;
+			result &= backgroundIO(as->chip_c, 3, recordno, FALSE, FALSE, buffer);
+		recordno += 3;
 	}
 	/* --- Read background emissivity --                 -------------- */
 
-	result &= (pread_rh(atmos.fd_background, as->eta_c,
-						NrecStokes * recordsize,
-						offset) == NrecStokes * recordsize);
-	offset += NskipStokes * recordsize;
+	result &= backgroundIO(as->eta_c, NrecStokes, recordno, FALSE, TRUE, buffer);
+	recordno += NskipStokes;
 
 	/* --- Read background scattering opacity --         -------------- */
 
-	result &= (pread_rh(atmos.fd_background,
-						as->sca_c, recordsize, offset) == recordsize);
+	result &= backgroundIO(as->sca_c, 1, recordno, FALSE, FALSE, buffer);
+	free(buffer);
 
 	/* --- Exit if reading is unsuccessful --            -------------- */
 
@@ -325,7 +400,7 @@ int backgroundRecords(int nspect)
 {
 	int NrecStokes, Nrec;
 
-	/* --- Number of records (of size atmos.Nspace doubles) that a block
+	/* --- Number of records (of atmos.Nspace values) that a block
 		   of background data for wavelength nspect occupies: opacity,
 		   possibly the off-diagonal elements of the propagation matrix,
 		   emissivity, and scattering opacity. This is the one place that
@@ -354,20 +429,16 @@ int writeBackground(int nspect, int mu, bool_t to_obs,
 
 	int    recordno, Nwrite, NrecStokes;
 	bool_t result = TRUE;
-	size_t recordsize;
-	off_t  offset;
+	float *buffer = backgroundBuffer();
 
 	/* --- Writes background opacity, emissivity, and scattering
 		   opacity. Returns Nwrite, the number of records written,
-		   with a record length of atmos.Nspace * sizeof(double) -- --- */
-
-	recordsize = atmos.Nspace * sizeof(double);
+		   each of atmos.Nspace values (see backgroundIO) -- --------- */
 
 	if (atmos.moving || atmos.Stokes)
 		recordno = atmos.backgrrecno[2 * (nspect * atmos.Nrays + mu) + to_obs];
 	else
 		recordno = atmos.backgrrecno[nspect];
-	offset = recordno * recordsize;
 
 	if (atmos.backgrflags[nspect].ispolarized)
 		NrecStokes = 4;
@@ -378,33 +449,25 @@ int writeBackground(int nspect, int mu, bool_t to_obs,
 
 	/* --- Write background opacity --                   -------------- */
 
-	result &= (pwrite_rh(atmos.fd_background, chi_c,
-						 NrecStokes * recordsize,
-						 offset) == NrecStokes * recordsize);
+	result &= backgroundIO(chi_c, NrecStokes, recordno + Nwrite, TRUE, FALSE, buffer);
 	Nwrite += NrecStokes;
-	offset += NrecStokes * recordsize;
 
 	/* --- Write off-diagonal elements of propagation matrix K -- ----- */
 
 	if (atmos.backgrflags[nspect].ispolarized && input.magneto_optical) {
-		result &= (pwrite_rh(atmos.fd_background, chip_c, 3 * recordsize,
-							 offset) == 3 * recordsize);
+		result &= backgroundIO(chip_c, 3, recordno + Nwrite, TRUE, FALSE, buffer);
 		Nwrite += 3;
-		offset += 3 * recordsize;
 	}
 	/* --- Write background emissivity --                -------------- */
 
-	result &= (pwrite_rh(atmos.fd_background, eta_c,
-						 NrecStokes * recordsize,
-						 offset) == NrecStokes * recordsize);
+	result &= backgroundIO(eta_c, NrecStokes, recordno + Nwrite, TRUE, TRUE, buffer);
 	Nwrite += NrecStokes;
-	offset += NrecStokes * recordsize;
 
 	/* --- Write background scattering opacity --        -------------- */
 
-	result &= (pwrite_rh(atmos.fd_background, sca_c, recordsize,
-						 offset) == recordsize);
+	result &= backgroundIO(sca_c, 1, recordno + Nwrite, TRUE, FALSE, buffer);
 	Nwrite += 1;
+	free(buffer);
 
 	if (!result)
 		Error(ERROR_LEVEL_2, routineName, "Error writing file");
@@ -421,7 +484,7 @@ int writeBackground(int nspect, int mu, bool_t to_obs,
 
 /* ------- begin -------------------------- readProfile.c ----------- */
 
-void readProfile(AtomicLine *line, int lamu, double *phi)
+void readProfile(AtomicLine *line, int lamu, float *phi)
 {
 	const char routineName[] = "readProfile";
 
@@ -446,8 +509,8 @@ void readProfile(AtomicLine *line, int lamu, double *phi)
 	} else
 		Nrecphi = 1;
 
-	recordsize = Nrecphi * atmos.Nspace * sizeof(double);
-	offset     = NrecSkip * atmos.Nspace * sizeof(double) * lamu;
+	recordsize = Nrecphi * atmos.Nspace * sizeof(float);
+	offset     = NrecSkip * atmos.Nspace * sizeof(float) * (off_t) lamu;
 
 	result &= (pread_rh(line->fd_profile, phi, recordsize, offset) ==
 			   recordsize);
@@ -458,7 +521,7 @@ void readProfile(AtomicLine *line, int lamu, double *phi)
 
 /* ------- begin -------------------------- writeProfile.c ---------- */
 
-void writeProfile(AtomicLine *line, int lamu, double *phi)
+void writeProfile(AtomicLine *line, int lamu, float *phi)
 {
 	const char routineName[] = "writeProfile";
 
@@ -475,8 +538,8 @@ void writeProfile(AtomicLine *line, int lamu, double *phi)
 	} else
 		Nrecphi = 1;
 
-	recordsize = Nrecphi * atmos.Nspace * sizeof(double);
-	offset     = recordsize * lamu;
+	recordsize = Nrecphi * atmos.Nspace * sizeof(float);
+	offset     = recordsize * (off_t) lamu;
 
 	result &= (pwrite_rh(line->fd_profile, phi, recordsize, offset) ==
 			   recordsize);

@@ -98,6 +98,24 @@ double **matrix_double(int Nrow, int Ncol)
 }
 /* ------- end ---------------------------- matrix_double.c --------- */
 
+/* ------- begin -------------------------- matrix_float.c ---------- */
+
+float **matrix_float(int Nrow, int Ncol)
+{
+	register int i;
+
+	float *theMatrix, **Matrix;
+
+	theMatrix = (float *) calloc((size_t) Nrow * Ncol, sizeof(float));
+	Matrix    = (float **) malloc((size_t) Nrow * sizeof(float *));
+	checkAlloc("matrix_float", theMatrix, Matrix, Nrow, Ncol);
+	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
+		Matrix[i] = theMatrix;
+
+	return Matrix;
+}
+/* ------- end ---------------------------- matrix_float.c ---------- */
+
 /* ------- begin -------------------------- freeMatrix.c ------------ */
 
 void freeMatrix(void **matrix)
