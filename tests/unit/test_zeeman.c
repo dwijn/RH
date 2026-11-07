@@ -641,8 +641,8 @@ int main(int argc, char *argv[])
 	/* --- Milne-Eddington: (config, point, ray, bound) -- ---------- */
 
 	/* --- The emergent Stokes vector agreed with the analytic one to
-		   1e-12 with double profiles; stored as float (M-1) they bring
-		   it to a few times 1e-8 --                     -------------- */
+		   1e-12 with double profiles; stored as float (M-1) the
+		   differences are up to 4e-8 --                 -------------- */
 	static const MECase me[]         = {{0, 2, 0, 1e-7}, {0, 2, 1, 1e-7}, {0, 3, 1, 1e-7}, {2, 4, 1, 1e-7}, {3, 1, 0, 1e-7}, {4, 3, 0, 1e-7}, {4, 6, 1, 1e-7}, {6, 3, 1, 1e-7}, {0, 1, 0, 1e-7}};
 	spectrum.as                      = calloc(1, sizeof(ActiveSet));
 	atmos.backgrflags                = calloc(1, sizeof(flags));

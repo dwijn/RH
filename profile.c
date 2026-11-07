@@ -122,7 +122,8 @@ static void profileWorker(int kbeg, int kend, int nt, void *arg)
 
 					/* --- Assign pointers to the proper phi and psi arrays,
 						   except in the conservative-memory mode, which
-						   fills one shared row --                -------------- */
+						   fills one shared row (single worker, all k, every
+						   profile it holds: no zeroing needed) -- ----------- */
 
 					if (!input.limit_memory) {
 						phi = line->phi[lamu];
@@ -328,7 +329,7 @@ void Profile(AtomicLine *line)
 
 		if (line->polarizable && (input.StokesMode == FULL_STOKES)) {
 			NrecStokes = (input.magneto_optical) ? 7 : 4;
-			phi        = (float *) calloc((size_t) NrecStokes * atmos.Nspace, sizeof(float));
+			phi        = (float *) malloc((size_t) NrecStokes * atmos.Nspace * sizeof(float));
 
 			/* --- Assign pointers to subarrays of phi --    -------------- */
 

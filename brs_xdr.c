@@ -173,6 +173,15 @@ bool_t xdr_BRS(XDR *xdrs)
 			atmos.backgretaexp = 0;
 		} else
 			result &= xdr_int(xdrs, &atmos.backgretaexp);
+
+		if (result && !((atmos.backgrbytes == sizeof(float)) ||
+						(atmos.backgrbytes == sizeof(double) &&
+						 atmos.backgretaexp == 0))) {
+			sprintf(messageStr, "Unknown format of the background file: %d bytes"
+								" per value, emissivity scale 2^%d",
+					atmos.backgrbytes, atmos.backgretaexp);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
 	}
 
 	free(hasline);
