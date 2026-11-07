@@ -79,8 +79,10 @@ struct AtomicLine {
 		   computed in double, rounded once on storage, and wphi
 		   normalizes the stored values. --             -------------- */
 
-	float          **phi, **phi_Q, **phi_U, **phi_V, **psi_Q, **psi_U, **psi_V;
-	FILE            *fp_GII;
+	float **phi, **phi_Q, **phi_U, **phi_V, **psi_Q, **psi_U, **psi_V;
+	FILE   *fp_GII;
+	long   *prd_block; /* sizes of the per-location blocks of the
+						  folded PRD weights in fp_GII (scatter.c) */
 	struct Ng       *Ng_prd;
 	Atom            *atom;
 	AtomicLine     **xrd;

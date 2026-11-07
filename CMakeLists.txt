@@ -135,7 +135,7 @@ add_library(rh STATIC
   ludcmp.c matrix.c maxchange.c metal.c molzeeman.c nemetals.c ohchbf.c
   opacity.c options.c order.c parallel.c parse.c paschen.c planck.c
   pops_xdr.c profile.c radrate_xdr.c rayleigh.c readatom.c readb_xdr.c
-  readinput.c readj.c readmolecule.c readvalue.c redistribute.c scatter.c
+  prdfold.c readinput.c readj.c readmolecule.c readvalue.c redistribute.c scatter.c
   solvene.c sortlambda.c spline.c statequil.c stokesopac.c stopreq.c
   thomson.c vacuumtoair.c voigt.c w3.c wigner.c writeatmos_xdr.c
   writeatom_xdr.c writecoll_xdr.c writedamp_xdr.c writeinput_xdr.c

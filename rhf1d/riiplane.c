@@ -37,6 +37,7 @@
 	   --                                              -------------- */
 
 #include <math.h>
+#include <pthread.h>
 
 #include "rh.h"
 #include "atom.h"
@@ -55,11 +56,20 @@ extern Geometry geometry;
 
 /* ------- begin -------------------------- RII.c ------------------- */
 
+/* --- Gauss-Legendre nodes, set up once: RII is called from several
+	   threads (PRDAngleScatter) --                     -------------- */
+
+static double         xg0[N_GAUSS_QUADR], wg0[N_GAUSS_QUADR];
+static pthread_once_t rii_once = PTHREAD_ONCE_INIT;
+
+static void riiNodes(void)
+{
+	GaussLeg(0.0, 1.0, xg0, wg0, N_GAUSS_QUADR);
+}
+
 double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2)
 {
-	register int  n;
-	static bool_t initialize = TRUE;
-	static double xg0[N_GAUSS_QUADR], wg0[N_GAUSS_QUADR];
+	register int n;
 
 	double theta_min, theta_plus, vmin, vplus, theta1, theta2,
 		xg[N_GAUSS_QUADR], wg[N_GAUSS_QUADR], rii, mu12, muz1, muz2,
@@ -81,10 +91,7 @@ double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2)
 
 	/* --- Get Gauss-Legendre integration weights --     ------------- */
 
-	if (initialize) {
-		GaussLeg(0.0, 1.0, xg0, wg0, N_GAUSS_QUADR);
-		initialize = FALSE;
-	}
+	pthread_once(&rii_once, riiNodes);
 	/* --- Integration over azimuthal angle parametrized as theta - -- */
 
 	if (theta == 0.0) {
