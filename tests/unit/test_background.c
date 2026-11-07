@@ -150,6 +150,19 @@ static void check_read_back(const char *what)
 	}
 }
 
+/* --- In the child of is_fatal, RH's Error() exits with buffers still
+	   allocated, as it does in the programs. LeakSanitizer would report
+	   them and change the exit status, so it is turned off there (an
+	   interface of LeakSanitizer; unused without it) -- ------------ */
+
+static int in_child = 0;
+
+int __lsan_is_turned_off(void);
+int __lsan_is_turned_off(void)
+{
+	return in_child;
+}
+
 /* --- Run f in a child with its output discarded; TRUE if it ended
 	   with RH's fatal exit status --                   -------------- */
 
@@ -161,6 +174,7 @@ static bool_t is_fatal(void (*f)(void))
 	fflush(stdout);
 	fflush(stderr);
 	if ((pid = fork()) == 0) {
+		in_child = 1;
 		if (!freopen("/dev/null", "w", stdout) || !freopen("/dev/null", "w", stderr)) _exit(1);
 		commandline.logfile = stderr;
 		f();
@@ -176,8 +190,19 @@ static void write_huge_eta(void)
 	writeBackground(0, 0, FALSE, chi[0], eta[0], sca[0], chip[0]);
 }
 
+static void free_brs(void)
+{
+	/* --- readBRS allocates these anew --          -------------- */
+
+	free(atmos.backgrflags);
+	free(atmos.backgrrecno);
+	atmos.backgrflags = NULL;
+	atmos.backgrrecno = NULL;
+}
+
 static void read_bad_brs(void)
 {
+	free_brs();
 	readBRS();
 }
 
@@ -251,6 +276,7 @@ int main(void)
 
 	writeBRS();
 	atmos.backgrbytes = atmos.backgretaexp = -1;
+	free_brs();
 	readBRS();
 	CHECK(atmos.backgrbytes == sizeof(float) && atmos.backgretaexp == BACKGR_ETA_EXP,
 		  "brs.out read back as %d bytes, scale 2^%d", atmos.backgrbytes,
@@ -266,6 +292,7 @@ int main(void)
 	fclose(fp);
 	CHECK(truncate("brs.out", size - 8) == 0, "%s", "truncate brs.out");
 	atmos.backgrbytes = atmos.backgretaexp = -1;
+	free_brs();
 	readBRS();
 	CHECK(atmos.backgrbytes == sizeof(double) && atmos.backgretaexp == 0,
 		  "old brs.out read as %d bytes, scale 2^%d", atmos.backgrbytes,
@@ -279,6 +306,14 @@ int main(void)
 	CHECK(is_fatal(read_bad_brs), "%s", "brs.out with 5 bytes per value was accepted");
 
 	close(atmos.fd_background);
+	free_brs();
+	for (nspect = 0; nspect < NSPECT; nspect++) {
+		free(spectrum.as[nspect].chi_c);
+		free(spectrum.as[nspect].eta_c);
+		free(spectrum.as[nspect].sca_c);
+		free(spectrum.as[nspect].chip_c);
+	}
+	free(spectrum.as);
 	unlink("background.dat");
 	unlink("background_double.dat");
 	unlink("brs.out");
