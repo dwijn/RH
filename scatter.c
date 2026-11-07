@@ -653,7 +653,7 @@ static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
 	int          Nl   = line->Nlambda, k, la, mu, mup, to_obs, d, lap, lamu, Np, m, *m0, *len,
 		Nrow;
 	long   pos, start;
-	double v_emit, v0, vN, *vp = NULL, *v_abs, *rii = NULL, *W, norm, wmup, s, wv,
+	double v_emit, v0, vN, *vp = NULL, *v_abs, *rii = NULL, *W, norm, wmup, s,
 						   *I_d, phi;
 	prdw_t   *wbuf;
 	PRDWindow win;
