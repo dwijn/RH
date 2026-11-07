@@ -89,36 +89,48 @@ static void addOpacity(int Nspace, double twohnu3_c2, const double *restrict Vij
 	}
 }
 
-/* --- Stokes Q, U, V opacity (and, with eta_Q != NULL, emissivity) of
-	   one line: chi_l phi_X added to chi_X, eta_l phi_X to eta_X --  */
+/* --- Stokes Q, U, V opacity and emissivity of one line, plus the
+	   magneto-optical terms when psi_Q != NULL, in one pass over depth
+	   as in the loop they replace --                   -------------- */
 
 static void addStokesOpacity(int Nspace, double Bijxhc_4PI, double twohnu3_c2,
 							 const double *restrict gij, const double *restrict n_i,
 							 const double *restrict n_j, const float *restrict phi_Q,
 							 const float *restrict phi_U, const float *restrict phi_V,
-							 double *restrict chi_Q, double *restrict chi_U,
-							 double *restrict chi_V, double *restrict eta_Q,
+							 const float *restrict psi_Q, const float *restrict psi_U,
+							 const float *restrict psi_V, double *restrict chi_Q,
+							 double *restrict chi_U, double *restrict chi_V,
+							 double *restrict chip_Q, double *restrict chip_U,
+							 double *restrict chip_V, double *restrict eta_Q,
 							 double *restrict eta_U, double *restrict eta_V)
 {
-	int    k;
-	double chi_l, eta_l;
+	int k;
 
-	RH_SIMD
-	for (k = 0; k < Nspace; k++) {
-		chi_l = Bijxhc_4PI * (n_i[k] - gij[k] * n_j[k]);
-		chi_Q[k] += chi_l * phi_Q[k];
-		chi_U[k] += chi_l * phi_U[k];
-		chi_V[k] += chi_l * phi_V[k];
+#define STOKES_OPACITY(MAGNETO_OPTICAL)                                \
+	RH_SIMD                                                            \
+	for (k = 0; k < Nspace; k++) {                                     \
+		double chi_l = Bijxhc_4PI * (n_i[k] - gij[k] * n_j[k]), eta_l; \
+                                                                       \
+		chi_Q[k] += chi_l * phi_Q[k];                                  \
+		chi_U[k] += chi_l * phi_U[k];                                  \
+		chi_V[k] += chi_l * phi_V[k];                                  \
+		if (MAGNETO_OPTICAL) {                                         \
+			chip_Q[k] += chi_l * psi_Q[k];                             \
+			chip_U[k] += chi_l * psi_U[k];                             \
+			chip_V[k] += chi_l * psi_V[k];                             \
+		}                                                              \
+		eta_l = Bijxhc_4PI * twohnu3_c2 * gij[k] * n_j[k];             \
+		eta_Q[k] += eta_l * phi_Q[k];                                  \
+		eta_U[k] += eta_l * phi_U[k];                                  \
+		eta_V[k] += eta_l * phi_V[k];                                  \
 	}
-	if (eta_Q != NULL) {
-		RH_SIMD
-		for (k = 0; k < Nspace; k++) {
-			eta_l = Bijxhc_4PI * twohnu3_c2 * gij[k] * n_j[k];
-			eta_Q[k] += eta_l * phi_Q[k];
-			eta_U[k] += eta_l * phi_U[k];
-			eta_V[k] += eta_l * phi_V[k];
-		}
+
+	if (psi_Q != NULL) {
+		STOKES_OPACITY(1)
+	} else {
+		STOKES_OPACITY(0)
 	}
+#undef STOKES_OPACITY
 }
 
 /* ------- begin -------------------------- Opacity.c --------------- */
@@ -389,13 +401,16 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 					eta_U = atom->rhth[nt].eta + 2 * atmos.Nspace;
 					eta_V = atom->rhth[nt].eta + 3 * atmos.Nspace;
 
-					addStokesOpacity(atmos.Nspace, Bijxhc_4PI, twohnu3_c2,
-									 atom->rhth[nt].gij[n], n_i, n_j, phi_Q, phi_U, phi_V,
-									 chi_Q, chi_U, chi_V, eta_Q, eta_U, eta_V);
 					if (input.magneto_optical)
-						addStokesOpacity(atmos.Nspace, Bijxhc_4PI, 0.0,
-										 atom->rhth[nt].gij[n], n_i, n_j, psi_Q, psi_U,
-										 psi_V, chip_Q, chip_U, chip_V, NULL, NULL, NULL);
+						addStokesOpacity(atmos.Nspace, Bijxhc_4PI, twohnu3_c2,
+										 atom->rhth[nt].gij[n], n_i, n_j, phi_Q, phi_U, phi_V,
+										 psi_Q, psi_U, psi_V, chi_Q, chi_U, chi_V, chip_Q,
+										 chip_U, chip_V, eta_Q, eta_U, eta_V);
+					else
+						addStokesOpacity(atmos.Nspace, Bijxhc_4PI, twohnu3_c2,
+										 atom->rhth[nt].gij[n], n_i, n_j, phi_Q, phi_U, phi_V,
+										 NULL, NULL, NULL, chi_Q, chi_U, chi_V, NULL, NULL,
+										 NULL, eta_Q, eta_U, eta_V);
 				}
 			}
 			if (as->art[nact][n].type == ATOMIC_LINE && input.limit_memory)

@@ -186,8 +186,7 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 {
 	register int k;
 
-	int    ij = i * Nlevel + j, ji = j * Nlevel + i;
-	double Ieff, vw, chi, w, wlamu;
+	int ij = i * Nlevel + j, ji = j * Nlevel + i;
 	double *restrict Gji = Gam[ji], *restrict Gij = Gam[ij];
 
 	/* --- Radiative rates of transition i -> j (i lower) with the
@@ -222,18 +221,18 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 		   different rows, i != j), so the loop over depth vectorizes
 		   (P-7); the two cases of wk keep it free of branches. -- --- */
 
-#define PRECONDITIONED_RATES(W)                                      \
-	RH_SIMD                                                          \
-	for (k = 0; k < Nspace; k++) {                                   \
-		Ieff  = I[k] - Psi[k] * (n_j[k] * U_j[k] + n_i[k] * U_i[k]); \
-		vw    = Vij[k] * wla[k];                                     \
-		chi   = vw * (n_i[k] - gij[k] * n_j[k]);                     \
-		w     = (W);                                                 \
-		wlamu = vw * w;                                              \
-                                                                     \
-		Gji[k] += Ieff * wlamu + chi * Psi[k] * U_i[k] * w;          \
-		Gij[k] += (twohnu3_c2 + Ieff) * gij[k] * wlamu -             \
-				  chi * Psi[k] * U_j[k] * w;                         \
+#define PRECONDITIONED_RATES(W)                                             \
+	RH_SIMD                                                                 \
+	for (k = 0; k < Nspace; k++) {                                          \
+		double Ieff  = I[k] - Psi[k] * (n_j[k] * U_j[k] + n_i[k] * U_i[k]); \
+		double vw    = Vij[k] * wla[k];                                     \
+		double chi   = vw * (n_i[k] - gij[k] * n_j[k]);                     \
+		double w     = (W);                                                 \
+		double wlamu = vw * w;                                              \
+                                                                            \
+		Gji[k] += Ieff * wlamu + chi * Psi[k] * U_i[k] * w;                 \
+		Gij[k] += (twohnu3_c2 + Ieff) * gij[k] * wlamu -                    \
+				  chi * Psi[k] * U_j[k] * w;                                \
 	}
 
 	if (wk != NULL) {
@@ -544,12 +543,12 @@ static void addRates(int Nspace, double wmu, double twohnu3_c2,
 					 const double *restrict gij, const double *restrict I,
 					 double *restrict Rij, double *restrict Rji)
 {
-	int    k;
-	double wlamu;
+	int k;
 
 	RH_SIMD
 	for (k = 0; k < Nspace; k++) {
-		wlamu = Vij[k] * wla[k] * wmu;
+		double wlamu = Vij[k] * wla[k] * wmu;
+
 		Rij[k] += I[k] * wlamu;
 		Rji[k] += gij[k] * (twohnu3_c2 + I[k]) * wlamu;
 	}

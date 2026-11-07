@@ -430,6 +430,13 @@ double summers(int i, int j, double nne, struct Atom *atom)
 	/* --- Find iso-electronic sequence of recombined ion -- --------- */
 
 	isoseq = iz - atom->stage[i];
+	if (isoseq < 1 || isoseq > 86) {
+		sprintf(messageStr,
+				"Atom %s, SUMMERS for levels %d and %d: the recombined ion has %d"
+				" electrons; the density factor covers 1 to 86",
+				atom->ID, i, j, isoseq);
+		Error(ERROR_LEVEL_2, "summers", messageStr);
+	}
 	atomnm(isoseq - 1, &cseq[0]);
 
 	/* --- Row and column in periodic table --           ------------- */

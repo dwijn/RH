@@ -56,9 +56,12 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "Intel")
 endif()
 
 # -O3 for the default build type: 5-12 % faster whole runs than -O2 on
-# top of the vectorized per-transition loops (P-7), with bit-identical
-# results (no value-changing optimizations: no -ffast-math). It comes
-# after CMake's -O2 on the command line, so it is the one that counts.
+# top of the vectorized per-transition loops (P-7). No value-changing
+# optimizations (no -ffast-math): results were bit-identical to -O2 on
+# x86-64 without -march, where there is no FMA. Where the compiler fuses
+# multiply-adds (FMA hardware with GCC's default -ffp-contract=fast) a
+# different optimization level can fuse differently and change the last
+# bits. It comes after CMake's -O2 on the command line, so it counts.
 if(RH_O3)
   target_compile_options(rh_options INTERFACE $<$<CONFIG:RelWithDebInfo>:-O3>)
 endif()
@@ -80,11 +83,17 @@ endif()
 # addPreconditionedRates) are marked RH_SIMD (simd.h): #pragma omp simd
 # where the compiler takes -fopenmp-simd, which needs no OpenMP runtime
 # and has GCC vectorize those loops at -O2 too (P-7). The loops are
-# element-wise, so vectorizing them does not change results.
+# element-wise, so vectorizing them does not reorder any sum. Clang warns
+# (-Wpass-failed) about a marked loop it decides not to vectorize; that is
+# not an error in the code, so the warning is off (RH_WERROR).
 check_c_compiler_flag(-fopenmp-simd RH_HAVE_OPENMP_SIMD)
 if(RH_HAVE_OPENMP_SIMD)
   target_compile_options(rh_options INTERFACE -fopenmp-simd)
   target_compile_definitions(rh_options INTERFACE RH_OPENMP_SIMD)
+  check_c_compiler_flag(-Wno-pass-failed RH_HAVE_WNO_PASS_FAILED)
+  if(RH_HAVE_WNO_PASS_FAILED)
+    target_compile_options(rh_options INTERFACE -Wno-pass-failed)
+  endif()
 endif()
 
 if(RH_WARNINGS)

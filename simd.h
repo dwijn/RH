@@ -4,7 +4,10 @@
 	   compiler takes -fopenmp-simd (set up by CMakeLists.txt, which then
 	   defines RH_OPENMP_SIMD), nothing otherwise. Use it only on loops
 	   whose iterations are independent and that contain no reduction,
-	   so that vectorizing them leaves every result bit for bit the same.
+	   and declare every scratch variable inside the loop body (the
+	   pragma makes variables declared outside it shared between lanes).
+	   Vectorizing such a loop reorders no sum; results then change only
+	   where the compiler fuses multiply-adds differently (FMA).
 	   --                                              -------------- */
 
 #ifndef SIMD_H
