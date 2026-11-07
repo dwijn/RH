@@ -35,6 +35,7 @@
 #include <pthread.h>
 
 #include "rh.h"
+#include "simd.h"
 #include "error.h"
 #include "atom.h"
 #include "atmos.h"
@@ -56,6 +57,70 @@ extern Spectrum   spectrum;
 extern InputData  input;
 extern char       messageStr[];
 
+/* --- Loops over depth of the active opacity, factored out so that
+	   their arrays are restrict (they do not overlap) and the loops
+	   vectorize (P-7, see simd.h). The arithmetic is that of the loops
+	   they replace, operation for operation. --        -------------- */
+
+static void lineVij(int Nspace, double gijk, double Bijxhc_4PI,
+					const float *restrict phi, double *restrict gij,
+					double *restrict Vij)
+{
+	int k;
+
+	RH_SIMD
+	for (k = 0; k < Nspace; k++) {
+		gij[k] = gijk;
+		Vij[k] = Bijxhc_4PI * phi[k];
+	}
+}
+
+static void addOpacity(int Nspace, double twohnu3_c2, const double *restrict Vij,
+					   const double *restrict gij, const double *restrict n_i,
+					   const double *restrict n_j, double *restrict chi,
+					   double *restrict eta)
+{
+	int k;
+
+	RH_SIMD
+	for (k = 0; k < Nspace; k++) {
+		chi[k] += Vij[k] * (n_i[k] - gij[k] * n_j[k]);
+		eta[k] += twohnu3_c2 * gij[k] * Vij[k] * n_j[k];
+	}
+}
+
+/* --- Stokes Q, U, V opacity (and, with eta_Q != NULL, emissivity) of
+	   one line: chi_l phi_X added to chi_X, eta_l phi_X to eta_X --  */
+
+static void addStokesOpacity(int Nspace, double Bijxhc_4PI, double twohnu3_c2,
+							 const double *restrict gij, const double *restrict n_i,
+							 const double *restrict n_j, const float *restrict phi_Q,
+							 const float *restrict phi_U, const float *restrict phi_V,
+							 double *restrict chi_Q, double *restrict chi_U,
+							 double *restrict chi_V, double *restrict eta_Q,
+							 double *restrict eta_U, double *restrict eta_V)
+{
+	int    k;
+	double chi_l, eta_l;
+
+	RH_SIMD
+	for (k = 0; k < Nspace; k++) {
+		chi_l = Bijxhc_4PI * (n_i[k] - gij[k] * n_j[k]);
+		chi_Q[k] += chi_l * phi_Q[k];
+		chi_U[k] += chi_l * phi_U[k];
+		chi_V[k] += chi_l * phi_V[k];
+	}
+	if (eta_Q != NULL) {
+		RH_SIMD
+		for (k = 0; k < Nspace; k++) {
+			eta_l = Bijxhc_4PI * twohnu3_c2 * gij[k] * n_j[k];
+			eta_Q[k] += eta_l * phi_Q[k];
+			eta_U[k] += eta_l * phi_U[k];
+			eta_V[k] += eta_l * phi_V[k];
+		}
+	}
+}
+
 /* ------- begin -------------------------- Opacity.c --------------- */
 
 void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
@@ -65,9 +130,9 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 
 	int    la, i, j, vi, vj, lamu, nt, NrecStokes, Nrecphi;
 	double gijk, twohnu3_c2, twohc, hc_4PI, hc_k, hc, fourPI,
-		*n_i, *n_j, Bijxhc_4PI = 0.0, wlambda, chi_l,
+		*n_i, *n_j, Bijxhc_4PI = 0.0, wlambda,
 					*chi_Q = NULL, *chi_U = NULL, *chi_V = NULL,
-					eta_l, *eta_Q, *eta_U, *eta_V,
+					*eta_Q, *eta_U, *eta_V,
 					*chip_Q = NULL, *chip_U = NULL, *chip_V = NULL,
 					lag, rho_int, *rho_tmp                  = NULL, sign;
 	float *phi = NULL, *phi_Q = NULL, *phi_U = NULL, *phi_V = NULL,
@@ -204,10 +269,8 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 				twohnu3_c2 = line->Aji / line->Bji;
 				gijk       = line->Bji / line->Bij;
 				Bijxhc_4PI = hc_4PI * line->Bij * line->isotope_frac;
-				for (k = 0; k < atmos.Nspace; k++) {
-					atom->rhth[nt].gij[n][k] = gijk;
-					atom->rhth[nt].Vij[n][k] = Bijxhc_4PI * phi[k];
-				}
+				lineVij(atmos.Nspace, gijk, Bijxhc_4PI, phi, atom->rhth[nt].gij[n],
+						atom->rhth[nt].Vij[n]);
 
 				/* --- PRD correction to emission profile --   -------------- */
 
@@ -315,13 +378,8 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 			/* --- Always calculate total opacity and emissivity of set - - */
 
 			if (twohnu3_c2) {
-				for (k = 0; k < atmos.Nspace; k++) {
-					as->chi[k] += atom->rhth[nt].Vij[n][k] *
-								  (n_i[k] - atom->rhth[nt].gij[n][k] * n_j[k]);
-
-					atom->rhth[nt].eta[k] += twohnu3_c2 * atom->rhth[nt].gij[n][k] *
-											 atom->rhth[nt].Vij[n][k] * n_j[k];
-				}
+				addOpacity(atmos.Nspace, twohnu3_c2, atom->rhth[nt].Vij[n],
+						   atom->rhth[nt].gij[n], n_i, n_j, as->chi, atom->rhth[nt].eta);
 				/* --- Emission coefficients for Stokes Q, U, V -- ---------- */
 
 				if (as->art[nact][n].type == ATOMIC_LINE && solveStokes) {
@@ -331,26 +389,13 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 					eta_U = atom->rhth[nt].eta + 2 * atmos.Nspace;
 					eta_V = atom->rhth[nt].eta + 3 * atmos.Nspace;
 
-					for (k = 0; k < atmos.Nspace; k++) {
-						chi_l =
-							Bijxhc_4PI * (n_i[k] - atom->rhth[nt].gij[n][k] * n_j[k]);
-
-						chi_Q[k] += chi_l * phi_Q[k];
-						chi_U[k] += chi_l * phi_U[k];
-						chi_V[k] += chi_l * phi_V[k];
-
-						if (input.magneto_optical) {
-							chip_Q[k] += chi_l * psi_Q[k];
-							chip_U[k] += chi_l * psi_U[k];
-							chip_V[k] += chi_l * psi_V[k];
-						}
-						eta_l =
-							Bijxhc_4PI * twohnu3_c2 * atom->rhth[nt].gij[n][k] * n_j[k];
-
-						eta_Q[k] += eta_l * phi_Q[k];
-						eta_U[k] += eta_l * phi_U[k];
-						eta_V[k] += eta_l * phi_V[k];
-					}
+					addStokesOpacity(atmos.Nspace, Bijxhc_4PI, twohnu3_c2,
+									 atom->rhth[nt].gij[n], n_i, n_j, phi_Q, phi_U, phi_V,
+									 chi_Q, chi_U, chi_V, eta_Q, eta_U, eta_V);
+					if (input.magneto_optical)
+						addStokesOpacity(atmos.Nspace, Bijxhc_4PI, 0.0,
+										 atom->rhth[nt].gij[n], n_i, n_j, psi_Q, psi_U,
+										 psi_V, chip_Q, chip_U, chip_V, NULL, NULL, NULL);
 				}
 			}
 			if (as->art[nact][n].type == ATOMIC_LINE && input.limit_memory)

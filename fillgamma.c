@@ -11,6 +11,7 @@
 #include <math.h>
 
 #include "rh.h"
+#include "simd.h"
 #include "error.h"
 #include "atom.h"
 #include "atmos.h"
@@ -176,17 +177,18 @@ void mergeGammaThreadsMolecule(Molecule *molecule)
 /* ------- begin -------------------------- addPreconditionedRates.c */
 
 void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
-							const double *Vij, const double *wla,
-							const double *gij, const double *n_i,
-							const double *n_j, const double *U_i,
-							const double *U_j, const double *I,
-							const double *Psi, double wmu, const double *wk, int Nspace,
-							double **Gam)
+							const double *restrict Vij, const double *restrict wla,
+							const double *restrict gij, const double *restrict n_i,
+							const double *restrict n_j, const double *restrict U_i,
+							const double *restrict U_j, const double *restrict I,
+							const double *restrict Psi, double wmu,
+							const double *restrict wk, int Nspace, double **Gam)
 {
 	register int k;
 
 	int    ij = i * Nlevel + j, ji = j * Nlevel + i;
 	double Ieff, vw, chi, w, wlamu;
+	double *restrict Gji = Gam[ji], *restrict Gij = Gam[ij];
 
 	/* --- Radiative rates of transition i -> j (i lower) with the
 		   preconditioning of Rybicki & Hummer (1992, A&A 262, 209),
@@ -214,19 +216,32 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 		   populations, by up to 30 % in Mg II. Coupling every pair of
 		   levels instead (full preconditioning, their eq. 2.19) is also
 		   exact but puts negative rates between levels that no transition
-		   connects, and diverges for multi-ion atoms. --  -------------- */
+		   connects, and diverges for multi-ion atoms.
 
-	for (k = 0; k < Nspace; k++) {
-		Ieff  = I[k] - Psi[k] * (n_j[k] * U_j[k] + n_i[k] * U_i[k]);
-		vw    = Vij[k] * wla[k];
-		chi   = vw * (n_i[k] - gij[k] * n_j[k]);
-		w     = (wk != NULL) ? wmu * wk[k] : wmu;
-		wlamu = vw * w;
+		   The arrays do not overlap (restrict: the two rows of Gam are
+		   different rows, i != j), so the loop over depth vectorizes
+		   (P-7); the two cases of wk keep it free of branches. -- --- */
 
-		Gam[ji][k] += Ieff * wlamu + chi * Psi[k] * U_i[k] * w;
-		Gam[ij][k] += (twohnu3_c2 + Ieff) * gij[k] * wlamu -
-					  chi * Psi[k] * U_j[k] * w;
+#define PRECONDITIONED_RATES(W)                                      \
+	RH_SIMD                                                          \
+	for (k = 0; k < Nspace; k++) {                                   \
+		Ieff  = I[k] - Psi[k] * (n_j[k] * U_j[k] + n_i[k] * U_i[k]); \
+		vw    = Vij[k] * wla[k];                                     \
+		chi   = vw * (n_i[k] - gij[k] * n_j[k]);                     \
+		w     = (W);                                                 \
+		wlamu = vw * w;                                              \
+                                                                     \
+		Gji[k] += Ieff * wlamu + chi * Psi[k] * U_i[k] * w;          \
+		Gij[k] += (twohnu3_c2 + Ieff) * gij[k] * wlamu -             \
+				  chi * Psi[k] * U_j[k] * w;                         \
 	}
+
+	if (wk != NULL) {
+		PRECONDITIONED_RATES(wmu * wk[k])
+	} else {
+		PRECONDITIONED_RATES(wmu)
+	}
+#undef PRECONDITIONED_RATES
 }
 /* ------- end ---------------------------- addPreconditionedRates.c */
 
@@ -520,13 +535,33 @@ void mergeRates(bool_t redistribute)
 
 /* ------- begin -------------------------- addtoRates.c ------------ */
 
+/* --- Rij += I wlamu, Rji += gij (2 h nu^3 / c^2 + I) wlamu over depth,
+	   wlamu = Vij wla wmu. The arrays do not overlap (restrict), so the
+	   loop vectorizes (P-7) --                         -------------- */
+
+static void addRates(int Nspace, double wmu, double twohnu3_c2,
+					 const double *restrict Vij, const double *restrict wla,
+					 const double *restrict gij, const double *restrict I,
+					 double *restrict Rij, double *restrict Rji)
+{
+	int    k;
+	double wlamu;
+
+	RH_SIMD
+	for (k = 0; k < Nspace; k++) {
+		wlamu = Vij[k] * wla[k] * wmu;
+		Rij[k] += I[k] * wlamu;
+		Rji[k] += gij[k] * (twohnu3_c2 + I[k]) * wlamu;
+	}
+}
+
 void addtoRates(int nspect, int mu, bool_t to_obs, double wmu,
 				double *I, bool_t redistribute)
 {
-	register int nact, n, k;
+	register int nact, n;
 
 	int    nt;
-	double twohnu3_c2, twohc, wlamu, *Rij, *Rji;
+	double twohnu3_c2, twohc, *Rij, *Rji;
 
 	ActiveSet       *as;
 	Atom            *atom;
@@ -585,12 +620,8 @@ void addtoRates(int nspect, int mu, bool_t to_obs, double wmu,
 				   mergeRates() after all threads have been joined -- ----- */
 
 			if (Rij != NULL) {
-				for (k = 0; k < atmos.Nspace; k++) {
-					wlamu =
-						atom->rhth[nt].Vij[n][k] * atom->rhth[nt].wla[n][k] * wmu;
-					Rij[k] += I[k] * wlamu;
-					Rji[k] += atom->rhth[nt].gij[n][k] * (twohnu3_c2 + I[k]) * wlamu;
-				}
+				addRates(atmos.Nspace, wmu, twohnu3_c2, atom->rhth[nt].Vij[n],
+						 atom->rhth[nt].wla[n], atom->rhth[nt].gij[n], I, Rij, Rji);
 			}
 		}
 	}
