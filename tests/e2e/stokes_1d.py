@@ -25,6 +25,8 @@ linear problem:
     as vectors (N-25), also for the solver, at every depth resolution.
     (Limited component by component, the deviation was 7e-3 of max |Q|,
     |U| on FAL-C and vanished only with refinement.)
+    The profiles are stored in single precision (M-1), so the check is
+    to float rounding (5e-7), not 1e-12.
  5. Weak field. To first order in B, for a field that is constant along
     the ray and LTE (RH's sign of V, see docs/unit-tests, section 8):
         V = -g_eff v_B cos(theta) dI/dv,
@@ -286,13 +288,20 @@ for mo in ("TRUE", "FALSE"):
 # --- 4 on FAL-C: vertical ray, field azimuth turned by 35 deg ----------------
 
 turn = math.radians(35.0)                       # also used on the grey atmosphere
+
+# The profiles are stored in single precision (M-1): turned by 35 deg they
+# are rounded differently, so the rotated spectra agree to float rounding
+# (up to 1.3e-7 measured) instead of 1e-12. A wrong sign or convention
+# shows up at order 1. Mirror and sign flips above map float values onto
+# float values exactly and keep 1e-12.
+ROT_TOL = 5e-7
 _, vb = run("rot_falc", atm, ndep, (B0, G0, C0), vertical=True)
 _, vt = run("rot_falc_turned", atm, ndep, (B0, G0, [c + turn for c in C0]), vertical=True)
 Qr, Ur = rotate(vb, turn)
-check("frame rotation, FAL-C: I", maxdiff(vt[0], vb[0]) / maxabs(vb[0]), 1e-12)
-check("frame rotation, FAL-C: V", maxdiff(vt[3], vb[3]) / maxabs(vb[3]), 1e-12)
+check("frame rotation, FAL-C: I", maxdiff(vt[0], vb[0]) / maxabs(vb[0]), ROT_TOL)
+check("frame rotation, FAL-C: V", maxdiff(vt[3], vb[3]) / maxabs(vb[3]), ROT_TOL)
 check("frame rotation, FAL-C: Q, U",
-      max(maxdiff(vt[1], Qr), maxdiff(vt[2], Ur)) / max(maxabs(vb[1]), maxabs(vb[2])), 1e-12)
+      max(maxdiff(vt[1], Qr), maxdiff(vt[2], Ur)) / max(maxabs(vb[1]), maxabs(vb[2])), ROT_TOL)
 
 # --- 4, 5: frame rotation and weak field on smooth grey atmospheres ---------
 
@@ -339,7 +348,7 @@ for n in (40, 80, 160, 320):
 
 check("weak field, N = 320: max|V - V_wf| / max|V|", errs[-1], 1e-5)
 for n, r in zip((40, 80, 160, 320), rots):
-    check(f"frame rotation, N = {n}: largest deviation", r, 1e-12)
+    check(f"frame rotation, N = {n}: largest deviation", r, ROT_TOL)
 for n, e0, e1 in zip((80, 160, 320), errs, errs[1:]):
     check(f"weak field, error ratio N = {n // 2} -> {n}", e0 / e1, 8.0, at_least=True)
 
