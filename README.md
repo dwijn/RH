@@ -30,12 +30,13 @@ tools are in `build/tools/`. Run a program from a run directory, e.g.
 programs that exist for several geometries get a suffix (`solveray_1d`,
 `solveray_2d`, ...).
 
-The default build type is `RelWithDebInfo` (`-O2 -g`). Options, given as
+The default build type is `RelWithDebInfo` (`-O3 -g`). Options, given as
 `-D<option>=<value>` when configuring:
 
 | Option | Effect |
 |---|---|
 | `CMAKE_BUILD_TYPE=Release` | `-O3`, no debug information |
+| `RH_O3=OFF` | `RelWithDebInfo` with CMake's `-O2` instead of `-O3` |
 | `CMAKE_C_COMPILER=icx` | another compiler (on a Cray system: `cc`) |
 | `RH_NATIVE=ON` | tune for the build machine's CPU (`-march=native`); the programs may not run on other machines |
 | `RH_SANITIZE=address,undefined` | AddressSanitizer and UndefinedBehaviorSanitizer, for debugging |
