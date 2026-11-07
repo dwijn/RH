@@ -53,7 +53,24 @@ class opacity:
             dim = Nspect
 
         self.bg_recno = read_farray(dim, up, "int")
+
+        # Newer versions of RH append two ints to brs.out: the number of
+        # bytes per value in background.dat (4 = float, 8 = double), and
+        # etaexp: the emissivity records (eta, including Stokes eta) in
+        # background.dat are stored as value * 2**etaexp (chi, chi_p and
+        # scatt are not scaled). Older brs.out files have neither: then
+        # background.dat is double precision and etaexp = 0.
+
+        self.bg_bytes = 8
+        self.bg_etaexp = 0
+        if up.get_position() < len(up.get_buffer()):
+            self.bg_bytes = up.unpack_int()
+            self.bg_etaexp = up.unpack_int()
         up.done()
+
+        if self.bg_bytes not in (4, 8):
+            raise ValueError("brs.out: unsupported bytes per value in "
+                             "background.dat: {0}".format(self.bg_bytes))
         
     def read_ASRS(self):
 
@@ -78,6 +95,9 @@ class opacity:
     def read(self, waveno, rayno):
 
         SIZE_OF_DOUBLE = 8
+        # background.dat may be float (4) or double (8), see read_BRS
+        SIZE_OF_BG = self.bg_bytes
+        bg_dtype = np.float32 if SIZE_OF_BG == 4 else np.float64
 
         if waveno >= self.spectrum.Nspect:
             print("waveno {0} >= "
@@ -94,19 +114,19 @@ class opacity:
 
         if self.geometry.type == "ONE_D_PLANE":           
             reclen_as = 2 * self.geometry.Ndep * SIZE_OF_DOUBLE
-            reclen_bg = self.geometry.Ndep * SIZE_OF_DOUBLE
+            reclen_bg = self.geometry.Ndep * SIZE_OF_BG
             
             dim1 = self.geometry.Ndep
             
         elif self.geometry.type == 'SPHERICAL_SYMMETRIC':
             reclen_as = 2 * self.geometry.Nradius * SIZE_OF_DOUBLE
-            reclen_bg = self.geometry.Nradius * SIZE_OF_DOUBLE
+            reclen_bg = self.geometry.Nradius * SIZE_OF_BG
 
             dim1 = self.geometry.Nradius
             
         elif self.geometry.type == 'TWO_D_PLANE':
             reclen_as = 2 * (self.geometry.Nx*self.geometry.Nz) * SIZE_OF_DOUBLE
-            reclen_bg = (self.geometry.Nx*self.geometry.Nz) * SIZE_OF_DOUBLE
+            reclen_bg = (self.geometry.Nx*self.geometry.Nz) * SIZE_OF_BG
 
             dim1 = self.geometry.Nx * self.geometry.Nz
             
@@ -114,7 +134,7 @@ class opacity:
             reclen_as = 2 * (self.geometry.Nx*self.geometry.Ny*\
                              self.geometry.Nz) * SIZE_OF_DOUBLE
             reclen_bg = (self.geometry.Nx*self.geometry.Ny*\
-                         self.geometry.Nz) * SIZE_OF_DOUBLE
+                         self.geometry.Nz) * SIZE_OF_BG
 
             dim1 = self.geometry.Nx * self.geometry.Ny *self.geometry.Nz
             
@@ -155,33 +175,40 @@ class opacity:
         file_bg.seek(offset_bg, 0)
         
         if self.atmos.stokes and self.backgrflags.ispolarized[waveno]:
-            chunk_bg = 9 * dim1 * SIZE_OF_DOUBLE
+            chunk_bg = 9 * dim1 * SIZE_OF_BG
             if self.inputs.magneto_optical:
-                chunk_bg += 3 * dim1 * SIZE_OF_DOUBLE
+                chunk_bg += 3 * dim1 * SIZE_OF_BG
         else:
-            chunk_bg = 3 * dim1 * SIZE_OF_DOUBLE
+            chunk_bg = 3 * dim1 * SIZE_OF_BG
 
         buffer_bg = file_bg.read(chunk_bg)   
-        self.chi_c = np.frombuffer(buffer_bg, dtype='float', count=dim1)
+        self.chi_c = np.frombuffer(buffer_bg, dtype=bg_dtype, count=dim1)
 
         if self.atmos.stokes and self.backgrflags.ispolarized[waveno]:
-            offset = 4 * dim1 * SIZE_OF_DOUBLE
+            offset = 4 * dim1 * SIZE_OF_BG
             if self.inputs.magneto_optical:
-                offset += 3 * dim1 * SIZE_OF_DOUBLE
+                offset += 3 * dim1 * SIZE_OF_BG
         else:
-            offset = dim1 * SIZE_OF_DOUBLE
+            offset = dim1 * SIZE_OF_BG
             
-        self.eta_c = np.frombuffer(buffer_bg, dtype='float', count=dim1, \
+        self.eta_c = np.frombuffer(buffer_bg, dtype=bg_dtype, count=dim1, \
                                    offset=offset)
         
         if self.atmos.stokes and self.backgrflags.ispolarized[waveno]:
-            offset += 4 * dim1 * SIZE_OF_DOUBLE
+            offset += 4 * dim1 * SIZE_OF_BG
         else:
-            offset += dim1 * SIZE_OF_DOUBLE
+            offset += dim1 * SIZE_OF_BG
 
-        self.scatt = np.frombuffer(buffer_bg, dtype='float', count=dim1, \
+        self.scatt = np.frombuffer(buffer_bg, dtype=bg_dtype, count=dim1, \
                                    offset=offset)
 
+        file_bg.close()
+
+        # Return double precision whatever the file precision
+
+        self.chi_c = self.chi_c.astype(np.float64)
+        self.eta_c = np.ldexp(self.eta_c.astype(np.float64), -self.bg_etaexp)
+        self.scatt = self.scatt.astype(np.float64)
 
         if self.geometry.type == 'TWO_D_PLANE':
             np.reshape(self.chi_as, [self.geometry.Nx, self.geometry.Nz])

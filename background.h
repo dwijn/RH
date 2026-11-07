@@ -17,6 +17,11 @@
 #define N_MAX_CHEM_ITER 10
 #define CHEM_ITER_LIMIT 1.0E-3
 
+/* --- Power of two by which emissivities are multiplied in the
+	   (single-precision) background file, see backgroundIO in readj.c */
+
+#define BACKGR_ETA_EXP 100
+
 /* --- Maximum number of iterations and minimum accuracy for hydrostatic
 	   equilibrium calculations --                     -------------- */
 

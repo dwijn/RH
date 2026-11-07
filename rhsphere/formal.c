@@ -129,7 +129,13 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	dJmax = 0.0;
 	if (spectrum.updateJ) {
 		for (k = 0; k < Nspace; k++) {
-			dJ    = fabs(1.0 - Jdag[k] / J[k]);
+			/* --- J can be zero where every emissivity along the rays has
+			   underflowed (far in the EUV): count it as no change -- */
+
+			if (J[k] != 0.0)
+				dJ = fabs(1.0 - Jdag[k] / J[k]);
+			else
+				dJ = (Jdag[k] != 0.0) ? 1.0 : 0.0;
 			dJmax = MAX(dJmax, dJ);
 		}
 		if (input.limit_memory) writeJlambda(nspect, J);

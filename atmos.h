@@ -70,6 +70,13 @@ typedef struct {
 	RLK_Line *rlk_lines;
 	FILE     *fp_atmos;
 	flags    *backgrflags;
+
+	/* --- Bytes per value in the background file: 4 (float) when this
+		   run computes it, or as recorded in brs.out when an existing
+		   file is read (8 for files from versions that wrote double).
+		   Emissivities are stored multiplied by 2^backgretaexp, which
+		   keeps them within the range of float (see backgroundIO) -- */
+	int backgrbytes, backgretaexp;
 } Atmosphere;
 
 /* --- Associated function prototypes --               -------------- */

@@ -25,6 +25,18 @@ PRO readBRS
 ;                         emissivity and scattering coefficient) for
 ;                         each wavelength index. The opacity data itself
 ;                         is usually stored in background.dat
+;	atmos.backgrbytes:    Number of bytes per value in background.dat
+;                         (4 = float, 8 = double). Newer versions of RH
+;                         store the background opacities as floats and
+;                         append this number as a final XDR int to
+;                         brs.out. When it is absent (brs.out written by
+;                         older versions) background.dat is in double
+;                         precision and backgrbytes is set to 8.
+;	atmos.backgretaexp:   Binary exponent of the scaling of the emissivities
+;                         in background.dat: they are stored as
+;                         eta * 2^backgretaexp (chi and scatt are not
+;                         scaled). Follows backgrbytes as the last XDR int
+;                         of brs.out; 0 when absent.
 ; OPTIONAL OUTPUTS:
 ; COMMON BLOCKS:
 ;       geometrycommon, atmoscommon
@@ -60,12 +72,29 @@ PRO readBRS
 
   readu, unit, hasline, ispolarized, backgrrecno
 
+  ;; --- Optional trailing int: bytes per value in background.dat --- ;
+
+  bgbytes = 8L  &  bgetaexp = 0L
+  IF (NOT eof(unit)) THEN BEGIN
+    bgbytes = 0L  &  bgetaexp = 0L
+    readu, unit, bgbytes, bgetaexp
+  ENDIF
+
   backgrflags = $
    replicate({hasline: hasline[0], ispolarized: ispolarized[0]}, Nspect)
   backgrflags.hasline     = hasline
   backgrflags.ispolarized = ispolarized
 
-  atmos = create_struct(atmos, 'backgrflags', backgrflags, $
-                        'backgrrecno', backgrrecno)
+  ;; --- Add to atmos; update in place when readbrs is called again --- ;
+
+  IF (tag_present(atmos, 'BACKGRFLAGS')) THEN BEGIN
+    atmos.backgrflags = backgrflags
+    atmos.backgrrecno = backgrrecno
+    atmos.backgrbytes  = bgbytes
+    atmos.backgretaexp = bgetaexp
+  ENDIF ELSE $
+   atmos = create_struct(atmos, 'backgrflags', backgrflags, $
+                         'backgrrecno', backgrrecno, $
+                         'backgrbytes', bgbytes, 'backgretaexp', bgetaexp)
   free_lun, unit
 END

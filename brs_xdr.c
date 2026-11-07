@@ -159,6 +159,22 @@ bool_t xdr_BRS(XDR *xdrs)
 	result &= xdr_vector(xdrs, (char *) atmos.backgrrecno, Nrecno,
 						 sizeof(int), (xdrproc_t) rh_xdr_int);
 
+	/* --- Bytes per value in the background file (4 since M-1) and
+		   the power of two by which the emissivities are scaled in it.
+		   Files written by older versions end before these and hold
+		   unscaled doubles --                            ------------ */
+
+	if (xdrs->x_op == XDR_ENCODE) {
+		result &= xdr_int(xdrs, &atmos.backgrbytes);
+		result &= xdr_int(xdrs, &atmos.backgretaexp);
+	} else if (result) {
+		if (!xdr_int(xdrs, &atmos.backgrbytes)) {
+			atmos.backgrbytes  = sizeof(double);
+			atmos.backgretaexp = 0;
+		} else
+			result &= xdr_int(xdrs, &atmos.backgretaexp);
+	}
+
 	free(hasline);
 	free(ispolarized);
 

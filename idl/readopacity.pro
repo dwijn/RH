@@ -71,23 +71,36 @@ PRO readOpacity, lambda_index, mu_index
 
   IF (n_params() LT 2) THEN mu_index = 0
 
+  ;; --- Background opacities are stored as floats (4 bytes) or doubles
+  ;;     (8 bytes, older versions of RH); see READBRS.PRO --- ---------- ;
+
+  IF (tag_present(atmos, 'BACKGRBYTES')) THEN $
+   bgbytes = atmos.backgrbytes $
+  ELSE $
+   bgbytes = 8L
+  bgfloat = (bgbytes EQ 4)
+  IF (tag_present(atmos, 'BACKGRETAEXP')) THEN $
+   bgetaexp = atmos.backgretaexp $
+  ELSE $
+   bgetaexp = 0L
+
   lambdaDisplay = lambda_index
   CASE geometryType OF
     "ONE_D_PLANE": BEGIN
       as_rec_len = 2L * geometry.Ndep * 8L
-      bg_reclen  = geometry.Ndep * 8L
+      bg_reclen  = geometry.Ndep * bgbytes
     END
     "TWO_D_PLANE": BEGIN
       as_rec_len = 2L * (geometry.Nx*geometry.Nz) * 8L
-      bg_reclen  = (geometry.Nx*geometry.Nz) * 8L
+      bg_reclen  = (geometry.Nx*geometry.Nz) * bgbytes
     END
     "THREE_D_PLANE": BEGIN
       as_rec_len = 2L * (geometry.Nx*geometry.Ny*geometry.Nz) * 8L
-      bg_reclen  = (geometry.Nx*geometry.Ny*geometry.Nz) * 8L
+      bg_reclen  = (geometry.Nx*geometry.Ny*geometry.Nz) * bgbytes
     END
     "SPHERICAL_SYMMETRIC": BEGIN
       as_rec_len = 2L * geometry.Nradius * 8L
-      bg_reclen  = geometry.Nradius * 8L
+      bg_reclen  = geometry.Nradius * bgbytes
     END
   ENDCASE
 
@@ -151,6 +164,13 @@ PRO readOpacity, lambda_index, mu_index
     END
   ENDCASE
 
+  ;; --- Background arrays are read in file precision --- ------------ ;
+
+  IF (bgfloat) THEN BEGIN
+    chi_c = float(chi_c)  &  eta_c = float(eta_c)  &  scatt = float(scatt)
+    IF (n_elements(chip_c) GT 0) THEN chip_c = float(chip_c)
+  ENDIF
+
   IF (spectrum.as_rn[as_index] GE 0) THEN BEGIN
     point_lun, opacunit, $
      long64(spectrum.as_rn[as_index]) * long64(as_rec_len)
@@ -167,6 +187,15 @@ PRO readOpacity, lambda_index, mu_index
    readu, backgroundunit, chi_c, chip_c, eta_c, scatt $
   ELSE $
    readu, backgroundunit, chi_c, eta_c, scatt
+
+  IF (bgfloat) THEN BEGIN
+    chi_c = double(chi_c)  &  eta_c = double(eta_c)  &  scatt = double(scatt)
+    IF (n_elements(chip_c) GT 0) THEN chip_c = double(chip_c)
+  ENDIF
+
+  ;; --- Emissivities are stored scaled by 2^bgetaexp --- ------------ ;
+
+  IF (bgetaexp NE 0) THEN eta_c = eta_c * 2d^(-bgetaexp)
 
   IF ((tag_present(atmos, 'STOKES') AND $
        atmos.backgrflags[lambda_index].ispolarized)) THEN BEGIN

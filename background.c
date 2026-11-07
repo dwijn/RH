@@ -744,10 +744,15 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 		atmos.backgrrecno = (int *) malloc(spectrum.Nspect * sizeof(int));
 
 	/* --- Open output file for background opacity, emissivity,
-		   scattering --                                 -------------- */
+		   scattering. The values are stored as float (M-1); truncate,
+		   so that a file left by an earlier run (possibly in double)
+		   does not keep its size --                     -------------- */
 
+	atmos.backgrbytes  = sizeof(float);
+	atmos.backgretaexp = BACKGR_ETA_EXP;
 	if ((atmos.fd_background =
-			 open(input.background_File, O_RDWR | O_CREAT, PERMISSIONS)) == -1) {
+			 open(input.background_File, O_RDWR | O_CREAT | O_TRUNC,
+				  PERMISSIONS)) == -1) {
 		sprintf(messageStr, "Unable to open output file %s",
 				input.background_File);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
