@@ -38,13 +38,12 @@ void Redistribute(int NmaxIter, double iterLimit)
 	const char   routineName[] = "Redistribute";
 	register int kr, nact;
 
-	bool_t             quiet, accel, eval_operator, redistribute;
-	enum Interpolation representation;
-	int                niter, Nlamu;
-	long               NlamuL;
-	double             drho, drhomax, drhomaxa;
-	Atom              *atom;
-	AtomicLine        *line;
+	bool_t      quiet, accel, eval_operator, redistribute;
+	int         niter, Nlamu;
+	long        NlamuL;
+	double      drho, drhomax, drhomaxa;
+	Atom       *atom;
+	AtomicLine *line;
 
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
 		atom = atmos.activeatoms[nact];
@@ -87,9 +86,9 @@ void Redistribute(int NmaxIter, double iterLimit)
 				line = &atom->line[kr];
 				if (line->PRD) {
 					if (input.PRD_angle_dep == PRD_ANGLE_DEP)
-						PRDAngleScatter(line, representation = LINEAR);
+						PRDAngleScatter(line);
 					else
-						PRDScatter(line, representation = LINEAR);
+						PRDScatter(line);
 
 					accel = Accelerate(line->Ng_prd, line->rho_prd[0]);
 					sprintf(messageStr, "  PRD: iter #%d, atom %s, line %d,",

@@ -8,9 +8,14 @@
 
 #include <math.h>
 
+#include <stdio.h>
+
 #include "rh.h"
 #include "atom.h"
+#include "error.h"
 #include "prdfold.h"
+
+extern char messageStr[];
 
 /* ------- begin -------------------------- prdGrid.c --------------- */
 
@@ -41,6 +46,19 @@ int prdGrid(double q_emit, double waveratio, double *q0, double *qN)
 	return (int) ((*qN - *q0) / PRD_DQ) + 1;
 }
 /* ------- end ---------------------------- prdGrid.c --------------- */
+
+/* ------- begin -------------------------- prdQuadWeight.c --------- */
+
+double prdQuadWeight(int lap, int Np)
+{
+	/* --- Integration weight of point lap of the fine grid (Press et
+		   al., Numerical Recipes, p. 107, eq. 4.1.12) -- ------------ */
+
+	if (lap == 0 || lap == Np - 1) return 5.0 / 12.0 * PRD_DQ;
+	if (lap == 1 || lap == Np - 2) return 13.0 / 12.0 * PRD_DQ;
+	return PRD_DQ;
+}
+/* ------- end ---------------------------- prdQuadWeight.c --------- */
 
 /* ------- begin -------------------------- prdFineGrid.c ----------- */
 
@@ -125,20 +143,27 @@ int prdFoldRange(int N, double *qtab, double q0, int Np, bool_t symmetric, int *
 
 /* ------- begin -------------------------- prdFold.c --------------- */
 
-void prdFold(int N, double *qtab, int Np, double *qp, double *gw,
-			 int m0, int len, double *W)
+void prdFold(int N, double *qtab, int Np, double *qp, double *gw, int m0, int len,
+			 double *W)
 {
 	/* --- W[m - m0] += sum over the fine grid of gw times the
-		   interpolation coefficient of line point m --   -------------- */
+		   interpolation coefficient of line point m. The range comes
+		   from prdFoldRange; a point outside it is an error, not a
+		   write past W --                                -------------- */
 
 	int    lap, j;
 	double fx;
 
 	for (lap = 0; lap < Np; lap++) {
 		prdFoldIndex(N, qtab, qp[lap], &j, &fx);
+		if (j < m0 || ((fx < 1.0) ? j + 1 : j) >= m0 + len) {
+			sprintf(messageStr, "Fine-grid point %g outside the range [%d, %d) of"
+								" the redistribution weights",
+					qp[lap], m0, m0 + len);
+			Error(ERROR_LEVEL_2, "prdFold", messageStr);
+		}
 		W[j - m0] += gw[lap] * fx;
 		if (fx < 1.0) W[j + 1 - m0] += gw[lap] * (1.0 - fx);
 	}
-	(void) len;
 }
 /* ------- end ---------------------------- prdFold.c --------------- */
