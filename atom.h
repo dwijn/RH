@@ -79,8 +79,10 @@ struct AtomicLine {
 		   computed in double, rounded once on storage, and wphi
 		   normalizes the stored values. --             -------------- */
 
-	float          **phi, **phi_Q, **phi_U, **phi_V, **psi_Q, **psi_U, **psi_V;
-	FILE            *fp_GII;
+	float **phi, **phi_Q, **phi_U, **phi_V, **psi_Q, **psi_U, **psi_V;
+	FILE   *fp_GII;
+	long   *prd_block; /* sizes of the per-location blocks of the
+						  folded PRD weights in fp_GII (scatter.c) */
 	struct Ng       *Ng_prd;
 	Atom            *atom;
 	AtomicLine     **xrd;
@@ -322,11 +324,8 @@ double GII(double adamp, double waveRatio, double q_emit, double q_abs);
 double PII(double adamp, double waveRatio, double q_emit, double q_abs);
 double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2);
 void   Redistribute(int NmaxIter, double iterLimit);
-void   PRDScatter(AtomicLine *line, enum Interpolation representation);
-void   PRDAngleScatter(AtomicLine        *PRDline,
-					   enum Interpolation representation);
-void   PRDAngleApproxScatter(AtomicLine        *PRDline,
-							 enum Interpolation representation);
+void   PRDScatter(AtomicLine *line);
+void   PRDAngleScatter(AtomicLine *PRDline);
 
 /* --- Polarization related --                         -------------- */
 

@@ -697,6 +697,7 @@ void initAtomicLine(AtomicLine *line)
 	line->c_shift = line->c_fraction = NULL;
 	line->rho_prd                    = NULL;
 	line->fp_GII                     = NULL;
+	line->prd_block                  = NULL;
 	line->Ng_prd                     = NULL;
 	line->atom                       = NULL;
 	line->xrd                        = NULL;
@@ -820,6 +821,7 @@ void freeAtomicLine(AtomicLine *line)
 			free(line->Qelast);
 			freeMatrix((void **) line->rho_prd);
 			fclose(line->fp_GII);
+			free(line->prd_block);
 			if (input.XRD) free(line->xrd);
 		}
 		if (atmos.Stokes &&
