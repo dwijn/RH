@@ -79,7 +79,7 @@ struct AtomicLine {
 		   computed in double, rounded once on storage, and wphi
 		   normalizes the stored values. --             -------------- */
 
-	float **phi, **phi_Q, **phi_U, **phi_V, **psi_Q, **psi_U, **psi_V;
+	float          **phi, **phi_Q, **phi_U, **phi_V, **psi_Q, **psi_U, **psi_V;
 	FILE            *fp_GII;
 	struct Ng       *Ng_prd;
 	Atom            *atom;

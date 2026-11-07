@@ -562,8 +562,8 @@ void PRDAngleScatter(AtomicLine        *PRDline,
 	double *v_emit, v0, vN, *v_abs = NULL, *vp = NULL, *wv = NULL,
 							*rii = NULL, *adamp, *Jbar, cDop, *RIInorm, *I = NULL,
 							**Imup, *Ik, *Yj, *g, *denom, **v_los, wmup, *sv;
-	float  *phi_emit;
-	Atom *atom;
+	float *phi_emit;
+	Atom  *atom;
 
 	/* --- Calculate the angle-dependent scattering integral when
 		   angle-dependent scattering is requested. --   -------------- */

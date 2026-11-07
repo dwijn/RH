@@ -71,13 +71,13 @@ static void setup(void)
 	atmos.Nrays  = 1;
 	atmos.moving = atmos.Stokes = FALSE;
 	strcpy(atmos.ID, "test_background");
-	spectrum.Nspect     = NSPECT;
+	spectrum.Nspect       = NSPECT;
 	input.magneto_optical = TRUE;
-	input.StokesMode    = FULL_STOKES;
+	input.StokesMode      = FULL_STOKES;
 
-	atmos.backgrflags = calloc(NSPECT, sizeof(flags));
-	atmos.backgrrecno = calloc(NSPECT, sizeof(int));
-	spectrum.as       = calloc(NSPECT, sizeof(ActiveSet));
+	atmos.backgrflags                = calloc(NSPECT, sizeof(flags));
+	atmos.backgrrecno                = calloc(NSPECT, sizeof(int));
+	spectrum.as                      = calloc(NSPECT, sizeof(ActiveSet));
 	atmos.backgrflags[1].ispolarized = TRUE;
 	for (nspect = 0; nspect < NSPECT; nspect++) {
 		atmos.backgrrecno[nspect] = rec;
@@ -199,8 +199,8 @@ int main(void)
 
 	/* --- Single-precision file, emissivities scaled -- ------------ */
 
-	atmos.backgrbytes  = sizeof(float);
-	atmos.backgretaexp = BACKGR_ETA_EXP;
+	atmos.backgrbytes   = sizeof(float);
+	atmos.backgretaexp  = BACKGR_ETA_EXP;
 	atmos.fd_background = open_file("background.dat");
 	write_all();
 	check_read_back("float file");
@@ -230,8 +230,8 @@ int main(void)
 	/* --- Old (double) file --                           -------------- */
 
 	close(atmos.fd_background);
-	atmos.backgrbytes  = sizeof(double);
-	atmos.backgretaexp = 0;
+	atmos.backgrbytes   = sizeof(double);
+	atmos.backgretaexp  = 0;
 	atmos.fd_background = open_file("background_double.dat");
 	write_all();
 	check_read_back("double file");
@@ -242,8 +242,8 @@ int main(void)
 	/* --- Emissivity beyond the range of the float file -- -------- */
 
 	close(atmos.fd_background);
-	atmos.backgrbytes  = sizeof(float);
-	atmos.backgretaexp = BACKGR_ETA_EXP;
+	atmos.backgrbytes   = sizeof(float);
+	atmos.backgretaexp  = BACKGR_ETA_EXP;
 	atmos.fd_background = open_file("background.dat");
 	CHECK(is_fatal(write_huge_eta), "%s", "an emissivity of 1e10 was written without error");
 

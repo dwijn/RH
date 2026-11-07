@@ -63,13 +63,13 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 	const char   routineName[] = "Opacity";
 	register int k, n, nact;
 
-	int     la, i, j, vi, vj, lamu, nt, NrecStokes, Nrecphi;
+	int    la, i, j, vi, vj, lamu, nt, NrecStokes, Nrecphi;
 	double gijk, twohnu3_c2, twohc, hc_4PI, hc_k, hc, fourPI,
-		   *n_i, *n_j, Bijxhc_4PI = 0.0, wlambda, chi_l,
-		   *chi_Q = NULL, *chi_U = NULL, *chi_V = NULL,
-		   eta_l, *eta_Q, *eta_U, *eta_V,
-		   *chip_Q = NULL, *chip_U = NULL, *chip_V = NULL,
-		   lag, rho_int, *rho_tmp = NULL, sign;
+		*n_i, *n_j, Bijxhc_4PI = 0.0, wlambda, chi_l,
+					*chi_Q = NULL, *chi_U = NULL, *chi_V = NULL,
+					eta_l, *eta_Q, *eta_U, *eta_V,
+					*chip_Q = NULL, *chip_U = NULL, *chip_V = NULL,
+					lag, rho_int, *rho_tmp                  = NULL, sign;
 	float *phi = NULL, *phi_Q = NULL, *phi_U = NULL, *phi_V = NULL,
 		  *psi_Q = NULL, *psi_U = NULL, *psi_V = NULL;
 	bool_t solveStokes = FALSE;

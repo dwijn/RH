@@ -394,26 +394,26 @@ void Profile(AtomicLine *line)
 			}
 		}
 	}
-	job.line       = line;
-	job.adamp      = adamp;
-	job.vbroad     = vbroad;
-	job.v_los      = (atmos.moving) ? v_los : NULL;
-	job.vB         = (polarized) ? vB : NULL;
-	job.sv         = (polarized) ? sv : NULL;
-	job.phi        = (input.limit_memory) ? phi : NULL;
-	job.phi_Q      = (input.limit_memory && polarized) ? phi_Q : NULL;
-	job.phi_U      = (input.limit_memory && polarized) ? phi_U : NULL;
-	job.phi_V      = (input.limit_memory && polarized) ? phi_V : NULL;
-	job.psi_Q      = (input.limit_memory && polarized && input.magneto_optical)
-						 ? psi_Q
-						 : NULL;
-	job.psi_U      = (input.limit_memory && polarized && input.magneto_optical)
-						 ? psi_U
-						 : NULL;
-	job.psi_V      = (input.limit_memory && polarized && input.magneto_optical)
-						 ? psi_V
-						 : NULL;
-	job.polarized  = polarized;
+	job.line      = line;
+	job.adamp     = adamp;
+	job.vbroad    = vbroad;
+	job.v_los     = (atmos.moving) ? v_los : NULL;
+	job.vB        = (polarized) ? vB : NULL;
+	job.sv        = (polarized) ? sv : NULL;
+	job.phi       = (input.limit_memory) ? phi : NULL;
+	job.phi_Q     = (input.limit_memory && polarized) ? phi_Q : NULL;
+	job.phi_U     = (input.limit_memory && polarized) ? phi_U : NULL;
+	job.phi_V     = (input.limit_memory && polarized) ? phi_V : NULL;
+	job.psi_Q     = (input.limit_memory && polarized && input.magneto_optical)
+						? psi_Q
+						: NULL;
+	job.psi_U     = (input.limit_memory && polarized && input.magneto_optical)
+						? psi_U
+						: NULL;
+	job.psi_V     = (input.limit_memory && polarized && input.magneto_optical)
+						? psi_V
+						: NULL;
+	job.polarized = polarized;
 
 	parallelFor(atmos.Nspace, (input.limit_memory) ? 1 : input.Nthreads,
 				profileWorker, &job);
@@ -446,8 +446,8 @@ void MolecularProfile(MolecularLine *mrt)
 {
 	register int la, k, mu;
 
-	double *adamp, *v = NULL, vk, **v_los = NULL, wlamu, *sv, wlambda;
-	float  *phi_down, *phi_up;
+	double   *adamp, *v = NULL, vk, **v_los = NULL, wlamu, *sv, wlambda;
+	float    *phi_down, *phi_up;
 	Molecule *molecule = mrt->molecule;
 
 	getCPU(3, TIME_START, NULL);
@@ -501,7 +501,7 @@ void MolecularProfile(MolecularLine *mrt)
 										   sv[k]);
 					phi_up[k]   = (float) (Voigt(adamp[k], v[k] + v_los[mu][k],
 												 NULL) *
-										   sv[k]);
+                                         sv[k]);
 					mrt->wphi[k] += ((double) phi_down[k] + phi_up[k]) * wlamu;
 				}
 			}
