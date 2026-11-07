@@ -41,7 +41,7 @@ SEV_COLOR = {"high": "d93f0b", "medium": "f9d0c4", "low": "ededed"}
 # Plan step (section 4 of the log) for every ID
 STEP = {}
 for ids, step in [
-    ("B-1 B-2 B-3 B-4 B-8 B-9 B-13 B-15 B-16 B-17 B-18 B-19 N-1 N-5 N-11", 1),
+    ("B-1 B-2 B-3 B-4 B-8 B-9 B-13 B-15 B-16 B-17 B-18 B-19 B-36 N-1 N-5 N-11", 1),
     ("Q-1 Q-2 Q-3 Q-10 Q-12 Q-13 Q-15 Q-17", 2),
     ("B-20 B-21 B-22 B-23 N-17 N-18 B-24 B-25 B-26 B-27 B-28 N-20 N-21 N-22 N-23 N-24 Q-11 Q-14 Q-18 Q-20", 3),
     ("B-5 B-6 B-7 N-2 N-3 N-4 N-6 N-7 N-8 N-9 N-10 N-12 N-13 N-14 N-15 N-16 N-19", 4),
