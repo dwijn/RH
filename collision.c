@@ -83,19 +83,28 @@ extern char       messageStr[];
 
 void rowcol(int anr, int *row, int *col)
 {
+	/* --- Row (1 to 6) and column in the periodic table of an
+		   iso-electronic sequence with anr electrons, 1 <= anr <= 86.
+		   The loop used to cover only the first five of the six rows
+		   of istart, which left row unset for 55 to 86 electrons -- -- */
 
 	register int i;
 
 	int istart[7] = {0, 2, 10, 18, 36, 54, 86};
 
-	for (i = 0; i < 5; i++) {
+	*row = *col = 0;
+	for (i = 0; i < 6; i++) {
 		if (anr > istart[i] && anr <= istart[i + 1]) {
-			*row = i;
-			break;
+			*row = i + 1;
+			*col = anr - istart[i];
+			return;
 		}
 	}
-	*col = anr - istart[i];
-	*row += 1;
+	sprintf(messageStr,
+			"Iso-electronic sequence with %d electrons is outside the six rows"
+			" of the periodic table that SUMMERS covers",
+			anr);
+	Error(ERROR_LEVEL_2, "rowcol", messageStr);
 }
 /* ------- end ---------------------------- rowcol.c ---------------- */
 
