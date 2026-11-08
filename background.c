@@ -745,6 +745,12 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 		   a wavelength overlaps with a Bound-Bound transition in the
 		   background, or whether it is polarized --     -------------- */
 
+	/* --- Background() runs more than once with SOLVE_NE = ITERATION
+		   and in hydrostatic equilibrium: free the arrays of the
+		   previous call (B-11) --                        -------------- */
+
+	free(atmos.backgrflags);
+	free(atmos.backgrrecno);
 	atmos.backgrflags = (flags *) malloc(spectrum.Nspect * sizeof(flags));
 	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
 		atmos.backgrflags[nspect].hasline     = FALSE;
