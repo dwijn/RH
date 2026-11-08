@@ -49,12 +49,17 @@ void Iterate(int NmaxIter, double iterLimit)
 	bool_t eval_operator, write_analyze_output, equilibria_only,
 		converged = FALSE, stopped = FALSE;
 	int       Ngorder;
-	double    dpopsmax = 0.0, PRDiterlimit;
+	double    dpopsmax = 0.0, PRDiterlimit, t_start;
 	Atom     *atom;
 	Molecule *molecule;
 
-	if (NmaxIter <= 0) return;
+	if (NmaxIter <= 0) {
+		workPhase(WORK_FINAL);
+		return;
+	}
 	getCPU(1, TIME_START, NULL);
+	workPhase(WORK_ITERATE);
+	t_start = wallClock();
 
 	/* --- Initialize structures for Ng acceleration of population
 		   convergence --                                  ------------ */
@@ -205,6 +210,8 @@ void Iterate(int NmaxIter, double iterLimit)
 		NgFree(molecule->Ng_nv);
 	}
 
+	workAdd(WORK_ITERATION, wallClock() - t_start);
+	workPhase(WORK_FINAL);
 	getCPU(1, TIME_POLL, "Iteration Total");
 }
 /* ------- end ---------------------------- Iterate.c --------------- */
@@ -215,7 +222,7 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 {
 	register int nspect, nt;
 
-	int         lambda_max;
+	int         lambda_max, Nsolved;
 	double      dJ, dJmax;
 	pthread_t  *thread_id;
 	threadinfo *ti;
@@ -252,6 +259,16 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 	zeroRates(redistribute);
 	lambda_max = 0;
 	dJmax      = 0.0;
+
+	/* --- Count the wavelength solves of this sweep (S-1) --  -------- */
+
+	if (redistribute) {
+		Nsolved = 0;
+		for (nspect = 0; nspect < spectrum.Nspect; nspect++)
+			if (containsPRDline(&spectrum.as[nspect])) Nsolved++;
+	} else
+		Nsolved = spectrum.Nspect;
+	workSweep(eval_operator, redistribute, Nsolved);
 
 	/* --- Zero out J in gas parcel's frame --           -------------- */
 

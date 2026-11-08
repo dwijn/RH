@@ -126,6 +126,7 @@ int main(int argc, char *argv[])
 	writeOpacity();
 
 	getCPU(1, TIME_POLL, "Write output");
+	printWork();
 	printTotalCPU();
 
 	return ExitStatus();

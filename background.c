@@ -600,7 +600,7 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 
 /* ------- begin -------------------------- Background.c ------------ */
 
-void Background(bool_t write_analyze_output, bool_t equilibria_only)
+static void computeBackground(bool_t write_analyze_output, bool_t equilibria_only)
 {
 	const char   routineName[] = "Background";
 	register int nspect, n;
@@ -860,6 +860,17 @@ void Background(bool_t write_analyze_output, bool_t equilibria_only)
 	free(atmos.rlk_lines);
 
 	getCPU(2, TIME_POLL, "Total Background");
+}
+
+/* --- Background() with its calls and wall time counted for the work
+	   statistics (S-1, SOLVER.md section 4.1) --       -------------- */
+
+void Background(bool_t write_analyze_output, bool_t equilibria_only)
+{
+	double t_start = wallClock();
+
+	computeBackground(write_analyze_output, equilibria_only);
+	workAdd(WORK_BACKGROUND, wallClock() - t_start);
 }
 /* ------- end ---------------------------- Background.c ------------ */
 

@@ -115,6 +115,7 @@ int main(int argc, char *argv[])
 	writeOpacity();
 
 	getCPU(1, TIME_POLL, "Output");
+	printWork();
 	printTotalCPU();
 
 	return ExitStatus();
