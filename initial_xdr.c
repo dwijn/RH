@@ -385,18 +385,13 @@ void initSolution(void)
 		}
 		break;
 	case THREE_D_PLANE:
-		spectrum.I = matrix_double(spectrum.Nspect * atmos.Nrays,
-								   atmos.N[0] * atmos.N[1]);
+		Nsr        = spectrum.Nspect * atmos.Nrays;
+		Nplane     = atmos.N[0] * atmos.N[1];
+		spectrum.I = matrix_double(Nsr, Nplane);
 		if (atmos.Stokes || input.backgr_pol) {
-			Nsr    = spectrum.Nspect * atmos.Nrays;
-			Nplane = atmos.N[0] * atmos.N[1];
-
-			spectrum.I = matrix_double(Nsr, Nplane);
-			if (atmos.Stokes || input.backgr_pol) {
-				spectrum.Stokes_Q = matrix_double(Nsr, Nplane);
-				spectrum.Stokes_U = matrix_double(Nsr, Nplane);
-				spectrum.Stokes_V = matrix_double(Nsr, Nplane);
-			}
+			spectrum.Stokes_Q = matrix_double(Nsr, Nplane);
+			spectrum.Stokes_U = matrix_double(Nsr, Nplane);
+			spectrum.Stokes_V = matrix_double(Nsr, Nplane);
 		}
 		break;
 	case SPHERICAL_SYMMETRIC:
