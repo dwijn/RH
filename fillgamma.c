@@ -71,6 +71,14 @@ void initGammaMolecule(Molecule *molecule)
 {
 	register int ij, ji, k, vi, vj;
 
+	/* --- Start from zero: the radiative rates of every line are added
+		   to Gamma with += each iteration, and lines with Delta v > 1
+		   (overtone bands) have no collisional seed that would
+		   overwrite their entries (B-38) --             -------------- */
+
+	for (ij = 0; ij < SQ(molecule->Nv); ij++) {
+		for (k = 0; k < atmos.Nspace; k++) molecule->Gamma[ij][k] = 0.0;
+	}
 	/* --- Add the fixed rates into Gamma --             -------------- */
 
 	for (vi = 0; vi < molecule->Nv - 1; vi++) {
