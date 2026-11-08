@@ -30,11 +30,11 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Spectrum    spectrum;
-extern InputData   input;
-extern char        messageStr[];
+extern Spectrum  spectrum;
+extern InputData input;
+extern char      messageStr[];
 
-static WorkCounters work = {WORK_INITIAL};
+static WorkCounters work; /* zero: phase WORK_INITIAL, no counts */
 
 static const char *phaseName[WORK_NPHASE] = {"initial", "iterate", "final"};
 
@@ -51,7 +51,10 @@ double wallClock(void)
 
 /* ------- begin -------------------------- workPhase.c ------------- */
 
-void workPhase(enum WorkPhase phase) { work.phase = phase; }
+void workPhase(enum WorkPhase phase)
+{
+	work.phase = phase;
+}
 /* ------- end ---------------------------- workPhase.c ------------- */
 
 /* ------- begin -------------------------- workSweep.c ------------- */
