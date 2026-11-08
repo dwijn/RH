@@ -123,6 +123,8 @@ bool_t xdr_BRS(XDR *xdrs)
 		result &= xdr_vector(xdrs, (char *) ispolarized, spectrum.Nspect,
 							 sizeof(bool_t), (xdrproc_t) rh_xdr_bool);
 	} else {
+		free(atmos.backgrflags);
+		free(atmos.backgrrecno);
 		atmos.backgrflags = (flags *) malloc(spectrum.Nspect * sizeof(flags));
 		atmos.backgrrecno = (int *) malloc(Nrecno * sizeof(int));
 
