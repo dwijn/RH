@@ -40,7 +40,7 @@ void readInput()
 	const char routineName[] = "readInput";
 	char       errorStr[MAX_MESSAGE_LENGTH];
 
-	int   Nkeyword, Nconflict;
+	int   Nkeyword, Nconflict, n;
 	FILE *fp_keyword;
 
 	Keyword theKeywords[] = {
@@ -434,6 +434,25 @@ void readInput()
 				  "SOLVER = FIXED_POINT with SOLVE_NE = ITERATION computes the"
 				  " chemical\n equilibrium from the state. Set NON_ICE = FALSE.");
 			Nconflict++;
+		}
+		/* --- With ne in the state the background is stored in double
+			   (docs/SOLVER.md §9 Q11, decided 2026-11-08): the float
+			   file makes G a step function of ne, which limits
+			   finite-difference Jacobian products to ~3e-3. -- -- */
+		if (input.solve_ne == ITERATION) {
+			for (n = 0; n < Nkeyword; n++) {
+				if (!strcmp(theKeywords[n].keyword, "BACKGROUND_DOUBLE")) break;
+			}
+			if (n < Nkeyword && theKeywords[n].set &&
+				!input.background_double) {
+				Error(WARNING, routineName,
+					  "SOLVER = FIXED_POINT with SOLVE_NE = ITERATION has ne in"
+					  " the state, and\n the background must then be stored"
+					  " in double. Set BACKGROUND_DOUBLE = TRUE\n or leave it"
+					  " out.");
+				Nconflict++;
+			}
+			input.background_double = TRUE;
 		}
 		if (Nconflict) {
 			sprintf(messageStr,

@@ -13,7 +13,9 @@ Ca II with angle-averaged PRD (two PRD lines) on FAL-C, H_6 passive:
     gives bit-identical results, and G(x_b) between two calls of G(x_a)
     changes nothing.
  3. validation: SOLVER = FIXED_POINT with the default PRD_ITER_LIMIT stops
-    at input with a message that names PRD_ITER_LIMIT.
+    at input with a message that names PRD_ITER_LIMIT, and with
+    SOLVE_NE = ITERATION and BACKGROUND_DOUBLE = FALSE with one that names
+    BACKGROUND_DOUBLE.
 
 Exit status 0 = pass.
 """
@@ -137,6 +139,17 @@ print(f"validate SOLVER = FIXED_POINT with PRD_ITER_LIMIT = 1e-2: "
       f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})")
 if not ok:
     failed.append("validation")
+
+# ne in the state requires the background in double (SOLVER.md Q11)
+d = prepare("validate_ne", "1d", G_KEYWORDS + [("SOLVE_NE", "ITERATION"),
+                                               ("BACKGROUND_DOUBLE", "FALSE")])
+r = execute(os.path.abspath(a.rhf1d), d)
+ok = r.returncode == 70 and "BACKGROUND_DOUBLE" in r.stdout and \
+    "reading input file" not in r.stdout.split("TERMINATING")[0].split("readInput")[-1]
+print(f"validate SOLVE_NE = ITERATION with BACKGROUND_DOUBLE = FALSE: "
+      f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})")
+if not ok:
+    failed.append("validation (BACKGROUND_DOUBLE)")
 
 if failed:
     sys.exit("FAILED: " + "; ".join(failed))

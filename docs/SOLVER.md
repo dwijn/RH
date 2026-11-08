@@ -478,6 +478,14 @@ S-2b. Its float rounding is then a step function of ne with steps of
   1 % of a run without `SOLVE_NE = ITERATION`, and every float operation
   would add noise where storage adds one rounding.
 
+**Decided (2026-11-08), revising the above for ne in the state:** with
+`SOLVE_NE = ITERATION` and a solver on G (`SOLVER` other than `NG`) the
+background is stored in double. The float file makes G a step function
+of ne, which limits finite-difference Jacobian products to ~3×10⁻³, and
+the measured δ does not show it (S-2b status). The cost is the larger
+file only. `BACKGROUND_DOUBLE` may be left out or set to `TRUE` there;
+`FALSE` stops the run at input.
+
 **Toy model** (`docs/solver/precision_toy.py`): G(x) = Mx + b + c sin x,
 N = 200, slowest mode of M 0.995, c = 0.002; Newton–GMRES(40) with
 finite-difference products. Lowest true ‖R‖ reached, and evaluations of R:
@@ -806,8 +814,9 @@ into `atmos.ne` is therefore not enough:
 - Unchanged, listed as part of the model: profiles, `Qelast` and PRD
   weights stay at the startup ne (S-7 decides whether they follow ne);
   charge conservation uses NLTE populations of H only (§2.1).
-- Background precision (§3.7): float storage by default; the keyword
-  `BACKGROUND_DOUBLE` (default `FALSE`) stores the file in double
+- Background precision (§3.7): double whenever ne is in the state
+  (decided 2026-11-08, below); otherwise float storage by default, and
+  the keyword `BACKGROUND_DOUBLE` (default `FALSE`) stores the file in double
   (`backgrbytes = sizeof(double)`, `backgretaexp = 0`, which the reader
   already accepts). The finite-difference step comes from the measured δ,
   which the float file raises for these cases.
@@ -906,12 +915,13 @@ Results (gcheck at 1 thread unless stated; logs in
   population directions ~4×10⁻³ (double 6×10⁻⁵). The float rounding is a
   step function of ne (§3.7), correlated rather than random, so ECnoise
   at a small step (3×10⁻¹⁰ for ne) understates what an FD product sees.
-  **Open (2026-11-08):** the decision of §3.7 (float storage by default,
-  FD step from the measured δ) assumed δ describes the FD error; for the
-  ne cases it does not. Options: `BACKGROUND_DOUBLE = TRUE` whenever ne is
-  in the state of a Newton solver (2× the file, no time cost measured in
-  §3.7), δ measured with ECnoise at the intended ε rather than at 10⁻⁹,
-  or both.
+  The decision of §3.7 (float storage by default, FD step from the
+  measured δ) assumed δ describes the FD error; for the ne cases it does
+  not. **Decided (2026-11-08):** with ne in the state the background is
+  stored in double (§3.7); `readInput` sets it, and an explicit
+  `BACKGROUND_DOUBLE = FALSE` stops the run. Checked: `1d_falc_solvene`
+  with the keyword left out writes the double file and repeats the
+  explicit-double run line for line over 30 iterations.
 
 ### S-3 — Stabilized Anderson acceleration (replaces Ng)
 
@@ -1233,9 +1243,8 @@ formal solution), and the operator candidate of #190 (S-5).
    profiles, `Qelast` and PRD weights that follow ne (S-7).
 10. Mixed-precision Newton for F-4 (§3.7): the lower bound of the forcing
     term in RH, and where the residual is computed on a GPU.
-11. Background precision with ne in the state of a Newton solver (S-2b
-    status): float limits FD Jacobian products to ~3×10⁻³; double by
-    default there, or not?
+11. ~~Background precision with ne in the state of a Newton solver~~
+    Decided 2026-11-08: double whenever ne is in the state (§3.7).
 12. He_large: is the δ ≈ 2×10⁻³ of its G an ill-conditioned rate matrix
     (N-7), and is that what stalls it (N-28)?
 
