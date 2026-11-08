@@ -478,3 +478,27 @@ void setnesolution(char *value, void *pointer)
 	memcpy(pointer, &nesolution, sizeof(enum_t));
 }
 /* ------- end ---------------------------- setnesolution.c --------- */
+
+/* ------- begin -------------------------- setsolver.c ------------- */
+
+void setsolver(char *value, void *pointer)
+{
+	const char routineName[] = "setsolver";
+
+	enum solver_type solver;
+
+	if (!strcmp(value, "NG"))
+		solver = SOLVER_NG;
+	else if (!strcmp(value, "FIXED_POINT"))
+		solver = SOLVER_FIXED_POINT;
+	else {
+		sprintf(messageStr,
+				"Invalid value for keyword SOLVER: %s\n"
+				" Valid options are NG and FIXED_POINT",
+				value);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+
+	memcpy(pointer, &solver, sizeof(enum_t));
+}
+/* ------- end ---------------------------- setsolver.c ------------- */

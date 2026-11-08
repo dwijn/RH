@@ -167,7 +167,7 @@ add_library(rh STATIC
   opacity.c options.c order.c parallel.c parse.c paschen.c planck.c
   pops_xdr.c profile.c radrate_xdr.c rayleigh.c readatom.c readb_xdr.c
   prdfold.c readinput.c readj.c readmolecule.c readvalue.c redistribute.c scatter.c
-  solvene.c sortlambda.c spline.c statequil.c stokesopac.c stopreq.c
+  solvene.c solver.c gchecks.c sortlambda.c spline.c statequil.c stokesopac.c stopreq.c
   thomson.c vacuumtoair.c voigt.c w3.c wigner.c work.c writeatmos_xdr.c
   writeatom_xdr.c writecoll_xdr.c writedamp_xdr.c writeinput_xdr.c
   writemetal_xdr.c writemolec_xdr.c writeopac_xdr.c writespect_xdr.c
@@ -245,6 +245,11 @@ if(Python3_Interpreter_FOUND)
                    --rhf1d $<TARGET_FILE:rhf1d> --rhsc2d $<TARGET_FILE:rhsc2d>
                    --src ${PROJECT_SOURCE_DIR})
   set_tests_properties(e2e_prd_hybrid PROPERTIES LABELS e2e TIMEOUT 900)
+  add_test(NAME e2e_solver_g
+           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/solver_g.py
+                   --rhf1d $<TARGET_FILE:rhf1d> --gcheck1d $<TARGET_FILE:rhf1d_gcheck>
+                   --gcheck2d $<TARGET_FILE:rhsc2d_gcheck> --src ${PROJECT_SOURCE_DIR})
+  set_tests_properties(e2e_solver_g PROPERTIES LABELS e2e TIMEOUT 900)
 endif()
 
 message(STATUS "RH ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, "

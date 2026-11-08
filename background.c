@@ -601,20 +601,33 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 
 /* ------- begin -------------------------- Background.c ------------ */
 
+/* --- State kept between calls of Background(): whether
+	   background.dat is open, and whether the Kurucz lines have been
+	   read (they are kept when Background() runs more than once) -- */
+
+static bool_t fd_open = FALSE, rlk_read = FALSE;
+
+static void backgroundOpacities(bool_t write_analyze_output);
+
+/* --- Background() runs more than once with SOLVE_NE = ITERATION, in
+	   hydrostatic equilibrium and in the map G with ne in the state:
+	   close the file of the previous call before opening it again
+	   (B-39) --                                       -------------- */
+
+static void closeBackgroundFile(void)
+{
+	if (fd_open) {
+		close(atmos.fd_background);
+		fd_open = FALSE;
+	}
+}
+
 static void computeBackground(bool_t write_analyze_output, bool_t equilibria_only)
 {
-	const char   routineName[] = "Background";
-	register int nspect, n;
+	const char routineName[] = "Background";
 
-	static int    ne_iter = 0;
-	static bool_t fd_open = FALSE, rlk_read = FALSE;
-	char          inputLine[MAX_LINE_SIZE];
-	bool_t        exit_on_EOF, do_fudge, fromscratch;
-	int           Nfudge, Nworker, chunk;
-	double       *thomson, *lambda_fudge = NULL, **fudge = NULL;
-	Atom         *He;
-	FILE         *fp_fudge;
-	BackgroundJob job;
+	static int ne_iter = 0;
+	bool_t     fromscratch;
 
 	getCPU(2, TIME_START, NULL);
 
@@ -646,10 +659,7 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 		   and in hydrostatic equilibrium: close the file of the
 		   previous call before opening it again (B-39) -- ------------ */
 
-	if (fd_open) {
-		close(atmos.fd_background);
-		fd_open = FALSE;
-	}
+	closeBackgroundFile();
 
 	if (input.old_background) {
 		if ((atmos.fd_background =
@@ -663,6 +673,29 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 		return;
 	}
 
+	backgroundOpacities(write_analyze_output);
+}
+
+/* ------- begin -------------------------- backgroundOpacities.c --- */
+
+static void backgroundOpacities(bool_t write_analyze_output)
+{
+	const char   routineName[] = "Background";
+	register int nspect, n;
+
+	char          inputLine[MAX_LINE_SIZE];
+	bool_t        exit_on_EOF, do_fudge;
+	int           Nfudge, Nworker, chunk;
+	double       *thomson, *lambda_fudge = NULL, **fudge = NULL;
+	Atom         *He;
+	FILE         *fp_fudge;
+	BackgroundJob job;
+
+	/* --- The opacities, emissivities and scattering of the background
+		   at every wavelength, from the current ne, LTE populations and
+		   chemical equilibrium, into background.dat --  -------------- */
+
+	closeBackgroundFile();
 	getCPU(3, TIME_START, NULL);
 
 	do_fudge = FALSE;
@@ -771,8 +804,18 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 		   so that a file left by an earlier run (possibly in double)
 		   does not keep its size --                     -------------- */
 
-	atmos.backgrbytes  = sizeof(float);
-	atmos.backgretaexp = BACKGR_ETA_EXP;
+	/* --- Float by default (M-1); BACKGROUND_DOUBLE = TRUE stores
+		   double, without the emissivity scale (docs/SOLVER.md 3.7:
+		   the float rounding is noise when Background() runs inside
+		   the iteration) --                              -------------- */
+
+	if (input.background_double) {
+		atmos.backgrbytes  = sizeof(double);
+		atmos.backgretaexp = 0;
+	} else {
+		atmos.backgrbytes  = sizeof(float);
+		atmos.backgretaexp = BACKGR_ETA_EXP;
+	}
 	if ((atmos.fd_background =
 			 open(input.background_File, O_RDWR | O_CREAT | O_TRUNC,
 				  PERMISSIONS)) == -1) {
@@ -893,6 +936,36 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 	}
 
 	getCPU(2, TIME_POLL, "Total Background");
+}
+/* ------- end ---------------------------- backgroundOpacities.c --- */
+
+/* --- The background of the state of the map G with ne in the state
+	   (S-2b, docs/SOLVER.md): everything Background() derives from ne
+	   and the populations, as a function of the current ne and
+	   populations only. ntotal starts from its initial value (abundance
+	   times nHtot), not from an earlier call; the chemical equilibrium
+	   takes the neutral fractions of active atoms from their
+	   populations and does a fixed number of Newton steps; the
+	   populations of active atoms are not rescaled. Analysis output
+	   (brs.out, metals.out, molecules.out) only if asked -- ------- */
+
+void BackgroundOfState(bool_t write_analyze_output)
+{
+	register int n, k;
+
+	double t_start = wallClock();
+	Atom  *atom;
+
+	getCPU(2, TIME_START, NULL);
+	for (n = 0; n < atmos.Natom; n++) {
+		atom = &atmos.atoms[n];
+		for (k = 0; k < atmos.Nspace; k++)
+			atom->ntotal[k] = atom->abundance * atmos.nHtot[k];
+	}
+	SetLTEQuantities();
+	ChemicalEquilibriumOfState(N_CHEM_ITER_OF_STATE);
+	backgroundOpacities(write_analyze_output);
+	workAdd(WORK_BACKGROUND, wallClock() - t_start);
 }
 
 /* --- Background() with its calls and wall time counted for the work

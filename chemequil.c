@@ -96,9 +96,44 @@ extern Atmosphere atmos;
 extern InputData  input;
 extern char       messageStr[];
 
+/* --- Largest change in the last Newton step of the chemical
+	   equilibrium of state (ChemicalEquilibriumOfState), over all
+	   points, since the last chemLastChangeReset() --  -------------- */
+
+static double chemLastChange = 0.0;
+
+double chemLastChangeReset(void)
+{
+	double d = chemLastChange;
+
+	chemLastChange = 0.0;
+	return d;
+}
+
 /* ------- begin -------------------------- ChemicalEquilibrium.c --- */
 
+static void chemicalEquilibrium(int NmaxIter, double iterLimit,
+								bool_t ofState);
+
 void ChemicalEquilibrium(int NmaxIter, double iterLimit)
+{
+	chemicalEquilibrium(NmaxIter, iterLimit, FALSE);
+}
+
+/* --- For the map G with ne in the state (S-2b, docs/SOLVER.md): a
+	   function of the state only. The neutral fraction of an active
+	   atom comes from its populations (normalized by their sum, not by
+	   ntotal of an earlier call), the Newton iteration always does
+	   Niter steps (no early exit), and the populations of active atoms
+	   are not rescaled in place: only ntotal and the LTE populations
+	   follow the new equilibrium --                    -------------- */
+
+void ChemicalEquilibriumOfState(int Niter)
+{
+	chemicalEquilibrium(Niter, 0.0, TRUE);
+}
+
+static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 {
 	const char   routineName[] = "ChemicalEquilibrium";
 	register int k, i, j, nu;
@@ -107,7 +142,7 @@ void ChemicalEquilibrium(int NmaxIter, double iterLimit)
 	bool_t quiet;
 	int    Nequation, **nucl_index, niter, Nnuclei, Ngdelay, Ngperiod,
 		Ngorder, Nmaxstage;
-	double *f, *a, *n, **df, *Phi, PhiHmin, fHmin, CI, dnmax = 0.0,
+	double *f, *a, *n, **df, *Phi, PhiHmin, fHmin, CI, dnmax = 0.0, sum,
 													   *fn0, fraction, saha, *fjk = NULL, *dfjk = NULL;
 	struct Ng *Ngn;
 	Atom      *atom;
@@ -221,15 +256,24 @@ void ChemicalEquilibrium(int NmaxIter, double iterLimit)
 				/* --- Atomic model has been read for this nucleus -- ------- */
 
 				fn0[i] = 0.0;
-				for (j = 0; j < atom->Nlevel; j++) {
-					if (atom->stage[j] > 0) break;
-					if (atom->active &&
-						atom->initial_solution != OLD_POPULATIONS)
-						fn0[i] += atom->nstar[j][k];
-					else
-						fn0[i] += atom->n[j][k];
+				if (ofState && atom->active) {
+					sum = 0.0;
+					for (j = 0; j < atom->Nlevel; j++) {
+						if (atom->stage[j] == 0) fn0[i] += atom->n[j][k];
+						sum += atom->n[j][k];
+					}
+					fn0[i] /= sum;
+				} else {
+					for (j = 0; j < atom->Nlevel; j++) {
+						if (atom->stage[j] > 0) break;
+						if (atom->active &&
+							atom->initial_solution != OLD_POPULATIONS)
+							fn0[i] += atom->nstar[j][k];
+						else
+							fn0[i] += atom->n[j][k];
+					}
+					fn0[i] /= atom->ntotal[k];
 				}
-				fn0[i] /= atom->ntotal[k];
 				a[i] = atom->abundance * atmos.nHtot[k];
 			}
 		}
@@ -307,11 +351,14 @@ void ChemicalEquilibrium(int NmaxIter, double iterLimit)
 					"\n%s-- Chemical equilibrium: depth %3.3d, iteration %d",
 					(niter == 1) ? "\n" : "", k, niter);
 
-			if ((dnmax = MaxChange(Ngn, messageStr, quiet = TRUE)) <= iterLimit)
+			if ((dnmax = MaxChange(Ngn, messageStr, quiet = TRUE)) <= iterLimit &&
+				!ofState)
 				break;
 			niter++;
 		}
-		if (dnmax > iterLimit) {
+		if (ofState) {
+			chemLastChange = MAX(chemLastChange, dnmax);
+		} else if (dnmax > iterLimit) {
 			sprintf(messageStr, "Iteration not converged:\n"
 								" temperature: %6.1f [K], \n"
 								" density: %9.3E [m^-3],\n dnmax: %9.3E\n",
@@ -326,7 +373,8 @@ void ChemicalEquilibrium(int NmaxIter, double iterLimit)
 
 				for (j = 0; j < atom->Nlevel; j++) {
 					atom->nstar[j][k] *= fraction;
-					if (atom->n != atom->nstar) atom->n[j][k] *= fraction;
+					if (atom->n != atom->nstar && !ofState)
+						atom->n[j][k] *= fraction;
 				}
 				atom->ntotal[k] = n[i];
 			}

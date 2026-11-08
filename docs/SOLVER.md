@@ -478,6 +478,14 @@ S-2b. Its float rounding is then a step function of ne with steps of
   1 % of a run without `SOLVE_NE = ITERATION`, and every float operation
   would add noise where storage adds one rounding.
 
+**Decided (2026-11-08), revising the above for ne in the state:** with
+`SOLVE_NE = ITERATION` and a solver on G (`SOLVER` other than `NG`) the
+background is stored in double. The float file makes G a step function
+of ne, which limits finite-difference Jacobian products to ~3×10⁻³, and
+the measured δ does not show it (S-2b status). The cost is the larger
+file only. `BACKGROUND_DOUBLE` may be left out or set to `TRUE` there;
+`FALSE` stops the run at input.
+
 **Toy model** (`docs/solver/precision_toy.py`): G(x) = Mx + b + c sin x,
 N = 200, slowest mode of M 0.995, c = 0.002; Newton–GMRES(40) with
 finite-difference products. Lowest true ‖R‖ reached, and evaluations of R:
@@ -806,8 +814,9 @@ into `atmos.ne` is therefore not enough:
 - Unchanged, listed as part of the model: profiles, `Qelast` and PRD
   weights stay at the startup ne (S-7 decides whether they follow ne);
   charge conservation uses NLTE populations of H only (§2.1).
-- Background precision (§3.7): float storage by default; the keyword
-  `BACKGROUND_DOUBLE` (default `FALSE`) stores the file in double
+- Background precision (§3.7): double whenever ne is in the state
+  (decided 2026-11-08, below); otherwise float storage by default, and
+  the keyword `BACKGROUND_DOUBLE` (default `FALSE`) stores the file in double
   (`backgrbytes = sizeof(double)`, `backgretaexp = 0`, which the reader
   already accepts). The finite-difference step comes from the measured δ,
   which the float file raises for these cases.
@@ -828,6 +837,91 @@ into `atmos.ne` is therefore not enough:
 - δ measured with ECnoise for population and for ne directions
   separately, with the float and with the double background file, and the
   finite-difference check as for S-2.
+
+**Status (2026-11-08, branch `s2/g-map`):** implemented as below; all
+acceptance items of S-2 and S-2b pass.
+
+- `SOLVER = NG | FIXED_POINT` (default `NG`, bit-identical to before on
+  the regression suite and on `1d_falc_solvene`). `FIXED_POINT` iterates
+  x ← G(x) (`solver.c`); `NG_ORDER` on G's output gives plain G (0) or
+  Ng on G, the two S-5 controls (decided 2026-11-07). The state vector is
+  the populations of active atoms and molecules, ρ of every PRD line, J
+  (and J20), and with `SOLVE_NE = ITERATION` ne, each a copy of RH's own
+  contiguous array.
+- Keywords that G cannot honour stop the run in `readInput()` with one
+  warning per conflict saying what to set (decided 2026-11-07): PRD early
+  exit or PRD Ng, `PRD_N_MAX_ITER` < 1, collisional relaxation,
+  hydrostatic equilibrium, `LIMIT_MEMORY`, and with ne in the state
+  `OLD_BACKGROUND` or `NON_ICE`.
+- Checks: programs `gcheck_1d`, `gcheck_2d`, `gcheck_3d` (`gchecks.c`):
+  twice, history (G(x_a), G(x_b), G(x_a)), ECnoise per block of x, FD
+  products D(ε) per block, directions restricted to blocks with
+  `--perturb` (decided 2026-11-07). ctest `e2e_solver_g` runs the twice and
+  history checks (1-D, and 2-D at 2 threads), the bit-for-bit history
+  against `NG` and the keyword validation; a mutation (one PRD
+  sub-iteration fewer on every other call) fails all three.
+- S-2b: `Background()` is split into the equilibria and
+  `backgroundOpacities()`; `BackgroundOfState()` resets `ntotal` to its
+  initial value (abundance × nHtot) so that nothing from an earlier call
+  is used, computes LTE quantities and collision rates, runs
+  `ChemicalEquilibriumOfState()` (neutral fractions of active atoms from
+  x's populations, decided 2026-11-07; 20 Newton steps from complete
+  dissociation; populations of x not rescaled) and the opacities. After
+  steps 1–4 `Solve_ne_OfState()` does 10 Newton steps from x.ne. Both end
+  at rounding level (last steps 2×10⁻¹⁶). Keyword `BACKGROUND_DOUBLE`.
+  The final state's background is recomputed, with analysis output, for
+  the final formal solution.
+
+Results (gcheck at 1 thread unless stated; logs in
+`claude-tmp/s1/s2/runs`):
+
+- History: `FIXED_POINT` with `NG_ORDER = 0` reproduces `NG` with
+  `NG_ORDER = PRD_NG_ORDER = PRD_ITER_LIMIT = 0` bit for bit over 40
+  iterations of `1d_falc_h6_ca_mg` (populations, J, rates, spectrum, every
+  logged change).
+- Twice and history bit-identical on the converged references of all
+  eight S-5 cases without ne, on the ne cases (float and double
+  background), on the 2-D and 3-D examples at 4 threads, and after 2000
+  calls. Hybrid PRD on `FALC_v10` is bit-identical at 1 thread and differs
+  by ~10⁻¹⁵ at 4 (`Jgas` summed in arrival order), as expected (S-2
+  bullets).
+- δ (ECnoise, relative step 10⁻⁹, converged states, max over the block):
+  populations 2×10⁻¹³ (Mg I) to 1.8×10⁻¹⁰ (Ca II), ρ 10⁻¹³ to 10⁻¹¹, J
+  ≤ 1.5×10⁻¹¹; the 2-D example 10⁻⁹ (J), the 3-D example 4×10⁻¹¹.
+  `1d_falc_solvene`: ≤ 2.7×10⁻¹⁰ (populations) and ≤ 5×10⁻¹² (ne) with the
+  double background, ≤ 3×10⁻⁹ and ≤ 3.5×10⁻¹⁰ with float (J 3×10⁻⁸).
+  `1d_falc_helarge`: 2×10⁻³, independent of the step from 10⁻¹¹ to 10⁻⁷
+  and of `I_SUM`, while G is bit-reproducible. **Hypothesis:** G amplifies
+  rounding by ~10⁸ for He_large (an ill-conditioned rate matrix, N-7), and
+  its stall at 2–3×10⁻³ (N-28) is this floor, not slow convergence.
+- FD check on `1d_falc_h6_ca_mg`: with `S_LINEAR` every block shows
+  D(ε) − D(10ε) falling as O(ε) to ε ≈ 10⁻⁶ (error ~10⁻⁶) and rising as
+  δ/ε below; with `S_BEZIER3` ρ of H and J level off at ~10⁻³ between
+  ε = 10⁻⁵ and 10⁻⁸ (limiter kinks, trap 3), also with a fixed `I_SUM`.
+  `1d_falc_h20`: perturbations of 10⁻¹ invert Rydberg levels (trap 5); at
+  ε ≤ 10⁻³ J behaves, the populations never settle (‖Jv‖ ≪ ‖G‖ for
+  collision-dominated levels: scale, trap 4).
+- S-2b, `1d_falc_solvene`: plain G converges to 10⁻¹⁰ in 859 iterations
+  with the double background (the current code: 1001), and stalls at
+  9×10⁻⁹ with float (current code: 2.3×10⁻⁹). Its fixed point agrees with
+  the reference of the current code to 4.1×10⁻⁸ in the populations and
+  6×10⁻⁸ in the spectrum: the neutral-fraction convention (3.7×10⁻⁸,
+  §2.1). Float and double fixed points agree to 3×10⁻⁸. Descriptors and
+  memory are flat over 2004 calls (`ulimit -n 64`, peak 19.3 MB after 200
+  and after 2000). `1d_shock_h6crd_ne`: plain G diverges, as plain MALI
+  does.
+- FD along ne directions: double background, clean O(ε) to ε = 10⁻⁷
+  (error ~10⁻⁶); float background, best ~3×10⁻³ at ε = 10⁻⁴, and along
+  population directions ~4×10⁻³ (double 6×10⁻⁵). The float rounding is a
+  step function of ne (§3.7), correlated rather than random, so ECnoise
+  at a small step (3×10⁻¹⁰ for ne) understates what an FD product sees.
+  The decision of §3.7 (float storage by default, FD step from the
+  measured δ) assumed δ describes the FD error; for the ne cases it does
+  not. **Decided (2026-11-08):** with ne in the state the background is
+  stored in double (§3.7); `readInput` sets it, and an explicit
+  `BACKGROUND_DOUBLE = FALSE` stops the run. Checked: `1d_falc_solvene`
+  with the keyword left out writes the double file and repeats the
+  explicit-double run line for line over 30 iterations.
 
 ### S-3 — Stabilized Anderson acceleration (replaces Ng)
 
@@ -1059,14 +1153,22 @@ method. They are easy to miss because the code still runs.
    switches add to it: the eliminated row with `I_SUM = −1` (argmax of n
    per point; use a fixed `I_SUM` for the finite-difference check), the
    pivoting in the LU, and the Steffen limiter of Bezier3 (kinks with
-   coefficient jumps ≤ 4×10⁻¹²; `S_LINEAR` is a smooth control).
+   coefficient jumps ≤ 4×10⁻¹²; `S_LINEAR` is a smooth control). Measured
+   in S-2: Bezier3 limits FD products of ρ and J to ~10⁻³, and with ne in
+   the state the float background limits them to ~3×10⁻³, much worse than
+   its ECnoise δ suggests (correlated steps, not noise).
 4. **Unscaled variables.** Populations over ten decades: inner products,
    least squares and finite differences in raw units are dominated by a
    few entries. Scale first (§3.1).
 5. **Positivity.** Newton and Anderson steps can produce negative
    populations, which then give negative opacities and SIGFPE (He_large
    dies this way under Ng: `exp(−dt)` overflows in `Bezier3_coeffs`). Log
-   variables or step truncation, designed in from the start.
+   variables or step truncation, designed in from the start. Positive
+   populations are not enough: independent relative perturbations of
+   closely spaced levels invert them (H_20 Rydberg levels at 10⁻¹, S-2),
+   which gives negative line opacity and the same overflow. Trial points
+   of Newton and FD products must respect the ordering n_u g_l < n_l g_u
+   where the levels are close, or the formal solver must accept masers.
 6. **Comparing iterations instead of work.** Report the work counts and
    wall time (§4.1); a Newton "iteration" contains many FS, and an
    iteration with `SOLVE_NE` contains a `Background()` call.
@@ -1141,6 +1243,10 @@ formal solution), and the operator candidate of #190 (S-5).
    profiles, `Qelast` and PRD weights that follow ne (S-7).
 10. Mixed-precision Newton for F-4 (§3.7): the lower bound of the forcing
     term in RH, and where the residual is computed on a GPU.
+11. ~~Background precision with ne in the state of a Newton solver~~
+    Decided 2026-11-08: double whenever ne is in the state (§3.7).
+12. He_large: is the δ ≈ 2×10⁻³ of its G an ill-conditioned rate matrix
+    (N-7), and is that what stalls it (N-28)?
 
 ---
 
