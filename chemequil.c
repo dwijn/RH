@@ -331,9 +331,10 @@ void ChemicalEquilibrium(int NmaxIter, double iterLimit)
 				atom->ntotal[k] = n[i];
 			}
 		}
-		/* --- Store Hmin density --                       -------------- */
+		/* --- Store Hmin density, from neutral hydrogen as in the
+			   conservation equation above (B-40) --       -------------- */
 
-		atmos.nHmin[k] = atmos.ne[k] * (n[0] * PhiHmin);
+		atmos.nHmin[k] = fHmin * n[0];
 
 		/* --- Store molecular densities --                -------------- */
 
