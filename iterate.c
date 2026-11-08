@@ -20,6 +20,7 @@
 #include "accelerate.h"
 #include "error.h"
 #include "statistics.h"
+#include "solver.h"
 #include "inputs.h"
 
 typedef struct {
@@ -39,19 +40,18 @@ extern Spectrum   spectrum;
 extern InputData  input;
 extern char       messageStr[];
 
+static void iterateNg(int NmaxIter, double iterLimit);
+
 /* ------- begin -------------------------- Iterate.c --------------- */
 
 void Iterate(int NmaxIter, double iterLimit)
 {
-	const char   routineName[] = "Iterate";
-	register int niter, nact;
+	double t_start;
 
-	bool_t eval_operator, write_analyze_output, equilibria_only,
-		converged = FALSE, stopped = FALSE;
-	int       Ngorder;
-	double    dpopsmax = 0.0, PRDiterlimit, t_start;
-	Atom     *atom;
-	Molecule *molecule;
+	/* --- The main iteration with the solver selected by keyword
+		   SOLVER: RH's Ng-accelerated MALI iteration (NG, the default)
+		   or the fixed-point iteration of the map G (FIXED_POINT, see
+		   solver.c) --                                   -------------- */
 
 	if (NmaxIter <= 0) {
 		workPhase(WORK_FINAL);
@@ -60,6 +60,35 @@ void Iterate(int NmaxIter, double iterLimit)
 	getCPU(1, TIME_START, NULL);
 	workPhase(WORK_ITERATE);
 	t_start = wallClock();
+
+	switch (input.solver) {
+	case SOLVER_FIXED_POINT:
+		iterateFixedPoint(NmaxIter, iterLimit);
+		break;
+	default:
+		iterateNg(NmaxIter, iterLimit);
+		break;
+	}
+
+	workAdd(WORK_ITERATION, wallClock() - t_start);
+	workPhase(WORK_FINAL);
+	getCPU(1, TIME_POLL, "Iteration Total");
+}
+/* ------- end ---------------------------- Iterate.c --------------- */
+
+/* ------- begin -------------------------- iterateNg.c ------------- */
+
+static void iterateNg(int NmaxIter, double iterLimit)
+{
+	const char   routineName[] = "Iterate";
+	register int niter, nact;
+
+	bool_t eval_operator, write_analyze_output, equilibria_only,
+		converged = FALSE, stopped = FALSE;
+	int       Ngorder;
+	double    dpopsmax = 0.0, PRDiterlimit;
+	Atom     *atom;
+	Molecule *molecule;
 
 	/* --- Initialize structures for Ng acceleration of population
 		   convergence --                                  ------------ */
@@ -209,10 +238,6 @@ void Iterate(int NmaxIter, double iterLimit)
 		freeMatrix((void **) molecule->Gamma);
 		NgFree(molecule->Ng_nv);
 	}
-
-	workAdd(WORK_ITERATION, wallClock() - t_start);
-	workPhase(WORK_FINAL);
-	getCPU(1, TIME_POLL, "Iteration Total");
 }
 /* ------- end ---------------------------- Iterate.c --------------- */
 

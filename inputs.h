@@ -31,6 +31,8 @@ enum order_3D { LINEAR_3D,
 enum ne_solution { NONE,
 				   ONCE,
 				   ITERATION };
+enum solver_type { SOLVER_NG,
+				   SOLVER_FIXED_POINT };
 
 typedef struct {
 	char   name[MAX_KEYWORD_LENGTH];
@@ -90,6 +92,7 @@ typedef struct {
 	enum PRDangle          PRD_angle_dep;
 	enum order_3D          interpolate_3D;
 	enum ne_solution       solve_ne;
+	enum solver_type       solver;
 
 	int isum, Ngdelay, Ngorder, Ngperiod, NmaxIter,
 		PRD_NmaxIter, PRD_Ngdelay, PRD_Ngorder, PRD_Ngperiod,
@@ -114,6 +117,7 @@ void setintValue(char *value, void *pointer);
 void setdoubleValue(char *value, void *pointer);
 void setstartValue(char *value, void *pointer);
 void setnesolution(char *value, void *pointer);
+void setsolver(char *value, void *pointer);
 void setStokesMode(char *value, void *pointer);
 void setPRDangle(char *value, void *pointer);
 void setThreadValue(char *value, void *pointer);

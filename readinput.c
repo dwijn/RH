@@ -40,7 +40,7 @@ void readInput()
 	const char routineName[] = "readInput";
 	char       errorStr[MAX_MESSAGE_LENGTH];
 
-	int   Nkeyword;
+	int   Nkeyword, Nconflict;
 	FILE *fp_keyword;
 
 	Keyword theKeywords[] = {
@@ -121,6 +121,7 @@ void readInput()
 		 KEYWORD_REQUIRED, &input.pfData, setcharValue},
 		{"SOLVE_NE", "NONE", FALSE, KEYWORD_DEFAULT, &input.solve_ne,
 		 setnesolution},
+		{"SOLVER", "NG", FALSE, KEYWORD_DEFAULT, &input.solver, setsolver},
 		{"OPACITY_FUDGE", "none", FALSE, KEYWORD_OPTIONAL, &input.fudgeData,
 		 setcharValue},
 		{"METALLICITY", "0.0", FALSE, KEYWORD_DEFAULT, &input.metallicity,
@@ -361,6 +362,79 @@ void readInput()
 				  "Can only perform hydrostatic equilibrium calculation"
 				  " in 1-D Cartesian geometry");
 		break;
+	}
+
+	/* --- SOLVER = FIXED_POINT iterates the map G of docs/SOLVER.md
+		   (S-2): one MALI step as a function of an explicit state, with
+		   a fixed number of PRD sub-iterations and no acceleration
+		   inside. Keywords that would make G depend on anything else
+		   are rejected here, before any work is done -- ------------- */
+
+	if (input.solver != SOLVER_NG) {
+		Nconflict = 0;
+		if (input.PRDiterLimit != 0.0) {
+			sprintf(messageStr,
+					"SOLVER = FIXED_POINT: PRD_ITER_LIMIT = %g lets the PRD"
+					" sub-iterations stop early,\n which makes the map"
+					" discontinuous. Set PRD_ITER_LIMIT = 0;\n"
+					" PRD_N_MAX_ITER (now %d) then sets their number.",
+					input.PRDiterLimit, input.PRD_NmaxIter);
+			Error(WARNING, routineName, messageStr);
+			Nconflict++;
+		}
+		if (input.PRD_Ngorder != 0) {
+			sprintf(messageStr,
+					"SOLVER = FIXED_POINT: PRD_NG_ORDER = %d, but there is no"
+					" acceleration inside\n the map. Set PRD_NG_ORDER = 0.",
+					input.PRD_Ngorder);
+			Error(WARNING, routineName, messageStr);
+			Nconflict++;
+		}
+		if (input.PRD_NmaxIter < 1) {
+			sprintf(messageStr,
+					"SOLVER = FIXED_POINT: PRD_N_MAX_ITER = %d, but the map"
+					" needs at least one\n PRD sub-iteration. Set"
+					" PRD_N_MAX_ITER >= 1.",
+					input.PRD_NmaxIter);
+			Error(WARNING, routineName, messageStr);
+			Nconflict++;
+		}
+		if (input.CR_Nstep > 0) {
+			sprintf(messageStr,
+					"SOLVER = FIXED_POINT: COLL_RELAX_NSTEP = %d makes the map"
+					" depend on the\n iteration number. Set"
+					" COLL_RELAX_NSTEP = 0.",
+					input.CR_Nstep);
+			Error(WARNING, routineName, messageStr);
+			Nconflict++;
+		}
+		if (atmos.hydrostatic) {
+			Error(WARNING, routineName,
+				  "SOLVER = FIXED_POINT: HYDROSTATIC = TRUE changes the"
+				  " atmosphere between\n iterations. Set HYDROSTATIC = FALSE.");
+			Nconflict++;
+		}
+		if (input.limit_memory) {
+			Error(WARNING, routineName,
+				  "SOLVER = FIXED_POINT: the mean intensity J is part of the"
+				  " state and must be\n kept in memory. Set"
+				  " LIMIT_MEMORY = FALSE.");
+			Nconflict++;
+		}
+		if (input.solve_ne == ITERATION) {
+			Error(WARNING, routineName,
+				  "SOLVER = FIXED_POINT: ne is not part of the state yet."
+				  " Set SOLVE_NE = NONE\n or ONCE.");
+			Nconflict++;
+		}
+		if (Nconflict) {
+			sprintf(messageStr,
+					"SOLVER = FIXED_POINT: %d keyword setting%s conflict with"
+					" it; see the\n warning%s above and S-2 in docs/SOLVER.md.",
+					Nconflict, (Nconflict > 1) ? "s" : "",
+					(Nconflict > 1) ? "s" : "");
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
 	}
 
 	/* --- If called with -showkeywords commandline option -- --------- */
