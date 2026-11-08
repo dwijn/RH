@@ -16,6 +16,11 @@
 #                    cases always run one at a time.
 #   --threads N      override N_THREADS of the multi-D cases
 #   --work DIR       scratch directory (default tests/work_stress)
+#   --kw 'K=V;...'   keyword.input settings applied to every case after its
+#                    own (e.g. the reference recipe of make_references.sh)
+#   --ref DIR        reference solutions (make_references.sh): every case with
+#                    a DIR/CASE directory is compared with it (population and
+#                    spectrum errors, analyze_run.py compare)
 #   --bifrost DIR    directory with the FITS cubes of a Bifrost snapshot
 #                    (en024048_hion, Carlsson et al. 2016, A&A 585, A4; not
 #                    distributed with RH, download it yourself); also taken
@@ -24,12 +29,16 @@
 #   --list           print the cases and exit
 #
 # Results go to WORK/results_<date-time>.tsv (one file per invocation, one line
-# per case and tree) and are printed as a table. Atomic data, atmospheres and
+# per case and tree) and are printed as a table. Every run writes its
+# radiative and collisional rates, and the table shows the work (formal-
+# solution equivalents and Background() calls, SOLVER.md 4.1) and the SE
+# residual (tests/se_residual.py) of every run. Atomic data, atmospheres and
 # molecules are taken from the first tree; generated multi-D atmospheres are
 # written to WORK.
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 TREES=(); ONLY=; SET=conv; JOBS=4; THREADS=; WORK="$HERE/work_stress"; LIST=0
+EXTRA_KW=; REFSOL=
 BIFROST=${RH_BIFROST_DIR:-}
 
 while [ $# -gt 0 ]; do
@@ -40,9 +49,11 @@ while [ $# -gt 0 ]; do
     --jobs)    JOBS=$2; shift 2;;
     --threads) THREADS=$2; shift 2;;
     --work)    WORK=$2; shift 2;;
+    --kw)      EXTRA_KW=$2; shift 2;;
+    --ref)     REFSOL=$(cd "$2" && pwd) || exit 1; shift 2;;
     --bifrost) BIFROST=$2; shift 2;;
     --list)    LIST=1; shift;;
-    -h|--help) sed -n '2,27p' "$0"; exit 0;;
+    -h|--help) sed -n '2,37p' "$0"; exit 0;;
     *) echo "unknown option: $1"; exit 1;;
   esac
 done
@@ -94,6 +105,7 @@ CASES=(
 # Crashes / wrong answers from options
 "1d_falc_cail      |conv|1d|FALC_82.atmos  |CaII_large        |$L"
 "1d_falc_solvene   |conv|1d|FALC_82.atmos  |H_6,CaII          |$L;SOLVE_NE=ITERATION"
+"1d_shock_h6crd_ne |conv|1d|FALC_shock.atmos|H_6_CRD          |$L;SOLVE_NE=ITERATION"
 "1d_falc_prdng     |conv|1d|FALC_82.atmos  |CaII              |$L;PRD_NG_ORDER=2"
 "1d_falxco_collrel |conv|1d|FALXCO_80.atmos|H_6               |$L;COLL_RELAX_NSTEP=20;COLL_RELAX_FACTOR=0.01"
 # Multi-D
@@ -106,6 +118,7 @@ CASES=(
 # diverges in these moving atmospheres (B-29); the _prd cases reproduce that
 "1d_bf_c260_ca     |conv|1d|bifrost:1d:260 |CaII_CRD          |$L"
 "1d_bf_c260_prd    |conv|1d|bifrost:1d:260 |CaII              |$L"
+"1d_bf_c100_prd    |conv|1d|bifrost:1d:100 |CaII              |$L"
 "2d_bf_s4_ca       |conv|2d|bifrost:2d:4   |CaII_CRD          |$L;N_THREADS=16"
 "2d_bf_s4_prd      |conv|2d|bifrost:2d:4   |CaII              |$L;N_THREADS=16"
 "3d_bf_s21_ca      |conv|3d|bifrost:3d:21  |CaII_CRD          |$L;N_THREADS=16"
@@ -187,8 +200,10 @@ prepare() {   # NAME GEOM ATMOS ATOMS KEYWORDS TREENAME -> RUNDIR
   setkw "$RUNDIR/keyword.input" STOKES_INPUT none
   setkw "$RUNDIR/keyword.input" PRINT_CPU FALSE
   [ "$geom" = 1d ] && setkw "$RUNDIR/keyword.input" N_THREADS 1
+  setkw "$RUNDIR/keyword.input" RADRATE_OUTPUT radrate.out
+  setkw "$RUNDIR/keyword.input" COLLRATE_OUTPUT collrate.out
   local IFS=';'
-  for m in $kws; do
+  for m in $kws${EXTRA_KW:+;$EXTRA_KW}; do
     case "$m" in
       @NOMOL=*) awk -v m="/${m#@NOMOL=}.molecule" '
                   index($0, m) { drop = 1; next }
@@ -247,7 +262,12 @@ run_one() {   # case-line tree-index
   fi
   execute "$td" "$g"
   lim=$(awk -F= '/^[[:space:]]*ITER_LIMIT/{gsub(/ /,"",$2); print $2}' "$RUNDIR/keyword.input")
-  printf '%s\t%s\t%s\n' "$n" "$tn" "$(python3 -I "$HERE/analyze_run.py" summary "$RUNDIR" "${lim:-1e-2}")" >> "$RESULTS"
+  local js=$(python3 -I "$HERE/analyze_run.py" summary "$RUNDIR" "${lim:-1e-2}")
+  if [ -n "$REFSOL" ] && [ -d "$REFSOL/$n" ]; then
+    js=$(python3 -I -c 'import json, sys; a = json.loads(sys.argv[1]); a["ref"] = json.loads(sys.argv[2]); print(json.dumps(a))' \
+         "$js" "$(python3 -I "$HERE/analyze_run.py" compare "$RUNDIR" "$REFSOL/$n")")
+  fi
+  printf '%s\t%s\t%s\n' "$n" "$tn" "$js" >> "$RESULTS"
 }
 
 echo "trees: $(for i in "${!NAMES[@]}"; do printf '%s=%s ' "${NAMES[$i]}" "${DIRS[$i]}"; done)"
@@ -295,6 +315,15 @@ for case, by in rows.items():
                                capture_output=True, text=True).stdout.strip()
             extra += f"; pops {p}; spec {s.split('(')[-1].split(')')[-1].strip() or s}"
         fmt = lambda v, f: (f % v) if isinstance(v, (int, float)) and v is not None else "-"
+        w, fse, ref = r.get("work"), r.get("fse"), r.get("ref")
+        if w:
+            extra += f"; FS {w['fs']:.1f}, Background {w['background_calls']}"
+        if isinstance(fse, dict):
+            extra += f"; F_SE max@1e-6 {fse['max_rel@1e-06']:.1e} rms {fse['rms']:.1e}"
+        if isinstance(ref, dict):
+            pe = ref.get("pops")
+            extra += "; vs ref: pops@1e-6 " + (fmt(pe.get("1e-06"), "%.1e") if isinstance(pe, dict) else str(pe))
+            extra += f", spec {fmt(ref.get('spec_wl'), '%.1e')} (line {fmt(ref.get('spec_line'), '%.1e')})"
         print(f"{case:18s} {t:10s} {fmt(r.get('iters'), '%d'):>5s} {fmt(r.get('delta'), '%.2e'):>9s} "
               f"{'yes' if r.get('converged') else 'no':>4s} {r.get('trend', '-'):11s} "
               f"{fmt(r.get('wall'), '%.1f'):>8s} {fmt(r.get('rss'), '%.0f'):>8s}  {extra}")
