@@ -27,6 +27,7 @@ typedef struct {
 	int    Nsteps, lag, Necn;
 	double hEcnoise, fdmax;
 	bool_t fd;
+	char  *perturb;
 } GCheckOptions;
 
 void gcheckParse(int *argc, char *argv[], GCheckOptions *opt);

@@ -52,14 +52,32 @@ extern char       messageStr[];
 
 /* ------- begin -------------------------- Solve_ne.c -------------- */
 
+static double solveNe(double *ne, bool_t fromscratch, int Nfixed);
+
 void Solve_ne(double *ne, bool_t fromscratch)
+{
+	solveNe(ne, fromscratch, 0);
+}
+
+/* --- For the map G with ne in the state (S-2b, docs/SOLVER.md): the
+	   Newton iteration starts from the given ne and always does Niter
+	   steps (no early exit, so that the result is a smooth function of
+	   the state). Returns the largest relative change of the last
+	   step --                                         -------------- */
+
+double Solve_ne_OfState(double *ne, int Niter)
+{
+	return solveNe(ne, FALSE, Niter);
+}
+
+static double solveNe(double *ne, bool_t fromscratch, int Nfixed)
 {
 	const char   routineName[] = "Solvene";
 	register int k, n, j;
 
 	int     Nmaxstage, niter;
 	double *fjk, *dfjk, error, ne_old, akj, sum, PhiH, C1, Uk,
-		dne, *np, PhiHmin;
+		dne = 0.0, *np, PhiHmin, dnemax = 0.0;
 
 	getCPU(3, TIME_START, NULL);
 
@@ -98,7 +116,7 @@ void Solve_ne(double *ne, bool_t fromscratch)
 		}
 
 		niter = 0;
-		while (niter < N_MAX_ELECTRON_ITERATIONS) {
+		while (niter < ((Nfixed > 0) ? Nfixed : N_MAX_ELECTRON_ITERATIONS)) {
 			error = ne_old / atmos.nHtot[k];
 			sum   = 0.0;
 
@@ -126,11 +144,12 @@ void Solve_ne(double *ne, bool_t fromscratch)
 			dne    = fabs((ne[k] - ne_old) / ne_old);
 			ne_old = ne[k];
 
-			if (dne <= MAX_ELECTRON_ERROR) break;
+			if (dne <= MAX_ELECTRON_ERROR && Nfixed == 0) break;
 			niter++;
 		}
+		dnemax = MAX(dnemax, dne);
 
-		if (dne > MAX_ELECTRON_ERROR) {
+		if (dne > MAX_ELECTRON_ERROR && Nfixed == 0) {
 			sprintf(messageStr, "Electron density iteration not converged:\n"
 								" spatial location: %d, temperature: %6.1f [K], \n"
 								" density: %9.3E [m^-3],\n dnemax: %9.3E\n",
@@ -143,6 +162,8 @@ void Solve_ne(double *ne, bool_t fromscratch)
 	free(dfjk);
 
 	getCPU(3, TIME_POLL, "Electron density");
+
+	return dnemax;
 }
 /* ------- end ---------------------------- Solve_ne.c -------------- */
 

@@ -107,6 +107,8 @@ void readInput()
 		 setcharValue},
 		{"OLD_BACKGROUND", "FALSE", FALSE, KEYWORD_OPTIONAL,
 		 &input.old_background, setboolValue},
+		{"BACKGROUND_DOUBLE", "FALSE", FALSE, KEYWORD_DEFAULT,
+		 &input.background_double, setboolValue},
 		{"STARTING_J", "", FALSE, KEYWORD_REQUIRED, &input.startJ,
 		 setstartValue},
 		{"HYDROGEN_LTE", "FALSE", FALSE, KEYWORD_DEFAULT, &atmos.H_LTE,
@@ -421,10 +423,16 @@ void readInput()
 				  " LIMIT_MEMORY = FALSE.");
 			Nconflict++;
 		}
-		if (input.solve_ne == ITERATION) {
+		if (input.solve_ne == ITERATION && input.old_background) {
 			Error(WARNING, routineName,
-				  "SOLVER = FIXED_POINT: ne is not part of the state yet."
-				  " Set SOLVE_NE = NONE\n or ONCE.");
+				  "SOLVER = FIXED_POINT with SOLVE_NE = ITERATION recomputes the"
+				  " background\n from the state. Set OLD_BACKGROUND = FALSE.");
+			Nconflict++;
+		}
+		if (input.solve_ne == ITERATION && input.NonICE) {
+			Error(WARNING, routineName,
+				  "SOLVER = FIXED_POINT with SOLVE_NE = ITERATION computes the"
+				  " chemical\n equilibrium from the state. Set NON_ICE = FALSE.");
 			Nconflict++;
 		}
 		if (Nconflict) {

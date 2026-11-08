@@ -83,6 +83,7 @@ typedef struct {
 	bool_t magneto_optical, XRD, Eddington,
 		backgr_pol, limit_memory, allow_passive_bb, NonICE,
 		rlkscatter, xdr_endian, old_background, accelerate_mols,
+		background_double,
 		RLK_explicit, prdh_limit_mem;
 	enum solution startJ;
 

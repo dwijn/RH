@@ -4,6 +4,7 @@
 	   rhf1d: sets up as rhf1d does, then runs gcheckRun() (gchecks.c).
 
 	   usage: gcheck [--steps N] [--lag L] [--ecnoise H] [--necn M] [--fd] [--fdmax F]
+					 [--perturb NAME]
 					 [rhf1d options]
 
 	   in a run directory whose keyword.input has SOLVER = FIXED_POINT.

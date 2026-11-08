@@ -53,6 +53,7 @@
 #include "inputs.h"
 #include "error.h"
 #include "statistics.h"
+#include "background.h"
 #include "solver.h"
 
 /* --- Global variables --                             -------------- */
@@ -74,7 +75,8 @@ static StateBlock *blocks  = NULL;
 static int         Nblocks = 0;
 static long        Nstate  = 0;
 
-static long Gcount = 0;
+static long   Gcount   = 0;
+static double neChange = 0.0, chemChange = 0.0;
 
 /* ------- begin -------------------------- rhoSize.c --------------- */
 
@@ -144,6 +146,8 @@ long stateInit(void)
 	addBlock("J", spectrum.J[0], (long) spectrum.Nspect * atmos.Nspace);
 	if (spectrum.J20 != NULL)
 		addBlock("J20", spectrum.J20[0], (long) spectrum.Nspect * atmos.Nspace);
+
+	if (input.solve_ne == ITERATION) addBlock("ne", atmos.ne, atmos.Nspace);
 
 	return Nstate;
 }
@@ -276,6 +280,13 @@ void G_eval(const double *x_in, double *x_out)
 
 	stateScatter(x_in);
 
+	/* --- 0. With ne in the state (S-2b): everything the background
+		   derives from ne and the populations, from those of x_in:
+		   LTE populations, collision and fixed rates, chemical
+		   equilibrium, background opacities --        -------------- */
+
+	if (input.solve_ne == ITERATION) BackgroundOfState(FALSE);
+
 	/* --- 1. Collisional and fixed rates into Gamma -- -------------- */
 
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
@@ -305,6 +316,13 @@ void G_eval(const double *x_in, double *x_out)
 
 	if (atmos.NPRDactive > 0) prdSubIterations(input.PRD_NmaxIter);
 
+	/* --- 5. With ne in the state: ne from charge conservation with
+		   the new populations, Newton from the ne of x_in -- ------- */
+
+	if (input.solve_ne == ITERATION) {
+		neChange   = Solve_ne_OfState(atmos.ne, N_NE_ITER_OF_STATE);
+		chemChange = chemLastChangeReset();
+	}
 	stateGather(x_out);
 	Gcount++;
 }
@@ -393,6 +411,12 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 			Error(MESSAGE, NULL, (accel) ? " (accelerated)\n" : "\n");
 			dpopsmax = MAX(dpops, dpopsmax);
 		}
+		if (input.solve_ne == ITERATION) {
+			sprintf(messageStr, " ne: last Newton step %.2E, chemical"
+								" equilibrium: last Newton step %.2E\n",
+					neChange, chemChange);
+			Error(MESSAGE, NULL, messageStr);
+		}
 		/* --- Ng changes the populations in place: take them back
 			   into x --                                     -------------- */
 
@@ -429,6 +453,11 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	}
 	sprintf(messageStr, " -- G evaluations: %ld\n", Gcount);
 	Error(MESSAGE, routineName, messageStr);
+
+	/* --- With ne in the state: the background of the final state, for
+		   the final formal solution and the output --   -------------- */
+
+	if (input.solve_ne == ITERATION) BackgroundOfState(TRUE);
 
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
 		atom = atmos.activeatoms[nact];

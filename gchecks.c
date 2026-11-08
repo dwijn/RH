@@ -29,6 +29,8 @@
 				 the populations can invert closely spaced levels (H_20
 				 Rydberg levels), which gives negative line opacity
 				 and stops the formal solver: lower --fdmax then.
+	   --perturb NAME restricts the ECnoise and FD directions to the
+	   blocks of x whose name starts with NAME (e.g. "ne").
 				 Reported per block: |D(eps) - D(10 eps)| / |D(eps)|
 				 (2-norms). It falls as O(eps) while truncation
 				 dominates and rises as O(delta/eps) where noise does.
@@ -78,6 +80,7 @@ void gcheckParse(int *argc, char *argv[], GCheckOptions *opt)
 	opt->hEcnoise = 0.0;
 	opt->fd       = FALSE;
 	opt->fdmax    = 1.0E-1;
+	opt->perturb  = NULL;
 
 	for (n = 1, m = 1; n < *argc; n++) {
 		if (!strcmp(argv[n], "--steps") && n + 1 < *argc)
@@ -92,6 +95,8 @@ void gcheckParse(int *argc, char *argv[], GCheckOptions *opt)
 			opt->fd = TRUE;
 		else if (!strcmp(argv[n], "--fdmax") && n + 1 < *argc)
 			opt->fdmax = atof(argv[++n]);
+		else if (!strcmp(argv[n], "--perturb") && n + 1 < *argc)
+			opt->perturb = argv[++n];
 		else
 			argv[m++] = argv[n];
 	}
@@ -126,6 +131,27 @@ static void randomDirection(const double *x, double *p, long N,
 	}
 }
 /* ------- end ---------------------------- randomDirection.c ------- */
+
+/* ------- begin -------------------------- restrictDirection.c ----- */
+
+static void restrictDirection(double *p, const char *prefix)
+{
+	register long k;
+	register int  n;
+
+	long off;
+
+	/* --- With --perturb NAME: zero the direction outside the blocks
+		   whose name starts with NAME (e.g. "ne", "populations",
+		   "populations CA", "rho", "J") --              -------------- */
+
+	if (prefix == NULL) return;
+	for (n = 0, off = 0; n < stateNblocks(); off += stateBlockSize(n), n++) {
+		if (strncmp(stateBlockName(n), prefix, strlen(prefix)))
+			for (k = off; k < off + stateBlockSize(n); k++) p[k] = 0.0;
+	}
+}
+/* ------- end ---------------------------- restrictDirection.c ----- */
 
 /* ------- begin -------------------------- compare.c --------------- */
 
@@ -271,6 +297,7 @@ void gcheckRun(const GCheckOptions *opt)
 		p  = (double *) malloc(N * sizeof(double));
 		f  = matrix_double(nf, N);
 		randomDirection(x, p, N, GCHECK_SEED_P);
+		restrictDirection(p, opt->perturb);
 		for (i = 0; i < nf; i++) {
 			for (k = 0; k < N; k++)
 				y2[k] = x[k] + (i - opt->Necn / 2) * opt->hEcnoise * p[k];
@@ -317,6 +344,7 @@ void gcheckRun(const GCheckOptions *opt)
 		D[0] = (double *) malloc(N * sizeof(double));
 		D[1] = (double *) malloc(N * sizeof(double));
 		randomDirection(x, p, N, GCHECK_SEED_V);
+		restrictDirection(p, opt->perturb);
 		Error(MESSAGE, NULL, "gcheck: fd, |D(eps) - D(10 eps)| / |D(eps)| per block\n");
 		sprintf(messageStr, "gcheck: fd %8s", "eps");
 		Error(MESSAGE, NULL, messageStr);
@@ -346,6 +374,12 @@ void gcheckRun(const GCheckOptions *opt)
 		free(p);
 		free(D[0]);
 		free(D[1]);
+	}
+	if (opt->perturb) {
+		sprintf(messageStr, "gcheck: ecnoise and fd directions restricted to"
+							" blocks \"%s...\"\n",
+				opt->perturb);
+		Error(MESSAGE, NULL, messageStr);
 	}
 	sprintf(messageStr, "gcheck: %ld evaluations of G, %.3f s per evaluation\n",
 			G_count(), (wallClock() - t_start) / G_count());

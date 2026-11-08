@@ -17,6 +17,13 @@
 #define N_MAX_CHEM_ITER 10
 #define CHEM_ITER_LIMIT 1.0E-3
 
+/* --- Fixed numbers of Newton steps in the map G with ne in the state
+	   (S-2b): chemical equilibrium from complete dissociation, and the
+	   electron density from the ne of the state --     -------------- */
+
+#define N_CHEM_ITER_OF_STATE 20
+#define N_NE_ITER_OF_STATE   10
+
 /* --- Power of two by which emissivities are multiplied in the
 	   (single-precision) background file, see backgroundIO in readj.c */
 
@@ -38,7 +45,10 @@ struct Linelist {
 
 /* --- Associated function prototypes --               -------------- */
 
-void ChemicalEquilibrium(int NmaxIter, double iterLimit);
+void   ChemicalEquilibrium(int NmaxIter, double iterLimit);
+void   ChemicalEquilibriumOfState(int Niter);
+void   BackgroundOfState(bool_t write_analyze_output);
+double chemLastChangeReset(void);
 
 double Gaunt_bf(double lambda, double n_eff, int charge);
 double Gaunt_ff(double lambda, int charge, double T);

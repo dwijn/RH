@@ -81,11 +81,12 @@ typedef struct {
 
 /* --- Associated function prototypes --               -------------- */
 
-void freeAtmos(Atmosphere *atmos);
-void readAbundance(Atmosphere *atmos);
-void writeAtmos(Atmosphere *atmos);
-void Solve_ne(double *ne, bool_t fromscratch);
-void initAngleSet(AngleSet *angleSet);
+void   freeAtmos(Atmosphere *atmos);
+void   readAbundance(Atmosphere *atmos);
+void   writeAtmos(Atmosphere *atmos);
+void   Solve_ne(double *ne, bool_t fromscratch);
+double Solve_ne_OfState(double *ne, int Niter);
+void   initAngleSet(AngleSet *angleSet);
 
 /* --- Background opacities due to various lines --    -------------- */
 

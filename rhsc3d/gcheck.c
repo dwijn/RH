@@ -4,6 +4,7 @@
 	   rhsc3d: sets up as rhsc3d does, then runs gcheckRun() (gchecks.c).
 
 	   usage: gcheck [--steps N] [--lag L] [--ecnoise H] [--necn M] [--fd] [--fdmax F]
+					 [--perturb NAME]
 					 [rhsc3d options]
 
 	   in a run directory whose keyword.input has SOLVER = FIXED_POINT.
