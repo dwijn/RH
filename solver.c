@@ -65,6 +65,7 @@ extern char       messageStr[];
 /* --- One block of the state vector: a contiguous array of RH -- --- */
 
 typedef struct {
+	char    name[MAX_MESSAGE_LENGTH];
 	double *data;
 	long    N;
 } StateBlock;
@@ -89,9 +90,10 @@ static long rhoSize(AtomicLine *line)
 
 /* ------- begin -------------------------- addBlock.c -------------- */
 
-static void addBlock(double *data, long N)
+static void addBlock(const char *name, double *data, long N)
 {
-	blocks               = (StateBlock *) realloc(blocks, (Nblocks + 1) * sizeof(StateBlock));
+	blocks = (StateBlock *) realloc(blocks, (Nblocks + 1) * sizeof(StateBlock));
+	snprintf(blocks[Nblocks].name, MAX_MESSAGE_LENGTH, "%s", name);
 	blocks[Nblocks].data = data;
 	blocks[Nblocks].N    = N;
 	Nblocks++;
@@ -105,6 +107,7 @@ long stateInit(void)
 {
 	register int nact, kr;
 
+	char        name[MAX_MESSAGE_LENGTH];
 	Atom       *atom;
 	Molecule   *molecule;
 	AtomicLine *line;
@@ -120,26 +123,51 @@ long stateInit(void)
 
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
 		atom = atmos.activeatoms[nact];
-		addBlock(atom->n[0], (long) atom->Nlevel * atmos.Nspace);
+		sprintf(name, "populations %s", atom->ID);
+		addBlock(name, atom->n[0], (long) atom->Nlevel * atmos.Nspace);
 	}
 	for (nact = 0; nact < atmos.Nactivemol; nact++) {
 		molecule = atmos.activemols[nact];
-		addBlock(molecule->nv[0], (long) molecule->Nv * atmos.Nspace);
+		sprintf(name, "populations %s", molecule->ID);
+		addBlock(name, molecule->nv[0], (long) molecule->Nv * atmos.Nspace);
 	}
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
 		atom = atmos.activeatoms[nact];
 		for (kr = 0; kr < atom->Nline; kr++) {
 			line = atom->line + kr;
-			if (line->PRD) addBlock(line->rho_prd[0], rhoSize(line));
+			if (line->PRD) {
+				sprintf(name, "rho %s %d-%d", atom->ID, line->j, line->i);
+				addBlock(name, line->rho_prd[0], rhoSize(line));
+			}
 		}
 	}
-	addBlock(spectrum.J[0], (long) spectrum.Nspect * atmos.Nspace);
+	addBlock("J", spectrum.J[0], (long) spectrum.Nspect * atmos.Nspace);
 	if (spectrum.J20 != NULL)
-		addBlock(spectrum.J20[0], (long) spectrum.Nspect * atmos.Nspace);
+		addBlock("J20", spectrum.J20[0], (long) spectrum.Nspect * atmos.Nspace);
 
 	return Nstate;
 }
 /* ------- end ---------------------------- stateInit.c ------------- */
+
+/* ------- begin -------------------------- stateBlocks.c ----------- */
+
+/* --- The blocks of x, for reports per block (gchecks.c) -- ------- */
+
+int stateNblocks(void)
+{
+	return Nblocks;
+}
+
+const char *stateBlockName(int n)
+{
+	return blocks[n].name;
+}
+
+long stateBlockSize(int n)
+{
+	return blocks[n].N;
+}
+/* ------- end ---------------------------- stateBlocks.c ----------- */
 
 /* ------- begin -------------------------- stateGather.c ----------- */
 
