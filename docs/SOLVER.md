@@ -450,6 +450,14 @@ S-2b. Its float rounding is then a step function of ne with steps of
   round-off. With the background recomputed inside G (`1d_falc_solvene`):
   about 4×10⁻⁹ max and 5×10⁻¹⁰ RMS with the float file, about 10⁻¹⁰ with
   it in double.
+- The same noise is a floor for plain iteration (S-1 references,
+  2026-11-07): `1d_falc_solvene` without acceleration stalls at a max
+  change of 2.3×10⁻⁹ from iteration ~400 to 3000 with the float file, and
+  reaches 10⁻¹⁰ in 1001 iterations with it in double. The two end points
+  agree to 2×10⁻⁸ in populations and 4×10⁻⁸ in the spectrum: the float
+  file limits how far the ne iteration can converge, not the accuracy of
+  what it converges to. Reference solutions of ne cases need
+  `BACKGROUND_DOUBLE`.
 - Cost: `Background()` is one call and 0.7 % of `1d_falc_h6_ca_mg`; with
   `SOLVE_NE = ITERATION`, 27 calls and 25 % of `1d_falc_solvene`. Float or
   double storage makes no difference to wall time (1-D, 2-D and 3-D cases
@@ -532,7 +540,12 @@ their time are counted separately as well: they make no FS call and lie
 outside the iteration timer, but `Background()` is 25 % of
 `1d_falc_solvene` (§3.7), so FS-only comparisons are invalid for the ne
 cases. Report wall time at the run's fixed thread count with every count.
-S-1 adds the counters.
+S-1 added the counters (`work.c`): every run ends with a "Work" block in
+the log, which `tests/analyze_run.py summary` parses. The time it reports
+for `Iterate()` includes the `Background()` and `Hydrostatic()` calls made
+inside its loop. A run that dies (SIGFPE) prints no counts. On
+`1d_falc_h6_ca_mg` the PRD sub-iterations solve 48,852 wavelengths against
+51,057 of the main sweeps: PRD is about half of the formal-solution work.
 
 Shares within one MALI iteration, from the 2-D PRD profile in
 `MODERNIZATION.md` §2.3 (2026-10, before P-7, P-8 and B-6 changed the
@@ -624,12 +637,10 @@ either order, then the S-5 gate. S-6 to S-9 depend on S-5.
   needed, tight limit (max change ≤ 10⁻¹⁰, or ‖F_SE‖ at the precision
   floor of the direct-form formal solution, N-30), stored with the build
   hash, the build options (`RH_NATIVE`, `RH_O3`, compiler) and the inputs.
-  With this recipe `1d_falc_h6_ca_mg`, `1d_falxco_h6_ca` and `1d_shock_h6`
-  reach max change ≤ 10⁻¹⁰ (SE residual ≤ 3×10⁻¹⁰). `1d_t5750_h6`
-  (2–5×10⁻³ after 500 iterations) and `1d_falc_helarge` (stalls at
-  ~2×10⁻³, N-28) do not: they have no reference, and S-5 judges them on
-  ‖F_SE‖ alone. A solution from a new solver can become their reference
-  once its ‖F_SE‖ reaches the level of the other references.
+  Results of the recipe: see the status below. `1d_falc_helarge` and
+  `1d_shock_h6crd_ne` have no reference, and S-5 judges them on ‖F_SE‖
+  alone. A solution from a new solver can become their reference once its
+  ‖F_SE‖ reaches the level of the other references.
 - `tests/analyze_run.py` reports: the work counts, wall time, final
   ‖F_SE‖, max relative population error against the reference (with the
   same level threshold; the thresholded comparison exists already), and the
@@ -645,6 +656,65 @@ either order, then the S-5 gate. S-6 to S-9 depend on S-5.
 shows all metrics, and it shows what the 10⁻³ criterion leaves (N-3):
 ‖F_SE‖ and the population errors of the Ng runs against the references,
 including a case that Ng converges at two thread counts (picked in S-1).
+
+**Status (2026-11-07, branch `s1/metrics`):** implemented as follows.
+
+- `tests/se_residual.py` implements F_SE as the final sweep after
+  `Iterate()`: rates from a formal solution with the populations fixed,
+  background J iterated up to `N_MAX_SCATTER` sweeps to `ITER_LIMIT`, PRD ρ
+  carried over (not recomputed). It reports all candidate norms: the
+  maximum relative imbalance r_c = |F_c| / (n_c Σ_b P_cb) (the relative
+  change of one Jacobi step) over all levels and over levels with
+  n_c/n_tot ≥ 10⁻¹⁰, 10⁻⁶, 10⁻³; the RMS of r_c n_c/n_tot; and the
+  conservation row max |Σn − n_tot|/n_tot (n_tot = Σ n*).
+- `tests/analyze_run.py compare` gives population errors with the same
+  thresholds and spectrum errors per wavelength and per line (the line's
+  window is the Nlambda spectrum wavelengths nearest λ0, since RH does not
+  write the line grids). `run_stress.sh --ref DIR` reports them;
+  `tests/make_references.sh` runs the recipe and writes a manifest.
+- New cases in `run_stress.sh`: `1d_shock_h6crd_ne` and, as the PRD
+  limit cycle of S-5 note 2, `1d_bf_c100_prd` (Bifrost column 100, Ca II
+  angle-averaged PRD): Ng repeats the deltas 3.4034×10⁻³ and 5.1739×10⁻³
+  of N-4 exactly.
+- References (build 1453cbe, gcc 8.5, `RH_O3`; in
+  `claude-tmp/s1/refs`): max change ≤ 10⁻¹⁰ and ‖F_SE‖ ≤ 3.4×10⁻¹⁰ for
+  `1d_falc_h6_ca_mg` (347 iterations), `1d_falc_h20` (547),
+  `1d_falc_mgi66` (106), `1d_falxco_h6_ca` (415), `1d_shock_h6` (393),
+  `1d_bf_c100_prd` (645) and `1d_t5750_h6` (2527: fixed PRD
+  sub-iterations make it converge, as for `1d_falxco_h6_ca`, §2.3).
+  `1d_falc_solvene` stalls at 2.3×10⁻⁹ with the float background and
+  reaches 10⁻¹⁰ in 1001 iterations with it in double (§3.7); that run is
+  its reference. Every `Background()` call leaks a descriptor (B-39), so
+  ne runs beyond ~1000 iterations need a raised `ulimit -n` until S-2b.
+  `1d_falc_helarge` stalls at 2–3×10⁻³ (N-28) and `1d_shock_h6crd_ne`
+  diverges (max change ~10² after 3000 iterations).
+- Ng at the defaults (`ITER_LIMIT = 10⁻³`, 1 thread) against the
+  references, levels above 10⁻⁶ of the total:
+
+  | Case | iterations, FS | max change | ‖F_SE‖ max | population error | spectrum error (λ / line) |
+  |---|---|---|---|---|---|
+  | `1d_falc_h6_ca_mg` | 31, 64 | 8.9×10⁻⁴ | 4.3×10⁻⁴ | 6.6×10⁻³ | 3.0×10⁻⁴ / 1.9×10⁻⁴ |
+  | `1d_falc_h20` | 25, 28 | 4.8×10⁻⁴ | 1.1×10⁻⁴ | 3.3×10⁻³ | 6.7×10⁻⁴ / 4.8×10⁻⁴ |
+  | `1d_falc_mgi66` | 13, 17 | 1.0×10⁻³ | 3.3×10⁻⁴ | 2.4×10⁻⁴ | 6.9×10⁻⁴ / 3.8×10⁻⁴ |
+  | `1d_falxco_h6_ca` | 136, 218 | 9.0×10⁻⁴ | 7.2×10⁻⁵ | 4.0×10⁻² | 1.0×10⁻⁵ / 4.9×10⁻⁶ |
+  | `1d_falc_solvene` | 27, 54 | 8.3×10⁻⁴ | 1.3×10⁻³ | 7.4×10⁻³ | 1.9×10⁻³ / 1.1×10⁻³ |
+  | `1d_t5750_h6` | 200 (not conv.), 326 | 4.5×10⁻³ | 4.4×10⁻⁴ | 0.84 | 4.4×10⁻⁷ / 3.1×10⁻⁷ |
+  | `1d_bf_c100_prd` | 200 (cycle), 305 | 5.2×10⁻³ | 1.4×10⁻⁴ | 2.8×10⁻³ | 1.1×10⁻⁵ / 4.2×10⁻⁶ |
+  | `1d_shock_h6crd_ne` | 200 (cycle), 204 | 12 | 4.2 | — (no reference) | — |
+
+  `1d_shock_h6` and `1d_falc_helarge` die with SIGFPE (iterations 11 and
+  13). FS counts the wavelength solves of all phases in formal solutions.
+  At 8 threads the three FAL-C controls give the same iterations and
+  metrics, with populations within 10⁻⁹ of the 1-thread runs.
+- What the 10⁻³ criterion leaves (N-3): population errors 2×10⁻⁴ to
+  4×10⁻² on levels above 10⁻⁶ of the total in the runs that count as
+  converged, up to 45 times their final max change (`1d_falxco_h6_ca`),
+  and 10⁻⁵ to 2×10⁻³ in the spectrum.
+  ‖F_SE‖ does not bound the error either: `1d_falxco_h6_ca` has the
+  smallest residual and the largest error, as expected where slow modes
+  amplify the residual. Hence the S-5 correctness criterion is the error
+  against a reference wherever one exists, and ‖F_SE‖ alone only where none
+  does (He_large, the CRD + ne shock).
 
 ### S-2 and S-2b — A deterministic, smooth map G and an explicit state vector
 
@@ -829,10 +899,10 @@ the commit S-5 runs on):
 | | `1d_falc_h20` | — | — | 25 |
 | | `1d_falc_mgi66` | — | — | 13 |
 | Slow | `1d_falxco_h6_ca` | yes | — | 136 (plain MALI fails) |
-| Failing | `1d_t5750_h6` | yes | — | not converged (4.5×10⁻³ after 200) |
+| Failing | `1d_t5750_h6` | yes | — | not converged (4.5×10⁻³ after 200; plain G converges in 2527) |
 | | `1d_shock_h6` | yes | — | SIGFPE at iteration 11 (141 without Ng) |
 | | `1d_falc_helarge` | — | — | SIGFPE at iteration 13 (note 1) |
-| | a PRD limit cycle (note 2) | yes | — | limit cycle |
+| | `1d_bf_c100_prd` (note 2) | yes | — | limit cycle (plain G converges in 645) |
 | ne coupling | `1d_falc_solvene` | yes | yes | 27 |
 | | `1d_shock_h6crd_ne` (note 3) | — | yes | period-3 cycle |
 | Multi-D (only if 1-D is promising) | `2d_pert_h6_ca_mg` | yes | — | 82 at 8 threads (note 4) |
@@ -841,9 +911,9 @@ the commit S-5 runs on):
 1. He_large: SIGFPE since #230 (81 iterations before, 93 with the
    background file in double; N-28 comment of 2026-11-07); stalls at
    ~2×10⁻³ without Ng (N-28). No reference (S-1): judged on ‖F_SE‖ only.
-2. One of the N-4 Bifrost 1-D columns that cycle with angle-averaged PRD
-   (needs `--bifrost`), or `1d_falc_h6_tight` (H_6 to 10⁻⁸, N-4); chosen in
-   S-1, before the runs.
+2. Chosen in S-1: Bifrost column 100 (N-4), Ca II with angle-averaged
+   PRD; needs `--bifrost`. Without the snapshot, `1d_falc_h6_tight`
+   (H_6 to 10⁻⁸, N-4) is the in-repository stand-in.
 3. `FALC_shock`, H_6_CRD, `SOLVE_NE = ITERATION`; added to
    `run_stress.sh` in S-1. Without Ng it alternates with period 2 (N-6).
    The only ne case without PRD.
