@@ -18,6 +18,7 @@
 #include "constant.h"
 #include "accelerate.h"
 #include "error.h"
+#include "statistics.h"
 
 /* --- Acceleration parameters --                      -------------- */
 
@@ -35,7 +36,7 @@ extern char       messageStr[];
 
 /* ------- begin -------------------------- Hydrostatic.c ----------- */
 
-void Hydrostatic(int NmaxIter, double iterLimit)
+static void solveHydrostatic(int NmaxIter, double iterLimit)
 {
 	const char   routineName[] = "Hydrostatic";
 	register int k, n, m, i;
@@ -224,5 +225,16 @@ void Hydrostatic(int NmaxIter, double iterLimit)
 
 	free(F);
 	free(dFdne);
+}
+
+/* --- Hydrostatic() with its calls and wall time counted for the work
+	   statistics (S-1, SOLVER.md section 4.1) --       -------------- */
+
+void Hydrostatic(int NmaxIter, double iterLimit)
+{
+	double t_start = wallClock();
+
+	solveHydrostatic(NmaxIter, iterLimit);
+	workAdd(WORK_HYDROSTATIC, wallClock() - t_start);
 }
 /* ------- end ---------------------------- Hydrostatic.c ----------- */
