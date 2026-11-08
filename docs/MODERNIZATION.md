@@ -435,7 +435,7 @@ item that resolves them lands.
 | ID | Sev | Item | Addresses | Status |
 |---|---|---|---|---|
 | [S-1](https://github.com/dwijn/RH/issues/117) | high | Residual norm, reference solutions and metrics independent of the solver: true statistical-equilibrium residual ‖F_SE‖ (formal solution with fixed populations), a residual norm, tight reference solutions for the S-5 cases, and reports of formal solutions, wall time and true error in populations and spectra | N-3 | open |
-| [S-2](https://github.com/dwijn/RH/issues/118) | high | One MALI step as a deterministic, smooth function x ↦ G(x) with an explicit state vector (populations, PRD ρ, background-scattering J, ne): no Ng inside, fixed PRD sub-iteration count, no hidden history, deterministic at a fixed thread count. Split (2026-11-07) into S-2 (ne fixed) and S-2b (ne in the state, `Background()` split into setup and recompute), delivered in one pull request | N-4 (early exit), B-38, B-39 | open |
+| [S-2](https://github.com/dwijn/RH/issues/118) | high | One MALI step as a deterministic, smooth function x ↦ G(x) with an explicit state vector (populations, PRD ρ, background-scattering J, ne): no Ng inside, fixed PRD sub-iteration count, no hidden history, deterministic at a fixed thread count. Split (2026-11-07) into S-2 (ne fixed) and S-2b (ne in the state, `Background()` split into setup and recompute), delivered in one pull request. B-38, B-39 and the `Background()` part of B-11, which G depends on, are fixed in their own pull requests first | N-4 (early exit) | open |
 | [S-3](https://github.com/dwijn/RH/issues/119) | high | Stabilized Anderson acceleration replacing Ng: QR least squares, scaled variables, one coefficient set for the whole state, safeguard with fallback to the plain step, positivity, history reset after ne/HSE/relaxation updates (`SOLVER = ANDERSON`) | N-2, N-8 | open |
 | [S-4](https://github.com/dwijn/RH/issues/120) | high | Newton–GMRES on R(x) = G(x) − x: finite-difference Jacobian products (one MALI step each), Eisenstat–Walker forcing, backtracking line search, stop on ‖F_SE‖ (`SOLVER = NEWTON_KRYLOV`) | N-8 | open |
 | [S-5](https://github.com/dwijn/RH/issues/121) | high | Experiment and decision gate: Ng vs Anderson vs Newton on a fixed 1-D case set (easy, slow, failing; then 2-D and RMHD), success criteria fixed beforehand, measured in formal solutions and true error. Candidate for the operator: with the quadratic upwind slope of N-24 the upwind control point carries 2/3 of S_c, and Ψ = β + θ + (2/3)γ took `2d_pert_h6_ca_mg` from 94 to 67 iterations but a 325-point perturbed FAL-C from 44 to 76 (#190) | N-10 (as test case) | open |
@@ -554,9 +554,11 @@ Ordered so that every step can be verified against upstream: byte-identical
    rate-matrix scaling (N-7; the preconditioner needs it), starting
    solutions (N-9), monotonic 3-D interpolation (N-15), a depth-resolution
    test (N-14), N-12, N-13, N-16 and B-5 to B-7. N-10 becomes a test case
-   for the new solvers. B-38 and B-39 are fixed with S-2: G must not keep
-   hidden state, and with ne in the state it calls `Background()` once per
-   evaluation.
+   for the new solvers. G must not keep hidden state, and with ne in the
+   state it calls `Background()` once per evaluation, so B-38, B-39 and
+   the `Background()` part of B-11 are fixed first, each in its own pull
+   request (bug fixes never ride along with the solver work, so that
+   they survive if it is reverted).
 5. **Speed** — *Started early, 2026-11-04:* the background opacity stage
    (P-13, T-5) blocks large-line-list UV syntheses and does not depend on
    the solver, so it goes first: shared state removed and per-point tables
