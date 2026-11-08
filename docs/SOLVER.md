@@ -26,7 +26,8 @@ and the work items (S-1 to S-9) that `docs/MODERNIZATION.md` tracks.
   GPU work (§3.7, F-4); `1d_falc_helarge` moves to the failing cases of
   S-5 and is judged on the true SE residual only. Also new: the carried
   state of §2.1 confirmed from the code, the work unit of §4.1, two control
-  solvers in S-5, and B-38 and B-39 as part of S-2.
+  solvers in S-5, and B-38 and B-39 (each fixed in its own pull request
+  before S-2, so that the fixes stay if the S track is reverted).
 
 For implementers: §2 explains the current scheme and why it fails, §3 the
 target architecture (§3.7: precision), §4 the cost model that decides
@@ -668,7 +669,8 @@ pass first.
   result to x_out, and leaves no other state changed. A change metric it
   reports is computed from x_in and x_out with `MaxChange`'s definition
   (|new − old|/|new|, zeros skipped).
-- `initGammaMolecule` resets all of the molecular Γ (fixes B-38).
+- G relies on `initGammaMolecule` resetting all of the molecular Γ
+  (B-38, fixed on its own in #251).
 - PRD inside G: `PRD_ITER_LIMIT = 0` exactly (negative values mean
   MAX(dpopsmax, |value|)), `PRD_N_MAX_ITER` ≥ 1 sub-iterations on every
   call, no PRD Ng. The early exit makes G discontinuous (N-4). The cost:
@@ -713,9 +715,10 @@ into `atmos.ne` is therefore not enough:
   the file and the per-wavelength arrays, the analysis output) and a
   recompute from a given ne and H populations: LTE quantities (`nstar`,
   `atom->C` with the fixed rates), chemical equilibrium (`ntotal`,
-  molecular densities, `nHmin`) and the background opacities. The split
-  fixes B-39 and the `Background()` part of B-11: G_eval runs the
-  recompute thousands of times.
+  molecular densities, `nHmin`) and the background opacities. G_eval runs
+  the recompute thousands of times, so it needs B-39 (descriptor leak,
+  line lists re-read; fixed on its own in #250) and the `Background()`
+  part of B-11 (per-call arrays; its own pull request before S-2b).
 - `G_eval(x)` recomputes these from x.ne and x's H populations **before**
   step 1, so steps 1–4 see quantities that are functions of x only; step
   6's `Solve_ne` then gives ne_out. No in-place rescale by the previous
@@ -1038,7 +1041,8 @@ Constraints from S-2 and S-4 on steps 5 and 6, until F-4 changes them:
 Still needed whatever the solver (keep in step 4 under their IDs): N-7
 (rate-matrix scaling; the preconditioner needs it), N-9 (starting
 solutions), N-12, N-13, N-14 (depth resolution), N-15 (monotonic 3-D
-interpolation), N-16, and B-7; B-38 and B-39 come with S-2. N-10 becomes a
+interpolation), N-16, and B-7; B-38 and B-39 are fixed in their own pull requests (#251,
+#250), ahead of S-2. N-10 becomes a
 test case for the new solvers; its other candidate causes (3-D Ψ*,
 interpolation) remain. Inputs to the S track: N-21 (`SolveLinearEq`), N-28
 (He_large and CI-VI_Judge), N-30 (the precision floor of the direct-form
