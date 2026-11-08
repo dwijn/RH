@@ -110,6 +110,7 @@
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "rh.h"
 #include "atom.h"
@@ -606,6 +607,7 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 	register int nspect, n;
 
 	static int    ne_iter = 0;
+	static bool_t fd_open = FALSE, rlk_read = FALSE;
 	char          inputLine[MAX_LINE_SIZE];
 	bool_t        exit_on_EOF, do_fudge, fromscratch;
 	int           Nfudge, Nworker, chunk;
@@ -640,6 +642,15 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 		return;
 	}
 
+	/* --- Background() runs more than once with SOLVE_NE = ITERATION
+		   and in hydrostatic equilibrium: close the file of the
+		   previous call before opening it again (B-39) -- ------------ */
+
+	if (fd_open) {
+		close(atmos.fd_background);
+		fd_open = FALSE;
+	}
+
 	if (input.old_background) {
 		if ((atmos.fd_background =
 				 open(input.background_File, O_RDONLY, 0)) == -1) {
@@ -647,6 +658,7 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 					input.background_File);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
+		fd_open = TRUE;
 		readBRS();
 		return;
 	}
@@ -717,12 +729,17 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 
 	He = (atmos.elements[1].model) ? atmos.elements[1].model : NULL;
 
-	/* --- Read background files from Kurucz data file -- ------------- */
+	/* --- Read background files from Kurucz data file. The list does
+		   not depend on the atmosphere: when Background() is called
+		   again it is kept from the first call (B-39) -- -------------- */
 
-	atmos.Nrlk = 0;
-	readKuruczLines(input.KuruczData);
-	if (atmos.Nrlk > 0) {
-		qsort(atmos.rlk_lines, atmos.Nrlk, sizeof(RLK_Line), rlk_ascend);
+	if (!rlk_read) {
+		atmos.Nrlk = 0;
+		readKuruczLines(input.KuruczData);
+		if (atmos.Nrlk > 0) {
+			qsort(atmos.rlk_lines, atmos.Nrlk, sizeof(RLK_Line), rlk_ascend);
+		}
+		rlk_read = TRUE;
 	}
 	/* --- Allocate memory for the boolean array that stores whether
 		   a wavelength overlaps with a Bound-Bound transition in the
@@ -757,6 +774,8 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 				input.background_File);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
+	fd_open = TRUE;
+
 	/* --- One-time setup for the opacity routines called in the main
 		   loop, and the cache for passive_bb --         -------------- */
 
@@ -854,10 +873,18 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 		freeMatrix((void **) fudge);
 	}
 
-	for (n = 0; n < atmos.Nrlk; n++) {
-		if (atmos.rlk_lines[n].zm != NULL) freeZeeman(atmos.rlk_lines[n].zm);
+	/* --- Keep the Kurucz lines if Background() will be called again,
+		   like the passive atoms and partition functions above -- ---- */
+
+	if (!atmos.hydrostatic && input.solve_ne < ITERATION) {
+		for (n = 0; n < atmos.Nrlk; n++) {
+			if (atmos.rlk_lines[n].zm != NULL) freeZeeman(atmos.rlk_lines[n].zm);
+		}
+		free(atmos.rlk_lines);
+		atmos.rlk_lines = NULL;
+		atmos.Nrlk      = 0;
+		rlk_read        = FALSE;
 	}
-	free(atmos.rlk_lines);
 
 	getCPU(2, TIME_POLL, "Total Background");
 }
