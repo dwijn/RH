@@ -8,7 +8,7 @@ solver_g.py:
  1. ANDERSON_DEPTH = 0 repeats SOLVER = FIXED_POINT with NG_ORDER = 0 bit
     for bit (populations, J, spectrum) after 8 iterations: plain steps
     are copied, never transformed to the Anderson variables and back.
- 2. With the defaults (depth 5, LOG variables) and with RELATIVE
+ 2. With the defaults (depth 10, LOG variables) and with RELATIVE
     variables and PER_BLOCK coefficients, 15 iterations extrapolate, and
     two runs give bit-identical output.
  3. Conflicting keywords stop the run at input: an ANDERSON_* keyword with

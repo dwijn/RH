@@ -125,7 +125,7 @@ void readInput()
 		{"SOLVE_NE", "NONE", FALSE, KEYWORD_DEFAULT, &input.solve_ne,
 		 setnesolution},
 		{"SOLVER", "NG", FALSE, KEYWORD_DEFAULT, &input.solver, setsolver},
-		{"ANDERSON_DEPTH", "5", FALSE, KEYWORD_DEFAULT, &input.Anderson_depth,
+		{"ANDERSON_DEPTH", "10", FALSE, KEYWORD_DEFAULT, &input.Anderson_depth,
 		 setintValue},
 		{"ANDERSON_DELAY", "2", FALSE, KEYWORD_DEFAULT, &input.Anderson_delay,
 		 setintValue},
