@@ -702,23 +702,28 @@ including a case that Ng converges at two thread counts (picked in S-1).
 
   | Case | iterations, FS | max change | ‖F_SE‖ max | population error | spectrum error (λ / line) |
   |---|---|---|---|---|---|
-  | `1d_falc_h6_ca_mg` | 31, 64 | 8.9×10⁻⁴ | 4.3×10⁻⁴ | 6.6×10⁻³ | 3.0×10⁻⁴ / 1.9×10⁻⁴ |
-  | `1d_falc_h20` | 25, 28 | 4.8×10⁻⁴ | 1.1×10⁻⁴ | 3.3×10⁻³ | 6.7×10⁻⁴ / 4.8×10⁻⁴ |
-  | `1d_falc_mgi66` | 13, 17 | 1.0×10⁻³ | 3.3×10⁻⁴ | 2.4×10⁻⁴ | 6.9×10⁻⁴ / 3.8×10⁻⁴ |
-  | `1d_falxco_h6_ca` | 136, 218 | 9.0×10⁻⁴ | 7.2×10⁻⁵ | 4.0×10⁻² | 1.0×10⁻⁵ / 4.9×10⁻⁶ |
-  | `1d_falc_solvene` | 27, 54 | 8.3×10⁻⁴ | 1.3×10⁻³ | 7.4×10⁻³ | 1.9×10⁻³ / 1.1×10⁻³ |
-  | `1d_t5750_h6` | 200 (not conv.), 326 | 4.5×10⁻³ | 4.4×10⁻⁴ | 0.84 | 4.4×10⁻⁷ / 3.1×10⁻⁷ |
-  | `1d_bf_c100_prd` | 200 (cycle), 305 | 5.2×10⁻³ | 1.4×10⁻⁴ | 2.8×10⁻³ | 1.1×10⁻⁵ / 4.2×10⁻⁶ |
+  | `1d_falc_h6_ca_mg` | 31, 64 | 8.9×10⁻⁴ | 4.3×10⁻⁴ | 6.6×10⁻³ | 1.1×10⁻² / 3.2×10⁻³ |
+  | `1d_falc_h20` | 25, 28 | 4.8×10⁻⁴ | 1.1×10⁻⁴ | 3.3×10⁻³ | 3.9×10⁻³ / 3.4×10⁻³ |
+  | `1d_falc_mgi66` | 13, 17 | 1.0×10⁻³ | 3.3×10⁻⁴ | 2.4×10⁻⁴ | 2.8×10⁻² / 2.9×10⁻⁴ |
+  | `1d_falxco_h6_ca` | 136, 218 | 9.0×10⁻⁴ | 7.2×10⁻⁵ | 4.0×10⁻² | 5.2×10⁻⁴ / 8.9×10⁻⁶ |
+  | `1d_falc_solvene` | 27, 54 | 8.3×10⁻⁴ | 1.3×10⁻³ | 7.4×10⁻³ | 1.7×10⁻² / 1.5×10⁻² |
+  | `1d_t5750_h6` | 200 (not conv.), 326 | 4.5×10⁻³ | 4.4×10⁻⁴ | 0.84 | 0.83 / 0.11 |
+  | `1d_bf_c100_prd` | 200 (cycle), 305 | 5.2×10⁻³ | 1.4×10⁻⁴ | 2.8×10⁻³ | 5.1×10⁻⁴ / 1.0×10⁻⁵ |
   | `1d_shock_h6crd_ne` | 200 (cycle), 204 | 12 | 4.2 | — (no reference) | — |
 
   `1d_shock_h6` and `1d_falc_helarge` die with SIGFPE (iterations 11 and
   13). FS counts the wavelength solves of all phases in formal solutions.
   At 8 threads the three FAL-C controls give the same iterations and
-  metrics, with populations within 10⁻⁹ of the 1-thread runs.
+  metrics, with populations within 10⁻⁹ of the 1-thread runs. The
+  spectrum errors were corrected on 2026-11-09 (Q-22): the first version
+  of this table grouped the intensities by the wrong axis, which made
+  all but one of them too small, the per-wavelength errors by factors
+  of 6 to 50 (10⁶ for `1d_t5750_h6`).
 - What the 10⁻³ criterion leaves (N-3): population errors 2×10⁻⁴ to
   4×10⁻² on levels above 10⁻⁶ of the total in the runs that count as
   converged, up to 45 times their final max change (`1d_falxco_h6_ca`),
-  and 10⁻⁵ to 2×10⁻³ in the spectrum.
+  and 5×10⁻⁴ to 3×10⁻² in the spectrum (largest at Lyα, the Mg II k
+  core and 122.6 nm).
   ‖F_SE‖ does not bound the error either: `1d_falxco_h6_ca` has the
   smallest residual and the largest error, as expected where slow modes
   amplify the residual. Hence the S-5 correctness criterion is the error
