@@ -202,9 +202,10 @@ def compare(run, ref):
     if ns != ns2 or Ir["I"].size != I["I"].size or not np.array_equal(lam, lam2):
         out["spec"] = "wavelength grids differ"
         print(json.dumps(out)); return
-    Ir, I = Ir["I"].reshape(-1, ns), I["I"].reshape(-1, ns)
-    d = np.abs(I - Ir).max(axis=0)
-    pk = np.abs(Ir).max(axis=0)
+    # I[Nspect][rays, columns] (initial_xdr.c): wavelength slowest (Q-22)
+    Ir, I = Ir["I"].reshape(ns, -1), I["I"].reshape(ns, -1)
+    d = np.abs(I - Ir).max(axis=1)
+    pk = np.abs(Ir).max(axis=1)
     out["spec_wl"] = float((d / np.where(pk > 0, pk, 1)).max())
     best, where = 0.0, None
     for lambda0, Nlambda in lines:
