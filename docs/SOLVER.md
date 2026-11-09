@@ -894,6 +894,8 @@ Results (gcheck at 1 thread unless stated; logs in
   and of `I_SUM`, while G is bit-reproducible. **Hypothesis:** G amplifies
   rounding by ~10⁸ for He_large (an ill-conditioned rate matrix, N-7), and
   its stall at 2–3×10⁻³ (N-28) is this floor, not slow convergence.
+  **Confirmed (2026-11-08)**: the floor comes from the LU solve of the rate
+  equations, and GTH elimination removes it (N-31, next section).
 - FD check on `1d_falc_h6_ca_mg`: with `S_LINEAR` every block shows
   D(ε) − D(10ε) falling as O(ε) to ε ≈ 10⁻⁶ (error ~10⁻⁶) and rising as
   δ/ε below; with `S_BEZIER3` ρ of H and J level off at ~10⁻³ between
@@ -922,6 +924,76 @@ Results (gcheck at 1 thread unless stated; logs in
   `BACKGROUND_DOUBLE = FALSE` stops the run. Checked: `1d_falc_solvene`
   with the keyword left out writes the double file and repeats the
   explicit-double run line for line over 30 iterations.
+
+### Rate equations by GTH elimination (N-31, answers §9 Q12)
+
+Measured 2026-11-08 on scratch builds (logs in `claude-tmp/s1/hl`), then
+with the change itself.
+
+- The noise of He_large's G comes from the solution of the rate
+  equations. RH's LU (`SolveLinearEq`: partial pivoting with row scaling,
+  one refinement step in double) was compared with a 60-digit solution
+  of the same Γ, dumped at every depth at the N-28 stall state. It is
+  wrong by up to 4.4×10⁻³ at levels 26–28 and 36–42: the 4F ³F°, 5D ³D and
+  5F ³F° multiplets, whose levels `He_large.atom` splits by ~10⁻⁴ cm⁻¹.
+  Collisions couple the levels of a multiplet with rates many orders of
+  magnitude larger than the rates out of it. The diagonal −Σ_j Γ_ji is
+  dominated by the rates within the multiplet, and its rounding is larger
+  than the rates out of the multiplet, which set the populations.
+- Scaling cannot help. The componentwise (Skeel) condition number is
+  10¹³–10¹⁴ in the deep layers (k = 70–80), and still ~10¹⁴ after row and
+  column equilibration. Column scaling by x's populations leaves δ at
+  2.2×10⁻³; long-double LU with refinement lowers it to 9×10⁻⁷, the ratio
+  of the mantissas.
+- Γ is the generator of a Markov chain. GTH elimination (Grassmann,
+  Taksar & Heyman 1985) works on the off-diagonal rates only and forms
+  every pivot as a sum of rates, so nothing cancels. It is componentwise
+  accurate (O'Cinneide 1993), within 2×10⁻¹⁵ of the 60-digit solution at
+  every level and depth, at the cost of LU.
+
+| `1d_falc_helarge` | LU | GTH |
+|---|---|---|
+| δ of the populations (ECnoise, 10⁻⁹) | 1.7×10⁻³ | 3.9×10⁻¹⁴ |
+| Reference recipe (no Ng, `ITER_LIMIT` 10⁻¹⁰) | stalls at 2.3×10⁻³ from iteration ~150 | converges in 667 |
+| Stress configuration (Ng), `NG_DELAY` 8, 10, 12 at 1 and 2 threads | converges in 3 of 6, outcome depends on the thread count | converges in 2 of 6, the same at 1 and 2 threads |
+
+The two histories of the reference recipe agree to five digits up to
+iteration ~100; then LU flattens. The N-28 stall of He_large is this
+floor. With Ng the outcome depends on the extrapolation (N-2): after the
+first Ng step at `NG_DELAY` 10 the populations give negative radiative
+rates out of the He I ground level at k = 29–30, those locations fall
+back to LU, and the run stops with SIGFPE at iteration 19 (LU: converges
+in 108 at 1 thread, SIGFPE at 11 at 2). GTH makes the outcome
+reproducible; it does not make Ng safe (S-3). GTH also lowers δ of the other S-5 references: Ca II 1.3×10⁻¹⁰ →
+5.6×10⁻¹³, Mg II 5×10⁻¹¹ → 2×10⁻¹³, PRD Ca II 1.4×10⁻¹⁰ → 4×10⁻¹⁴. H stays
+at ~10⁻¹¹, whose δ has another source (N-30).
+
+GTH needs non-negative rates. In RH a rate can be negative for two
+reasons. The preconditioned radiative rates are coefficients of a
+linearization, not transition probabilities, and can go negative where
+Ieff < 0, under a population inversion, or where transitions from the
+same upper level overlap. And atomic data can interpolate to negative
+values. The preconditioned rates have gone negative only from the states
+that Ng extrapolates (He_large, below); in an iteration without Ng the
+negative rates found so far are all of the second kind: Ca II's 3d ²D₃/₂–²D₅/₂ collisional rate at 60–71 kK
+(B-43, N-32), and in `CI-VI_Judge` the photoionization rate 49 → 60,
+whose explicit cross-section, full of resonances, the spline in λ makes
+negative. At such locations the rate equations are solved with LU as
+before. The log names the first negative rate of each call, with whether
+it is collisional or radiative, and the work summary counts the rate
+equations solved and how many needed LU, so negative radiative rates
+from the preconditioning, which would be of physical interest, show up.
+
+`CI-VI_Judge` (115 levels, six stages; `1d_falc_civi`), without Ng: with
+LU the population changes swing between 10¹ and 10³² for 300 iterations.
+With GTH the populations converge steadily (largest change 1.2×10⁻² after
+40 iterations) everywhere except at k = 37–42, where the negative
+photoionization rate 49 → 60 sends the solve to LU. There the populations
+below ~10⁻¹⁸ of the total go negative and RH's change never drops below
+1. With that cross-section clipped at zero (scratch build), GTH needs no
+LU and the run converges to 10⁻³ in 71 iterations, the first time this
+case has converged; with Ng it still stops at iteration 12. The
+cross-sections need the same treatment as the collision tables (N-32).
 
 ### S-3 — Stabilized Anderson acceleration (replaces Ng)
 
@@ -1008,6 +1080,8 @@ the commit S-5 runs on):
 1. He_large: SIGFPE since #230 (81 iterations before, 93 with the
    background file in double; N-28 comment of 2026-11-07); stalls at
    ~2×10⁻³ without Ng (N-28). No reference (S-1): judged on ‖F_SE‖ only.
+   With GTH (N-31) it converges in 63 iterations, and in 667 with the
+   reference recipe, which can now give it a reference.
 2. Chosen in S-1: Bifrost column 100 (N-4), Ca II with angle-averaged
    PRD; needs `--bifrost`. Without the snapshot, `1d_falc_h6_tight`
    (H_6 to 10⁻⁸, N-4) is the in-repository stand-in.
@@ -1245,8 +1319,10 @@ formal solution), and the operator candidate of #190 (S-5).
     term in RH, and where the residual is computed on a GPU.
 11. ~~Background precision with ne in the state of a Newton solver~~
     Decided 2026-11-08: double whenever ne is in the state (§3.7).
-12. He_large: is the δ ≈ 2×10⁻³ of its G an ill-conditioned rate matrix
-    (N-7), and is that what stalls it (N-28)?
+12. ~~He_large: is the δ ≈ 2×10⁻³ of its G an ill-conditioned rate matrix
+    (N-7), and is that what stalls it (N-28)?~~ Answered 2026-11-08: yes,
+    and yes. LU loses the populations of tightly coupled levels; GTH
+    elimination does not (N-31, section after S-2).
 
 ---
 
@@ -1271,6 +1347,9 @@ from memory and should be checked before being quoted.
   forcing terms for inexact Newton
 - Fabiani Bendicho, P., Trujillo Bueno, J., Auer, L. 1997, A&A 324, 161:
   nonlinear multigrid for multilevel transfer ✓
+- Grassmann, W. K., Taksar, M. I., Heyman, D. P. 1985, Oper. Res. 33,
+  1107: regenerative analysis and steady state distributions for Markov
+  chains (GTH elimination) ✓
 - Hubeny, I., Mihalas, D. 2014, Theory of Stellar Atmospheres, Princeton,
   chapter 13
 - Janett, G. et al. 2021, A&A 655, A13: stationary iterative methods for
@@ -1288,6 +1367,8 @@ from memory and should be checked before being quoted.
 - Mulder, W. A., van Leer, B. 1985, J. Comput. Phys. 59, 232: switched
   evolution relaxation
 - Ng, K.-C. 1974, J. Chem. Phys. 61, 2680 ✓
+- O'Cinneide, C. A. 1993, Numer. Math. 65, 109: entrywise perturbation
+  theory and error analysis for Markov chains ✓
 - Olson, G. L., Auer, L. H., Buchler, J. R. 1986, JQSRT 35, 431 ✓
 - Osborne, C. M. J., Milić, I. 2021, ApJ 917, 14: Lightweaver (RH-style,
   with charge conservation) ✓
