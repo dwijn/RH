@@ -1323,6 +1323,77 @@ default and keep Newton as an option, revisiting it for PRD and ne. If
 neither does, analyse why (§2.3: which coupling dominates) before building
 further.
 
+**Results (2026-11-09):** the tables (work, errors, ablations, counters,
+residual histories) are in `MODERNIZATION.md` §2.5. Anderson at the
+default depth of the time (m = 5) meets every criterion, and so does
+m = 10:
+
+- correctness: every converged run within 10⁻⁴ of its reference (largest
+  `t5750_h6`, 4.9×10⁻⁵ / 3.0×10⁻⁵);
+- easy controls, work against Ng on G: `falc_h6_ca_mg` 144 / 130 against
+  213, `falc_h20` 49 / 40 against 54, `falc_mgi66` 83 / 82 against 112,
+  `falc_solvene` 147 / 121 against 519 (m = 5 / m = 10);
+- slow case `falxco_h6_ca`: 140 / 131 against 405, 2.9× / 3.1× less;
+- failing cases, all converged: `t5750_h6` 432 / 300 (Ng on G 2330, the
+  default Ng not after 3000), `shock_h6` 580 / 320, `falc_helarge`
+  143 / 139, `falc_civi` 133 / 151 (these three crash with Ng; plain G
+  517, 416, 256), `bf_c100_prd` 89 / 77 (Ng on G 131);
+- no regression: every case Ng on G converges, Anderson converges.
+
+m = 3 fails two of them (`falc_h20` 24 % more work than Ng on G;
+`t5750_h6` spectrum 1.1×10⁻⁴).
+
+Findings:
+
+- Depth: m = 10 needs less work than m = 5 in 9 of the 11 cases, most on
+  the failing ones (`t5750_h6` 300 against 432, `shock_h6` 320 against
+  580); more on `falc_civi` (151 against 133). History memory 40·N against
+  25·N doubles.
+- LOG beats RELATIVE except on `shock_h6`; GLOBAL beats PER_BLOCK
+  everywhere (`falxco_h6_ca` 140 against 617 and 388). One coefficient
+  set for the whole state is part of why Anderson beats Ng, which has
+  one per atom.
+- Safeguard: no effect on most cases, decisive on `shock_h6` (1721
+  without against 580 with), slightly costly on `falc_helarge` (134
+  against 143). On `shock_h6` c = 1 rejects 78 of 282 points at m = 5
+  (31 of 146 at m = 10), and m = 5 does no better than plain G (580
+  against 517): the case for the decreasing envelope of Zhang,
+  O'Donoghue & Boyd (2020).
+- Guard: the inversion check acts often on `falc_helarge` (105 damped, 44
+  plain steps), `falc_civi`, `t5750_h6` and `falc_mgi66`, from the first
+  extrapolations on, while Anderson still wins clearly there. A small
+  margin in the test (levels whose n/g are nearly equal) is to be looked
+  at.
+- ne: on `falc_solvene` Anderson at m = 10 needs 4.3× less work than Ng
+  on G, and 6× fewer G evaluations and `Background()` calls (40 against
+  244). On `shock_h6crd_ne`, where
+  plain G and Ng on G produce NaN and the reference never converged,
+  Anderson converges to a solution with ‖F_SE‖ 5–7×10⁻⁷ and positive
+  populations, the same for m = 3, 5, 10 to 10⁻⁵; statistical equilibrium
+  falls back to LU at 49 locations there (negative preconditioned
+  radiative rates).
+- The default Ng control with the PRD early exit needs less work than Ng
+  on G on `falc_h6_ca_mg` (163 against 213) and more on `falxco_h6_ca`
+  (619 against 405): the early exit saves PRD sub-iterations where they
+  are not needed, at the price of a discontinuous map (N-4).
+
+**Decisions (2026-11-09):**
+
+- `ANDERSON_DEPTH` defaults to 10 (code PR).
+- Anderson becomes the default solver. This needs a design step before
+  code: the shipped keyword files and keyword defaults that `ANDERSON`
+  refuses (PRD early exit and PRD Ng, `NG_ORDER`, collisional relaxation,
+  hydrostatic equilibrium, `LIMIT_MEMORY`), what replaces them, how runs
+  that set them behave, the multi-D cases (not yet measured; the 2-D
+  stress case is blocked by N-33), and the change of results for every
+  run.
+- S-4 (Newton–GMRES) is under review; whether it is still wanted is open.
+  The decision rule above made Anderson the default with Newton kept as
+  an option, but Newton now has no failing 1-D case left to win.
+
+**Open:** the envelope safeguard on `shock_h6`; a margin in the inversion
+guard; N-36 (the two ne formulations); multi-D (after N-33).
+
 ### S-6 — Analytic residual (Form B), conditional on S-5
 
 Implement F(x) = Γ(x, J[x]) n (Arramy et al. 2024) with MALI's Γ + Ψ* as
