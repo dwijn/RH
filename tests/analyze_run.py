@@ -32,7 +32,8 @@ solution REFDIR (same case, S-1 in docs/SOLVER.md):
                 restricted to levels with n / n_tot >= 1e-10, 1e-6, 1e-3
                 (n_tot = sum of the LTE populations at that point)
     spec_wl     max over wavelengths of max|dI| / max|I_ref|, both over
-                rays and columns at that wavelength (compare_spectra.py)
+                rays and columns at that wavelength (compare_spectra.py);
+                Stokes I only when the runs also wrote Q, U and V
     spec_line   max over active lines of max|dI| / max|I_ref| over the
                 line's window: the line's Nlambda wavelengths of the
                 spectrum nearest to lambda0 (an approximation of its own
@@ -194,8 +195,8 @@ def compare(run, ref):
     else:
         out["pops"] = {f"{t:.0e}": v for t, v in worst.items()}
     try:
-        _, lam, Ir, ns = load(os.path.join(ref, "spectrum.out"), False)
-        _, lam2, I, ns2 = load(os.path.join(run, "spectrum.out"), False)
+        _, lam, Ir, ns = load(os.path.join(ref, "spectrum.out"))
+        _, lam2, I, ns2 = load(os.path.join(run, "spectrum.out"))
     except (OSError, ValueError) as e:
         out["spec"] = f"unreadable: {e}"
         print(json.dumps(out)); return
