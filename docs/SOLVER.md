@@ -974,7 +974,7 @@ linearization, not transition probabilities, and can go negative where
 Ieff < 0, under a population inversion, or where transitions from the
 same upper level overlap. And atomic data can interpolate to negative
 values. The preconditioned rates have gone negative only from the states
-that Ng extrapolates (He_large, below); in an iteration without Ng the
+that Ng extrapolates (He_large, above); in an iteration without Ng the
 negative rates found so far are all of the second kind: Ca II's 3d ²D₃/₂–²D₅/₂ collisional rate at 60–71 kK
 (B-43, N-32), and in `CI-VI_Judge` the photoionization rate 49 → 60,
 whose explicit cross-section, full of resonances, the spline in λ makes
