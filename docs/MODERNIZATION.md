@@ -44,6 +44,13 @@ upstream. Newest changes go at the top of the changelog.
   globalized Newton–Krylov with MALI as preconditioner, tested against
   stabilized Anderson before anything is committed to (S-track, §3.8 and
   [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)).
+- **Solver comparison (S-5, 2026-11-09):** stabilized Anderson acceleration
+  of the map G (`SOLVER = ANDERSON`, S-3) meets every S-5 criterion. At
+  depth 10 it needs 26–77 % less work than Ng on G on the easy controls
+  (9–72 % at depth 5) and 3.1× less on the slow case (2.9×). It converges all five cases where the current
+  Ng fails, three of which crash with Ng; and it converges the ne case
+  where plain G diverges. Decided: depth 10 by default; Anderson is to
+  become the default solver; S-4 (Newton) is under review (§2.5).
 - **Unit tests (2026-10-17/18) found two serious upstream bugs:** 2-D and
   3-D long characteristics stopped one section short (B-24), wrong by
   7–11 % on a slab with an exact solution and by up to 25 % in the
@@ -251,6 +258,105 @@ and the PRD scattering integrals. Report: [https://claude.ai/artifact/UxvvK4AzCy
   threaded) is done: #232.
 - Step 3 (per-transition loops vectorized, -O3 by default) is done: #238.
   Whole runs 1.15–1.23× faster, results byte-identical.
+
+### 2.5 Solver comparison (S-5, 2026-11-09)
+
+The experiment of SOLVER.md S-5, with the criteria and the calibration
+fixed before the runs: the 1-D case set at 1 thread, `ITER_LIMIT` 10⁻⁶,
+`N_MAX_SCATTER` 50, `N_MAX_ITER` 3000, modernize 0ec2849 (with S-3, #284),
+errors against references converged to 10⁻¹⁰ at f5e9847 (the ne cases with
+ne in the state, N-36). Solvers:
+
+- default Ng: the shipped `NG_ORDER` 2, `NG_DELAY` 10, `NG_PERIOD` 3 and the
+  PRD early exit of the stress keyword files;
+- plain G: `FIXED_POINT`, no Ng;
+- Ng on G: `FIXED_POINT` with Ng 2/10/3;
+- Anderson: `ANDERSON` at depth m = 3, 5, 10 (LOG variables, GLOBAL
+  coefficients, safeguard 1, delay 2).
+
+Work in formal-solution equivalents (all wavelength solves / Nspect;
+`Background()` calls matter only for solvene, where they track the
+iterations), with G evaluations or iterations in parentheses:
+
+| Case | Role | Default Ng | Plain G | Ng on G | Anderson m=3 | m=5 | m=10 |
+|---|---|---|---|---|---|---|---|
+| `falc_h6_ca_mg` | easy | 163 (74) | 435 (172) | 213 (75) | 165 (54) | 144 (45) | 130 (39) |
+| `falc_h20` | easy | 54 (44) | 145 (135) | 54 (44) | 67 (57) | 49 (39) | 40 (30) |
+| `falc_mgi66` | easy | 112 (24) | 112 (47) | 112 (24) | 89 (28) | 83 (25) | 82 (24) |
+| `falc_solvene` | easy, ne | 148 (69) | 517 (243) | 519 (244) | 174 (67) | 147 (54) | 121 (40) |
+| `falxco_h6_ca` | slow | 619 (421) | 501 (242) | 405 (192) | 193 (84) | 140 (57) | 131 (52) |
+| `t5750_h6` | failing | not conv. (3000) | 2879 (1517) | 2330 (1225) | 524 (264) | 432 (215) | 300 (145) |
+| `shock_h6` | failing | SIGFPE at 10 | 517 (249) | SIGFPE at 9 | 556 (270) | 580 (282) | 320 (146) |
+| `falc_helarge` | failing | SIGFPE at 14 | 416 (365) | SIGFPE at 14 | 144 (93) | 143 (92) | 139 (88) |
+| `falc_civi` | failing | SIGFPE at 12 | 256 (179) | SIGFPE at 12 | 129 (61) | 133 (55) | 151 (51) |
+| `bf_c100_prd` | failing | not conv. (3000) | 441 (211) | 131 (58) | 99 (42) | 89 (37) | 77 (31) |
+| `shock_h6crd_ne` | ne, report | not conv. (3000) | NaN at 17 | NaN at 33 | 146 (95) | 118 (65) | 109 (57) |
+
+Error against the reference (populations at levels above 10⁻⁶ of the
+total / emergent spectrum, relative to the peak) and SE residual ‖F_SE‖
+(max, levels above 10⁻⁶), for the converged runs:
+
+| Case | Ng on G | Anderson m=5 | Anderson m=10 |
+|---|---|---|---|
+| `falc_h6_ca_mg` | 3e-06 / 5e-06 / 2e-08 | 5e-06 / 6e-06 / 3e-07 | 4e-06 / 5e-06 / 3e-07 |
+| `falc_h20` | 6e-06 / 7e-06 / 2e-07 | 7e-06 / 9e-06 / 4e-07 | 4e-06 / 6e-06 / 4e-07 |
+| `falc_mgi66` | 5e-06 / 4e-05 / 4e-06 | 6e-07 / 4e-06 / 2e-07 | 3e-07 / 3e-06 / 3e-07 |
+| `falc_solvene` | 5e-06 / 1e-05 / 2e-06 | 6e-06 / 1e-05 / 4e-07 | 1e-06 / 2e-06 / 5e-07 |
+| `falxco_h6_ca` | 6e-05 / 1e-07 / 3e-07 | 1e-05 / 7e-07 / 1e-07 | 1e-05 / 1e-06 / 8e-08 |
+| `t5750_h6` | 5e-05 / 5e-05 / 1e-07 | 5e-05 / 3e-05 / 5e-08 | 5e-05 / 3e-05 / 7e-08 |
+| `shock_h6` | — | 3e-06 / 3e-06 / 3e-07 | 5e-06 / 7e-06 / 2e-07 |
+| `falc_helarge` | — | 2e-06 / 3e-06 / 3e-07 | 3e-06 / 2e-06 / 2e-07 |
+| `falc_civi` | — | 6e-07 / 5e-06 / 1e-07 | 6e-06 / 6e-06 / 3e-07 |
+| `bf_c100_prd` | 3e-06 / 2e-06 / 4e-07 | 6e-06 / 4e-06 / 4e-07 | 3e-06 / 1e-06 / 3e-07 |
+| `shock_h6crd_ne` | — | 4e+01 / 3e+00 / 5e-07 | 4e+01 / 3e+00 / 7e-07 |
+
+All converged runs are within 10⁻⁴ of their reference. `shock_h6crd_ne`
+has no converged reference (plain G diverges), so its error column is
+meaningless. Anderson's solutions satisfy SE to 5–7×10⁻⁷ with positive
+populations, and m = 3, 5 and 10 agree to 10⁻⁵. The default Ng's solvene
+run, judged against the default-solver reference, is within
+8.8×10⁻⁶ / 1.9×10⁻⁵.
+
+Ablations of Anderson m = 5 (work, with iterations and rejected points):
+
+| Case | m=5 (LOG, GLOBAL, c = 1) | RELATIVE | PER_BLOCK | safeguard off |
+|---|---|---|---|---|
+| `falc_h6_ca_mg` | 144 (45), 0 rej. | 174 (58), 0 rej. | 300 (113), 48 rej. | 144 (45), 0 rej. |
+| `falxco_h6_ca` | 140 (57), 0 rej. | 617 (301), 106 rej. | 388 (184), 82 rej. | 140 (57), 0 rej. |
+| `shock_h6` | 580 (282), 78 rej. | 442 (210), 80 rej. | 600 (293), 138 rej. | 1721 (881), 0 rej. |
+| `falc_helarge` | 143 (92), 3 rej. | 254 (203), 51 rej. | 190 (139), 23 rej. | 134 (83), 0 rej. |
+
+Anderson's counters (rejected by the safeguard / guard damped / guard plain
+step / rate equations solved with LU instead of GTH):
+
+| Case | m=5: rejected / guard damped / guard plain / LU | m=10 |
+|---|---|---|
+| `falc_h6_ca_mg` | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+| `falc_h20` | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+| `falc_mgi66` | 0 / 17 / 6 / 0 | 0 / 17 / 6 / 0 |
+| `falc_solvene` | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+| `falxco_h6_ca` | 0 / 1 / 0 / 0 | 1 / 1 / 0 / 0 |
+| `t5750_h6` | 27 / 18 / 5 / 0 | 18 / 9 / 2 / 0 |
+| `shock_h6` | 78 / 0 / 0 / 1 | 31 / 0 / 0 / 1 |
+| `falc_helarge` | 3 / 105 / 44 / 0 | 3 / 105 / 44 / 0 |
+| `falc_civi` | 0 / 36 / 12 / 0 | 1 / 31 / 11 / 0 |
+| `bf_c100_prd` | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+| `shock_h6crd_ne` | 1 / 13 / 5 / 49 | 1 / 13 / 5 / 49 |
+
+Change per evaluation on the slow case `falxco_h6_ca`, every 10th
+evaluation:
+
+| Solver | Evaluations | Change at 1, 11, 21, … |
+|---|---|---|
+| plain G | 242 | 4e0 2e-1 9e-2 6e-2 4e-2 3e-2 2e-2 9e-3 6e-3 3e-3 2e-3 1e-3 6e-4 3e-4 2e-4 1e-4 7e-5 4e-5 2e-5 1e-5 9e-6 5e-6 3e-6 2e-6 1e-6 |
+| Ng on G | 192 | 4e0 1e-1 3e-1 9e-2 3e-2 8e-2 2e-2 2e-2 5e-3 2e-3 9e-4 2e-3 5e-4 1e-4 2e-4 6e-5 2e-5 3e-5 2e-5 3e-6 |
+| Anderson m = 5 | 57 | 4e0 7e-2 1e-2 1e-3 9e-5 8e-6 |
+| Anderson m = 10 | 52 | 4e0 7e-2 3e-2 1e-3 5e-5 1e-6 |
+
+Wall times were measured with up to 27 runs at once on 48 cores and are
+not reported; the work counts are the measure. Data, tables of every run
+and every metric: `claude-tmp/s1/s5` (`table.md`). Analysis and decisions:
+SOLVER.md S-5, Results.
 
 ---
 
