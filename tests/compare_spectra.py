@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare two RH spectrum.out files.
 
-usage: compare_spectra.py A B [--stokes] [--tol 1e-8] [--exact]
+usage: compare_spectra.py A B [--stokes | --no-stokes] [--tol 1e-8] [--exact]
 
 spectrum.out layout (writespect_xdr.c), all big-endian XDR:
     int     Nspect
@@ -9,7 +9,15 @@ spectrum.out layout (writespect_xdr.c), all big-endian XDR:
     double  I[Nspect * Nrays * (Nx * Ny)]
     bool(4 bytes) vacuum_to_air, double vacuum_to_air_limit
     [Stokes_Q, Stokes_U, Stokes_V, each the same size as I, only if a
-     magnetic field was read (use --stokes)]
+     magnetic field was read or BACKGROUND_POLARIZATION = TRUE]
+
+I is stored with the wavelength as the slowest index, I[Nspect][rays...].
+The file size does not tell the two layouts apart: Q, U and V read as part
+of I still make a multiple of Nspect values (Q-21). The layout is found
+from the vacuum_to_air record instead, which must follow I: a bool (0 or
+1) and VACUUM_TO_AIR_LIMIT (spectrum.h, 200.0 here and upstream).
+--stokes or --no-stokes states the layout and fails if the file has the
+other one.
 
 Intensity is compared per wavelength, relative to that wavelength's peak
 |I|. Stokes Q, U, V are compared relative to the peak of the whole array,
@@ -28,17 +36,34 @@ import sys
 
 import numpy as np
 
+VACUUM_TO_AIR_LIMIT = 200.0     # spectrum.h
 
-def load(path, stokes):
+
+def load(path, stokes=None):
+    """Read spectrum.out. stokes=None finds the layout from the file;
+    True or False demands that layout."""
     raw = open(path, "rb").read()
     ns = struct.unpack(">i", raw[:4])[0]
+    if ns <= 0 or len(raw) < 4 + 8 * ns + 12:
+        raise ValueError(f"{path}: not a spectrum.out (Nspect={ns}, "
+                         f"size {len(raw)})")
     lam = np.frombuffer(raw, dtype=">f8", count=ns, offset=4)
     body = len(raw) - 4 - 8 * ns - 12
-    narr = 4 if stokes else 1
-    if ns <= 0 or body <= 0 or body % (8 * narr) or (body // (8 * narr)) % ns:
-        raise ValueError(f"{path}: size {len(raw)} does not fit the "
-                         f"spectrum.out layout for Nspect={ns}, stokes={stokes}")
-    n_i = body // (8 * narr)
+    fits = []
+    for narr in ((1, 4) if stokes is None else ((4,) if stokes else (1,))):
+        if body <= 0 or body % (8 * narr) or (body // (8 * narr)) % ns:
+            continue
+        n_i = body // (8 * narr)
+        marker = 4 + 8 * ns + 8 * n_i
+        flag, limit = struct.unpack(">id", raw[marker:marker + 12])
+        if flag in (0, 1) and limit == VACUUM_TO_AIR_LIMIT:
+            fits.append((narr, n_i))
+    if len(fits) != 1:
+        want = {None: "either layout", True: "the polarized layout",
+                False: "the unpolarized layout"}[stokes]
+        raise ValueError(f"{path}: size {len(raw)} and contents do not fit "
+                         f"{want} of spectrum.out (Nspect={ns})")
+    narr, n_i = fits[0]
     off = 4 + 8 * ns
     arrays = {}
     for k, name in enumerate("IQUV"[:narr]):
@@ -52,7 +77,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("a")
     ap.add_argument("b")
-    ap.add_argument("--stokes", action="store_true")
+    pol = ap.add_mutually_exclusive_group()
+    pol.add_argument("--stokes", dest="stokes", action="store_true",
+                     default=None)
+    pol.add_argument("--no-stokes", dest="stokes", action="store_false")
     ap.add_argument("--tol", type=float, default=1e-8)
     ap.add_argument("--exact", action="store_true")
     args = ap.parse_args()
