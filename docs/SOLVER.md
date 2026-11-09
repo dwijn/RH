@@ -1276,6 +1276,43 @@ does not).
   failing case for S-4;
 - work includes rejected steps (S-3) and `Background()` calls (§4.1).
 
+**Calibration (2026-11-09, frozen):** `ITER_LIMIT` = 10⁻⁶ and
+`N_MAX_SCATTER` = 50 for every solver and case, against the references at
+f5e9847 (after N-31, N-32, B-42, B-43); for the ne cases the references
+are made with ne in the state (`FIXED_POINT`, plain G), see below. Ng on G
+on the easy controls, error against the references, populations (levels
+above the S-1 threshold) / spectrum:
+
+| `ITER_LIMIT` | `1d_falc_h20` | `1d_falc_h6_ca_mg` | `1d_falc_mgi66` | `1d_falc_solvene` |
+|---|---|---|---|---|
+| 10⁻⁴ | 7.0e-4 / 8.5e-4 | 4.4e-4 / 8.8e-4 | 1.2e-4 / (1.9e-2) | 1.5e-3 / 3.3e-3 |
+| 10⁻⁵ | 7.9e-5 / 9.5e-5 | 4.5e-5 / 8.9e-5 | 4.8e-6 / 3.6e-5 | 1.9e-4 / 4.2e-4 |
+| 10⁻⁶ | 5.6e-6 / 6.8e-6 | 3.6e-6 / 7.1e-6 | 6.6e-7 / (2.0e-3) | 5.1e-6 / 1.1e-5 |
+| 10⁻⁷ | 2.1e-7 / 2.5e-7 | 4.4e-7 / 8.8e-7 | 8.3e-8 / (8.7e-4) | 5.6e-7 / 1.3e-6 |
+
+10⁻⁶ is the largest power of ten at which all four meet the 10⁻⁴ bar
+(at 10⁻⁵ solvene's populations do not, and H_20 and H_6 + Ca II + Mg II
+pass with no margin). Two settings came out of it:
+
+- `N_MAX_SCATTER` = 50 (the references' value; the stress cases use 2).
+  The convergence test watches the populations only, and Ng accelerates
+  only them; the background J at strongly scattering wavelengths
+  converges by plain Λ iteration and can lag far behind. On
+  `1d_falc_mgi66` the spectrum error at 122.6 nm stays at 10⁻³ (in
+  parentheses above, with 2 final sweeps) however tight `ITER_LIMIT`;
+  with 50 the final phase converges J in 24 sweeps and the error at
+  10⁻⁵ is 3.6×10⁻⁵. Anderson, which extrapolates J too, reached 1.6×10⁻⁶
+  with 2 final sweeps. The final sweeps count in the work totals, so a
+  solver that leaves J unconverged pays for it there.
+- References for the ne cases with ne in the state. The `1d_falc_solvene`
+  references made with the default solver (ne outside G) and with
+  `FIXED_POINT` (ne in the state, S-2b), both converged to 10⁻¹⁰, differ by
+  1.7×10⁻⁴ in the spectrum at 163.2 nm and 4.8×10⁻⁶ in the populations
+  (N-36). Every solver compared iterates the state formulation, so they
+  are judged against its reference; against the other, Ng on G has an
+  error floor of 1.7×10⁻⁴ at any `ITER_LIMIT`. The default Ng control is
+  judged against the default-solver reference.
+
 **Report:** one table per case (work counts, wall time, ‖F_SE‖, population
 error, spectrum error, outcome) in `MODERNIZATION.md` §2, plus the log
 excerpts showing residual histories.
