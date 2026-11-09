@@ -12,6 +12,9 @@
 	   Calls of Background() and Hydrostatic() and their wall time are
 	   counted separately: they do no formal solution but can be a large
 	   part of the run (SOLVE_NE = ITERATION).
+	   The rate equations solved (one per location and atom or molecule)
+	   are counted too, with the number that had to use LU because GTH
+	   elimination could not (statequil.c, N-31).
 
 	   The counters are only touched from the main thread, between
 	   sweeps, so they need no locking.
@@ -79,6 +82,19 @@ void workAdd(enum WorkTimer timer, double seconds)
 }
 /* ------- end ---------------------------- workAdd.c --------------- */
 
+/* ------- begin -------------------------- workRates.c ------------- */
+
+/* --- Rate equations solved (one per spatial location and atom or
+	   molecule), and how many of them with LU because GTH elimination
+	   could not be used (statequil.c) --              -------------- */
+
+void workRates(long Nsolved, long Nlu)
+{
+	work.Nrates += Nsolved;
+	work.Nrates_lu += Nlu;
+}
+/* ------- end ---------------------------- workRates.c ------------- */
+
 /* ------- begin -------------------------- printWork.c ------------- */
 
 void printWork(void)
@@ -110,5 +126,12 @@ void printWork(void)
 			work.calls[WORK_HYDROSTATIC], work.seconds[WORK_HYDROSTATIC],
 			work.seconds[WORK_ITERATION], input.Nthreads);
 	Error(MESSAGE, NULL, messageStr);
+	if (work.Nrates > 0) {
+		sprintf(messageStr,
+				"    Rate equations %ld solved, %ld of them with LU"
+				" instead of GTH\n",
+				work.Nrates, work.Nrates_lu);
+		Error(MESSAGE, NULL, messageStr);
+	}
 }
 /* ------- end ---------------------------- printWork.c ------------- */
