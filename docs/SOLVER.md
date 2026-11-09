@@ -1007,32 +1007,120 @@ in 71 iterations without Ng and needs no LU (2026-11-09).
 **Goal:** a robust drop-in for Ng on G; also the control for S-4
 (supersedes N-2, part of N-8).
 
-- Anderson type II on R = G(x) − x, sliding window m (default 5; report
-  3, 5, 10), applied every iteration after a delay. `ANDERSON_DELAY`
-  counts like `NG_DELAY` (§2.2).
-- Least squares by QR (or SVD with truncation at a relative singular value
-  of ~10⁻¹⁰), never normal equations. Drop the oldest column when the
-  condition estimate exceeds ~10⁸ (Open: thresholds).
-- Scaled variables (§3.1, including exact zeros); one coefficient set for
-  the whole state vector (all atoms and ρ together), with an option for
-  per-atom sets to compare.
-- Safeguard: compare ‖R(x_AA)‖, which the next G_eval computes anyway,
-  with ‖R(x_k)‖. If it is larger by more than a factor (Open: start with
-  1), discard x_AA, take the plain step G(x_k) (already computed) and
-  restart the history. A rejection costs one wasted G_eval, which counts in
-  the work totals; report the number of rejections (cf. Zhang, O'Donoghue
-  & Boyd 2020 for a globally convergent variant).
-- Positivity: automatic in log variables; otherwise reject or damp.
-- History reset only for changes outside G: relaxation steps, and ne or
-  hydrostatic updates when ne or the atmosphere is not in x. With ne in x
-  (S-2b), `Background()` is part of G and nothing is reset. Running
-  `SOLVE_NE = ITERATION` with ne outside x and resetting every iteration
-  disables the acceleration; do not report that as an Anderson result.
-- Keyword: `SOLVER = ANDERSON` with `ANDERSON_DEPTH`, `ANDERSON_DELAY`.
+**Decided (2026-11-09):** the design below. Implementation on `s3/anderson`,
+one pull request; the S-5 runs follow in a separate one, so that the code
+is reviewed first.
+
+**Algorithm.** Anderson type II (Walker & Ni 2011), mixing 1, on scaled
+variables u = s(x):
+
+- Each G evaluation gives (u_k, g_k) with g_k = s(G(x_k)) and the residual
+  f_k = g_k − u_k. The history holds the last m differences
+  ΔF = [f_{i+1} − f_i], ΔG = [g_{i+1} − g_i], sliding by one every
+  iteration (no restarts every few iterations, as Ng has).
+- γ = argmin ‖W(f_k − ΔF γ)‖₂ and u_{k+1} = g_k − ΔG γ. One coefficient
+  set for the whole state (`ANDERSON_COEFFICIENTS = GLOBAL`);
+  `PER_BLOCK` (one least squares per block, as Ng per atom) only for the
+  comparison.
+- Least squares by QR, recomputed every iteration by classical
+  Gram–Schmidt with reorthogonalization in a fixed serial summation order
+  (about 4m²N flops, under 1 % of a MALI iteration in 1-D; no LAPACK).
+  Never normal equations. The condition number of R is computed exactly
+  (‖R‖₁‖R⁻¹‖₁); while it exceeds `ANDERSON_COND_MAX` (default 10⁸, Open)
+  the oldest column is dropped. Columns used, condition number and drops
+  are logged every iteration.
+- Where no extrapolation is made (no history yet, masked entries),
+  x_{k+1} = G(x_k) is copied, not computed as s⁻¹(s(G)). So
+  `ANDERSON_DEPTH = 0` reproduces `FIXED_POINT` with `NG_ORDER = 0` bit
+  for bit.
+
+**Variables and weights.**
+
+- `ANDERSON_VARIABLES = LOG` (default): u = log x for populations, ρ, J
+  and ne. f is then the relative change to first order, so Anderson
+  minimizes (in ℓ₂) the quantity `MaxChange` and `ITER_LIMIT` judge
+  (§2.2: the mismatch of Ng's weights with the convergence test is a
+  suspected cause of N-2), and positivity is automatic. Entries where x or
+  G(x) is ≤ 0 are masked: zero weight in the least squares, G's value in
+  x_{k+1}. J20 is kept linear as J20/J.
+- `ANDERSON_VARIABLES = RELATIVE`: linear variables divided by fixed
+  totals (populations by the element's n_total at that depth, molecules by
+  their total in x₀, ρ by 1, J by J of x₀, ne by n_H,tot). Weights by
+  abundance and keeps the conservation sums exactly; positivity is left
+  to the guard. Both are built; LOG stays the default unless the
+  comparison in S-5 says otherwise.
+- Block weights: W gives each block (each atom's and molecule's
+  populations, each PRD line's ρ, J, ne) the weight 1/√N_block, so every
+  block counts as its mean square. Per-entry weights would let J
+  (~150 times the H_6 block on FAL-C) decide alone.
+
+**Schedule.** `ANDERSON_DEPTH` m (default 5; report 3, 5, 10). History
+from the first evaluation; the first extrapolation after evaluation
+max(`ANDERSON_DELAY`, 2). The default delay is chosen from a scan of
+{2, 5, 10} on the three easy controls and `1d_falxco_h6_ca`, and frozen
+before the S-5 runs (§7 trap 8). One iteration is one G evaluation,
+rejected ones included, so `N_MAX_ITER` caps the work and the log format
+of `FIXED_POINT` is kept. No history resets other than after a rejection:
+relaxation, hydrostatic equilibrium and ne outside x are already refused
+for every solver other than NG, and with ne in x (S-2b) `Background()` is
+part of G.
+
+**Safeguards.**
+
+- Before the evaluation (no G cost): the trial point must be finite,
+  positive (RELATIVE), and must not create population inversions that
+  g_k does not have: for every line, at every depth where
+  n_l/g_l > n_u/g_u in g_k, also in the trial point; for every continuum
+  likewise with n_i/n_i* > (n_j/n_j*)·exp(−hν₀/kT), positive opacity at
+  the edge. Inversions that G itself makes
+  are left alone. On failure the extrapolation is damped
+  (u = g_k − θΔGγ, θ = ½, then ¼); if it still fails, the plain step is
+  taken and the history restarted. All actions are counted. (Trap 5:
+  H_20's Rydberg levels, negative opacity, overflow in Bezier3.)
+- After the evaluation: accept if ‖f_{k+1}‖_W ≤ c‖f_k‖_W with
+  c = `ANDERSON_SAFEGUARD` (default 1; 0 turns it off). Otherwise take the
+  plain step G(x_k), already computed, and restart the history from the
+  last accepted pair (x_k, g_k). The wasted evaluation counts in the work
+  totals; rejections are logged and counted. If c = 1 rejects often on
+  the easy controls, the decreasing envelope of Zhang, O'Donoghue & Boyd
+  (2020) replaces it (decided with the numbers).
+- Negative radiative rates (the GTH → LU fallback of N-31) are counted
+  per run and reported as an S-3 metric, not used as a guard.
+
+**Stopping and output.** The change of an evaluation is `MaxChange`'s
+definition on (x_k, G(x_k)), per atom, as in `FIXED_POINT`; the run stops
+below `ITER_LIMIT`. The state left for the final formal solution and the
+output is G(x_k) of that evaluation, never an extrapolated point.
+
+**Keywords:** `SOLVER = ANDERSON`, `ANDERSON_DEPTH` (5),
+`ANDERSON_DELAY` (from the scan), `ANDERSON_COND_MAX` (10⁸),
+`ANDERSON_SAFEGUARD` (1), `ANDERSON_VARIABLES` (`LOG` | `RELATIVE`),
+`ANDERSON_COEFFICIENTS` (`GLOBAL` | `PER_BLOCK`); all printed at the start
+of the run with the history memory, (3m + 5)·N doubles. readInput stops
+on: every `FIXED_POINT` conflict (messages name the solver in use);
+`NG_ORDER > 0` with `ANDERSON` (two extrapolations); any `ANDERSON_*`
+keyword with another solver (it would be ignored silently).
+
+**Code:** `anderson.c` / `anderson.h`, a generic module without RH
+globals (weighted, masked vectors; init, step, reset, free, counters),
+unit-testable alone; `iterateAnderson()` in `solver.c` (transform per
+block, guard, safeguard, log, summary; `G_eval` unchanged); keywords in
+`readinput.c`, dispatch in `iterate.c`, counters in `work.c`.
+
+**Tests:** unit (`test_anderson`): for a linear nonsymmetric map with
+full depth, x_{k+1} equals G applied to the GMRES iterate (Walker & Ni) to
+10⁻¹⁰; m = 0 equals plain iteration bit for bit; collinear columns are
+dropped without NaN and κ ≤ `ANDERSON_COND_MAX` after; a map with a bad
+region triggers rejection and restart with the right counts; masked
+entries take G's value exactly; two runs are bit-identical. e2e:
+`ANDERSON_DEPTH = 0` repeats `FIXED_POINT` with `NG_ORDER = 0` bit for bit
+on `1d_falc_h6_ca_mg`; the keyword conflicts stop the run; a short
+`ANDERSON` run is bit-reproducible.
 
 **Acceptance:** default runs (`SOLVER = NG`) unchanged bit for bit
 (`run_tests.sh --exact` against the base commit); with
-`SOLVER = ANDERSON` the S-5 case set runs and reports all S-1 metrics.
+`SOLVER = ANDERSON` the S-5 case set runs and reports all S-1 metrics,
+plus rejections, guard actions and GTH fallbacks.
 
 ### S-4 — Newton–GMRES on the MALI map (Form A)
 
