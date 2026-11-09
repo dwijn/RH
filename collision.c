@@ -479,11 +479,12 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 
 	char inputLine[MAX_LINE_SIZE], keyword[MAX_LINE_SIZE], *pointer,
 		labelStr[MAX_LINE_SIZE];
-	bool_t hunt, exit_on_EOF;
+	bool_t exit_on_EOF;
 	int    nitem, i1 = 0, i2 = 0, i = 0, j = 0, ij, ji = 0,
 			   Nlevel = atom->Nlevel, Nitem, Ntemp = 0, status;
-	long   Nspace = atmos.Nspace;
-	double dE, C0, *T, *coeff, *C, Cdown, Cup, gij, *np, xj, fac, fxj;
+	long       Nspace = atmos.Nspace;
+	double     dE, C0, *T, *coeff, *C, Cdown, Cup, gij, *np, xj, fac, fxj;
+	PchipTable ctable;
 
 	int      Ncoef = 0, Nrow = 0;
 	double **cdi = NULL, **badi = NULL;
@@ -702,8 +703,12 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 		}
 		/* --- End of the reading section. Now filling the collision matrix
 
-			   Spline interpolation in temperature T for all spatial
-			   locations. Linear if only 2 interpolation points given - - */
+			   Interpolation in temperature T for all spatial locations:
+			   monotone cubic Hermite in log T and log of the tabulated
+			   value (pchip.c), which keeps the rates positive and adds no
+			   extrema; the end values outside the table (N-32). Before,
+			   a cubic spline in T rang through tables with one steep or
+			   bad value and made rates negative. --      -------------- */
 
 		if (!strcmp(keyword, "OMEGA") || !strcmp(keyword, "CE") ||
 			!strcmp(keyword, "CI") || !strcmp(keyword, "CP") ||
@@ -725,11 +730,9 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 					Error(ERROR_LEVEL_2, routineName, messageStr);
 				}
 			}
-			if (Nitem > 2) {
-				splineCoef(Nitem, T, coeff);
-				splineEval(Nspace, atmos.T, C, hunt = TRUE);
-			} else
-				Linear(Nitem, T, coeff, Nspace, atmos.T, C, hunt = TRUE);
+			pchipTableInit(&ctable, Nitem, T, coeff, PCHIP_LOGLOG);
+			pchipTableEval(&ctable, Nspace, atmos.T, C);
+			pchipTableFree(&ctable);
 		}
 
 		if (!strcmp(keyword, "OMEGA")) {

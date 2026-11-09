@@ -999,6 +999,8 @@ below ~10⁻¹⁸ of the total go negative and RH's change never drops below
 LU and the run converges to 10⁻³ in 71 iterations, the first time this
 case has converged; with Ng it still stops at iteration 12. The
 cross-sections need the same treatment as the collision tables (N-32).
+With N-32 (monotone interpolation in log-log, no clipping) it converges
+in 71 iterations without Ng and needs no LU (2026-11-09).
 
 ### S-3 — Stabilized Anderson acceleration (replaces Ng)
 

@@ -44,9 +44,10 @@ void SortLambda()
 	const char   routineName[] = "SortLambda";
 	register int kr, n, m, nspect, la, nact;
 
-	bool_t           hunt, unique, result;
+	bool_t           unique, result;
 	int              Nred, Nspectrum, Nlambda_original, Z, i = 0, j = 0, Nwave;
 	double          *alpha_original, gbf_0, n_eff, *wavetable = NULL;
+	PchipTable       bftable;
 	ActiveSet       *as;
 	Atom            *atom;
 	Molecule        *molecule;
@@ -343,13 +344,19 @@ void SortLambda()
 										   CUBE(continuum->lambda[la] / continuum->lambda0);
 				}
 			} else {
+				/* --- Monotone cubic Hermite in log lambda and log alpha
+					   (pchip.c, N-32): positive, no new extrema. A spline
+					   went negative around resonances --  -------------- */
+
 				alpha_original = continuum->alpha;
-				splineCoef(Nlambda_original, continuum->lambda, alpha_original);
+				pchipTableInit(&bftable, Nlambda_original, continuum->lambda,
+							   alpha_original, PCHIP_LOGLOG);
 
 				continuum->alpha =
 					(double *) malloc(continuum->Nlambda * sizeof(double));
-				splineEval(continuum->Nlambda, spectrum.lambda + continuum->Nblue,
-						   continuum->alpha, hunt = TRUE);
+				pchipTableEval(&bftable, continuum->Nlambda,
+							   spectrum.lambda + continuum->Nblue, continuum->alpha);
+				pchipTableFree(&bftable);
 
 				free(continuum->lambda);
 				continuum->lambda = spectrum.lambda + continuum->Nblue;

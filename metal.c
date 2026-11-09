@@ -81,10 +81,11 @@ void metalPrepare(void)
 	Atom            *metal;
 	AtomicContinuum *continuum;
 
-	/* --- Set up the spline coefficients of the tabulated bound-free
-		   cross-sections of the passive atoms once, so that Metal_bf
-		   only reads them and can be called from several threads.
-		   The coefficients live in, and are freed with, the
+	/* --- Set up the interpolation tables of the tabulated bound-free
+		   cross-sections of the passive atoms once (monotone cubic
+		   Hermite in log lambda and log alpha, pchip.c, N-32), so that
+		   Metal_bf only reads them and can be called from several
+		   threads. The tables live in, and are freed with, the
 		   continuum. --                               -------------- */
 
 	for (m = 1; m < atmos.Natom; m++) {
@@ -92,9 +93,10 @@ void metalPrepare(void)
 		if (!metal->active) {
 			for (kr = 0; kr < metal->Ncont; kr++) {
 				continuum = metal->continuum + kr;
-				if (!continuum->hydrogenic && continuum->spline.M == NULL)
-					splineTableInit(&continuum->spline, continuum->Nlambda,
-									continuum->lambda, continuum->alpha);
+				if (!continuum->hydrogenic && continuum->bftable.x == NULL)
+					pchipTableInit(&continuum->bftable, continuum->Nlambda,
+								   continuum->lambda, continuum->alpha,
+								   PCHIP_LOGLOG);
 			}
 		}
 	}
@@ -109,7 +111,6 @@ bool_t Metal_bf(double lambda, int Nmetal, struct Atom *metals,
 	const char   routineName[] = "Metal_bf";
 	register int m, k, kr;
 
-	bool_t hunt;
 	int    i, j, Z;
 	double lambdaEdge, alpha_la, twohnu3_c2, twohc, gijk, hc_k, hc_kla,
 		**n, *expla = NULL, n_eff, gbf_0;
@@ -163,13 +164,12 @@ bool_t Metal_bf(double lambda, int Nmetal, struct Atom *metals,
 						alpha_la = continuum->alpha0 * CUBE(lambda / continuum->lambda0) *
 								   Gaunt_bf(lambda, n_eff, Z) / gbf_0;
 					} else {
-						if (continuum->spline.M == NULL) {
-							sprintf(messageStr, "Spline coefficients not set up "
+						if (continuum->bftable.x == NULL) {
+							sprintf(messageStr, "Cross-section table not set up "
 												"(call metalPrepare first)");
 							Error(ERROR_LEVEL_2, routineName, messageStr);
 						}
-						splineTableEval(&continuum->spline, 1, &lambda,
-										&alpha_la, hunt = FALSE);
+						pchipTableEval(&continuum->bftable, 1, &lambda, &alpha_la);
 					}
 
 					for (k = 0; k < atmos.Nspace; k++) {

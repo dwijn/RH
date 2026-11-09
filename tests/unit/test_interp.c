@@ -24,7 +24,15 @@
 		  reproduction of quadratics, exact for biquadratic data
 		  everywhere (also in the boundary cells where the data are
 		  extrapolated), the end values outside the table and order 3 for
-		  a smooth function.
+		  a smooth function;
+	   -- pchipTableInit/pchipTableEval (pchip.c, N-32): SciPy's
+		  PchipInterpolator on a fixed table, in y and in log x, log y;
+		  the nodes and linear data (log-log: power laws) reproduced; on
+		  random tables with spikes every interval stays between its two
+		  node values, so positive data stay positive; a node changes
+		  the interpolant only within two nodes of it; a table with a
+		  zero falls back to y and stays non-negative; descending tables,
+		  the end values outside the table, and tables of 1 and 2 points.
 
 	   Run with --table to print the measured errors.
 	   --                                              -------------- */
@@ -568,6 +576,182 @@ static void test_cubeconvol_order(void)
 	}
 }
 
+/* --- PCHIP (pchip.c) -- ------------------------------------------- */
+
+/* --- Reference values: SciPy 1.7.1 PchipInterpolator on the table
+	   below, in (x, y) and in (log x, log y) --          -------------- */
+
+static void test_pchip_reference(void)
+{
+	static const double x[7]       = {1.0, 2.0, 3.5, 4.0, 6.0, 7.5, 9.0},
+						y[7]       = {2.0, 2.5, 7.0, 7.2, 3.0, 3.0, 1.0},
+						xe[6]      = {1.3, 2.7, 3.75, 5.0, 6.8, 8.2};
+	static const double ref_lin[6] = {2.0564545454545455, 4.5791641633728597,
+									  7.1391304347826088, 5.0999999999999996,
+									  3.0, 2.4482962962962973},
+						ref_log[6] = {2.0754323981868197, 4.4771650009070001,
+									  7.1416718598315665, 4.3512525591482785,
+									  3.0000000000000004, 2.1415293959235338};
+	PchipTable pt;
+	double     ye[6];
+
+	pchipTableInit(&pt, 7, x, y, PCHIP_LINEAR);
+	pchipTableEval(&pt, 6, xe, ye);
+	for (int n = 0; n < 6; n++)
+		CHECK_CLOSE(ye[n], ref_lin[n], 1e-14, 0.0, "pchip vs SciPy at x = %g", xe[n]);
+	pchipTableFree(&pt);
+
+	pchipTableInit(&pt, 7, x, y, PCHIP_LOGLOG);
+	pchipTableEval(&pt, 6, xe, ye);
+	for (int n = 0; n < 6; n++)
+		CHECK_CLOSE(ye[n], ref_log[n], 1e-14, 0.0, "log-log pchip vs SciPy at x = %g",
+					xe[n]);
+	pchipTableFree(&pt);
+}
+
+/* --- Nodes, linear data and power laws -- ------------------------- */
+
+static void test_pchip_exact(void)
+{
+	double     x[9], y[9], yl[9], xe[200], ye[200], err = 0.0;
+	PchipTable pt;
+
+	for (int k = 0; k < 9; k++) {
+		x[k]  = 1000.0 * pow(1.6, k) * (1.0 + 0.1 * sin(k));
+		y[k]  = 3.0 * pow(x[k], -2.5);
+		yl[k] = 1.5 - 0.25 * x[k] / 1000.0;
+	}
+	for (int n = 0; n < 200; n++) xe[n] = x[0] + (x[8] - x[0]) * n / 199.0;
+
+	pchipTableInit(&pt, 9, x, y, PCHIP_LOGLOG);
+	pchipTableEval(&pt, 9, x, ye);
+	for (int k = 0; k < 9; k++)
+		CHECK_CLOSE(ye[k], y[k], 5e-15, 0.0, "log-log node %d", k); /* exp(log y) */
+	pchipTableEval(&pt, 200, xe, ye);
+	for (int n = 0; n < 200; n++)
+		err = MAX(err, fabs(ye[n] / (3.0 * pow(xe[n], -2.5)) - 1.0));
+	CHECK(err < 1e-13, "power law in log-log: max relative error %.2e", err);
+	if (table) printf("pchip power law in log-log: max relative error %.2e\n", err);
+	pchipTableFree(&pt);
+
+	err = 0.0;
+	pchipTableInit(&pt, 9, x, yl, PCHIP_LINEAR);
+	pchipTableEval(&pt, 200, xe, ye);
+	for (int n = 0; n < 200; n++) err = MAX(err, fabs(ye[n] - (1.5 - 0.25 * xe[n] / 1000.0)));
+	CHECK(err < 1e-14, "linear data: max error %.2e", err);
+	pchipTableEval(&pt, 9, x, ye);
+	for (int k = 0; k < 9; k++) CHECK(ye[k] == yl[k], "node %d: %.17g", k, ye[k]);
+	pchipTableFree(&pt);
+}
+
+/* --- Every interval between its two node values; locality -- ----- */
+
+static unsigned long long pchip_rng = 88172645463325252ULL;
+
+static double pchip_uniform(void)
+{
+	pchip_rng ^= pchip_rng << 13;
+	pchip_rng ^= pchip_rng >> 7;
+	pchip_rng ^= pchip_rng << 17;
+	return (double) (pchip_rng >> 11) / 9007199254740992.0;
+}
+
+static void test_pchip_bounded(void)
+{
+	enum { N = 20,
+		   M = 40 };
+	double     x[N], y[N], y2[N], xe[M], ye[M], ye2[M];
+	int        nout = 0, nloc = 0;
+	PchipTable pt, pt2;
+
+	for (int trial = 0; trial < 200; trial++) {
+		int scale = (trial % 2) ? PCHIP_LOGLOG : PCHIP_LINEAR;
+
+		x[0] = 1.0 + pchip_uniform();
+		for (int k = 1; k < N; k++) x[k] = x[k - 1] * (1.05 + pchip_uniform());
+		for (int k = 0; k < N; k++) {
+			y[k] = pow(10.0, 4.0 * pchip_uniform() - 2.0);
+			if (pchip_uniform() < 0.15) y[k] *= 1.0e4; /* spikes */
+		}
+		pchipTableInit(&pt, N, x, y, scale);
+		for (int k = 0; k < N - 1; k++) {
+			double lo = MIN(y[k], y[k + 1]), hi = MAX(y[k], y[k + 1]);
+
+			for (int n = 0; n < M; n++)
+				xe[n] = x[k] + (x[k + 1] - x[k]) * (n + 0.5) / M;
+			pchipTableEval(&pt, M, xe, ye);
+			for (int n = 0; n < M; n++)
+				if (!(ye[n] >= lo * (1.0 - 1e-14) && ye[n] <= hi * (1.0 + 1e-14))) nout++;
+		}
+		/* --- Change node 10: nothing changes outside x[8] .. x[12] -- */
+
+		memcpy(y2, y, sizeof(y));
+		y2[10] *= 50.0;
+		pchipTableInit(&pt2, N, x, y2, scale);
+		for (int n = 0; n < M; n++) {
+			xe[n] = x[0] + (x[N - 1] - x[0]) * n / (M - 1.0);
+		}
+		pchipTableEval(&pt, M, xe, ye);
+		pchipTableEval(&pt2, M, xe, ye2);
+		for (int n = 0; n < M; n++)
+			if ((xe[n] <= x[8] || xe[n] >= x[12]) && ye[n] != ye2[n]) nloc++;
+		pchipTableFree(&pt);
+		pchipTableFree(&pt2);
+	}
+	CHECK(nout == 0, "%d values outside their interval's node values", nout);
+	CHECK(nloc == 0, "%d values changed by a node more than two nodes away", nloc);
+}
+
+/* --- Zeros, descending tables, ends, short tables -- -------------- */
+
+static void test_pchip_special(void)
+{
+	static const double x[6] = {10.0, 20.0, 30.0, 40.0, 50.0, 60.0},
+						y[6] = {4.0, 0.0, 3.0, 5.0, 0.0, 0.0};
+	double xd[6], yd[6], xe[51], ye[51], yed[51], v, x2[2] = {1.0, 4.0},
+													 y2[2] = {2.0, 32.0};
+	int        nneg = 0, ndiff = 0;
+	PchipTable pt, ptd;
+
+	pchipTableInit(&pt, 6, x, y, PCHIP_LOGLOG);
+	CHECK(!pt.logy, "a table with zeros falls back to y (logy = %d)", pt.logy);
+	for (int n = 0; n < 51; n++) xe[n] = 10.0 + n;
+	pchipTableEval(&pt, 51, xe, ye);
+	for (int n = 0; n < 51; n++)
+		if (ye[n] < 0.0) nneg++;
+	CHECK(nneg == 0, "zeros: %d negative values", nneg);
+
+	for (int k = 0; k < 6; k++) {
+		xd[k] = x[5 - k];
+		yd[k] = y[5 - k];
+	}
+	pchipTableInit(&ptd, 6, xd, yd, PCHIP_LOGLOG);
+	pchipTableEval(&ptd, 51, xe, yed);
+	for (int n = 0; n < 51; n++)
+		if (ye[n] != yed[n]) ndiff++;
+	CHECK(ndiff == 0, "descending table differs in %d values", ndiff);
+
+	xe[0] = 1.0;
+	xe[1] = 1.0e3;
+	pchipTableEval(&pt, 2, xe, ye);
+	CHECK(ye[0] == 4.0 && ye[1] == 0.0, "outside the table: %g, %g", ye[0], ye[1]);
+	pchipTableFree(&pt);
+	pchipTableFree(&ptd);
+
+	pchipTableInit(&pt, 1, x, y, PCHIP_LOGLOG);
+	pchipTableEval(&pt, 1, &x[3], &v);
+	CHECK(v == 4.0, "one point: %g", v);
+	pchipTableFree(&pt);
+
+	/* --- Two points in log-log: the power law through them -- ----- */
+
+	v = 2.0;
+	pchipTableInit(&pt, 2, x2, y2, PCHIP_LOGLOG);
+	pchipTableEval(&pt, 1, &v, &v);
+	CHECK_CLOSE(v, 8.0, 1e-15, 0.0, "two points, log-log (y = 2 x^2): %g", v);
+	pchipTableFree(&pt);
+}
+
 int main(int argc, char *argv[])
 {
 	table = (argc > 1 && strcmp(argv[1], "--table") == 0);
@@ -582,6 +766,10 @@ int main(int argc, char *argv[])
 	test_cc_kernel();
 	test_cubeconvol_exact();
 	test_cubeconvol_order();
+	test_pchip_reference();
+	test_pchip_exact();
+	test_pchip_bounded();
+	test_pchip_special();
 
 	return check_summary("test_interp");
 }

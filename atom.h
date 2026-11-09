@@ -106,7 +106,7 @@ typedef struct {
 	Atom           *atom;
 	pthread_mutex_t rate_lock;
 	double        **Rij_thread, **Rji_thread;
-	SplineTable     spline; /* Coefficients for passive Metal_bf */
+	PchipTable      bftable; /* Cross-sections for passive Metal_bf */
 } AtomicContinuum;
 
 typedef struct {

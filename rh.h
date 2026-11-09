@@ -140,6 +140,26 @@ void splineTableFree(SplineTable *st);
 void splineTableEval(const SplineTable *st, int N, double *x, double *y,
 					 bool_t hunt);
 
+/* --- Monotone piecewise cubic Hermite interpolation (pchip.c, N-32),
+	   optionally in log x and log y. The table is copied; evaluation
+	   keeps no state. -- --------------------------------------------- */
+
+enum PchipScale { PCHIP_LINEAR = 0,
+				  PCHIP_LOGX   = 1,
+				  PCHIP_LOGY   = 2,
+				  PCHIP_LOGLOG = 3 };
+
+typedef struct {
+	int     N;
+	bool_t  logx, logy;
+	double *x, *y, *d;
+} PchipTable;
+
+void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
+					int scale);
+void pchipTableEval(const PchipTable *pt, int N, const double *x, double *y);
+void pchipTableFree(PchipTable *pt);
+
 void exp_splineCoef(int Ntable, double *xtable, double *ytable,
 					double tension);
 void exp_splineEval(int N, double *x, double *y, bool_t hunt);
