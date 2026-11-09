@@ -1166,17 +1166,19 @@ the commit S-5 runs on):
 | Failing | `1d_t5750_h6` | yes | — | not converged (4.5×10⁻³ after 200; plain G converges in 2527) |
 | | `1d_shock_h6` | yes | — | SIGFPE at iteration 11 (141 without Ng) |
 | | `1d_falc_helarge` | — | — | SIGFPE at iteration 13 (note 1) |
+| | `1d_falc_civi` (note 6) | — | — | SIGFPE at iteration 12 |
 | | `1d_bf_c100_prd` (note 2) | yes | — | limit cycle (plain G converges in 645) |
 | ne coupling | `1d_falc_solvene` | yes | yes | 27 |
 | | `1d_shock_h6crd_ne` (note 3) | — | yes | period-3 cycle |
-| Multi-D (only if 1-D is promising) | `2d_pert_h6_ca_mg` | yes | — | 82 at 8 threads (note 4) |
+| Multi-D (only if 1-D is promising) | `2d_pert_h6_ca_mg` | yes | — | 82 at 8 threads before B-40; SIGFPE at iteration 6 since (note 4) |
 | RMHD | note 5 | | | |
 
 1. He_large: SIGFPE since #230 (81 iterations before, 93 with the
    background file in double; N-28 comment of 2026-11-07); stalls at
    ~2×10⁻³ without Ng (N-28). No reference (S-1): judged on ‖F_SE‖ only.
    With GTH (N-31) it converges in 63 iterations, and in 667 with the
-   reference recipe, which can now give it a reference.
+   reference recipe, which gives it a reference (to be made with the
+   regenerated S-5 references).
 2. Chosen in S-1: Bifrost column 100 (N-4), Ca II with angle-averaged
    PRD; needs `--bifrost`. Without the snapshot, `1d_falc_h6_tight`
    (H_6 to 10⁻⁸, N-4) is the in-repository stand-in.
@@ -1184,11 +1186,16 @@ the commit S-5 runs on):
    `run_stress.sh` in S-1. Without Ng it alternates with period 2 (N-6).
    The only ne case without PRD.
 4. At a fixed 8 threads G is bit-repeatable (angle-averaged PRD); run
-   every solver at 8 threads.
+   every solver at 8 threads. Since B-40 (#257) the case stops with SIGFPE
+   at iteration 6 (N-33); unless N-33 is fixed first it is out of the
+   comparison.
 5. Development cases: the Bifrost cases in `run_stress.sh` (column 260,
    cuts `s4` and `s21`). Held out (§7 trap 8): columns and cuts not used
    for B-29, N-4, T-4 or P-8, e.g. another row of the snapshot or a MURaM
    cut; named before the runs.
+6. C I–VI (Judge model), added 2026-11-09: Ng stops at iteration 12;
+   with N-32 (and GTH) it converges without Ng in 71 iterations of the
+   default MALI loop.
 
 **Solvers and controls:**
 
@@ -1206,15 +1213,32 @@ accelerator with that of the fixed PRD sub-iterations (§2.3: on
 `1d_falxco_h6_ca` plain G converges where plain MALI with the early exit
 does not).
 
-**Proposed success criteria** (to be confirmed before the runs, not after):
+**Success criteria** (confirmed 2026-11-09, before any run):
 
+- convergence level: every solver runs every case to one common
+  `ITER_LIMIT`, calibrated before the runs with Ng on G as the largest
+  power of ten at which the easy controls meet the correctness bar below,
+  then frozen. All solvers stop on the same measure (`MaxChange` on
+  (x, G(x))), and how far that leaves a run from the solution depends on
+  how slowly G converges, not on the accelerator; at the shipped 10⁻³ Ng
+  leaves spectrum errors of 5×10⁻⁴ to 3×10⁻² (S-1, corrected for Q-22),
+  so the bar cannot be met there. The outcome at 10⁻³ is reported too,
+  for users;
 - correctness: converged populations within 10⁻⁴ relative of the
   reference (levels above the S-1 threshold), emergent spectra within
   10⁻⁴ (normalization from S-1); for cases without a reference, ‖F_SE‖
   down to the level the cases with references reach;
-- easy controls: no more than 20 % more work than Ng on G;
+- no regression: every case Ng on G converges, the candidate converges
+  too;
+- easy controls (including `1d_falc_solvene`): no more than 20 % more
+  work than Ng on G;
 - slow case: at least 1.5× less work than Ng on G;
-- failing cases: converge (correctness as above);
+- failing cases (`1d_t5750_h6`, `1d_shock_h6`, `1d_falc_helarge`,
+  `1d_falc_civi`, `1d_bf_c100_prd` or its stand-in): converge
+  (correctness as above);
+- `1d_shock_h6crd_ne` (plain G diverges): reported, not a criterion for
+  Anderson; it is the case most likely to need Newton (S-4), and is a
+  failing case for S-4;
 - work includes rejected steps (S-3) and `Background()` calls (§4.1).
 
 **Report:** one table per case (work counts, wall time, ‖F_SE‖, population
