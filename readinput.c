@@ -40,8 +40,9 @@ void readInput()
 	const char routineName[] = "readInput";
 	char       errorStr[MAX_MESSAGE_LENGTH];
 
-	int   Nkeyword, Nconflict, n;
-	FILE *fp_keyword;
+	int         Nkeyword, Nconflict, n;
+	const char *sname;
+	FILE       *fp_keyword;
 
 	Keyword theKeywords[] = {
 		{"ATMOS_FILE", "", FALSE, KEYWORD_REQUIRED, input.atmos_input,
@@ -124,6 +125,18 @@ void readInput()
 		{"SOLVE_NE", "NONE", FALSE, KEYWORD_DEFAULT, &input.solve_ne,
 		 setnesolution},
 		{"SOLVER", "NG", FALSE, KEYWORD_DEFAULT, &input.solver, setsolver},
+		{"ANDERSON_DEPTH", "5", FALSE, KEYWORD_DEFAULT, &input.Anderson_depth,
+		 setintValue},
+		{"ANDERSON_DELAY", "2", FALSE, KEYWORD_DEFAULT, &input.Anderson_delay,
+		 setintValue},
+		{"ANDERSON_COND_MAX", "1.0E+08", FALSE, KEYWORD_DEFAULT,
+		 &input.Anderson_cond_max, setdoubleValue},
+		{"ANDERSON_SAFEGUARD", "1.0", FALSE, KEYWORD_DEFAULT,
+		 &input.Anderson_safeguard, setdoubleValue},
+		{"ANDERSON_VARIABLES", "LOG", FALSE, KEYWORD_DEFAULT,
+		 &input.Anderson_variables, setAndersonVariables},
+		{"ANDERSON_COEFFICIENTS", "GLOBAL", FALSE, KEYWORD_DEFAULT,
+		 &input.Anderson_coefficients, setAndersonCoefficients},
 		{"OPACITY_FUDGE", "none", FALSE, KEYWORD_OPTIONAL, &input.fudgeData,
 		 setcharValue},
 		{"METALLICITY", "0.0", FALSE, KEYWORD_DEFAULT, &input.metallicity,
@@ -366,73 +379,128 @@ void readInput()
 		break;
 	}
 
-	/* --- SOLVER = FIXED_POINT iterates the map G of docs/SOLVER.md
-		   (S-2): one MALI step as a function of an explicit state, with
+	/* --- ANDERSON_* keywords are read by SOLVER = ANDERSON only; set
+		   with another solver they would be ignored silently -- ---- */
+
+	sname = solverName(input.solver);
+	if (input.solver != SOLVER_ANDERSON) {
+		Nconflict = 0;
+		for (n = 0; n < Nkeyword; n++) {
+			if (!strncmp(theKeywords[n].keyword, "ANDERSON_", 9) &&
+				theKeywords[n].set) {
+				sprintf(messageStr,
+						"%s is set, but SOLVER = %s does not use it. Set"
+						" SOLVER = ANDERSON\n or remove the keyword.",
+						theKeywords[n].keyword, sname);
+				Error(WARNING, routineName, messageStr);
+				Nconflict++;
+			}
+		}
+		if (Nconflict)
+			Error(ERROR_LEVEL_2, routineName,
+				  "ANDERSON_* keywords without SOLVER = ANDERSON; see the"
+				  " warnings above.");
+	}
+
+	/* --- SOLVER = FIXED_POINT and ANDERSON iterate the map G of
+		   docs/SOLVER.md (S-2, S-3): one MALI step as a function of an
+		   explicit state, with
 		   a fixed number of PRD sub-iterations and no acceleration
 		   inside. Keywords that would make G depend on anything else
 		   are rejected here, before any work is done -- ------------- */
 
 	if (input.solver != SOLVER_NG) {
 		Nconflict = 0;
+		if (input.solver == SOLVER_ANDERSON && input.Ngorder > 0) {
+			sprintf(messageStr,
+					"SOLVER = ANDERSON: NG_ORDER = %d would extrapolate the"
+					" populations a second\n time after Anderson's step."
+					" Set NG_ORDER = 0.",
+					input.Ngorder);
+			Error(WARNING, routineName, messageStr);
+			Nconflict++;
+		}
+		if (input.solver == SOLVER_ANDERSON &&
+			(input.Anderson_depth < 0 || input.Anderson_depth > 50 ||
+			 input.Anderson_delay < 0 || !(input.Anderson_cond_max > 1.0) ||
+			 !(input.Anderson_safeguard >= 0.0))) {
+			sprintf(messageStr,
+					"SOLVER = ANDERSON: ANDERSON_DEPTH = %d (0 .. 50),"
+					" ANDERSON_DELAY = %d (>= 0),\n ANDERSON_COND_MAX = %g"
+					" (> 1), ANDERSON_SAFEGUARD = %g (>= 0, 0 = off):\n"
+					" a value is out of range.",
+					input.Anderson_depth, input.Anderson_delay,
+					input.Anderson_cond_max, input.Anderson_safeguard);
+			Error(WARNING, routineName, messageStr);
+			Nconflict++;
+		}
 		if (input.PRDiterLimit != 0.0) {
 			sprintf(messageStr,
-					"SOLVER = FIXED_POINT: PRD_ITER_LIMIT = %g lets the PRD"
+					"SOLVER = %s: PRD_ITER_LIMIT = %g lets the PRD"
 					" sub-iterations stop early,\n which makes the map"
 					" discontinuous. Set PRD_ITER_LIMIT = 0;\n"
 					" PRD_N_MAX_ITER (now %d) then sets their number.",
-					input.PRDiterLimit, input.PRD_NmaxIter);
+					sname, input.PRDiterLimit, input.PRD_NmaxIter);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
 		if (input.PRD_Ngorder != 0) {
 			sprintf(messageStr,
-					"SOLVER = FIXED_POINT: PRD_NG_ORDER = %d, but there is no"
+					"SOLVER = %s: PRD_NG_ORDER = %d, but there is no"
 					" acceleration inside\n the map. Set PRD_NG_ORDER = 0.",
-					input.PRD_Ngorder);
+					sname, input.PRD_Ngorder);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
 		if (input.PRD_NmaxIter < 1) {
 			sprintf(messageStr,
-					"SOLVER = FIXED_POINT: PRD_N_MAX_ITER = %d, but the map"
+					"SOLVER = %s: PRD_N_MAX_ITER = %d, but the map"
 					" needs at least one\n PRD sub-iteration. Set"
 					" PRD_N_MAX_ITER >= 1.",
-					input.PRD_NmaxIter);
+					sname, input.PRD_NmaxIter);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
 		if (input.CR_Nstep > 0) {
 			sprintf(messageStr,
-					"SOLVER = FIXED_POINT: COLL_RELAX_NSTEP = %d makes the map"
+					"SOLVER = %s: COLL_RELAX_NSTEP = %d makes the map"
 					" depend on the\n iteration number. Set"
 					" COLL_RELAX_NSTEP = 0.",
-					input.CR_Nstep);
+					sname, input.CR_Nstep);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
 		if (atmos.hydrostatic) {
-			Error(WARNING, routineName,
-				  "SOLVER = FIXED_POINT: HYDROSTATIC = TRUE changes the"
-				  " atmosphere between\n iterations. Set HYDROSTATIC = FALSE.");
+			sprintf(messageStr,
+					"SOLVER = %s: HYDROSTATIC = TRUE changes the"
+					" atmosphere between\n iterations. Set HYDROSTATIC = FALSE.",
+					sname);
+			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
 		if (input.limit_memory) {
-			Error(WARNING, routineName,
-				  "SOLVER = FIXED_POINT: the mean intensity J is part of the"
-				  " state and must be\n kept in memory. Set"
-				  " LIMIT_MEMORY = FALSE.");
+			sprintf(messageStr,
+					"SOLVER = %s: the mean intensity J is part of the"
+					" state and must be\n kept in memory. Set"
+					" LIMIT_MEMORY = FALSE.",
+					sname);
+			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
 		if (input.solve_ne == ITERATION && input.old_background) {
-			Error(WARNING, routineName,
-				  "SOLVER = FIXED_POINT with SOLVE_NE = ITERATION recomputes the"
-				  " background\n from the state. Set OLD_BACKGROUND = FALSE.");
+			sprintf(messageStr,
+					"SOLVER = %s with SOLVE_NE = ITERATION recomputes the"
+					" background\n from the state. Set OLD_BACKGROUND = FALSE.",
+					sname);
+			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
 		if (input.solve_ne == ITERATION && input.NonICE) {
-			Error(WARNING, routineName,
-				  "SOLVER = FIXED_POINT with SOLVE_NE = ITERATION computes the"
-				  " chemical\n equilibrium from the state. Set NON_ICE = FALSE.");
+			sprintf(messageStr,
+					"SOLVER = %s with SOLVE_NE = ITERATION computes the"
+					" chemical\n equilibrium from the state. Set NON_ICE = FALSE.",
+					sname);
+			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
 		/* --- With ne in the state the background is stored in double
@@ -445,20 +513,22 @@ void readInput()
 			}
 			if (n < Nkeyword && theKeywords[n].set &&
 				!input.background_double) {
-				Error(WARNING, routineName,
-					  "SOLVER = FIXED_POINT with SOLVE_NE = ITERATION has ne in"
-					  " the state, and\n the background must then be stored"
-					  " in double. Set BACKGROUND_DOUBLE = TRUE\n or leave it"
-					  " out.");
+				sprintf(messageStr,
+						"SOLVER = %s with SOLVE_NE = ITERATION has ne in"
+						" the state, and\n the background must then be stored"
+						" in double. Set BACKGROUND_DOUBLE = TRUE\n or leave it"
+						" out.",
+						sname);
+				Error(WARNING, routineName, messageStr);
 				Nconflict++;
 			}
 			input.background_double = TRUE;
 		}
 		if (Nconflict) {
 			sprintf(messageStr,
-					"SOLVER = FIXED_POINT: %d keyword setting%s conflict with"
+					"SOLVER = %s: %d keyword setting%s conflict with"
 					" it; see the\n warning%s above and S-2 in docs/SOLVER.md.",
-					Nconflict, (Nconflict > 1) ? "s" : "",
+					sname, Nconflict, (Nconflict > 1) ? "s" : "",
 					(Nconflict > 1) ? "s" : "");
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}

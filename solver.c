@@ -1,7 +1,8 @@
 /* ------- file: -------------------------- solver.c ----------------
 
-	   The map G of docs/SOLVER.md (S-2) and the fixed-point driver
-	   (SOLVER = FIXED_POINT).
+	   The map G of docs/SOLVER.md (S-2) and the solvers that iterate
+	   it: the fixed-point driver (SOLVER = FIXED_POINT) and Anderson
+	   acceleration (SOLVER = ANDERSON, S-3).
 
 	   --------------------------                      ----------RH-- */
 
@@ -54,6 +55,8 @@
 #include "error.h"
 #include "statistics.h"
 #include "background.h"
+#include "constant.h"
+#include "anderson.h"
 #include "solver.h"
 
 /* --- Global variables --                             -------------- */
@@ -65,10 +68,19 @@ extern char       messageStr[];
 
 /* --- One block of the state vector: a contiguous array of RH -- --- */
 
+enum BlockKind { BLOCK_ATOM,
+				 BLOCK_MOLECULE,
+				 BLOCK_RHO,
+				 BLOCK_J,
+				 BLOCK_J20,
+				 BLOCK_NE };
+
 typedef struct {
-	char    name[MAX_MESSAGE_LENGTH];
-	double *data;
-	long    N;
+	char           name[MAX_MESSAGE_LENGTH];
+	double        *data;
+	long           N;
+	enum BlockKind kind;
+	void          *owner; /* the Atom or Molecule of a population block */
 } StateBlock;
 
 static StateBlock *blocks  = NULL;
@@ -92,12 +104,15 @@ static long rhoSize(AtomicLine *line)
 
 /* ------- begin -------------------------- addBlock.c -------------- */
 
-static void addBlock(const char *name, double *data, long N)
+static void addBlock(const char *name, double *data, long N,
+					 enum BlockKind kind, void *owner)
 {
 	blocks = (StateBlock *) realloc(blocks, (Nblocks + 1) * sizeof(StateBlock));
 	snprintf(blocks[Nblocks].name, MAX_MESSAGE_LENGTH, "%s", name);
-	blocks[Nblocks].data = data;
-	blocks[Nblocks].N    = N;
+	blocks[Nblocks].data  = data;
+	blocks[Nblocks].N     = N;
+	blocks[Nblocks].kind  = kind;
+	blocks[Nblocks].owner = owner;
 	Nblocks++;
 	Nstate += N;
 }
@@ -126,12 +141,14 @@ long stateInit(void)
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
 		atom = atmos.activeatoms[nact];
 		sprintf(name, "populations %s", atom->ID);
-		addBlock(name, atom->n[0], (long) atom->Nlevel * atmos.Nspace);
+		addBlock(name, atom->n[0], (long) atom->Nlevel * atmos.Nspace,
+				 BLOCK_ATOM, atom);
 	}
 	for (nact = 0; nact < atmos.Nactivemol; nact++) {
 		molecule = atmos.activemols[nact];
 		sprintf(name, "populations %s", molecule->ID);
-		addBlock(name, molecule->nv[0], (long) molecule->Nv * atmos.Nspace);
+		addBlock(name, molecule->nv[0], (long) molecule->Nv * atmos.Nspace,
+				 BLOCK_MOLECULE, molecule);
 	}
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
 		atom = atmos.activeatoms[nact];
@@ -139,15 +156,18 @@ long stateInit(void)
 			line = atom->line + kr;
 			if (line->PRD) {
 				sprintf(name, "rho %s %d-%d", atom->ID, line->j, line->i);
-				addBlock(name, line->rho_prd[0], rhoSize(line));
+				addBlock(name, line->rho_prd[0], rhoSize(line), BLOCK_RHO, NULL);
 			}
 		}
 	}
-	addBlock("J", spectrum.J[0], (long) spectrum.Nspect * atmos.Nspace);
+	addBlock("J", spectrum.J[0], (long) spectrum.Nspect * atmos.Nspace, BLOCK_J,
+			 NULL);
 	if (spectrum.J20 != NULL)
-		addBlock("J20", spectrum.J20[0], (long) spectrum.Nspect * atmos.Nspace);
+		addBlock("J20", spectrum.J20[0], (long) spectrum.Nspect * atmos.Nspace,
+				 BLOCK_J20, NULL);
 
-	if (input.solve_ne == ITERATION) addBlock("ne", atmos.ne, atmos.Nspace);
+	if (input.solve_ne == ITERATION)
+		addBlock("ne", atmos.ne, atmos.Nspace, BLOCK_NE, NULL);
 
 	return Nstate;
 }
@@ -472,3 +492,449 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	free(x);
 }
 /* ------- end ---------------------------- iterateFixedPoint.c ----- */
+
+/* ------- begin -------------------------- toVars.c ---------------- */
+
+/* --- SOLVER = ANDERSON (S-3 in docs/SOLVER.md): Anderson acceleration
+	   of x <- G(x) on scaled variables u = s(x), one block of x at a
+	   time:
+
+		 LOG       u = log x (populations, rho, J, ne);
+		 RELATIVE  u = x / scale, scale fixed at the start (the
+				   element's total population at that depth, the
+				   molecule's total in x_0, 1 for rho, J of x_0 for J,
+				   n_H,tot for ne);
+
+	   J20 (background polarization, signed) is J20 / J in both. An
+	   entry that has no value in these variables (x <= 0 in LOG) is
+	   invalid: it takes no part in the least squares and takes G's
+	   value. --                                       -------------- */
+
+static long   *blockStart = NULL; /* Nblocks + 1 offsets into x */
+static double *varScale   = NULL; /* RELATIVE: the fixed scale per entry */
+
+static void toVars(const double *x, double *u, unsigned char *valid)
+{
+	register long i;
+	register int  n;
+
+	long   off, offJ = -1;
+	double J;
+
+	for (n = 0; n < Nblocks; n++) {
+		off = blockStart[n];
+		if (blocks[n].kind == BLOCK_J) offJ = off;
+		for (i = off; i < off + blocks[n].N; i++) {
+			if (blocks[n].kind == BLOCK_J20) {
+				J        = x[offJ + (i - off)];
+				valid[i] = (J > 0.0 && isfinite(x[i]) && isfinite(J));
+				u[i]     = (valid[i]) ? x[i] / J : 0.0;
+			} else if (input.Anderson_variables == ANDERSON_LOG) {
+				valid[i] = (x[i] > 0.0 && isfinite(x[i]));
+				u[i]     = (valid[i]) ? log(x[i]) : 0.0;
+			} else {
+				valid[i] = (varScale[i] > 0.0 && isfinite(x[i]));
+				u[i]     = (valid[i]) ? x[i] / varScale[i] : 0.0;
+			}
+		}
+	}
+}
+/* ------- end ---------------------------- toVars.c ---------------- */
+
+/* ------- begin -------------------------- fromVars.c -------------- */
+
+static void fromVars(const double *u, const double *gx,
+					 const unsigned char *mask, double *x)
+{
+	register long i;
+	register int  n;
+
+	long off, offJ = -1;
+
+	/* --- x = s^-1(u) where the entry took part, G's value (copied,
+		   not transformed) where it did not. J comes before J20 -- */
+
+	for (n = 0; n < Nblocks; n++) {
+		off = blockStart[n];
+		if (blocks[n].kind == BLOCK_J) offJ = off;
+		for (i = off; i < off + blocks[n].N; i++) {
+			if (!mask[i])
+				x[i] = gx[i];
+			else if (blocks[n].kind == BLOCK_J20)
+				x[i] = u[i] * x[offJ + (i - off)];
+			else if (input.Anderson_variables == ANDERSON_LOG)
+				x[i] = exp(u[i]);
+			else
+				x[i] = u[i] * varScale[i];
+		}
+	}
+}
+/* ------- end ---------------------------- fromVars.c -------------- */
+
+/* ------- begin -------------------------- setVarScale.c ----------- */
+
+static void setVarScale(const double *x0)
+{
+	register long i;
+	register int  n, l;
+
+	long      off, k, Nspace = atmos.Nspace;
+	double    total;
+	Atom     *atom;
+	Molecule *molecule;
+
+	for (n = 0; n < Nblocks; n++) {
+		off = blockStart[n];
+		switch (blocks[n].kind) {
+		case BLOCK_ATOM:
+			atom = (Atom *) blocks[n].owner;
+			for (i = off; i < off + blocks[n].N; i++)
+				varScale[i] = atom->ntotal[(i - off) % Nspace];
+			break;
+		case BLOCK_MOLECULE:
+			molecule = (Molecule *) blocks[n].owner;
+			for (k = 0; k < Nspace; k++) {
+				total = 0.0;
+				for (l = 0; l < molecule->Nv; l++) total += x0[off + l * Nspace + k];
+				for (l = 0; l < molecule->Nv; l++) varScale[off + l * Nspace + k] = total;
+			}
+			break;
+		case BLOCK_J:
+			for (i = off; i < off + blocks[n].N; i++) varScale[i] = x0[i];
+			break;
+		case BLOCK_NE:
+			for (i = off; i < off + blocks[n].N; i++)
+				varScale[i] = atmos.nHtot[i - off];
+			break;
+		default: /* rho, J20 (J20 / J is used instead) */
+			for (i = off; i < off + blocks[n].N; i++) varScale[i] = 1.0;
+			break;
+		}
+	}
+}
+/* ------- end ---------------------------- setVarScale.c ----------- */
+
+/* ------- begin -------------------------- guardTrial.c ------------ */
+
+enum GuardResult { GUARD_OK,
+				   GUARD_NONFINITE,
+				   GUARD_NEGATIVE,
+				   GUARD_INVERSION };
+
+static const char *guardName[] = {"ok", "not finite", "negative",
+								  "new population inversion"};
+
+static enum GuardResult guardTrial(const double *xt, const double *gx)
+{
+	register long i;
+	register int  n, kr;
+
+	long             off, k, Nspace = atmos.Nspace, il, iu;
+	double           E;
+	Atom            *atom;
+	AtomicLine      *line;
+	AtomicContinuum *cont;
+
+	/* --- The extrapolated point must be finite, must not be negative
+		   where G's point is not (and with RELATIVE not zero where it
+		   is positive; in LOG a zero is an underflow of exp, not a
+		   sign change), and must not invert a transition at a depth
+		   where G's point does not: for a line n_l / g_l > n_u / g_u,
+		   for a continuum n_i / n*_i > (n_j / n*_j) exp(-h nu_0 / kT)
+		   (positive opacity at the edge). Negative values and
+		   inversions G itself makes (the LU fallback of statEquil,
+		   N-31) are left alone. --                      -------------- */
+
+	for (i = 0; i < Nstate; i++)
+		if (!isfinite(xt[i])) return GUARD_NONFINITE;
+
+	for (n = 0; n < Nblocks; n++) {
+		off = blockStart[n];
+		if (blocks[n].kind != BLOCK_J20) {
+			for (i = off; i < off + blocks[n].N; i++)
+				if ((xt[i] < 0.0 && !(gx[i] < 0.0)) ||
+					(input.Anderson_variables == ANDERSON_RELATIVE && xt[i] == 0.0 &&
+					 gx[i] > 0.0))
+					return GUARD_NEGATIVE;
+		}
+		if (blocks[n].kind != BLOCK_ATOM) continue;
+
+		atom = (Atom *) blocks[n].owner;
+		for (kr = 0; kr < atom->Nline; kr++) {
+			line = atom->line + kr;
+			il   = off + (long) line->i * Nspace;
+			iu   = off + (long) line->j * Nspace;
+			for (k = 0; k < Nspace; k++) {
+				if (gx[il + k] * atom->g[line->j] > gx[iu + k] * atom->g[line->i] &&
+					!(xt[il + k] * atom->g[line->j] > xt[iu + k] * atom->g[line->i]))
+					return GUARD_INVERSION;
+			}
+		}
+		for (kr = 0; kr < atom->Ncont; kr++) {
+			cont = atom->continuum + kr;
+			il   = off + (long) cont->i * Nspace;
+			iu   = off + (long) cont->j * Nspace;
+			for (k = 0; k < Nspace; k++) {
+				if (!(atom->nstar[cont->i][k] > 0.0 && atom->nstar[cont->j][k] > 0.0))
+					continue;
+				E = exp(-(HPLANCK * CLIGHT) /
+						(cont->lambda0 * NM_TO_M * KBOLTZMANN * atmos.T[k]));
+				if (gx[il + k] * atom->nstar[cont->j][k] >
+						gx[iu + k] * atom->nstar[cont->i][k] * E &&
+					!(xt[il + k] * atom->nstar[cont->j][k] >
+					  xt[iu + k] * atom->nstar[cont->i][k] * E))
+					return GUARD_INVERSION;
+			}
+		}
+	}
+	return GUARD_OK;
+}
+/* ------- end ---------------------------- guardTrial.c ------------ */
+
+/* ------- begin -------------------------- logSolve.c -------------- */
+
+static void logSolve(int Nsolve, bool_t per_block, const AndersonSolve *info,
+					 double fnorm)
+{
+	int b;
+
+	/* --- Columns used, condition number and columns left out, every
+		   iteration that solved (also when all were left out) -- --- */
+
+	for (b = 0; b < Nsolve; b++) {
+		sprintf(messageStr,
+				"  Anderson%s%s: %d column%s, cond %.2E, %d dropped;"
+				" |f|_W %.3E\n",
+				(per_block) ? " " : "", (per_block) ? blocks[b].name : "",
+				info[b].Ncols, (info[b].Ncols == 1) ? "" : "s", info[b].cond,
+				info[b].Ndrop, fnorm);
+		Error(MESSAGE, NULL, messageStr);
+	}
+}
+/* ------- end ---------------------------- logSolve.c -------------- */
+
+/* ------- begin -------------------------- iterateAnderson.c ------- */
+
+void iterateAnderson(int NmaxIter, double iterLimit)
+{
+	const char   routineName[] = "iterateAnderson";
+	register int niter, n;
+
+	bool_t  converged = FALSE, stopped = FALSE;
+	int     m = input.Anderson_depth, Nsolve, delay, t;
+	long    i, Ndamped = 0, Nguardplain = 0;
+	double *x, *gx, *gacc, *u, *gu, *un, *w, *gamma, dpops,
+		dpopsmax = 0.0, theta;
+	unsigned char      *valid, *validg;
+	enum AndersonAction action;
+	enum GuardResult    guard;
+	AndersonOptions     opt;
+	AndersonSolve      *info;
+	Anderson           *a;
+
+	stateInit();
+	blockStart    = (long *) realloc(blockStart, (Nblocks + 1) * sizeof(long));
+	blockStart[0] = 0;
+	for (n = 0; n < Nblocks; n++) blockStart[n + 1] = blockStart[n] + blocks[n].N;
+
+	x      = (double *) malloc(Nstate * sizeof(double));
+	gx     = (double *) malloc(Nstate * sizeof(double));
+	gacc   = (double *) malloc(Nstate * sizeof(double));
+	u      = (double *) malloc(Nstate * sizeof(double));
+	gu     = (double *) malloc(Nstate * sizeof(double));
+	un     = (double *) malloc(Nstate * sizeof(double));
+	w      = (double *) malloc(Nstate * sizeof(double));
+	valid  = (unsigned char *) malloc(Nstate);
+	validg = (unsigned char *) malloc(Nstate);
+	Nsolve = (input.Anderson_coefficients == ANDERSON_PER_BLOCK) ? Nblocks : 1;
+	gamma  = (double *) calloc((size_t) Nsolve * (m > 0 ? m : 1), sizeof(double));
+	info   = (AndersonSolve *) calloc(Nsolve, sizeof(AndersonSolve));
+	a      = andersonInit(Nstate, m);
+
+	/* --- Every block counts as its mean square: weight 1/sqrt(N) -- */
+
+	for (n = 0; n < Nblocks; n++)
+		for (i = blockStart[n]; i < blockStart[n + 1]; i++)
+			w[i] = 1.0 / sqrt((double) blocks[n].N);
+
+	opt.Nblock    = Nblocks;
+	opt.start     = blockStart;
+	opt.per_block = (input.Anderson_coefficients == ANDERSON_PER_BLOCK);
+	opt.cond_max  = input.Anderson_cond_max;
+	opt.safeguard = input.Anderson_safeguard;
+	delay         = MAX(input.Anderson_delay, 2);
+
+	stateGather(x);
+	if (input.Anderson_variables == ANDERSON_RELATIVE) {
+		varScale = (double *) realloc(varScale, Nstate * sizeof(double));
+		setVarScale(x);
+	}
+	sprintf(messageStr,
+			"\n -- SOLVER = ANDERSON: %ld unknowns in %d blocks; PRD"
+			" sub-iterations per G: %d;\n    ANDERSON_DEPTH = %d,"
+			" ANDERSON_DELAY = %d, ANDERSON_COND_MAX = %.1E,\n"
+			"    ANDERSON_SAFEGUARD = %g, ANDERSON_VARIABLES = %s,"
+			" ANDERSON_COEFFICIENTS = %s;\n    history %.1f MB\n",
+			Nstate, Nblocks, (atmos.NPRDactive > 0) ? input.PRD_NmaxIter : 0, m,
+			input.Anderson_delay, input.Anderson_cond_max,
+			input.Anderson_safeguard,
+			(input.Anderson_variables == ANDERSON_LOG) ? "LOG" : "RELATIVE",
+			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
+			((3.0 * m + 10 + (input.Anderson_variables == ANDERSON_RELATIVE)) *
+				 sizeof(double) +
+			 m + 4) *
+				Nstate / 1.0E6);
+	Error(MESSAGE, routineName, messageStr);
+
+	niter = 1;
+	while (niter <= NmaxIter) {
+		if (StopRequested()) {
+			stopped = TRUE;
+			break;
+		}
+		getCPU(2, TIME_START, NULL);
+
+		G_eval(x, gx);
+
+		/* --- Change of this evaluation per atom and molecule,
+			   MaxChange's definition on (x, G(x)), in the format of
+			   the other solvers --                      -------------- */
+
+		sprintf(messageStr, "\n -- Iteration %3d\n", niter);
+		Error(MESSAGE, routineName, messageStr);
+		dpopsmax = 0.0;
+		for (n = 0; n < Nblocks; n++) {
+			if (blocks[n].kind != BLOCK_ATOM && blocks[n].kind != BLOCK_MOLECULE)
+				continue;
+			dpops = relChange(x + blockStart[n], gx + blockStart[n], blocks[n].N);
+			sprintf(messageStr,
+					(blocks[n].kind == BLOCK_ATOM) ? " %s, delta = %6.4E\n"
+												   : " %s , delta = %6.4E\n",
+					(blocks[n].kind == BLOCK_ATOM)
+						? ((Atom *) blocks[n].owner)->ID
+						: ((Molecule *) blocks[n].owner)->ID,
+					dpops);
+			Error(MESSAGE, NULL, messageStr);
+			dpopsmax = MAX(dpops, dpopsmax);
+		}
+		if (input.solve_ne == ITERATION) {
+			sprintf(messageStr, " ne: last Newton step %.2E, chemical"
+								" equilibrium: last Newton step %.2E\n",
+					neChange, chemChange);
+			Error(MESSAGE, NULL, messageStr);
+		}
+		sprintf(messageStr, "Total Iteration %3d", niter);
+		getCPU(2, TIME_POLL, messageStr);
+
+		if (dpopsmax < iterLimit) {
+			converged = TRUE;
+			break;
+		}
+		/* --- The next point --                          -------------- */
+
+		toVars(x, u, valid);
+		toVars(gx, gu, validg);
+		for (i = 0; i < Nstate; i++) valid[i] &= validg[i];
+
+		action = andersonStep(a, &opt, u, gu, valid, w, (m > 0 && niter >= delay),
+							  un, gamma, info);
+		switch (action) {
+		case ANDERSON_REJECTED:
+			sprintf(messageStr,
+					"  Anderson: point rejected, |f|_W %.3E > %g x %.3E;"
+					" plain step from the last accepted point\n",
+					andersonNorm(Nstate, u, gu, valid, w), opt.safeguard,
+					a->fnorm_acc);
+			Error(MESSAGE, NULL, messageStr);
+			memcpy(x, gacc, Nstate * sizeof(double));
+			break;
+
+		case ANDERSON_EXTRAPOLATED:
+			logSolve(Nsolve, opt.per_block, info, a->fnorm_acc);
+			memcpy(gacc, gx, Nstate * sizeof(double));
+			fromVars(un, gx, andersonMask(a), x);
+			guard = guardTrial(x, gx);
+			for (t = 1, theta = 0.5; guard != GUARD_OK && t <= 2; t++, theta *= 0.5) {
+				sprintf(messageStr, "  Anderson: guard: %s; step damped to %g\n",
+						guardName[guard], theta);
+				Error(MESSAGE, NULL, messageStr);
+				Ndamped++;
+				andersonDamp(a, &opt, gamma, info, theta, un);
+				fromVars(un, gx, andersonMask(a), x);
+				guard = guardTrial(x, gx);
+			}
+			if (guard != GUARD_OK) {
+				sprintf(messageStr, "  Anderson: guard: %s; plain step,"
+									" history restarted\n",
+						guardName[guard]);
+				Error(MESSAGE, NULL, messageStr);
+				Nguardplain++;
+				andersonAbandon(a, un);
+				memcpy(x, gx, Nstate * sizeof(double));
+				break;
+			}
+			break;
+
+		default: /* plain step, copied --                 -------------- */
+			if (m > 0 && niter >= delay && andersonNcols(a) > 0)
+				logSolve(Nsolve, opt.per_block, info, a->fnorm_acc);
+			memcpy(gacc, gx, Nstate * sizeof(double));
+			memcpy(x, gx, Nstate * sizeof(double));
+			break;
+		}
+		niter++;
+	}
+
+	if (converged) {
+		sprintf(messageStr, "\n -- Converged in %d iterations: max change"
+							" %.4E < ITER_LIMIT = %.4E\n",
+				niter, dpopsmax, iterLimit);
+		Error(MESSAGE, routineName, messageStr);
+	} else {
+		/* --- The output is G of the last accepted point: the state
+			   arrays may hold the image of a rejected one -- ------- */
+
+		if (niter > 1) stateScatter(gacc);
+		if (stopped) {
+			sprintf(messageStr, "Stopped on request (STOP_RH) after %d iterations:"
+								" NOT CONVERGED.\n The output is not a converged"
+								" solution",
+					niter - 1);
+		} else {
+			sprintf(messageStr, "NOT CONVERGED after %d iterations: max change"
+								" %.4E >= ITER_LIMIT = %.4E.\n The output is not a"
+								" converged solution; increase N_MAX_ITER or see what"
+								" limits convergence",
+					niter - 1, dpopsmax, iterLimit);
+		}
+		Error(WARNING, routineName, messageStr);
+		SetExitFlag(RH_EXIT_NOT_CONVERGED);
+	}
+	sprintf(messageStr,
+			" -- G evaluations: %ld\n -- Anderson: extrapolated %ld, plain %ld,"
+			" rejected %ld; guard: damped %ld, plain %ld; columns dropped %ld\n",
+			Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
+			a->Ndropped);
+	Error(MESSAGE, routineName, messageStr);
+
+	if (input.solve_ne == ITERATION) BackgroundOfState(TRUE);
+
+	for (n = 0; n < atmos.Nactiveatom; n++)
+		freeMatrix((void **) atmos.activeatoms[n]->Gamma);
+	for (n = 0; n < atmos.Nactivemol; n++)
+		freeMatrix((void **) atmos.activemols[n]->Gamma);
+
+	andersonFree(a);
+	free(x);
+	free(gx);
+	free(gacc);
+	free(u);
+	free(gu);
+	free(un);
+	free(w);
+	free(valid);
+	free(validg);
+	free(gamma);
+	free(info);
+}
+/* ------- end ---------------------------- iterateAnderson.c ------- */

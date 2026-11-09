@@ -157,7 +157,7 @@ check_include_file(execinfo.h RH_HAVE_EXECINFO_H)
 # --- The library -----------------------------------------------------------
 
 add_library(rh STATIC
-  abundance.c accelerate.c background.c backgropac_xdr.c barklem.c
+  abundance.c accelerate.c anderson.c background.c backgropac_xdr.c barklem.c
   bezier_aux.c broad.c brs_xdr.c chemequil.c cocollisions.c collision.c
   cubeconvol.c duplicate.c error.c expint.c expspline.c fillgamma.c
   fixedrate.c fpehandler.c gammafunc.c gaussleg.c getcpu.c getlambda.c
@@ -250,6 +250,10 @@ if(Python3_Interpreter_FOUND)
                    --rhf1d $<TARGET_FILE:rhf1d> --gcheck1d $<TARGET_FILE:rhf1d_gcheck>
                    --gcheck2d $<TARGET_FILE:rhsc2d_gcheck> --src ${PROJECT_SOURCE_DIR})
   set_tests_properties(e2e_solver_g PROPERTIES LABELS e2e TIMEOUT 900)
+  add_test(NAME e2e_solver_anderson
+           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/solver_anderson.py
+                   --rhf1d $<TARGET_FILE:rhf1d> --src ${PROJECT_SOURCE_DIR})
+  set_tests_properties(e2e_solver_anderson PROPERTIES LABELS e2e TIMEOUT 900)
 endif()
 
 message(STATUS "RH ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, "
