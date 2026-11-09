@@ -21,7 +21,9 @@
 	   -- damping (theta = 1 repeats the step, theta = 0 gives g) and
 		  abandoning (plain step, history restarted);
 	   -- masked entries take g's value exactly and do not change the
-		  others: the same bits as the problem without them;
+		  others: the same as the problem without them, to rounding
+		  (lengths differ, so a vectorizing compiler may round
+		  differently);
 	   -- coefficients per block equal separate runs on each block, and
 		  a block that uses no column takes g exactly (mask 0);
 	   -- two runs are bit-identical.
@@ -363,13 +365,24 @@ static void testMask(void)
 	andersonApply(a, 0, NM, gamma, s.Ncols, 1.0, out);
 	andersonApply(ar, 0, NM - 2, gammar, sr.Ncols, 1.0, outr);
 	CHECK(s.Ncols == 2 && sr.Ncols == 2, "columns %d %d", s.Ncols, sr.Ncols);
-	CHECK(!memcmp(gamma, gammar, 2 * sizeof(double)), "gamma differs: %.17g %.17g",
-		  gamma[0], gammar[0]);
+	/* --- Equal to rounding, not bit for bit: the two problems have
+		   different lengths, and a compiler may round an operation
+		   differently in the vectorized body of a loop and in its
+		   scalar remainder (llvm.fmuladd may or may not be fused), or
+		   sum a dot product in partial sums. Seen with AppleClang on
+		   arm64 --                                       -------------- */
+	for (int j = 0; j < 2; j++)
+		CHECK_CLOSE(gamma[j], gammar[j], 1.0E-14, 0.0,
+					"gamma[%d] %a, reduced problem %a", j, gamma[j], gammar[j]);
 	CHECK(out[3] == g[2][3] && out[7] == g[2][7], "masked entries are not g");
-	int same = 1;
+	double dmax = 0.0;
 	for (int i = 0, ir = 0; i < NM; i++)
-		if (i != 3 && i != 7) same &= (out[i] == outr[ir++]);
-	CHECK(same, "unmasked entries differ from the reduced problem");
+		if (i != 3 && i != 7) {
+			dmax = fmax(dmax, fabs(out[i] - outr[ir]) / fabs(outr[ir]));
+			ir++;
+		}
+	CHECK(dmax <= 1.0E-14, "unmasked entries differ from the reduced problem by %.2e",
+		  dmax);
 	andersonFree(a);
 	andersonFree(ar);
 }
