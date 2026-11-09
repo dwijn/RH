@@ -99,6 +99,16 @@ float  **matrix_float(int Nrow, int Ncol);
 void     freeMatrix(void **Matrix);
 void     SolveLinearEq(int N, double **A, double *b, bool_t improve);
 
+/* --- Rate equations by GTH elimination (gth.c, N-31) -- ---------- */
+
+enum GTHStatus { GTH_OK,
+				 GTH_NEGATIVE,
+				 GTH_NONFINITE,
+				 GTH_REDUCIBLE };
+
+enum GTHStatus SolveGTH(int N, double **R, int root, double ntotal, double *n,
+						int *i_bad, int *j_bad);
+
 /* --- Interpolation routines --                       -------------- */
 
 int qsascend(const void *v1, const void *v2);

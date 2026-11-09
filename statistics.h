@@ -52,12 +52,14 @@ typedef struct {
 	long           sweeps[WORK_NPHASE][WORK_NKIND],
 		lambda[WORK_NPHASE][WORK_NKIND], calls[WORK_NTIMER];
 	double seconds[WORK_NTIMER];
+	long   Nrates, Nrates_lu; /* rate equations solved, with LU (N-31) */
 } WorkCounters;
 
 double wallClock(void);
 void   workPhase(enum WorkPhase phase);
 void   workSweep(bool_t eval_operator, bool_t redistribute, int Nsolved);
 void   workAdd(enum WorkTimer timer, double seconds);
+void   workRates(long Nsolved, long Nlu);
 void   printWork(void);
 
 #endif /* !__STATISTICS_H__ */
