@@ -491,10 +491,12 @@ void setsolver(char *value, void *pointer)
 		solver = SOLVER_NG;
 	else if (!strcmp(value, "FIXED_POINT"))
 		solver = SOLVER_FIXED_POINT;
+	else if (!strcmp(value, "ANDERSON"))
+		solver = SOLVER_ANDERSON;
 	else {
 		sprintf(messageStr,
 				"Invalid value for keyword SOLVER: %s\n"
-				" Valid options are NG and FIXED_POINT",
+				" Valid options are NG, FIXED_POINT and ANDERSON",
 				value);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
@@ -502,3 +504,64 @@ void setsolver(char *value, void *pointer)
 	memcpy(pointer, &solver, sizeof(enum_t));
 }
 /* ------- end ---------------------------- setsolver.c ------------- */
+
+/* ------- begin -------------------------- solverName.c ------------ */
+
+const char *solverName(enum solver_type solver)
+{
+	switch (solver) {
+	case SOLVER_FIXED_POINT:
+		return "FIXED_POINT";
+	case SOLVER_ANDERSON:
+		return "ANDERSON";
+	default:
+		return "NG";
+	}
+}
+/* ------- end ---------------------------- solverName.c ------------ */
+
+/* ------- begin -------------------------- setAndersonVariables.c -- */
+
+void setAndersonVariables(char *value, void *pointer)
+{
+	const char routineName[] = "setAndersonVariables";
+
+	enum anderson_variables variables = ANDERSON_LOG;
+
+	if (!strcmp(value, "LOG"))
+		variables = ANDERSON_LOG;
+	else if (!strcmp(value, "RELATIVE"))
+		variables = ANDERSON_RELATIVE;
+	else {
+		sprintf(messageStr,
+				"Invalid value for keyword ANDERSON_VARIABLES: %s\n"
+				" Valid options are LOG and RELATIVE",
+				value);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+	memcpy(pointer, &variables, sizeof(enum_t));
+}
+/* ------- end ---------------------------- setAndersonVariables.c -- */
+
+/* ------- begin -------------------------- setAndersonCoefficients.c */
+
+void setAndersonCoefficients(char *value, void *pointer)
+{
+	const char routineName[] = "setAndersonCoefficients";
+
+	enum anderson_coefficients coefficients = ANDERSON_GLOBAL;
+
+	if (!strcmp(value, "GLOBAL"))
+		coefficients = ANDERSON_GLOBAL;
+	else if (!strcmp(value, "PER_BLOCK"))
+		coefficients = ANDERSON_PER_BLOCK;
+	else {
+		sprintf(messageStr,
+				"Invalid value for keyword ANDERSON_COEFFICIENTS: %s\n"
+				" Valid options are GLOBAL and PER_BLOCK",
+				value);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+	memcpy(pointer, &coefficients, sizeof(enum_t));
+}
+/* ------- end ---------------------------- setAndersonCoefficients.c */

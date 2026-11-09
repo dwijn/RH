@@ -50,8 +50,8 @@ void Iterate(int NmaxIter, double iterLimit)
 
 	/* --- The main iteration with the solver selected by keyword
 		   SOLVER: RH's Ng-accelerated MALI iteration (NG, the default)
-		   or the fixed-point iteration of the map G (FIXED_POINT, see
-		   solver.c) --                                   -------------- */
+		   the fixed-point iteration of the map G (FIXED_POINT), or
+		   Anderson acceleration of it (ANDERSON; see solver.c) --                                   -------------- */
 
 	if (NmaxIter <= 0) {
 		workPhase(WORK_FINAL);
@@ -64,6 +64,9 @@ void Iterate(int NmaxIter, double iterLimit)
 	switch (input.solver) {
 	case SOLVER_FIXED_POINT:
 		iterateFixedPoint(NmaxIter, iterLimit);
+		break;
+	case SOLVER_ANDERSON:
+		iterateAnderson(NmaxIter, iterLimit);
 		break;
 	default:
 		iterateNg(NmaxIter, iterLimit);

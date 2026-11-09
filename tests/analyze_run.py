@@ -18,6 +18,9 @@ summary prints one JSON line with
                 wavelength solves / nspect (formal-solution equivalents),
                 calls and seconds of Background() and Hydrostatic(),
                 seconds in Iterate(), threads
+    anderson    SOLVER = ANDERSON: G evaluations, steps extrapolated, plain
+                and rejected, guard actions, columns dropped, and the rate
+                equations solved with LU instead of GTH
     fse         SE residual metrics over all active atoms
                 (se_residual.py; needs RADRATE_OUTPUT and COLLRATE_OUTPUT)
 
@@ -104,6 +107,9 @@ def summary(rundir, iter_limit):
     w = work(log)
     if w:
         out["work"] = w
+    aa = anderson(log)
+    if aa:
+        out["anderson"] = aa
     try:
         from se_residual import run_metrics
         fse = run_metrics(rundir)
@@ -136,6 +142,22 @@ def work(log):
              hydrostatic_calls=int(m.group(5)), hydrostatic_s=float(m.group(6)),
              iterate_s=float(m.group(7)), threads=int(m.group(8)))
     return w
+
+
+def anderson(log):
+    """Counters of SOLVER = ANDERSON (solver.c) and of the rate equations
+    solved with LU instead of GTH (work.c, N-31), or None."""
+    out = {}
+    m = re.search(r"-- G evaluations: (\d+)\n -- Anderson: extrapolated (\d+), plain (\d+),"
+                  r" rejected (\d+); guard: damped (\d+), plain (\d+); columns dropped (\d+)",
+                  log)
+    if m:
+        out.update(zip(("g_evals", "extrapolated", "plain", "rejected", "guard_damped",
+                        "guard_plain", "dropped"), map(int, m.groups())))
+    m = re.search(r"Rate equations (\d+) solved, (\d+) of them with LU", log)
+    if m and out:
+        out.update(rates=int(m.group(1)), rates_lu=int(m.group(2)))
+    return out or None
 
 
 def read_pops(path, lte=False):

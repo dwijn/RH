@@ -1096,7 +1096,8 @@ output is G(x_k) of that evaluation, never an extrapolated point.
 `ANDERSON_DELAY` (from the scan), `ANDERSON_COND_MAX` (10⁸),
 `ANDERSON_SAFEGUARD` (1), `ANDERSON_VARIABLES` (`LOG` | `RELATIVE`),
 `ANDERSON_COEFFICIENTS` (`GLOBAL` | `PER_BLOCK`); all printed at the start
-of the run with the history memory, (3m + 5)·N doubles. readInput stops
+of the run with the memory, (3m + 10)·N doubles and (m + 4)·N bytes
+(one more N doubles with `RELATIVE`). readInput stops
 on: every `FIXED_POINT` conflict (messages name the solver in use);
 `NG_ORDER > 0` with `ANDERSON` (two extrapolations); any `ANDERSON_*`
 keyword with another solver (it would be ignored silently).
@@ -1105,7 +1106,8 @@ keyword with another solver (it would be ignored silently).
 globals (weighted, masked vectors; init, step, reset, free, counters),
 unit-testable alone; `iterateAnderson()` in `solver.c` (transform per
 block, guard, safeguard, log, summary; `G_eval` unchanged); keywords in
-`readinput.c`, dispatch in `iterate.c`, counters in `work.c`.
+`readinput.c`, dispatch in `iterate.c`; the counters are printed at the
+end of the iteration and read by `tests/analyze_run.py`.
 
 **Tests:** unit (`test_anderson`): for a linear nonsymmetric map with
 full depth, x_{k+1} equals G applied to the GMRES iterate (Walker & Ni) to
@@ -1121,6 +1123,39 @@ on `1d_falc_h6_ca_mg`; the keyword conflicts stop the run; a short
 (`run_tests.sh --exact` against the base commit); with
 `SOLVER = ANDERSON` the S-5 case set runs and reports all S-1 metrics,
 plus rejections, guard actions and GTH fallbacks.
+
+**Status (2026-11-09, branch `s3/anderson`):** implemented as above, with
+these details fixed in the code:
+
+- Columns left out for the condition number are left out of that solve
+  only; the history keeps them until they slide out (at most m
+  iterations). With `PER_BLOCK` each block's solve leaves out its own.
+- The safeguard compares ‖f‖_W of the new evaluation (over the entries
+  valid in it) with that of the newest accepted pair. Convergence is
+  tested first: an evaluation below `ITER_LIMIT` ends the run even if
+  the safeguard would have rejected its point.
+- A run that stops without converging writes G of the last accepted
+  point, not of a rejected one.
+- `ANDERSON_DELAY` defaults to 2 until the delay scan; the
+  inversion guard uses the LTE populations of the last evaluation.
+- The guard flags only values that G's point does not have: a negative
+  entry where G's is not negative (G can return negative populations
+  where statistical equilibrium falls back to LU, N-31), and with
+  `RELATIVE` a zero where G's is positive (in `LOG` a zero is an
+  underflow of exp).
+- With `PER_BLOCK`, a block whose solve uses no column takes G's values,
+  copied, while other blocks extrapolate.
+- The safeguard norm leaves out entries that are invalid in the new
+  evaluation (in `LOG`, values G returns ≤ 0), so a trial point after
+  which G returns non-positive values is judged on the rest only.
+
+First run (Ca II with two PRD lines on FAL-C, H_6 passive, the e2e set-up,
+`ITER_LIMIT` 10⁻⁶): `ANDERSON` converges in 89 G evaluations (76
+extrapolated, 11 rejected), `RELATIVE` in 97; `FIXED_POINT` has not
+converged after 200. The rejected points had ‖f‖_W only 0.2–8 % above
+the last accepted one, the case where a strict c = 1 can discard useful
+steps; S-5 decides with numbers whether the envelope of Zhang,
+O'Donoghue & Boyd (2020) replaces it (Safeguards, above).
 
 ### S-4 — Newton–GMRES on the MALI map (Form A)
 
