@@ -1058,7 +1058,7 @@ variables u = s(x):
 from the first evaluation; the first extrapolation after evaluation
 max(`ANDERSON_DELAY`, 2). The default delay is chosen from a scan of
 {2, 5, 10} on the three easy controls and `1d_falxco_h6_ca`, and frozen
-before the S-5 runs (§7 trap 8). One iteration is one G evaluation,
+before the S-5 runs (§7 trap 8): 2 (see Status). One iteration is one G evaluation,
 rejected ones included, so `N_MAX_ITER` caps the work and the log format
 of `FIXED_POINT` is kept. No history resets other than after a rejection:
 relaxation, hydrostatic equilibrium and ne outside x are already refused
@@ -1136,8 +1136,9 @@ these details fixed in the code:
   the safeguard would have rejected its point.
 - A run that stops without converging writes G of the last accepted
   point, not of a rejected one.
-- `ANDERSON_DELAY` defaults to 2 until the delay scan; the
-  inversion guard uses the LTE populations of the last evaluation.
+- `ANDERSON_DELAY` defaults to 2, fixed by the delay scan below
+  (2026-11-09). The inversion guard uses the LTE populations of the
+  last evaluation.
 - The guard flags only values that G's point does not have: a negative
   entry where G's is not negative (G can return negative populations
   where statistical equilibrium falls back to LU, N-31), and with
@@ -1156,6 +1157,27 @@ converged after 200. The rejected points had ‖f‖_W only 0.2–8 % above
 the last accepted one, the case where a strict c = 1 can discard useful
 steps; S-5 decides with numbers whether the envelope of Zhang,
 O'Donoghue & Boyd (2020) replaces it (Safeguards, above).
+
+Delay scan (2026-11-09; the map G of the references, 1 thread, each run to
+`ITER_LIMIT` 10⁻⁷, the evaluation at which it would have stopped for each
+looser limit read from its change history). G evaluations for
+`ANDERSON_DELAY` = 2 / 5 / 10:
+
+| Case | 10⁻³ | 10⁻⁴ | 10⁻⁵ | 10⁻⁶ | 10⁻⁷ |
+|---|---|---|---|---|---|
+| `1d_falc_h6_ca_mg` | 21 / 21 / 25 | 29 / 27 / 31 | 36 / 36 / 36 | 45 / 50 / 47 | 55 / 60 / 53 |
+| `1d_falc_h20` | 17 / 17 / 20 | 24 / 23 / 26 | 33 / 32 / 31 | 39 / 40 / 38 | 47 / 48 / 44 |
+| `1d_falc_mgi66` | 13 / 13 / 14 | 18 / 18 / 17 | 21 / 21 / 23 | 26 / 26 / 26 | 29 / 29 / 30 |
+| `1d_falxco_h6_ca` | 32 / 31 / 33 | 40 / 41 / 45 | 51 / 48 / 57 | 56 / 56 / 67 | 65 / 65 / 74 |
+| sum | 83 / 82 / 92 | 111 / 109 / 119 | 141 / 137 / 147 | 166 / 172 / 178 | 196 / 202 / 201 |
+
+2 and 5 differ by less than 4 % either way; 10 costs 8–12 % more at the
+looser limits (the slow case most) and gains nothing at the tight ones. The
+default stays 2. No point was rejected with delay 2. On `1d_falc_mgi66` the
+inversion guard acted 26 times (8 with delay 10) without costing any
+evaluation, from the second evaluation on; a margin in that test is to be
+looked at. At 10⁻⁷ every run is within 1.4×10⁻⁶ of the references in
+populations and 2.6×10⁻⁶ in spectra.
 
 ### S-4 — Newton–GMRES on the MALI map (Form A)
 
