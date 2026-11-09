@@ -385,8 +385,8 @@ void readAtom(Atom *atom, char *atom_file)
 							   &continuum->lambda[la], &continuum->alpha[la]);
 				checkNread(Nread, Nrequired = 2, routineName, checkPoint = 6);
 			}
-			/* --- The table is splined in SortLambda, which needs strictly
-				   increasing wavelengths. Drop repeated entries (a duplicated
+			/* --- The table is interpolated in SortLambda and metalPrepare
+				   (pchip.c), which need strictly increasing wavelengths. Drop repeated entries (a duplicated
 				   row is a common slip in atom files) and reject anything
 				   else that is out of order --              -------------- */
 
@@ -719,7 +719,7 @@ void initAtomicContinuum(AtomicContinuum *continuum)
 	continuum->alpha = continuum->Rij = continuum->Rji = NULL;
 	continuum->Rij_thread = continuum->Rji_thread = NULL;
 	continuum->atom                               = NULL;
-	continuum->spline.M                           = NULL;
+	continuum->bftable.x                          = NULL;
 }
 /* ------- end ---------------------------- initAtomicContinuum.c --- */
 
@@ -850,7 +850,7 @@ void freeAtomicContinuum(AtomicContinuum *continuum)
 		}
 	}
 	if (!continuum->hydrogenic) free(continuum->alpha);
-	if (continuum->spline.M) splineTableFree(&continuum->spline);
+	if (continuum->bftable.x) pchipTableFree(&continuum->bftable);
 }
 /* ------- end ---------------------------- freeAtomicContinuum.c --- */
 

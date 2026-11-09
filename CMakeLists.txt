@@ -164,7 +164,7 @@ add_library(rh STATIC
   getline.c giigen.c gth.c h2collisions.c hunt.c hydrogen.c
   initial_xdr.c initscatter.c iterate.c kurucz.c linear.c ltepops.c
   ludcmp.c matrix.c maxchange.c metal.c molzeeman.c nemetals.c ohchbf.c
-  opacity.c options.c order.c parallel.c parse.c paschen.c planck.c
+  opacity.c options.c order.c parallel.c parse.c paschen.c pchip.c planck.c
   pops_xdr.c profile.c radrate_xdr.c rayleigh.c readatom.c readb_xdr.c
   prdfold.c readinput.c readj.c readmolecule.c readvalue.c redistribute.c scatter.c
   solvene.c solver.c gchecks.c sortlambda.c spline.c statequil.c stokesopac.c stopreq.c
