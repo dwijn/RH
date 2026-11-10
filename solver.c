@@ -850,7 +850,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			input.Anderson_safeguard,
 			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
 			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
-			((3.0 * m + 10 + (input.Anderson_variables == VARIABLES_RELATIVE)) *
+			((3.0 * m + 10 + (varKind == VARIABLES_RELATIVE)) *
 				 sizeof(double) +
 			 m + 4) *
 				Nstate / 1.0E6);
@@ -1007,9 +1007,12 @@ static void fdProduct(void *vctx, const double *v, double *y)
 	double     vnorm, eps;
 
 	/* --- y = (R(u + eps v) - R(u)) / eps, eps = h / ||v||_W: one G
-		   evaluation. Outside the mask the probe keeps the base x. A
-		   component whose probe image has no value in the variables
-		   (G <= 0 in LOG) is set to 0 and counted -- -------------- */
+		   evaluation. Outside the mask the probe keeps the base x: with
+		   G(x) there, as a trial has, the difference would carry an
+		   O(1) / eps jump. So J does not see how those entries move in a
+		   trial; the line search does. A component whose probe image
+		   has no value in the variables (G <= 0 in LOG) is set to 0 and
+		   counted -- --                                -------------- */
 
 	vnorm = weightedNorm(Nstate, v, c->mask, c->w);
 	eps   = c->h / ((vnorm > 0.0) ? vnorm : 1.0);
@@ -1063,7 +1066,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	int    k = input.Newton_krylov_max, kmax, nback, Nhalve, n, ninf,
 		Nreason[4];
 	long i, Neval = 0, Nbase = 0, Nkrylov = 0, Nline = 0, Nplain = 0,
-			Nguard = 0, Nsteps = 0;
+			Nguard = 0, Nsteps = 0, Nlost = 0, Nrestore = 0;
 	double *x, *gx, *u, *gu, *r, *d, *xt, *gt, *ut, *gut, *rt, *w;
 	double  dpopsmax = 0.0, rnorm, rnorm_prev = 0.0, eta = 0.0, rtnorm, dinf,
 		   lambda, h = sqrt(input.Newton_noise);
@@ -1156,6 +1159,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 		for (i = 0; i < Nstate; i++) rt[i] = -r[i];
 		memset(&gres, 0, sizeof(gres));
 		gres.rnorm0 = gres.rnorm = rnorm;
+		memset(d, 0, Nstate * sizeof(double));
 		if (kmax >= 1) {
 			ctx.Nprobe = 0;
 			gres       = gmresSolve(gm, fdProduct, &ctx, rt, valid, w, kmax, eta * rnorm, d);
@@ -1184,11 +1188,13 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			for (nback = 0; nback <= NEWTON_N_BACKTRACK && Neval < NmaxIter;
 				 nback++, lambda *= 0.5) {
 				guard = GUARD_OK;
-				for (i = 0; i < Nstate; i++) {
-					ut[i] = (valid[i]) ? u[i] + lambda * d[i] : 0.0;
-					if (varKind == VARIABLES_LOG && ut[i] > LOG_DBL_MAX)
-						guard = GUARD_NONFINITE; /* exp would overflow */
-				}
+				for (n = 0; n < Nblocks; n++)
+					for (i = blockStart[n]; i < blockStart[n + 1]; i++) {
+						ut[i] = (valid[i]) ? u[i] + lambda * d[i] : 0.0;
+						if (varKind == VARIABLES_LOG && blocks[n].kind != BLOCK_J20 &&
+							ut[i] > LOG_DBL_MAX)
+							guard = GUARD_NONFINITE; /* exp would overflow */
+					}
 				if (guard == GUARD_OK) {
 					fromVars(ut, gx, valid, xt);
 					guard = guardTrial(xt, gx, x);
@@ -1203,6 +1209,17 @@ void iterateNewton(int NmaxIter, double iterLimit)
 				Neval++;
 				Nline++;
 				rtnorm = residualOf(xt, gt, ut, gut, validt, validgt, rt, w);
+
+				/* --- Both norms over the same entries: a trial that
+					   loses one of the base's (G(trial) <= 0 in LOG)
+					   is not accepted, or dropping it could pass --  */
+
+				for (i = 0; i < Nstate; i++)
+					if (valid[i] && !validt[i]) break;
+				if (i < Nstate) {
+					Nlost++;
+					continue;
+				}
 				if (rtnorm <= (1.0 - NEWTON_ARMIJO * lambda) * rnorm) {
 					accepted = TRUE;
 					break;
@@ -1235,6 +1252,16 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			Error(MESSAGE, NULL, messageStr);
 			Nplain++;
 			if (Neval >= NmaxIter) {
+
+				/* --- The last evaluation was a probe or a rejected
+					   trial: one more at the base point (G is
+					   deterministic, so gx does not change) makes what
+					   G sets besides the state agree with the output,
+					   one evaluation past the cap -- ------------- */
+
+				G_eval(x, gx);
+				Neval++;
+				Nrestore++;
 				getCPU(2, TIME_POLL, "Newton step");
 				break;
 			}
@@ -1274,9 +1301,10 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	}
 	sprintf(messageStr,
 			" -- G evaluations: %ld\n -- Newton: steps %ld, G evaluations base %ld,"
-			" Krylov %ld, line search %ld; plain steps %ld; guard halvings %ld;"
-			" invalid probe entries %ld\n",
-			Neval, Nsteps, Nbase, Nkrylov, Nline, Nplain, Nguard, ctx.Ninvalid);
+			" Krylov %ld, line search %ld (lost an entry %ld); plain steps %ld;"
+			" guard halvings %ld; invalid probe entries %ld; restoring %ld\n",
+			Neval, Nsteps, Nbase, Nkrylov, Nline, Nlost, Nplain, Nguard,
+			ctx.Ninvalid, Nrestore);
 	Error(MESSAGE, routineName, messageStr);
 
 	if (input.solve_ne == ITERATION) BackgroundOfState(TRUE);

@@ -1266,6 +1266,18 @@ these details fixed in the code:
   |d|_max ~10⁴ in J (`1d_falc_mgi66`), which trapped as SIGFPE.
 - Every Newton step logs |d|_max and its block, and the guard failures by
   reason.
+- The Armijo test compares norms over the same entries: a trial whose
+  image loses an entry the base point has (G(trial) ≤ 0 in `LOG`) is not
+  accepted, since dropping that entry from the norm could pass the test
+  without a decrease ("lost an entry" in the end line).
+- J does not model how the entries outside the mask move in a trial
+  (to G(x_k)): a probe that moved them would carry an O(1)/ε jump. The
+  line search sees it; the direction does not.
+- If `N_MAX_ITER` ends the run after a failed line search, the last
+  evaluation was a probe or a rejected trial. One more at the base point
+  (G is deterministic: G(x_k) does not change) makes what G sets besides
+  the state agree with the output ("restoring" in the end line), one
+  evaluation past the cap.
 
 First run (the e2e set-up: Ca II with two PRD lines on FAL-C, H_6
 passive, `ITER_LIMIT` 10⁻⁶): converged in 124 G evaluations (18 Newton

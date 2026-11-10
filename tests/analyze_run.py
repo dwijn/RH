@@ -170,12 +170,12 @@ def newton(log):
     """Counters of SOLVER = NEWTON_KRYLOV (solver.c) and of the rate
     equations solved with LU instead of GTH (work.c, N-31), or None."""
     m = re.search(r"-- G evaluations: (\d+)\n -- Newton: steps (\d+), G evaluations base (\d+),"
-                  r" Krylov (\d+), line search (\d+); plain steps (\d+); guard halvings (\d+);"
-                  r" invalid probe entries (\d+)", log)
+                  r" Krylov (\d+), line search (\d+) \(lost an entry (\d+)\); plain steps (\d+);"
+                  r" guard halvings (\d+); invalid probe entries (\d+); restoring (\d+)", log)
     if not m:
         return None
-    out = dict(zip(("g_evals", "steps", "base", "krylov", "line_search", "plain",
-                    "guard_halvings", "invalid_probe"), map(int, m.groups())))
+    out = dict(zip(("g_evals", "steps", "base", "krylov", "line_search", "lost", "plain",
+                    "guard_halvings", "invalid_probe", "restoring"), map(int, m.groups())))
     m = re.search(r"Rate equations (\d+) solved, (\d+) of them with LU", log)
     if m:
         out.update(rates=int(m.group(1)), rates_lu=int(m.group(2)))
