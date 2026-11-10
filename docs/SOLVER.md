@@ -1246,20 +1246,53 @@ run.
 the solver runs to its stopping criterion or reports failure clearly
 (exit status bit), with all S-1 metrics and the counts of item 6.
 
-**Status (2026-11-09, branch `s4/newton`):** implemented as above.
-Details fixed in the code: the finite-difference probes keep the base
-point's values outside the mask, and a probe component whose image has no
-value in the variables is set to zero and counted; a trial point takes
-G(x_k)'s values outside the mask; GMRES is skipped (plain step) when the
-remaining evaluation budget leaves no product and one line-search trial.
+**Status (2026-11-09, branch `s4/newton`):** implemented as above, with
+these details fixed in the code:
+
+- The finite-difference probes keep the base point's values outside the
+  mask; a probe component whose image has no value in the variables is
+  set to zero and counted. A trial point takes G(x_k)'s values outside
+  the mask. GMRES is skipped (plain step) when the evaluation budget
+  leaves no product and one trial.
+- **Guard reference (changes item 4):** a trial x_k + λd lies near x_k
+  for small λ, not near G(x_k). Judged against G(x_k) alone, as
+  Anderson's extrapolations are, an inversion that x_k has and G(x_k)
+  lacks blocked every λ: 155 of 243 plain steps on `1d_shock_h6`, all 16
+  on `1d_falc_helarge`, and divergence by plain steps on
+  `1d_shock_h6crd_ne`. A negative value or inversion now counts as new
+  only where neither G(x_k) nor x_k has it.
+- A trial with an entry above log(DBL_MAX) in `LOG` variables is a guard
+  failure ("not finite") before exp() is called: Newton steps reach
+  |d|_max ~10⁴ in J (`1d_falc_mgi66`), which trapped as SIGFPE.
+- Every Newton step logs |d|_max and its block, and the guard failures by
+  reason.
+
 First run (the e2e set-up: Ca II with two PRD lines on FAL-C, H_6
 passive, `ITER_LIMIT` 10⁻⁶): converged in 124 G evaluations (18 Newton
-steps; 100 Krylov products, 23 line-search trials, no plain step),
-against 89 for `ANDERSON`. The linear model often promised more than the
-step delivered (step 7: GMRES predicted ‖R‖ 3.8×10⁻⁵, the step gave
-3.2×10⁻³). It is not the finite-difference step: h from 10⁻⁶ to 10⁻⁴
-(`NEWTON_NOISE` 10⁻¹² to 10⁻⁸) gives 119–124 evaluations, while 10⁻³ and
-10⁻² give 182 and 381.
+steps; 100 Krylov products, 23 line-search trials), against 89 for
+`ANDERSON`. The linear model often promised more than the step delivered
+(step 7: GMRES predicted ‖R‖ 3.8×10⁻⁵, the step gave 3.2×10⁻³). It is
+not the finite-difference step: h from 10⁻⁶ to 10⁻⁴ (`NEWTON_NOISE`
+10⁻¹² to 10⁻⁸) gives 119–124 evaluations, while 10⁻³ and 10⁻² give 182
+and 381.
+
+**First results on the S-5 set** (2026-11-09, S-5 settings, data in
+`claude-tmp/s1/s4`): G evaluations, `ANDERSON` (depth 10) → `NEWTON_KRYLOV`:
+`h6_ca_mg` 39 → 56, `h20` 30 → 49, `mgi66` 24 → 77, `solvene` 40 → 69,
+`falxco_h6_ca` 52 → 82, `t5750_h6` 145 → 378, `helarge` 88 → 206,
+`civi` 51 → 117, `bf_c100_prd` 31 → 58, `shock_h6crd_ne` 57 → 77;
+`shock_h6` not converged after 3000 (‖R‖_W stalls near 0.07). Newton
+needs 1.4–3.2× Anderson's evaluations and more wall time on every case;
+all converged runs meet the S-5 accuracy criteria. On `shock_h6` the
+Newton steps are huge in log variables (|d|_max 5–45 in PRD ρ and J),
+the guard and line search cut λ to 1/16 or reject the step, and a cap on
+‖d‖_∞ (1 or 3; scratch experiment) makes every case worse (`h6_ca_mg`
+69–92, `helarge` 290–489, `t5750_h6` not converged in 600): far from the
+solution the Newton direction itself is poor, not its length. As
+expected before the runs, Form A does not beat Anderson. Side check
+(depth 20 and 30): Anderson's slow cases are limited by history
+restarts after rejections (mean 4–6 columns used at depth 30), not by
+depth.
 
 ### S-5 — Experiment and decision gate
 

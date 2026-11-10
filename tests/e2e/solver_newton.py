@@ -109,7 +109,7 @@ for label, extra in (("defaults", []), ("RELATIVE", [("NEWTON_VARIABLES", "RELAT
     m = re.search(r"-- G evaluations: (\d+)\n -- Newton: steps (\d+), G evaluations base (\d+),"
                   r" Krylov (\d+), line search (\d+)", log)
     n_eval, n_steps, n_base, n_kry, n_line = map(int, m.groups()) if m else (0,) * 5
-    n_acc = len(re.findall(r"Newton step \d+: .*\n  lambda", log))
+    n_acc = len(re.findall(r"\|d\|_max [^;]+; lambda ", log))
     ok = (m is not None and n_eval <= NEVAL and n_eval == n_base + n_kry + n_line and
           n_steps > 0 and n_kry > 0 and n_acc > 0 and
           all(same(pair[0][0], pair[1][0], f) for f in ("pops.CA.out", "J.dat", "spectrum.out")))
