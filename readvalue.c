@@ -493,10 +493,13 @@ void setsolver(char *value, void *pointer)
 		solver = SOLVER_FIXED_POINT;
 	else if (!strcmp(value, "ANDERSON"))
 		solver = SOLVER_ANDERSON;
+	else if (!strcmp(value, "NEWTON_KRYLOV"))
+		solver = SOLVER_NEWTON_KRYLOV;
 	else {
 		sprintf(messageStr,
 				"Invalid value for keyword SOLVER: %s\n"
-				" Valid options are NG, FIXED_POINT and ANDERSON",
+				" Valid options are NG, FIXED_POINT, ANDERSON and"
+				" NEWTON_KRYLOV",
 				value);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
@@ -514,34 +517,38 @@ const char *solverName(enum solver_type solver)
 		return "FIXED_POINT";
 	case SOLVER_ANDERSON:
 		return "ANDERSON";
+	case SOLVER_NEWTON_KRYLOV:
+		return "NEWTON_KRYLOV";
 	default:
 		return "NG";
 	}
 }
 /* ------- end ---------------------------- solverName.c ------------ */
 
-/* ------- begin -------------------------- setAndersonVariables.c -- */
+/* ------- begin -------------------------- setSolverVariables.c ---- */
 
-void setAndersonVariables(char *value, void *pointer)
+void setSolverVariables(char *value, void *pointer)
 {
-	const char routineName[] = "setAndersonVariables";
+	const char routineName[] = "setSolverVariables";
 
-	enum anderson_variables variables = ANDERSON_LOG;
+	enum solver_variables variables = VARIABLES_LOG;
+
+	/* --- ANDERSON_VARIABLES and NEWTON_VARIABLES --  -------------- */
 
 	if (!strcmp(value, "LOG"))
-		variables = ANDERSON_LOG;
+		variables = VARIABLES_LOG;
 	else if (!strcmp(value, "RELATIVE"))
-		variables = ANDERSON_RELATIVE;
+		variables = VARIABLES_RELATIVE;
 	else {
 		sprintf(messageStr,
-				"Invalid value for keyword ANDERSON_VARIABLES: %s\n"
-				" Valid options are LOG and RELATIVE",
+				"Invalid value for keyword ANDERSON_VARIABLES or"
+				" NEWTON_VARIABLES: %s\n Valid options are LOG and RELATIVE",
 				value);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	memcpy(pointer, &variables, sizeof(enum_t));
 }
-/* ------- end ---------------------------- setAndersonVariables.c -- */
+/* ------- end ---------------------------- setSolverVariables.c ---- */
 
 /* ------- begin -------------------------- setAndersonCoefficients.c */
 

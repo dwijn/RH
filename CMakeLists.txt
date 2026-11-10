@@ -163,7 +163,7 @@ add_library(rh STATIC
   fixedrate.c fpehandler.c gammafunc.c gaussleg.c getcpu.c getlambda.c
   getline.c giigen.c gth.c h2collisions.c hunt.c hydrogen.c
   initial_xdr.c initscatter.c iterate.c kurucz.c linear.c ltepops.c
-  ludcmp.c matrix.c maxchange.c metal.c molzeeman.c nemetals.c ohchbf.c
+  ludcmp.c matrix.c maxchange.c metal.c molzeeman.c nemetals.c newton.c ohchbf.c
   opacity.c options.c order.c parallel.c parse.c paschen.c pchip.c planck.c
   pops_xdr.c profile.c radrate_xdr.c rayleigh.c readatom.c readb_xdr.c
   prdfold.c readinput.c readj.c readmolecule.c readvalue.c redistribute.c scatter.c
@@ -254,6 +254,10 @@ if(Python3_Interpreter_FOUND)
            COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/solver_anderson.py
                    --rhf1d $<TARGET_FILE:rhf1d> --src ${PROJECT_SOURCE_DIR})
   set_tests_properties(e2e_solver_anderson PROPERTIES LABELS e2e TIMEOUT 900)
+  add_test(NAME e2e_solver_newton
+           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/solver_newton.py
+                   --rhf1d $<TARGET_FILE:rhf1d> --src ${PROJECT_SOURCE_DIR})
+  set_tests_properties(e2e_solver_newton PROPERTIES LABELS e2e TIMEOUT 900)
 endif()
 
 message(STATUS "RH ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, "

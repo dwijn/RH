@@ -1246,6 +1246,21 @@ run.
 the solver runs to its stopping criterion or reports failure clearly
 (exit status bit), with all S-1 metrics and the counts of item 6.
 
+**Status (2026-11-09, branch `s4/newton`):** implemented as above.
+Details fixed in the code: the finite-difference probes keep the base
+point's values outside the mask, and a probe component whose image has no
+value in the variables is set to zero and counted; a trial point takes
+G(x_k)'s values outside the mask; GMRES is skipped (plain step) when the
+remaining evaluation budget leaves no product and one line-search trial.
+First run (the e2e set-up: Ca II with two PRD lines on FAL-C, H_6
+passive, `ITER_LIMIT` 10⁻⁶): converged in 124 G evaluations (18 Newton
+steps; 100 Krylov products, 23 line-search trials, no plain step),
+against 89 for `ANDERSON`. The linear model often promised more than the
+step delivered (step 7: GMRES predicted ‖R‖ 3.8×10⁻⁵, the step gave
+3.2×10⁻³). It is not the finite-difference step: h from 10⁻⁶ to 10⁻⁴
+(`NEWTON_NOISE` 10⁻¹² to 10⁻⁸) gives 119–124 evaluations, while 10⁻³ and
+10⁻² give 182 and 381.
+
 ### S-5 — Experiment and decision gate
 
 **Goal:** decide by measurement which path to take.
