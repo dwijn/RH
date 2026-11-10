@@ -1292,7 +1292,9 @@ and 381.
 `claude-tmp/s1/s4`): G evaluations, `ANDERSON` (depth 10) → `NEWTON_KRYLOV`:
 `h6_ca_mg` 39 → 56, `h20` 30 → 49, `mgi66` 24 → 77, `solvene` 40 → 69,
 `falxco_h6_ca` 52 → 82, `t5750_h6` 145 → 378, `helarge` 88 → 206,
-`civi` 51 → 117, `bf_c100_prd` 31 → 58, `shock_h6crd_ne` 57 → 77;
+`civi` 51 → 117, `bf_c100_prd` 31 → 58, `shock_h6crd_ne` 57 → 88
+(77 before the Armijo test kept the base point's entries: one trial lost
+an entry and had passed);
 `shock_h6` not converged after 3000 (‖R‖_W stalls near 0.07). Newton
 needs 1.4–3.2× Anderson's evaluations and more wall time on every case;
 all converged runs meet the S-5 accuracy criteria. On `shock_h6` the
