@@ -33,6 +33,9 @@ extern char         messageStr[];
 
 /* --- Function prototypes --                          -------------- */
 
+static bool_t keywordSet(const Keyword *theKeywords, int Nkeyword,
+						 const char *name);
+
 /* ------- begin -------------------------- readInput.c ------------- */
 
 void readInput()
@@ -419,17 +422,41 @@ void readInput()
 	}
 
 	/* --- SOLVER = FIXED_POINT, ANDERSON and NEWTON_KRYLOV iterate the
-		   map G of docs/SOLVER.md (S-2, S-3, S-4): one MALI step as a function of an
-		   explicit state, with
-		   a fixed number of PRD sub-iterations and no acceleration
-		   inside. Keywords that would make G depend on anything else
-		   are rejected here, before any work is done -- ------------- */
+		   map G of docs/SOLVER.md (S-2, S-3, S-4): one MALI step as a
+		   function of an explicit state, with a fixed number of PRD
+		   sub-iterations and no acceleration inside. Every keyword that
+		   is set is checked against the solver, whatever the atoms
+		   (SOLVER.md, Anderson as the default solver, item 2): a setting
+		   the solver would not honour stops the run here, before any
+		   work is done. A default is never a conflict. -- ------------- */
 
 	if (input.solver != SOLVER_NG) {
+		/* --- Keywords without an "off" value: an error when set.
+			   FIXED_POINT keeps Ng for the "Ng on G" control -- -- */
+		static const struct {
+			const char *name;
+			bool_t      ng;
+		} noOff[] = {{"NG_DELAY", TRUE},
+					 {"NG_PERIOD", TRUE},
+					 {"PRD_NG_DELAY", FALSE},
+					 {"PRD_NG_PERIOD", FALSE},
+					 {"COLL_RELAX_FACTOR", FALSE}};
+
 		Nconflict = 0;
+		for (n = 0; n < (int) (sizeof(noOff) / sizeof(noOff[0])); n++) {
+			if (noOff[n].ng && input.solver == SOLVER_FIXED_POINT) continue;
+			if (keywordSet(theKeywords, Nkeyword, noOff[n].name)) {
+				sprintf(messageStr,
+						"%s is set, but SOLVER = %s does not use it. Set"
+						" SOLVER = NG\n or remove the keyword.",
+						noOff[n].name, sname);
+				Error(WARNING, routineName, messageStr);
+				Nconflict++;
+			}
+		}
 		if ((input.solver == SOLVER_ANDERSON ||
 			 input.solver == SOLVER_NEWTON_KRYLOV) &&
-			input.Ngorder > 0) {
+			input.Ngorder != 0) {
 			sprintf(messageStr,
 					"SOLVER = %s: NG_ORDER = %d would extrapolate the"
 					" populations a second\n time after the solver's step."
@@ -465,11 +492,15 @@ void readInput()
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (input.PRDiterLimit != 0.0) {
+		/* --- The default 1.0E-2 is the NG solver's; unset, the map
+			   does PRD_N_MAX_ITER sub-iterations -- -------------- */
+		if (!keywordSet(theKeywords, Nkeyword, "PRD_ITER_LIMIT")) {
+			input.PRDiterLimit = 0.0;
+		} else if (input.PRDiterLimit != 0.0) {
 			sprintf(messageStr,
 					"SOLVER = %s: PRD_ITER_LIMIT = %g lets the PRD"
 					" sub-iterations stop early,\n which makes the map"
-					" discontinuous. Set PRD_ITER_LIMIT = 0;\n"
+					" discontinuous. Remove the keyword or set it to 0;\n"
 					" PRD_N_MAX_ITER (now %d) then sets their number.",
 					sname, input.PRDiterLimit, input.PRD_NmaxIter);
 			Error(WARNING, routineName, messageStr);
@@ -492,7 +523,7 @@ void readInput()
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (input.CR_Nstep > 0) {
+		if (input.CR_Nstep != 0) {
 			sprintf(messageStr,
 					"SOLVER = %s: COLL_RELAX_NSTEP = %d makes the map"
 					" depend on the\n iteration number. Set"
@@ -539,10 +570,7 @@ void readInput()
 			   file makes G a step function of ne, which limits
 			   finite-difference Jacobian products to ~3e-3. -- -- */
 		if (input.solve_ne == ITERATION) {
-			for (n = 0; n < Nkeyword; n++) {
-				if (!strcmp(theKeywords[n].keyword, "BACKGROUND_DOUBLE")) break;
-			}
-			if (n < Nkeyword && theKeywords[n].set &&
+			if (keywordSet(theKeywords, Nkeyword, "BACKGROUND_DOUBLE") &&
 				!input.background_double) {
 				sprintf(messageStr,
 						"SOLVER = %s with SOLVE_NE = ITERATION has ne in"
@@ -575,3 +603,20 @@ void readInput()
 	atmos.vmacro_tresh *= KM_TO_M;
 }
 /* ------- end ---------------------------- readInput.c ------------- */
+
+/* ------- begin -------------------------- keywordSet -------------- */
+
+/* --- Whether the keyword was given in the keyword input file (its
+	   default is never a conflict) -- --------------------------- */
+
+static bool_t keywordSet(const Keyword *theKeywords, int Nkeyword,
+						 const char *name)
+{
+	int n;
+
+	for (n = 0; n < Nkeyword; n++) {
+		if (!strcmp(theKeywords[n].keyword, name)) return theKeywords[n].set;
+	}
+	return FALSE;
+}
+/* ------- end ---------------------------- keywordSet -------------- */
