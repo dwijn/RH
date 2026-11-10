@@ -21,6 +21,7 @@ long        G_count(void);
 
 void iterateFixedPoint(int NmaxIter, double iterLimit);
 void iterateAnderson(int NmaxIter, double iterLimit);
+void iterateNewton(int NmaxIter, double iterLimit);
 
 /* --- Acceptance checks of G (gchecks.c), run by the gcheck programs */
 

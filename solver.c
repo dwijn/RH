@@ -57,6 +57,7 @@
 #include "background.h"
 #include "constant.h"
 #include "anderson.h"
+#include "newton.h"
 #include "solver.h"
 
 /* --- Global variables --                             -------------- */
@@ -86,6 +87,10 @@ typedef struct {
 static StateBlock *blocks  = NULL;
 static int         Nblocks = 0;
 static long        Nstate  = 0;
+
+/* --- Largest u with exp(u) finite: log(DBL_MAX) rounded down -- */
+
+#define LOG_DBL_MAX 709.0
 
 static long   Gcount   = 0;
 static double neChange = 0.0, chemChange = 0.0;
@@ -495,8 +500,8 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 
 /* ------- begin -------------------------- toVars.c ---------------- */
 
-/* --- SOLVER = ANDERSON (S-3 in docs/SOLVER.md): Anderson acceleration
-	   of x <- G(x) on scaled variables u = s(x), one block of x at a
+/* --- SOLVER = ANDERSON (S-3 in docs/SOLVER.md) and NEWTON_KRYLOV
+	   (S-4) work on scaled variables u = s(x), one block of x at a
 	   time:
 
 		 LOG       u = log x (populations, rho, J, ne);
@@ -507,11 +512,12 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 
 	   J20 (background polarization, signed) is J20 / J in both. An
 	   entry that has no value in these variables (x <= 0 in LOG) is
-	   invalid: it takes no part in the least squares and takes G's
-	   value. --                                       -------------- */
+	   invalid: it takes no part in the least squares (the Newton
+	   step) and takes G's value. --                   -------------- */
 
-static long   *blockStart = NULL; /* Nblocks + 1 offsets into x */
-static double *varScale   = NULL; /* RELATIVE: the fixed scale per entry */
+static long                 *blockStart = NULL; /* Nblocks + 1 offsets into x */
+static double               *varScale   = NULL; /* RELATIVE: fixed scale per entry */
+static enum solver_variables varKind    = VARIABLES_LOG;
 
 static void toVars(const double *x, double *u, unsigned char *valid)
 {
@@ -529,7 +535,7 @@ static void toVars(const double *x, double *u, unsigned char *valid)
 				J        = x[offJ + (i - off)];
 				valid[i] = (J > 0.0 && isfinite(x[i]) && isfinite(J));
 				u[i]     = (valid[i]) ? x[i] / J : 0.0;
-			} else if (input.Anderson_variables == ANDERSON_LOG) {
+			} else if (varKind == VARIABLES_LOG) {
 				valid[i] = (x[i] > 0.0 && isfinite(x[i]));
 				u[i]     = (valid[i]) ? log(x[i]) : 0.0;
 			} else {
@@ -562,7 +568,7 @@ static void fromVars(const double *u, const double *gx,
 				x[i] = gx[i];
 			else if (blocks[n].kind == BLOCK_J20)
 				x[i] = u[i] * x[offJ + (i - off)];
-			else if (input.Anderson_variables == ANDERSON_LOG)
+			else if (varKind == VARIABLES_LOG)
 				x[i] = exp(u[i]);
 			else
 				x[i] = u[i] * varScale[i];
@@ -614,6 +620,38 @@ static void setVarScale(const double *x0)
 }
 /* ------- end ---------------------------- setVarScale.c ----------- */
 
+/* ------- begin -------------------------- setupVariables.c -------- */
+
+static double *setupVariables(enum solver_variables kind, double *x)
+{
+	register int n;
+
+	long    i;
+	double *w;
+
+	/* --- After stateInit(): the block offsets, the block weights
+		   (every block counts as its mean square: 1/sqrt(N)), x_0 in
+		   x, and the variables. Returns the weights -- ------------ */
+
+	blockStart    = (long *) realloc(blockStart, (Nblocks + 1) * sizeof(long));
+	blockStart[0] = 0;
+	for (n = 0; n < Nblocks; n++) blockStart[n + 1] = blockStart[n] + blocks[n].N;
+
+	w = (double *) malloc(Nstate * sizeof(double));
+	for (n = 0; n < Nblocks; n++)
+		for (i = blockStart[n]; i < blockStart[n + 1]; i++)
+			w[i] = 1.0 / sqrt((double) blocks[n].N);
+
+	varKind = kind;
+	stateGather(x);
+	if (kind == VARIABLES_RELATIVE) {
+		varScale = (double *) realloc(varScale, Nstate * sizeof(double));
+		setVarScale(x);
+	}
+	return w;
+}
+/* ------- end ---------------------------- setupVariables.c -------- */
+
 /* ------- begin -------------------------- guardTrial.c ------------ */
 
 enum GuardResult { GUARD_OK,
@@ -624,7 +662,8 @@ enum GuardResult { GUARD_OK,
 static const char *guardName[] = {"ok", "not finite", "negative",
 								  "new population inversion"};
 
-static enum GuardResult guardTrial(const double *xt, const double *gx)
+static enum GuardResult guardTrial(const double *xt, const double *gx,
+								   const double *xb)
 {
 	register long i;
 	register int  n, kr;
@@ -643,7 +682,12 @@ static enum GuardResult guardTrial(const double *xt, const double *gx)
 		   for a continuum n_i / n*_i > (n_j / n*_j) exp(-h nu_0 / kT)
 		   (positive opacity at the edge). Negative values and
 		   inversions G itself makes (the LU fallback of statEquil,
-		   N-31) are left alone. --                      -------------- */
+		   N-31) are left alone.
+
+		   With a base point xb (Newton: the trial is xb + lambda d), a
+		   value or inversion only counts as new where neither G's point
+		   nor xb has it, so that a small enough lambda always passes;
+		   Anderson passes NULL. --                      -------------- */
 
 	for (i = 0; i < Nstate; i++)
 		if (!isfinite(xt[i])) return GUARD_NONFINITE;
@@ -652,9 +696,9 @@ static enum GuardResult guardTrial(const double *xt, const double *gx)
 		off = blockStart[n];
 		if (blocks[n].kind != BLOCK_J20) {
 			for (i = off; i < off + blocks[n].N; i++)
-				if ((xt[i] < 0.0 && !(gx[i] < 0.0)) ||
-					(input.Anderson_variables == ANDERSON_RELATIVE && xt[i] == 0.0 &&
-					 gx[i] > 0.0))
+				if ((xt[i] < 0.0 && !(gx[i] < 0.0) && !(xb && xb[i] < 0.0)) ||
+					(varKind == VARIABLES_RELATIVE && xt[i] == 0.0 &&
+					 gx[i] > 0.0 && !(xb && !(xb[i] > 0.0))))
 					return GUARD_NEGATIVE;
 		}
 		if (blocks[n].kind != BLOCK_ATOM) continue;
@@ -666,6 +710,8 @@ static enum GuardResult guardTrial(const double *xt, const double *gx)
 			iu   = off + (long) line->j * Nspace;
 			for (k = 0; k < Nspace; k++) {
 				if (gx[il + k] * atom->g[line->j] > gx[iu + k] * atom->g[line->i] &&
+					(!xb ||
+					 xb[il + k] * atom->g[line->j] > xb[iu + k] * atom->g[line->i]) &&
 					!(xt[il + k] * atom->g[line->j] > xt[iu + k] * atom->g[line->i]))
 					return GUARD_INVERSION;
 			}
@@ -681,6 +727,8 @@ static enum GuardResult guardTrial(const double *xt, const double *gx)
 						(cont->lambda0 * NM_TO_M * KBOLTZMANN * atmos.T[k]));
 				if (gx[il + k] * atom->nstar[cont->j][k] >
 						gx[iu + k] * atom->nstar[cont->i][k] * E &&
+					(!xb || xb[il + k] * atom->nstar[cont->j][k] >
+								xb[iu + k] * atom->nstar[cont->i][k] * E) &&
 					!(xt[il + k] * atom->nstar[cont->j][k] >
 					  xt[iu + k] * atom->nstar[cont->i][k] * E))
 					return GUARD_INVERSION;
@@ -713,6 +761,44 @@ static void logSolve(int Nsolve, bool_t per_block, const AndersonSolve *info,
 }
 /* ------- end ---------------------------- logSolve.c -------------- */
 
+/* ------- begin -------------------------- printChange.c ----------- */
+
+static double printChange(const char *routineName, int niter, const double *x,
+						  const double *gx)
+{
+	register int n;
+
+	double dpops, dpopsmax = 0.0;
+
+	/* --- Change of an evaluation per atom and molecule, MaxChange's
+		   definition on (x, G(x)), in the format of the other
+		   solvers. Returns the largest --            -------------- */
+
+	sprintf(messageStr, "\n -- Iteration %3d\n", niter);
+	Error(MESSAGE, routineName, messageStr);
+	for (n = 0; n < Nblocks; n++) {
+		if (blocks[n].kind != BLOCK_ATOM && blocks[n].kind != BLOCK_MOLECULE)
+			continue;
+		dpops = relChange(x + blockStart[n], gx + blockStart[n], blocks[n].N);
+		sprintf(messageStr,
+				(blocks[n].kind == BLOCK_ATOM) ? " %s, delta = %6.4E\n"
+											   : " %s , delta = %6.4E\n",
+				(blocks[n].kind == BLOCK_ATOM) ? ((Atom *) blocks[n].owner)->ID
+											   : ((Molecule *) blocks[n].owner)->ID,
+				dpops);
+		Error(MESSAGE, NULL, messageStr);
+		dpopsmax = MAX(dpops, dpopsmax);
+	}
+	if (input.solve_ne == ITERATION) {
+		sprintf(messageStr, " ne: last Newton step %.2E, chemical"
+							" equilibrium: last Newton step %.2E\n",
+				neChange, chemChange);
+		Error(MESSAGE, NULL, messageStr);
+	}
+	return dpopsmax;
+}
+/* ------- end ---------------------------- printChange.c ----------- */
+
 /* ------- begin -------------------------- iterateAnderson.c ------- */
 
 void iterateAnderson(int NmaxIter, double iterLimit)
@@ -720,11 +806,10 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	const char   routineName[] = "iterateAnderson";
 	register int niter, n;
 
-	bool_t  converged = FALSE, stopped = FALSE;
-	int     m = input.Anderson_depth, Nsolve, delay, t;
-	long    i, Ndamped = 0, Nguardplain = 0;
-	double *x, *gx, *gacc, *u, *gu, *un, *w, *gamma, dpops,
-		dpopsmax = 0.0, theta;
+	bool_t              converged = FALSE, stopped = FALSE;
+	int                 m = input.Anderson_depth, Nsolve, delay, t;
+	long                i, Ndamped = 0, Nguardplain = 0;
+	double             *x, *gx, *gacc, *u, *gu, *un, *w, *gamma, dpopsmax = 0.0, theta;
 	unsigned char      *valid, *validg;
 	enum AndersonAction action;
 	enum GuardResult    guard;
@@ -733,29 +818,19 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	Anderson           *a;
 
 	stateInit();
-	blockStart    = (long *) realloc(blockStart, (Nblocks + 1) * sizeof(long));
-	blockStart[0] = 0;
-	for (n = 0; n < Nblocks; n++) blockStart[n + 1] = blockStart[n] + blocks[n].N;
-
 	x      = (double *) malloc(Nstate * sizeof(double));
 	gx     = (double *) malloc(Nstate * sizeof(double));
 	gacc   = (double *) malloc(Nstate * sizeof(double));
 	u      = (double *) malloc(Nstate * sizeof(double));
 	gu     = (double *) malloc(Nstate * sizeof(double));
 	un     = (double *) malloc(Nstate * sizeof(double));
-	w      = (double *) malloc(Nstate * sizeof(double));
+	w      = setupVariables(input.Anderson_variables, x);
 	valid  = (unsigned char *) malloc(Nstate);
 	validg = (unsigned char *) malloc(Nstate);
 	Nsolve = (input.Anderson_coefficients == ANDERSON_PER_BLOCK) ? Nblocks : 1;
 	gamma  = (double *) calloc((size_t) Nsolve * (m > 0 ? m : 1), sizeof(double));
 	info   = (AndersonSolve *) calloc(Nsolve, sizeof(AndersonSolve));
 	a      = andersonInit(Nstate, m);
-
-	/* --- Every block counts as its mean square: weight 1/sqrt(N) -- */
-
-	for (n = 0; n < Nblocks; n++)
-		for (i = blockStart[n]; i < blockStart[n + 1]; i++)
-			w[i] = 1.0 / sqrt((double) blocks[n].N);
 
 	opt.Nblock    = Nblocks;
 	opt.start     = blockStart;
@@ -764,11 +839,6 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	opt.safeguard = input.Anderson_safeguard;
 	delay         = MAX(input.Anderson_delay, 2);
 
-	stateGather(x);
-	if (input.Anderson_variables == ANDERSON_RELATIVE) {
-		varScale = (double *) realloc(varScale, Nstate * sizeof(double));
-		setVarScale(x);
-	}
 	sprintf(messageStr,
 			"\n -- SOLVER = ANDERSON: %ld unknowns in %d blocks; PRD"
 			" sub-iterations per G: %d;\n    ANDERSON_DEPTH = %d,"
@@ -778,9 +848,9 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			Nstate, Nblocks, (atmos.NPRDactive > 0) ? input.PRD_NmaxIter : 0, m,
 			input.Anderson_delay, input.Anderson_cond_max,
 			input.Anderson_safeguard,
-			(input.Anderson_variables == ANDERSON_LOG) ? "LOG" : "RELATIVE",
+			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
 			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
-			((3.0 * m + 10 + (input.Anderson_variables == ANDERSON_RELATIVE)) *
+			((3.0 * m + 10 + (varKind == VARIABLES_RELATIVE)) *
 				 sizeof(double) +
 			 m + 4) *
 				Nstate / 1.0E6);
@@ -796,33 +866,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 
 		G_eval(x, gx);
 
-		/* --- Change of this evaluation per atom and molecule,
-			   MaxChange's definition on (x, G(x)), in the format of
-			   the other solvers --                      -------------- */
-
-		sprintf(messageStr, "\n -- Iteration %3d\n", niter);
-		Error(MESSAGE, routineName, messageStr);
-		dpopsmax = 0.0;
-		for (n = 0; n < Nblocks; n++) {
-			if (blocks[n].kind != BLOCK_ATOM && blocks[n].kind != BLOCK_MOLECULE)
-				continue;
-			dpops = relChange(x + blockStart[n], gx + blockStart[n], blocks[n].N);
-			sprintf(messageStr,
-					(blocks[n].kind == BLOCK_ATOM) ? " %s, delta = %6.4E\n"
-												   : " %s , delta = %6.4E\n",
-					(blocks[n].kind == BLOCK_ATOM)
-						? ((Atom *) blocks[n].owner)->ID
-						: ((Molecule *) blocks[n].owner)->ID,
-					dpops);
-			Error(MESSAGE, NULL, messageStr);
-			dpopsmax = MAX(dpops, dpopsmax);
-		}
-		if (input.solve_ne == ITERATION) {
-			sprintf(messageStr, " ne: last Newton step %.2E, chemical"
-								" equilibrium: last Newton step %.2E\n",
-					neChange, chemChange);
-			Error(MESSAGE, NULL, messageStr);
-		}
+		dpopsmax = printChange(routineName, niter, x, gx);
 		sprintf(messageStr, "Total Iteration %3d", niter);
 		getCPU(2, TIME_POLL, messageStr);
 
@@ -853,7 +897,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			logSolve(Nsolve, opt.per_block, info, a->fnorm_acc);
 			memcpy(gacc, gx, Nstate * sizeof(double));
 			fromVars(un, gx, andersonMask(a), x);
-			guard = guardTrial(x, gx);
+			guard = guardTrial(x, gx, NULL);
 			for (t = 1, theta = 0.5; guard != GUARD_OK && t <= 2; t++, theta *= 0.5) {
 				sprintf(messageStr, "  Anderson: guard: %s; step damped to %g\n",
 						guardName[guard], theta);
@@ -861,7 +905,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 				Ndamped++;
 				andersonDamp(a, &opt, gamma, info, theta, un);
 				fromVars(un, gx, andersonMask(a), x);
-				guard = guardTrial(x, gx);
+				guard = guardTrial(x, gx, NULL);
 			}
 			if (guard != GUARD_OK) {
 				sprintf(messageStr, "  Anderson: guard: %s; plain step,"
@@ -938,3 +982,354 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	free(info);
 }
 /* ------- end ---------------------------- iterateAnderson.c ------- */
+
+/* ------- begin -------------------------- fdProduct.c ------------- */
+
+/* --- SOLVER = NEWTON_KRYLOV (S-4 in docs/SOLVER.md): inexact Newton
+	   on R(u) = s(G(s^-1(u))) - u, with GMRES (newton.c) on
+	   finite-difference products of the Jacobian, Eisenstat-Walker
+	   forcing and a backtracking line search guarded as Anderson's
+	   steps. --                                       -------------- */
+
+typedef struct {
+	const double        *u, *r, *x, *w; /* base point: u, R(u), x */
+	const unsigned char *mask;          /* entries in the step */
+	double              *up, *xp, *gp, *gup, h;
+	unsigned char       *validp;
+	long                 Nprobe, Ninvalid;
+} FDContext;
+
+static void fdProduct(void *vctx, const double *v, double *y)
+{
+	register long i;
+
+	FDContext *c = (FDContext *) vctx;
+	double     vnorm, eps;
+
+	/* --- y = (R(u + eps v) - R(u)) / eps, eps = h / ||v||_W: one G
+		   evaluation. Outside the mask the probe keeps the base x: with
+		   G(x) there, as a trial has, the difference would carry an
+		   O(1) / eps jump. So J does not see how those entries move in a
+		   trial; the line search does. A component whose probe image
+		   has no value in the variables (G <= 0 in LOG) is set to 0 and
+		   counted -- --                                -------------- */
+
+	vnorm = weightedNorm(Nstate, v, c->mask, c->w);
+	eps   = c->h / ((vnorm > 0.0) ? vnorm : 1.0);
+	for (i = 0; i < Nstate; i++) c->up[i] = (c->mask[i]) ? c->u[i] + eps * v[i] : 0.0;
+	fromVars(c->up, c->x, c->mask, c->xp);
+	G_eval(c->xp, c->gp);
+	c->Nprobe++;
+	toVars(c->gp, c->gup, c->validp);
+	for (i = 0; i < Nstate; i++) {
+		if (!c->mask[i]) {
+			y[i] = 0.0;
+		} else if (!c->validp[i]) {
+			y[i] = 0.0;
+			c->Ninvalid++;
+		} else {
+			y[i] = ((c->gup[i] - c->up[i]) - c->r[i]) / eps;
+		}
+	}
+}
+/* ------- end ---------------------------- fdProduct.c ------------- */
+
+/* ------- begin -------------------------- residualOf.c ------------ */
+
+static double residualOf(const double *x, const double *gx, double *u,
+						 double *gu, unsigned char *valid,
+						 unsigned char *validg, double *r, const double *w)
+{
+	register long i;
+
+	/* --- u = s(x), r = s(G(x)) - u on the entries valid in both
+		   (valid on return), 0 elsewhere; returns ||r||_W -- ------ */
+
+	toVars(x, u, valid);
+	toVars(gx, gu, validg);
+	for (i = 0; i < Nstate; i++) {
+		valid[i] &= validg[i];
+		r[i] = (valid[i]) ? gu[i] - u[i] : 0.0;
+	}
+	return weightedNorm(Nstate, r, valid, w);
+}
+/* ------- end ---------------------------- residualOf.c ------------ */
+
+/* ------- begin -------------------------- iterateNewton.c --------- */
+
+void iterateNewton(int NmaxIter, double iterLimit)
+{
+	const char   routineName[] = "iterateNewton";
+	register int niter;
+
+	bool_t converged = FALSE, stopped = FALSE, accepted;
+	int    k = input.Newton_krylov_max, kmax, nback, Nhalve, n, ninf,
+		Nreason[4];
+	long i, Neval = 0, Nbase = 0, Nkrylov = 0, Nline = 0, Nplain = 0,
+			Nguard = 0, Nsteps = 0, Nlost = 0, Nrestore = 0;
+	double *x, *gx, *u, *gu, *r, *d, *xt, *gt, *ut, *gut, *rt, *w;
+	double  dpopsmax = 0.0, rnorm, rnorm_prev = 0.0, eta = 0.0, rtnorm, dinf,
+		   lambda, h = sqrt(input.Newton_noise);
+	unsigned char   *valid, *validg, *validt, *validgt;
+	enum GuardResult guard;
+	GmresResult      gres;
+	FDContext        ctx;
+	Gmres           *gm;
+
+	stateInit();
+	x       = (double *) malloc(Nstate * sizeof(double));
+	gx      = (double *) malloc(Nstate * sizeof(double));
+	u       = (double *) malloc(Nstate * sizeof(double));
+	gu      = (double *) malloc(Nstate * sizeof(double));
+	r       = (double *) malloc(Nstate * sizeof(double));
+	d       = (double *) malloc(Nstate * sizeof(double));
+	xt      = (double *) malloc(Nstate * sizeof(double));
+	gt      = (double *) malloc(Nstate * sizeof(double));
+	ut      = (double *) malloc(Nstate * sizeof(double));
+	gut     = (double *) malloc(Nstate * sizeof(double));
+	rt      = (double *) malloc(Nstate * sizeof(double));
+	w       = setupVariables(input.Newton_variables, x);
+	valid   = (unsigned char *) malloc(Nstate);
+	validg  = (unsigned char *) malloc(Nstate);
+	validt  = (unsigned char *) malloc(Nstate);
+	validgt = (unsigned char *) malloc(Nstate);
+	gm      = gmresInit(Nstate, k);
+
+	/* --- The probes of fdProduct use the trial buffers: they are
+		   never alive at the same time --              -------------- */
+
+	ctx.u        = u;
+	ctx.r        = r;
+	ctx.x        = x;
+	ctx.w        = w;
+	ctx.mask     = valid;
+	ctx.up       = ut;
+	ctx.xp       = xt;
+	ctx.gp       = gt;
+	ctx.gup      = gut;
+	ctx.validp   = validgt;
+	ctx.h        = h;
+	ctx.Nprobe   = 0;
+	ctx.Ninvalid = 0;
+
+	sprintf(messageStr,
+			"\n -- SOLVER = NEWTON_KRYLOV: %ld unknowns in %d blocks; PRD"
+			" sub-iterations per G: %d;\n    NEWTON_VARIABLES = %s,"
+			" NEWTON_NOISE = %.2E (finite-difference step h = %.2E),\n"
+			"    NEWTON_KRYLOV_MAX = %d (no restart), NEWTON_ETA_MAX = %g;\n"
+			"    forcing: Eisenstat-Walker choice 2, gamma = %g, alpha = %g,"
+			" safeguard above %g,\n    floor 0.5 x ITER_LIMIT / |R|_W;"
+			" line search: lambda = 1 ... 1/%d, Armijo %.0E;\n"
+			"    N_MAX_ITER caps G evaluations; memory %.1f MB\n",
+			Nstate, Nblocks, (atmos.NPRDactive > 0) ? input.PRD_NmaxIter : 0,
+			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE", input.Newton_noise,
+			h, k, input.Newton_eta_max, NEWTON_EW_GAMMA, NEWTON_EW_ALPHA,
+			NEWTON_EW_SAFE, 1 << NEWTON_N_BACKTRACK, NEWTON_ARMIJO,
+			((k + 1.0 + 12 + (varKind == VARIABLES_RELATIVE)) * sizeof(double) + 4) *
+				Nstate / 1.0E6);
+	Error(MESSAGE, routineName, messageStr);
+
+	/* --- The first base point --                     -------------- */
+
+	G_eval(x, gx);
+	Neval++;
+	Nbase++;
+
+	niter = 1;
+	for (;;) {
+		dpopsmax = printChange(routineName, niter, x, gx);
+		if (dpopsmax < iterLimit) {
+			converged = TRUE;
+			break;
+		}
+		if (StopRequested()) {
+			stopped = TRUE;
+			break;
+		}
+		if (Neval >= NmaxIter) break;
+
+		/* --- Newton step: J d = -R by GMRES, at most k products and
+			   one evaluation left for the line search -- ---------- */
+
+		getCPU(2, TIME_START, NULL);
+		rnorm = residualOf(x, gx, u, gu, valid, validg, r, w);
+		eta   = newtonForcing(Nsteps == 0, eta, rnorm, rnorm_prev,
+							  input.Newton_eta_max, iterLimit);
+		kmax  = (int) MIN((long) k, NmaxIter - Neval - 1);
+		for (i = 0; i < Nstate; i++) rt[i] = -r[i];
+		memset(&gres, 0, sizeof(gres));
+		gres.rnorm0 = gres.rnorm = rnorm;
+		memset(d, 0, Nstate * sizeof(double));
+		if (kmax >= 1) {
+			ctx.Nprobe = 0;
+			gres       = gmresSolve(gm, fdProduct, &ctx, rt, valid, w, kmax, eta * rnorm, d);
+			Neval += ctx.Nprobe;
+			Nkrylov += ctx.Nprobe;
+		}
+		Nsteps++;
+
+		/* --- Backtracking on ||R||_W, the guard before every trial,
+			   the plain step if no lambda is accepted -- ---------- */
+
+		accepted = FALSE;
+		Nhalve   = 0;
+		memset(Nreason, 0, sizeof(Nreason));
+		dinf = 0.0;
+		ninf = 0;
+		for (n = 0; n < Nblocks; n++)
+			for (i = blockStart[n]; i < blockStart[n + 1]; i++)
+				if (valid[i] && fabs(d[i]) > dinf) {
+					dinf = fabs(d[i]);
+					ninf = n;
+				}
+		lambda = 1.0;
+		rtnorm = 0.0;
+		if (kmax >= 1 && gres.Niter > 0) {
+			for (nback = 0; nback <= NEWTON_N_BACKTRACK && Neval < NmaxIter;
+				 nback++, lambda *= 0.5) {
+				guard = GUARD_OK;
+				for (n = 0; n < Nblocks; n++)
+					for (i = blockStart[n]; i < blockStart[n + 1]; i++) {
+						ut[i] = (valid[i]) ? u[i] + lambda * d[i] : 0.0;
+						if (varKind == VARIABLES_LOG && blocks[n].kind != BLOCK_J20 &&
+							ut[i] > LOG_DBL_MAX)
+							guard = GUARD_NONFINITE; /* exp would overflow */
+					}
+				if (guard == GUARD_OK) {
+					fromVars(ut, gx, valid, xt);
+					guard = guardTrial(xt, gx, x);
+				}
+				if (guard != GUARD_OK) {
+					Nhalve++;
+					Nguard++;
+					Nreason[guard]++;
+					continue;
+				}
+				G_eval(xt, gt);
+				Neval++;
+				Nline++;
+				rtnorm = residualOf(xt, gt, ut, gut, validt, validgt, rt, w);
+
+				/* --- Both norms over the same entries: a trial that
+					   loses one of the base's (G(trial) <= 0 in LOG)
+					   is not accepted, or dropping it could pass --  */
+
+				for (i = 0; i < Nstate; i++)
+					if (valid[i] && !validt[i]) break;
+				if (i < Nstate) {
+					Nlost++;
+					continue;
+				}
+				if (rtnorm <= (1.0 - NEWTON_ARMIJO * lambda) * rnorm) {
+					accepted = TRUE;
+					break;
+				}
+			}
+		}
+		if (accepted) {
+			sprintf(messageStr,
+					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
+					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); lambda %g"
+					" (guard halvings %d: %d not finite, %d negative, %d inversion),"
+					" |R(trial)|_W %.3E; G evaluations %ld\n",
+					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
+					(gres.breakdown) ? " (invariant space)" : "", dinf,
+					blocks[ninf].name, lambda, Nhalve, Nreason[GUARD_NONFINITE],
+					Nreason[GUARD_NEGATIVE], Nreason[GUARD_INVERSION], rtnorm, Neval);
+			Error(MESSAGE, NULL, messageStr);
+			memcpy(x, xt, Nstate * sizeof(double));
+			memcpy(gx, gt, Nstate * sizeof(double));
+		} else {
+			sprintf(messageStr,
+					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
+					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); no lambda accepted"
+					" (guard halvings %d: %d not finite, %d negative, %d inversion):"
+					" plain step; G evaluations %ld\n",
+					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
+					(gres.breakdown) ? " (invariant space)" : "", dinf,
+					blocks[ninf].name, Nhalve, Nreason[GUARD_NONFINITE],
+					Nreason[GUARD_NEGATIVE], Nreason[GUARD_INVERSION], Neval);
+			Error(MESSAGE, NULL, messageStr);
+			Nplain++;
+			if (Neval >= NmaxIter) {
+
+				/* --- The last evaluation was a probe or a rejected
+					   trial: one more at the base point (G is
+					   deterministic, so gx does not change) makes what
+					   G sets besides the state agree with the output,
+					   one evaluation past the cap -- ------------- */
+
+				G_eval(x, gx);
+				Neval++;
+				Nrestore++;
+				getCPU(2, TIME_POLL, "Newton step");
+				break;
+			}
+			memcpy(x, gx, Nstate * sizeof(double));
+			G_eval(x, gx);
+			Neval++;
+			Nbase++;
+		}
+		rnorm_prev = rnorm;
+		getCPU(2, TIME_POLL, "Newton step");
+		niter++;
+	}
+
+	/* --- The output is G of the last base point -- --------------- */
+
+	stateScatter(gx);
+	if (converged) {
+		sprintf(messageStr, "\n -- Converged at base point %d: max change"
+							" %.4E < ITER_LIMIT = %.4E\n",
+				niter, dpopsmax, iterLimit);
+		Error(MESSAGE, routineName, messageStr);
+	} else {
+		if (stopped) {
+			sprintf(messageStr, "Stopped on request (STOP_RH) after %ld G"
+								" evaluations: NOT CONVERGED.\n The output is not a"
+								" converged solution",
+					Neval);
+		} else {
+			sprintf(messageStr, "NOT CONVERGED after %ld G evaluations"
+								" (N_MAX_ITER = %d): max change %.4E >= ITER_LIMIT ="
+								" %.4E.\n The output is not a converged solution;"
+								" increase N_MAX_ITER or see what limits convergence",
+					Neval, NmaxIter, dpopsmax, iterLimit);
+		}
+		Error(WARNING, routineName, messageStr);
+		SetExitFlag(RH_EXIT_NOT_CONVERGED);
+	}
+	sprintf(messageStr,
+			" -- G evaluations: %ld\n -- Newton: steps %ld, G evaluations base %ld,"
+			" Krylov %ld, line search %ld (lost an entry %ld); plain steps %ld;"
+			" guard halvings %ld; invalid probe entries %ld; restoring %ld\n",
+			Neval, Nsteps, Nbase, Nkrylov, Nline, Nlost, Nplain, Nguard,
+			ctx.Ninvalid, Nrestore);
+	Error(MESSAGE, routineName, messageStr);
+
+	if (input.solve_ne == ITERATION) BackgroundOfState(TRUE);
+
+	for (i = 0; i < atmos.Nactiveatom; i++)
+		freeMatrix((void **) atmos.activeatoms[i]->Gamma);
+	for (i = 0; i < atmos.Nactivemol; i++)
+		freeMatrix((void **) atmos.activemols[i]->Gamma);
+
+	gmresFree(gm);
+	free(x);
+	free(gx);
+	free(u);
+	free(gu);
+	free(r);
+	free(d);
+	free(xt);
+	free(gt);
+	free(ut);
+	free(gut);
+	free(rt);
+	free(w);
+	free(valid);
+	free(validg);
+	free(validt);
+	free(validgt);
+}
+/* ------- end ---------------------------- iterateNewton.c --------- */

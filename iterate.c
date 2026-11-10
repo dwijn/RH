@@ -51,7 +51,8 @@ void Iterate(int NmaxIter, double iterLimit)
 	/* --- The main iteration with the solver selected by keyword
 		   SOLVER: RH's Ng-accelerated MALI iteration (NG, the default)
 		   the fixed-point iteration of the map G (FIXED_POINT), or
-		   Anderson acceleration of it (ANDERSON; see solver.c) --                                   -------------- */
+		   Anderson acceleration of it (ANDERSON) or inexact Newton on
+		   G(x) - x (NEWTON_KRYLOV; see solver.c) --                                   -------------- */
 
 	if (NmaxIter <= 0) {
 		workPhase(WORK_FINAL);
@@ -67,6 +68,9 @@ void Iterate(int NmaxIter, double iterLimit)
 		break;
 	case SOLVER_ANDERSON:
 		iterateAnderson(NmaxIter, iterLimit);
+		break;
+	case SOLVER_NEWTON_KRYLOV:
+		iterateNewton(NmaxIter, iterLimit);
 		break;
 	default:
 		iterateNg(NmaxIter, iterLimit);

@@ -40,9 +40,10 @@ void readInput()
 	const char routineName[] = "readInput";
 	char       errorStr[MAX_MESSAGE_LENGTH];
 
-	int         Nkeyword, Nconflict, n;
-	const char *sname;
-	FILE       *fp_keyword;
+	int              Nkeyword, Nconflict, n, p;
+	const char      *sname, *prefix;
+	enum solver_type owner;
+	FILE            *fp_keyword;
 
 	Keyword theKeywords[] = {
 		{"ATMOS_FILE", "", FALSE, KEYWORD_REQUIRED, input.atmos_input,
@@ -134,9 +135,17 @@ void readInput()
 		{"ANDERSON_SAFEGUARD", "1.0", FALSE, KEYWORD_DEFAULT,
 		 &input.Anderson_safeguard, setdoubleValue},
 		{"ANDERSON_VARIABLES", "LOG", FALSE, KEYWORD_DEFAULT,
-		 &input.Anderson_variables, setAndersonVariables},
+		 &input.Anderson_variables, setSolverVariables},
 		{"ANDERSON_COEFFICIENTS", "GLOBAL", FALSE, KEYWORD_DEFAULT,
 		 &input.Anderson_coefficients, setAndersonCoefficients},
+		{"NEWTON_NOISE", "1.0E-10", FALSE, KEYWORD_DEFAULT, &input.Newton_noise,
+		 setdoubleValue},
+		{"NEWTON_KRYLOV_MAX", "20", FALSE, KEYWORD_DEFAULT,
+		 &input.Newton_krylov_max, setintValue},
+		{"NEWTON_ETA_MAX", "0.9", FALSE, KEYWORD_DEFAULT, &input.Newton_eta_max,
+		 setdoubleValue},
+		{"NEWTON_VARIABLES", "LOG", FALSE, KEYWORD_DEFAULT,
+		 &input.Newton_variables, setSolverVariables},
 		{"OPACITY_FUDGE", "none", FALSE, KEYWORD_OPTIONAL, &input.fudgeData,
 		 setcharValue},
 		{"METALLICITY", "0.0", FALSE, KEYWORD_DEFAULT, &input.metallicity,
@@ -379,31 +388,38 @@ void readInput()
 		break;
 	}
 
-	/* --- ANDERSON_* keywords are read by SOLVER = ANDERSON only; set
-		   with another solver they would be ignored silently -- ---- */
+	/* --- ANDERSON_* keywords are read by SOLVER = ANDERSON only,
+		   NEWTON_* by SOLVER = NEWTON_KRYLOV only; set with another
+		   solver they would be ignored silently -- ---------------- */
 
 	sname = solverName(input.solver);
-	if (input.solver != SOLVER_ANDERSON) {
+	for (p = 0; p < 2; p++) {
+		prefix = (p == 0) ? "ANDERSON_" : "NEWTON_";
+		owner  = (p == 0) ? SOLVER_ANDERSON : SOLVER_NEWTON_KRYLOV;
+		if (input.solver == owner) continue;
 		Nconflict = 0;
 		for (n = 0; n < Nkeyword; n++) {
-			if (!strncmp(theKeywords[n].keyword, "ANDERSON_", 9) &&
+			if (!strncmp(theKeywords[n].keyword, prefix, strlen(prefix)) &&
 				theKeywords[n].set) {
 				sprintf(messageStr,
 						"%s is set, but SOLVER = %s does not use it. Set"
-						" SOLVER = ANDERSON\n or remove the keyword.",
-						theKeywords[n].keyword, sname);
+						" SOLVER = %s\n or remove the keyword.",
+						theKeywords[n].keyword, sname, solverName(owner));
 				Error(WARNING, routineName, messageStr);
 				Nconflict++;
 			}
 		}
-		if (Nconflict)
-			Error(ERROR_LEVEL_2, routineName,
-				  "ANDERSON_* keywords without SOLVER = ANDERSON; see the"
-				  " warnings above.");
+		if (Nconflict) {
+			sprintf(messageStr,
+					"%s* keywords without SOLVER = %s; see the"
+					" warnings above.",
+					prefix, solverName(owner));
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
 	}
 
-	/* --- SOLVER = FIXED_POINT and ANDERSON iterate the map G of
-		   docs/SOLVER.md (S-2, S-3): one MALI step as a function of an
+	/* --- SOLVER = FIXED_POINT, ANDERSON and NEWTON_KRYLOV iterate the
+		   map G of docs/SOLVER.md (S-2, S-3, S-4): one MALI step as a function of an
 		   explicit state, with
 		   a fixed number of PRD sub-iterations and no acceleration
 		   inside. Keywords that would make G depend on anything else
@@ -411,12 +427,14 @@ void readInput()
 
 	if (input.solver != SOLVER_NG) {
 		Nconflict = 0;
-		if (input.solver == SOLVER_ANDERSON && input.Ngorder > 0) {
+		if ((input.solver == SOLVER_ANDERSON ||
+			 input.solver == SOLVER_NEWTON_KRYLOV) &&
+			input.Ngorder > 0) {
 			sprintf(messageStr,
-					"SOLVER = ANDERSON: NG_ORDER = %d would extrapolate the"
-					" populations a second\n time after Anderson's step."
+					"SOLVER = %s: NG_ORDER = %d would extrapolate the"
+					" populations a second\n time after the solver's step."
 					" Set NG_ORDER = 0.",
-					input.Ngorder);
+					sname, input.Ngorder);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
@@ -431,6 +449,19 @@ void readInput()
 					" a value is out of range.",
 					input.Anderson_depth, input.Anderson_delay,
 					input.Anderson_cond_max, input.Anderson_safeguard);
+			Error(WARNING, routineName, messageStr);
+			Nconflict++;
+		}
+		if (input.solver == SOLVER_NEWTON_KRYLOV &&
+			(!(input.Newton_noise > 0.0 && input.Newton_noise < 1.0) ||
+			 input.Newton_krylov_max < 1 || input.Newton_krylov_max > 200 ||
+			 !(input.Newton_eta_max > 0.0 && input.Newton_eta_max < 1.0))) {
+			sprintf(messageStr,
+					"SOLVER = NEWTON_KRYLOV: NEWTON_NOISE = %g (0 .. 1),"
+					" NEWTON_KRYLOV_MAX = %d (1 .. 200),\n NEWTON_ETA_MAX"
+					" = %g (0 .. 1): a value is out of range.",
+					input.Newton_noise, input.Newton_krylov_max,
+					input.Newton_eta_max);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}

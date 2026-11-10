@@ -33,9 +33,10 @@ enum ne_solution { NONE,
 				   ITERATION };
 enum solver_type { SOLVER_NG,
 				   SOLVER_FIXED_POINT,
-				   SOLVER_ANDERSON };
-enum anderson_variables { ANDERSON_LOG,
-						  ANDERSON_RELATIVE };
+				   SOLVER_ANDERSON,
+				   SOLVER_NEWTON_KRYLOV };
+enum solver_variables { VARIABLES_LOG,
+						VARIABLES_RELATIVE };
 enum anderson_coefficients { ANDERSON_GLOBAL,
 							 ANDERSON_PER_BLOCK };
 
@@ -100,10 +101,14 @@ typedef struct {
 	enum ne_solution       solve_ne;
 	enum solver_type       solver;
 
-	enum anderson_variables    Anderson_variables;
+	enum solver_variables      Anderson_variables;
 	enum anderson_coefficients Anderson_coefficients;
 	int                        Anderson_depth, Anderson_delay;
 	double                     Anderson_cond_max, Anderson_safeguard;
+
+	enum solver_variables Newton_variables;
+	int                   Newton_krylov_max;
+	double                Newton_noise, Newton_eta_max;
 
 	int isum, Ngdelay, Ngorder, Ngperiod, NmaxIter,
 		PRD_NmaxIter, PRD_Ngdelay, PRD_Ngorder, PRD_Ngperiod,
@@ -133,7 +138,7 @@ void setStokesMode(char *value, void *pointer);
 void setPRDangle(char *value, void *pointer);
 void setThreadValue(char *value, void *pointer);
 
-void        setAndersonVariables(char *value, void *pointer);
+void        setSolverVariables(char *value, void *pointer);
 void        setAndersonCoefficients(char *value, void *pointer);
 const char *solverName(enum solver_type solver);
 

@@ -21,6 +21,9 @@ summary prints one JSON line with
     anderson    SOLVER = ANDERSON: G evaluations, steps extrapolated, plain
                 and rejected, guard actions, columns dropped, and the rate
                 equations solved with LU instead of GTH
+    newton      SOLVER = NEWTON_KRYLOV: G evaluations (all, base, Krylov,
+                line search), Newton steps, plain steps, guard halvings,
+                probe entries without a value, and the LU count as above
     fse         SE residual metrics over all active atoms
                 (se_residual.py; needs RADRATE_OUTPUT and COLLRATE_OUTPUT)
 
@@ -110,6 +113,9 @@ def summary(rundir, iter_limit):
     aa = anderson(log)
     if aa:
         out["anderson"] = aa
+    nk = newton(log)
+    if nk:
+        out["newton"] = nk
     try:
         from se_residual import run_metrics
         fse = run_metrics(rundir)
@@ -158,6 +164,22 @@ def anderson(log):
     if m and out:
         out.update(rates=int(m.group(1)), rates_lu=int(m.group(2)))
     return out or None
+
+
+def newton(log):
+    """Counters of SOLVER = NEWTON_KRYLOV (solver.c) and of the rate
+    equations solved with LU instead of GTH (work.c, N-31), or None."""
+    m = re.search(r"-- G evaluations: (\d+)\n -- Newton: steps (\d+), G evaluations base (\d+),"
+                  r" Krylov (\d+), line search (\d+) \(lost an entry (\d+)\); plain steps (\d+);"
+                  r" guard halvings (\d+); invalid probe entries (\d+); restoring (\d+)", log)
+    if not m:
+        return None
+    out = dict(zip(("g_evals", "steps", "base", "krylov", "line_search", "lost", "plain",
+                    "guard_halvings", "invalid_probe", "restoring"), map(int, m.groups())))
+    m = re.search(r"Rate equations (\d+) solved, (\d+) of them with LU", log)
+    if m:
+        out.update(rates=int(m.group(1)), rates_lu=int(m.group(2)))
+    return out
 
 
 def read_pops(path, lte=False):
