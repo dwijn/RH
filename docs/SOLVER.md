@@ -1448,7 +1448,8 @@ Findings:
   hydrostatic equilibrium, `LIMIT_MEMORY`), what replaces them, how runs
   that set them behave, the multi-D cases (not yet measured; the 2-D
   stress case is blocked by N-33), and the change of results for every
-  run.
+  run. The design is proposed below, under "Anderson as the default
+  solver".
 - S-4 (Newton–GMRES) is built anyway (decided 2026-11-09): Newton has no
   failing 1-D case left to win, but it measures Newton's outer
   convergence on the same G and is the scaffold for Form B (S-6). It
@@ -1457,6 +1458,141 @@ Findings:
 
 **Open:** the envelope safeguard on `shock_h6`; a margin in the inversion
 guard; N-36 (the two ne formulations); multi-D (after N-33).
+
+### Anderson as the default solver (design for the S-5 decision)
+
+**Status:** proposed 2026-11-10, not yet agreed. It answers the design step
+that the S-5 decision asked for: the keywords and defaults that `ANDERSON`
+refuses, the shipped keyword files, runs that set Ng-only keywords,
+multi-D, and the change of results. Measurements are in
+`claude-tmp/s1/default` (README). The build was `s4/newton` 73e1deb,
+whose Anderson is bit-identical to `modernize` 0569220.
+
+**Measured on the shipped examples.** Each program's own `run/`
+directory, run to convergence: once with the shipped Ng settings
+(`NG_ORDER` 2, `PRD_ITER_LIMIT` 10⁻²) and once with `SOLVER = ANDERSON`
+(depth 10, Ng and the PRD early exit off). Iterations equal G
+evaluations for Anderson. "History" is Anderson's own estimate of the
+memory its history takes; RSS is the peak of the Ng run.
+
+| program | unknowns | iterations at 10⁻² (Ng / AA) | at 10⁻⁵ | Ng RSS | AA history |
+|---|---|---|---|---|---|
+| `rhf1d` (FAL-C, Ca II) | 39 934 | 11 / 10 | 24 / 21 | 16 MB | 13 MB |
+| `rhsphere` | 131 856 | 15 / 11 | 49 / 23 | 22 MB | 44 MB |
+| `rhsc2d` | 118 572 | 12 / 10 | 27 / 22 | 16 MB | 40 MB |
+| `rhsc3d` (4×4×82) | 629 760 | 13 / 10 | 27 / 21 | 38 MB | 210 MB |
+
+- Anderson converges on every shipped example, including 2-D, 3-D and
+  spherical geometry, which the S-5 set did not cover. It never needs more
+  iterations than Ng, and needs half as many on `rhsphere` at 10⁻⁵.
+- At 10⁻⁵ the two solvers agree to 2–8×10⁻⁵ in the populations. At the
+  shipped `ITER_LIMIT` 10⁻² they differ by 1.1–3.0 %. That is the same
+  size as each one's distance from the converged solution, measured
+  against Ng at 10⁻⁵: Ng 0.9–4.5 %, Anderson 1.0–7.3 %.
+- Wall time follows the iterations: `rhsphere` at 10⁻⁵ takes 16 s with
+  Ng and 10 s with Anderson. The other runs take 1–37 s, too short to
+  measure the overhead per iteration. So the change of default moves results by about
+  the convergence error the run already accepts.
+- **Memory is the obstacle in multi-D, and the cause is J.**
+  - The state holds J (Nspect·Nspace) and PRD ρ beside the populations.
+    In the `rhf1d` example the split is 1.2 % populations, 39 % ρ (Ca II
+    H and K) and 60 % J (291 wavelengths). The 2-D (3×82) and 3-D
+    (4×4×82) examples (Ca II, 286 wavelengths) have about the same
+    split per point.
+  - Anderson keeps about 3m + 10 vectors (40 at depth 10). RH's Ng keeps
+    `NG_ORDER` + 2 copies of the populations, and `PRD_NG_ORDER` + 2
+    copies of ρ (§4.3).
+  - Shipped 3-D example: the history (210 MB) is 5.5× the whole Ng run.
+  - 2-D perf case (128×82 points, Nspect 7175): J is 0.6 GB per vector,
+    so about 24 GB of history against a 10.7 GB run.
+  - 3-D estimate of `MODERNIZATION.md` §3.3: J is 420 GB per vector,
+    about 17 TB of history.
+  - In 1-D the history is at most 2× a small run's whole memory.
+
+**Decisions proposed:**
+
+1. **Scope.** `ANDERSON` becomes the default of the 1-D programs (`rhf1d`,
+   `rhsphere`). `rhsc2d` and `rhsc3d` keep `NG` as their default until
+   item 7 is done. The default is chosen per program and printed at
+   the start ("SOLVER = ANDERSON (default of rhf1d)"). STIC runs 1-D
+   columns, so it gets Anderson either way. *Alternative:* one default for
+   all programs, with multi-D users setting `SOLVER = NG`. That fails
+   badly at realistic multi-D sizes (memory above), so I don't recommend
+   it.
+2. **Defaults that are Ng-only.**
+   - `PRD_ITER_LIMIT` defaults to 10⁻², so readInput would refuse every
+     run under a G solver, even runs that don't set it.
+   - Proposal: the conflict checks look at whether a keyword is set in
+     keyword.input, not at its value. An unset `PRD_ITER_LIMIT` then
+     means 0 under a G solver (a fixed `PRD_N_MAX_ITER` sub-iterations).
+   - The PRD checks (`PRD_ITER_LIMIT`, `PRD_NG_*`, `PRD_N_MAX_ITER` ≥ 1)
+     apply only when there are active PRD lines. They are checked once
+     the atoms are read, still before the first iteration. So a CRD run
+     is not stopped by PRD keywords; `run_tests.sh`'s `1d/crd` case
+     sets `PRD_N_MAX_ITER` = 0.
+3. **Keyword files that set Ng-only keywords and no `SOLVER`.**
+   - These keywords are `NG_ORDER`/`NG_DELAY`/`NG_PERIOD`, `PRD_ITER_LIMIT`
+     ≠ 0 and `PRD_NG_*` (with PRD lines), `COLL_RELAX_NSTEP` > 0,
+     `HYDROSTATIC`, and `LIMIT_MEMORY`.
+   - Proposal: readInput stops with one message that lists them, says that
+     the default changed, and gives the two fixes. `SOLVER = NG` keeps
+     the old iteration; removing the keywords uses Anderson.
+   - This follows the keyword rule: stop with a clear error, never
+     silently override. It costs every existing 1-D keyword file one edit.
+   - *Alternative:* without `SOLVER`, the presence of `NG_ORDER` > 0
+     selects `NG`, with a warning. No edits needed, but users silently
+     stay on Ng, and the default depends on the file.
+   - `NG_DELAY` and `NG_PERIOD` without `NG_ORDER` are refused under
+     `ANDERSON` and `NEWTON_KRYLOV` as well. Today they are ignored
+     silently. `FIXED_POINT` keeps accepting `NG_*` for the "Ng on G"
+     control.
+4. **Shipped keyword files.**
+   - `rhf1d/run` and `rhsphere/run` drop `NG_*` and `PRD_ITER_LIMIT`. They
+     gain a commented `SOLVER` line that names the choices and points to
+     SOLVER.md.
+   - `rhsc2d/run` and `rhsc3d/run` are unchanged under item 1.
+   - CI's drift report against upstream then runs upstream without Ng on
+     those two files, so its numbers change once. That gets explained in
+     the PR.
+5. **`N_MAX_ITER` and `ITER_LIMIT` keep their meaning.** The stop is
+   MaxChange against `ITER_LIMIT`, and one Anderson iteration is one G
+   evaluation, as one Ng iteration is one MALI step. No keyword changes
+   meaning. The exit status bits (N-1) are unchanged.
+6. **Results change: the switch PR carries `changes-results`.**
+   - CI's base comparison reports the change for the 1-D cases. After the
+     merge the base runs Anderson as well.
+   - The test tools that mean Ng pin it with `SOLVER = NG`:
+     - `make_references.sh` (its plain-MALI recipe);
+     - `run_stress.sh`'s Ng controls and the cases that test Ng
+       (`1d_falc_prdng`, `1d_falc_nong`);
+     - the e2e tests `prd_hybrid` and `stokes_1d`, which test properties
+       after three iterations of the shipped rhf1d file. Each of these
+       either still holds under Anderson or pins `SOLVER = NG`; this gets
+       checked case by case.
+   - The manual's solver section waits for Q-19. The change fragment and
+     the release notes say what changed and how to keep Ng.
+7. **The way to a multi-D default.**
+   - N-33 must be fixed first. Then `2d_pert_h6_ca_mg` gets measured.
+   - The history must shrink. Candidates:
+     - (a) Extrapolate only the populations (perhaps ρ too), and carry J
+       (and ρ) from the last G, as Ng does. The history then shrinks to
+       a few percent of today's. This needs measuring: it was not tested
+       in S-3, and the carried part lags by one step. 1-D first, cheaply
+       on the S-5 set.
+     - (b) Store the J history in float: half the size, and not enough
+       on its own.
+     - (c) A smaller depth in multi-D. Depth 5 met every S-5 criterion,
+       but it saves only 40 %: 25 vectors instead of 40.
+   - (a) is §9 Q1 asked for Anderson. I propose it as a new log item.
+
+**Order of work.**
+- One PR per step:
+  1. Item 2: conflict checks on the set flag, PRD checks after the atoms.
+     No results change under the current default.
+  2. The `SOLVER = NG` pins in the tools of item 6. No results change.
+  3. The switch: items 1, 3 and 4 and the change fragment, with the
+     `changes-results` label.
+- New log IDs, via a docs PR: one for the switch, one for item 7(a).
 
 ### S-6 — Analytic residual (Form B), conditional on S-5
 
