@@ -88,6 +88,10 @@ static StateBlock *blocks  = NULL;
 static int         Nblocks = 0;
 static long        Nstate  = 0;
 
+/* --- Largest u with exp(u) finite: log(DBL_MAX) rounded down -- */
+
+#define LOG_DBL_MAX 709.0
+
 static long   Gcount   = 0;
 static double neChange = 0.0, chemChange = 0.0;
 
@@ -1056,11 +1060,12 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	register int niter;
 
 	bool_t converged = FALSE, stopped = FALSE, accepted;
-	int    k = input.Newton_krylov_max, kmax, nback, Nhalve;
-	long   i, Neval = 0, Nbase = 0, Nkrylov = 0, Nline = 0, Nplain = 0,
+	int    k = input.Newton_krylov_max, kmax, nback, Nhalve, n, ninf,
+		Nreason[4];
+	long i, Neval = 0, Nbase = 0, Nkrylov = 0, Nline = 0, Nplain = 0,
 			Nguard = 0, Nsteps = 0;
 	double *x, *gx, *u, *gu, *r, *d, *xt, *gt, *ut, *gut, *rt, *w;
-	double  dpopsmax = 0.0, rnorm, rnorm_prev = 0.0, eta = 0.0, rtnorm,
+	double  dpopsmax = 0.0, rnorm, rnorm_prev = 0.0, eta = 0.0, rtnorm, dinf,
 		   lambda, h = sqrt(input.Newton_noise);
 	unsigned char   *valid, *validg, *validt, *validgt;
 	enum GuardResult guard;
@@ -1164,17 +1169,34 @@ void iterateNewton(int NmaxIter, double iterLimit)
 
 		accepted = FALSE;
 		Nhalve   = 0;
-		lambda   = 1.0;
-		rtnorm   = 0.0;
+		memset(Nreason, 0, sizeof(Nreason));
+		dinf = 0.0;
+		ninf = 0;
+		for (n = 0; n < Nblocks; n++)
+			for (i = blockStart[n]; i < blockStart[n + 1]; i++)
+				if (valid[i] && fabs(d[i]) > dinf) {
+					dinf = fabs(d[i]);
+					ninf = n;
+				}
+		lambda = 1.0;
+		rtnorm = 0.0;
 		if (kmax >= 1 && gres.Niter > 0) {
 			for (nback = 0; nback <= NEWTON_N_BACKTRACK && Neval < NmaxIter;
 				 nback++, lambda *= 0.5) {
-				for (i = 0; i < Nstate; i++) ut[i] = (valid[i]) ? u[i] + lambda * d[i] : 0.0;
-				fromVars(ut, gx, valid, xt);
-				guard = guardTrial(xt, gx, x);
+				guard = GUARD_OK;
+				for (i = 0; i < Nstate; i++) {
+					ut[i] = (valid[i]) ? u[i] + lambda * d[i] : 0.0;
+					if (varKind == VARIABLES_LOG && ut[i] > LOG_DBL_MAX)
+						guard = GUARD_NONFINITE; /* exp would overflow */
+				}
+				if (guard == GUARD_OK) {
+					fromVars(ut, gx, valid, xt);
+					guard = guardTrial(xt, gx, x);
+				}
 				if (guard != GUARD_OK) {
 					Nhalve++;
 					Nguard++;
+					Nreason[guard]++;
 					continue;
 				}
 				G_eval(xt, gt);
@@ -1190,21 +1212,26 @@ void iterateNewton(int NmaxIter, double iterLimit)
 		if (accepted) {
 			sprintf(messageStr,
 					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
-					" |R + J d|_W %.3E%s;\n  lambda %g (guard halvings %d),"
+					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); lambda %g"
+					" (guard halvings %d: %d not finite, %d negative, %d inversion),"
 					" |R(trial)|_W %.3E; G evaluations %ld\n",
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
-					(gres.breakdown) ? " (invariant space)" : "", lambda, Nhalve,
-					rtnorm, Neval);
+					(gres.breakdown) ? " (invariant space)" : "", dinf,
+					blocks[ninf].name, lambda, Nhalve, Nreason[GUARD_NONFINITE],
+					Nreason[GUARD_NEGATIVE], Nreason[GUARD_INVERSION], rtnorm, Neval);
 			Error(MESSAGE, NULL, messageStr);
 			memcpy(x, xt, Nstate * sizeof(double));
 			memcpy(gx, gt, Nstate * sizeof(double));
 		} else {
 			sprintf(messageStr,
 					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
-					" |R + J d|_W %.3E%s;\n  no lambda accepted (guard halvings"
-					" %d): plain step; G evaluations %ld\n",
+					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); no lambda accepted"
+					" (guard halvings %d: %d not finite, %d negative, %d inversion):"
+					" plain step; G evaluations %ld\n",
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
-					(gres.breakdown) ? " (invariant space)" : "", Nhalve, Neval);
+					(gres.breakdown) ? " (invariant space)" : "", dinf,
+					blocks[ninf].name, Nhalve, Nreason[GUARD_NONFINITE],
+					Nreason[GUARD_NEGATIVE], Nreason[GUARD_INVERSION], Neval);
 			Error(MESSAGE, NULL, messageStr);
 			Nplain++;
 			if (Neval >= NmaxIter) {
