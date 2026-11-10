@@ -8,16 +8,18 @@ Ca II with angle-averaged PRD (two PRD lines) on FAL-C, H_6 passive:
 
  1. history: SOLVER = FIXED_POINT with NG_ORDER = 0 reproduces the default
     solver with NG_ORDER = PRD_NG_ORDER = PRD_ITER_LIMIT = 0 bit for bit
-    (populations, J, spectrum) after 5 iterations. With PRD_N_MAX_ITER = 0
-    (every line in CRD, B-46) the two agree as well, and differ from the
-    runs with PRD.
+    (populations, J, spectrum) after 5 iterations, and so does
+    FIXED_POINT without PRD_ITER_LIMIT in the file (its default is 0
+    under a G solver). With PRD_N_MAX_ITER = 0 (every line in CRD, B-46)
+    NG and FIXED_POINT agree as well, and differ from the runs with PRD.
  2. gcheck (rhf1d, and rhsc2d at 2 threads with --gcheck2d): G(x_a) twice
     gives bit-identical results, and G(x_b) between two calls of G(x_a)
     changes nothing.
- 3. validation: SOLVER = FIXED_POINT with the default PRD_ITER_LIMIT stops
-    at input with a message that names PRD_ITER_LIMIT, and with
-    SOLVE_NE = ITERATION and BACKGROUND_DOUBLE = FALSE with one that names
-    BACKGROUND_DOUBLE.
+ 3. validation: SOLVER = FIXED_POINT with the shipped PRD_ITER_LIMIT
+    (1e-2) stops at input with a message that names PRD_ITER_LIMIT; so do
+    PRD_NG_DELAY and PRD_NG_PERIOD (set at all), COLL_RELAX_FACTOR other
+    than 1, and
+    SOLVE_NE = ITERATION with BACKGROUND_DOUBLE = FALSE.
 
 Exit status 0 = pass.
 """
@@ -49,15 +51,17 @@ G_KEYWORDS = [("SOLVER", "FIXED_POINT"), ("NG_ORDER", "0"),
 
 
 def setkw(text, key, value):
+    """Set key = value in a keyword.input text; value None removes the key
+    (comments it out), so that it is not set at all."""
     out, done = [], False
     for l in text.splitlines():
         s = l.strip()
         if not s.startswith("#") and "=" in s and s.split("=")[0].strip() == key:
-            out.append(f"  {key} = {value}")
+            out.append(f"# {s}" if value is None else f"  {key} = {value}")
             done = True
         else:
             out.append(l)
-    if not done:
+    if not done and value is not None:
         out.append(f"  {key} = {value}")
     return "\n".join(out) + "\n"
 
@@ -101,9 +105,10 @@ failed = []
 
 # --- 1. Iteration history of FIXED_POINT = default solver without Ng
 runs = {}
+UNSET = [k for k in G_KEYWORDS if k[0] != "PRD_ITER_LIMIT"] + [("PRD_ITER_LIMIT", None)]
 CRD = [("PRD_N_MAX_ITER", "0")]
 for name, extra in (("hist_ng", [("SOLVER", "NG")] + G_KEYWORDS[1:]),
-                    ("hist_fp", G_KEYWORDS),
+                    ("hist_fp", G_KEYWORDS), ("hist_fp_unset", UNSET),
                     ("hist_ng_crd", [("SOLVER", "NG")] + G_KEYWORDS[1:] + CRD),
                     ("hist_fp_crd", G_KEYWORDS + CRD)):
     d = prepare(name, "1d", extra + [("N_MAX_ITER", "5"), ("ITER_LIMIT", "1e-14")])
@@ -111,11 +116,12 @@ for name, extra in (("hist_ng", [("SOLVER", "NG")] + G_KEYWORDS[1:]),
     if r.returncode not in (0, 1):            # 1: not converged, expected
         sys.exit(f"rhf1d failed in {d} (status {r.returncode})")
     runs[name] = d
-for ref, other in (("hist_ng", "hist_fp"), ("hist_ng_crd", "hist_fp_crd")):
+for ref, other in (("hist_ng", "hist_fp"), ("hist_ng", "hist_fp_unset"),
+                   ("hist_ng_crd", "hist_fp_crd")):
     for f in ("pops.CA.out", "J.dat", "spectrum.out"):
         same = open(os.path.join(runs[ref], f), "rb").read() == \
             open(os.path.join(runs[other], f), "rb").read()
-        print(f"history  {other:11s} {f:13s} {'bit-identical' if same else 'DIFFERS'}")
+        print(f"history  {other:13s} {f:13s} {'bit-identical' if same else 'DIFFERS'}")
         if not same:
             failed.append(f"history {other} {f}")
 # The CRD runs must really be CRD: their populations differ from the PRD runs'
@@ -151,6 +157,18 @@ print(f"validate SOLVER = FIXED_POINT with PRD_ITER_LIMIT = 1e-2: "
       f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})")
 if not ok:
     failed.append("validation")
+
+# Keywords without an "off" value stop the run when set at all
+for kw, val, want in (("PRD_NG_DELAY", "2", "PRD_NG_DELAY is set"),
+                      ("PRD_NG_PERIOD", "3", "PRD_NG_PERIOD is set"),
+                      ("COLL_RELAX_FACTOR", "0.01", "COLL_RELAX_FACTOR = 0.01")):
+    d = prepare(f"validate_{kw.lower()}", "1d", G_KEYWORDS + [(kw, val)])
+    r = execute(os.path.abspath(a.rhf1d), d)
+    ok = r.returncode == 70 and want in r.stdout
+    print(f"validate SOLVER = FIXED_POINT with {kw} = {val}: "
+          f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})")
+    if not ok:
+        failed.append(f"validation ({kw})")
 
 # ne in the state requires the background in double (SOLVER.md Q11)
 d = prepare("validate_ne", "1d", G_KEYWORDS + [("SOLVE_NE", "ITERATION"),

@@ -1601,9 +1601,9 @@ memory its history takes; RSS is the peak of the Ng run.
      under every G solver.
    - A value that means "off" states what the solver does, and is
      accepted: `NG_ORDER`, `PRD_NG_ORDER`, `PRD_ITER_LIMIT` and
-     `COLL_RELAX_NSTEP` = 0. `NG_DELAY`, `NG_PERIOD`, `PRD_NG_DELAY`,
-     `PRD_NG_PERIOD` and `COLL_RELAX_FACTOR` have no such value and stop
-     the run when they are set.
+     `COLL_RELAX_NSTEP` = 0, `COLL_RELAX_FACTOR` = 1. `NG_DELAY`,
+     `NG_PERIOD`, `PRD_NG_DELAY` and `PRD_NG_PERIOD` have no such value
+     and stop the run when they are set.
    - `PRD_N_MAX_ITER` < 1 is valid under every solver: it is RH's
      switch for "every line in CRD" (`readAtom`), and G then has no PRD
      sub-iterations. S-2's check that refused it is removed (B-46).
@@ -1646,6 +1646,19 @@ memory its history takes; RSS is the peak of the Ng run.
        after three iterations of the shipped rhf1d file. Each of these
        either still holds under Anderson or pins `SOLVER = NG`; this gets
        checked case by case.
+   - Done (S-10 step 2): `make_references.sh` pins `SOLVER = NG`; the
+     stress cases `1d_falc_nong`, `1d_falc_h6_tight`, `1d_falc_prdng`
+     and `1d_falxco_collrel` pin `SOLVER = NG` with the shipped Ng
+     settings written out, since item 4 removes them from the file.
+     `prd_hybrid` holds under Anderson once item 4 has removed the Ng
+     lines (all four checks pass with differences of 0, run with
+     `SOLVER = ANDERSON` and those lines removed), and `stokes_1d` does
+     no iterations (`N_MAX_ITER = 0`); neither needs a pin, but both
+     need item 4 in the same PR as item 1. `run_tests.sh`'s `1d/crd`
+     needs B-46 (#301).
+   - The other stress cases run the default solver: they test what
+     users get. Their group comments describe Ng's behaviour and are
+     updated in step 3.
    - The manual's solver section waits for Q-19. The change fragment and
      the release notes say what changed and how to keep Ng.
 7. **The way to a multi-D default (agreed; S-11).**

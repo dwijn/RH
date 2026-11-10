@@ -37,19 +37,24 @@ for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels dow
     if not os.path.lexists(link):
         os.symlink(os.path.join(src, d), link)
 
-MAP = [("NG_ORDER", "0"), ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0")]
+# The shipped file sets NG_DELAY and NG_PERIOD, which SOLVER = NEWTON_KRYLOV
+# refuses when set
+MAP = [("NG_ORDER", "0"), ("NG_DELAY", None), ("NG_PERIOD", None),
+       ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0")]
 
 
 def setkw(text, key, value):
+    """Set key = value in a keyword.input text; value None removes the key
+    (comments it out), so that it is not set at all."""
     out, done = [], False
     for l in text.splitlines():
         s = l.strip()
         if not s.startswith("#") and "=" in s and s.split("=")[0].strip() == key:
-            out.append(f"  {key} = {value}")
+            out.append(f"# {s}" if value is None else f"  {key} = {value}")
             done = True
         else:
             out.append(l)
-    if not done:
+    if not done and value is not None:
         out.append(f"  {key} = {value}")
     return "\n".join(out) + "\n"
 
@@ -127,6 +132,8 @@ for label, kws, want in (
          MAP + [("SOLVER", "NEWTON_KRYLOV"), ("ANDERSON_DEPTH", "3")], "ANDERSON_DEPTH"),
         ("NG_ORDER = 2 with SOLVER = NEWTON_KRYLOV",
          MAP + [("SOLVER", "NEWTON_KRYLOV"), ("NG_ORDER", "2")], "NG_ORDER = 2"),
+        ("NG_PERIOD with SOLVER = NEWTON_KRYLOV",
+         MAP + [("SOLVER", "NEWTON_KRYLOV"), ("NG_PERIOD", "3")], "NG_PERIOD is set"),
         ("NEWTON_KRYLOV_MAX = 0",
          MAP + [("SOLVER", "NEWTON_KRYLOV"), ("NEWTON_KRYLOV_MAX", "0")], "out of range"),
         ("PRD_ITER_LIMIT = 1e-2 with SOLVER = NEWTON_KRYLOV",

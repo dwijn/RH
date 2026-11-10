@@ -17,7 +17,12 @@
 #   --threads N      override N_THREADS of the multi-D cases
 #   --work DIR       scratch directory (default tests/work_stress)
 #   --kw 'K=V;...'   keyword.input settings applied to every case after its
-#                    own (e.g. the reference recipe of make_references.sh)
+#                    own (e.g. the reference recipe of make_references.sh);
+#                    -K removes keyword K. The G solvers refuse keywords
+#                    they do not honour (docs/SOLVER.md, Anderson as the
+#                    default solver, item 2): e.g. -NG_DELAY;-NG_PERIOD for
+#                    the shipped 1-D file; a case that sets one, such as
+#                    1d_falxco_collrel (COLL_RELAX_FACTOR), stops at input
 #   --ref DIR        reference solutions (make_references.sh): every case with
 #                    a DIR/CASE directory is compared with it (population and
 #                    spectrum errors, analyze_run.py compare)
@@ -71,17 +76,27 @@ done
 # field of the cut. ACTIVE ATOMS is a comma-separated
 # list of atom files in Atoms/ to make active; each replaces the line of the
 # same element in the geometry's example atoms.input. KEYWORDS are
-# ';'-separated keyword.input settings, plus @NOMOL=NAME to drop a molecule
+# ';'-separated keyword.input settings (K=V, or -K to remove K), plus
+# @NOMOL=NAME to drop a molecule
 # (e.g. MgH, which needs neutral Mg, when Mg II is the Mg model).
 #
 # 1-D cases run on 1 thread unless they set N_THREADS, so that two builds can
 # be compared without summation-order noise (some cases, e.g. He_large, end at
 # visibly different "converged" solutions for different thread counts).
 #
+# Cases run each program's default solver. Those that test the Ng iteration
+# itself (no Ng, PRD Ng, collisional relaxation, tight convergence without Ng)
+# pin it with $NG: SOLVER = NG and the Ng settings of the shipped rhf1d
+# keyword file, written out, since S-10 removes them from that file. They
+# keep testing Ng when the default changes. --kw settings come after a
+# case's own; a G solver set there stops these cases at input, because they
+# set keywords it does not honour.
+#
 # conv: run to convergence (N_MAX_ITER large), compare converged results.
 # perf: fixed number of iterations, for wall time and peak memory.
 # The comment after each group says what the case is known to expose.
 L='ITER_LIMIT=1e-3;N_MAX_ITER=200'
+NG='SOLVER=NG;NG_ORDER=2;NG_DELAY=10;NG_PERIOD=3;PRD_ITER_LIMIT=1.0E-2'
 CASES=(
 # Well-behaved references (converge in 15-30 iterations)
 "1d_falc_h6_ca_mg  |conv|1d|FALC_82.atmos  |H_6,CaII,MgII     |$L"
@@ -89,13 +104,13 @@ CASES=(
 "1d_falc_h20       |conv|1d|FALC_82.atmos  |H_20              |$L"
 "1d_falc_mgi66     |conv|1d|FALC_82.atmos  |MgI_66            |$L"
 "1d_falc_fe33      |conv|1d|FALC_82.atmos  |Fe33              |$L"
-"1d_falc_nong      |conv|1d|FALC_82.atmos  |H_6,CaII,MgII     |$L;NG_ORDER=0"
+"1d_falc_nong      |conv|1d|FALC_82.atmos  |H_6,CaII,MgII     |$L;$NG;NG_ORDER=0"
 "1d_falxco_h6crd   |conv|1d|FALXCO_80.atmos|H_6_CRD,CaII      |$L"
 # Slow / non-convergence: PRD sub-iteration (H Lyman PRD), Ng without safeguards
 "1d_falxco_h6_ca   |conv|1d|FALXCO_80.atmos|H_6,CaII          |$L"
 "1d_t5750_h6       |conv|1d|T5750_g4.5_p00_ext.atmos|H_6     |$L"
 "1d_falc_helarge   |conv|1d|FALC_82.atmos  |He_large          |$L"
-"1d_falc_h6_tight  |conv|1d|FALC_82.atmos  |H_6               |ITER_LIMIT=1e-8;N_MAX_ITER=300;NG_ORDER=0"
+"1d_falc_h6_tight  |conv|1d|FALC_82.atmos  |H_6               |ITER_LIMIT=1e-8;N_MAX_ITER=300;$NG;NG_ORDER=0"
 "1d_falc_civi      |conv|1d|FALC_82.atmos  |CI-VI_Judge       |$L"
 # Moving atmospheres: linear vs Bezier (they differ by 5-16 % in the
 # chromosphere on this 82-point grid: depth resolution, not the scheme)
@@ -106,8 +121,8 @@ CASES=(
 "1d_falc_cail      |conv|1d|FALC_82.atmos  |CaII_large        |$L"
 "1d_falc_solvene   |conv|1d|FALC_82.atmos  |H_6,CaII          |$L;SOLVE_NE=ITERATION"
 "1d_shock_h6crd_ne |conv|1d|FALC_shock.atmos|H_6_CRD          |$L;SOLVE_NE=ITERATION"
-"1d_falc_prdng     |conv|1d|FALC_82.atmos  |CaII              |$L;PRD_NG_ORDER=2"
-"1d_falxco_collrel |conv|1d|FALXCO_80.atmos|H_6               |$L;COLL_RELAX_NSTEP=20;COLL_RELAX_FACTOR=0.01"
+"1d_falc_prdng     |conv|1d|FALC_82.atmos  |CaII              |$L;$NG;PRD_NG_ORDER=2"
+"1d_falxco_collrel |conv|1d|FALXCO_80.atmos|H_6               |$L;$NG;COLL_RELAX_NSTEP=20;COLL_RELAX_FACTOR=0.01"
 # Multi-D
 "2d_pert_h6_ca_mg  |conv|2d|gen:2d:32      |H_6,CaII,MgII     |$L;N_THREADS=8;S_INTERPOLATION=S_BEZIER3;@NOMOL=MgH"
 "3d_pert_h6_ca     |conv|3d|gen:3d:8:8     |H_6,CaII          |$L;N_THREADS=8"
@@ -154,6 +169,11 @@ for d in Atoms Atmos Molecules; do ln -sfn "$REF/$d" "$WORK/$d"; done
 [ -x /usr/bin/time ] || { echo "need GNU /usr/bin/time"; exit 1; }
 
 geomdir() { case $1 in 1d) echo rhf1d;; 2d) echo rhsc2d;; 3d) echo rhsc3d;; sph) echo rhsphere;; esac; }
+
+# Remove keyword $2 from keyword file $1 (comment it out), so it is not set
+unsetkw() {
+  sed -E -i "s|^([[:space:]]*$2[[:space:]]*=.*)|#\1|" "$1"
+}
 
 setkw() {
   if grep -Eq "^[[:space:]]*$2[[:space:]]*=" "$1"; then
@@ -213,6 +233,7 @@ prepare() {   # NAME GEOM ATMOS ATOMS KEYWORDS TREENAME -> RUNDIR
                      { print $1 - 1; done = 1 }' "$RUNDIR/mol.tmp" > "$RUNDIR/molecules.input"
                 rm -f "$RUNDIR/mol.tmp";;
       STOKES_INPUT=@B) local B=$(atmos_path $atm); setkw "$RUNDIR/keyword.input" STOKES_INPUT "${B%.atmos}.B";;
+      -?*)      unsetkw "$RUNDIR/keyword.input" "${m#-}";;
       ?*=*)     setkw "$RUNDIR/keyword.input" "${m%%=*}" "${m#*=}";;
     esac
   done
