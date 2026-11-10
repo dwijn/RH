@@ -506,9 +506,9 @@ void readInput()
 			sprintf(messageStr,
 					"SOLVER = %s: PRD_ITER_LIMIT = %g lets the PRD"
 					" sub-iterations stop early,\n which makes the map"
-					" discontinuous. Remove the keyword or set it to 0;\n"
-					" PRD_N_MAX_ITER (now %d) then sets their number.",
-					sname, input.PRDiterLimit, input.PRD_NmaxIter);
+					" discontinuous. Remove the keyword or set it to 0;"
+					" G then does\n PRD_N_MAX_ITER sub-iterations.",
+					sname, input.PRDiterLimit);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
