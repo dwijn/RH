@@ -49,8 +49,10 @@ upstream. Newest changes go at the top of the changelog.
   depth 10 it needs 26–77 % less work than Ng on G on the easy controls
   (9–72 % at depth 5) and 3.1× less on the slow case (2.9×). It converges all five cases where the current
   Ng fails, three of which crash with Ng; and it converges the ne case
-  where plain G diverges. Decided: depth 10 by default; Anderson is to
-  become the default solver; S-4 (Newton) is under review (§2.5).
+  where plain G diverges. Decided: depth 10 by default; Anderson becomes
+  the default of the 1-D programs (S-10), and of 2-D and 3-D once its
+  history shrinks (S-11). S-4 (Newton) stays for the derivatives that
+  STIC needs (§2.5).
 - **Unit tests (2026-10-17/18) found two serious upstream bugs:** 2-D and
   3-D long characteristics stopped one section short (B-24), wrong by
   7–11 % on a slab with an exact solution and by up to 25 % in the
@@ -562,6 +564,8 @@ item that resolves them lands.
 | [S-7](https://github.com/dwijn/RH/issues/123) | medium | Monolithic electron density (charge conservation in the residual) and PRD (ρ in the residual or CRD-preconditioned inner solve); only if S-5 favours Newton | N-4, N-6 | open |
 | [S-8](https://github.com/dwijn/RH/issues/124) | medium | Pseudo-transient continuation and physics continuation (CRD → +ne → +PRD → finer grid), warm starts from neighbouring columns or snapshots | N-9 (partly) | open |
 | [S-9](https://github.com/dwijn/RH/issues/125) | low | Mesh-independent convergence: multigrid preconditioner or nonlinear multigrid (FAS), for fine-grid RMHD columns | N-14 (iteration count only) | open |
+| [S-10](https://github.com/dwijn/RH/issues/293) | medium | `ANDERSON` the default solver of `rhf1d` and `rhsphere`; `rhsc2d` and `rhsc3d` stay on `NG` until S-11. Every keyword that is set is checked against the solver that runs, independent of the atoms (an unset `PRD_ITER_LIMIT` is 0 under a G solver); keyword files with Ng keywords and no `SOLVER` stop with a generic message, no fallback to `NG`; the default is printed; shipped 1-D keyword files without Ng keywords; test tools that mean Ng pin `SOLVER = NG`. Changes results (SOLVER.md, Anderson as the default solver, decided 2026-11-10) | — | open |
+| [S-11](https://github.com/dwijn/RH/issues/294) | medium | Anderson's history in 2-D and 3-D: the state is 60 % J and 39 % PRD ρ in the shipped examples, so 40 history vectors take about 24 GB on the 2-D perf case (10.7 GB run) and about 17 TB on the 3-D estimate of §3.3. Extrapolate only the populations (perhaps ρ) and carry J from the last G, as Ng does; measure on the S-5 set in 1-D, then on `2d_pert_h6_ca_mg` after N-33. Prerequisite of `ANDERSON` as the multi-D default (SOLVER.md §9 Q1) | — | open |
 
 ### 3.9 Bugs also present in upstream RH
 
