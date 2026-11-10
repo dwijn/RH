@@ -44,8 +44,8 @@ for ids, step in [
     ("B-1 B-2 B-3 B-4 B-8 B-9 B-13 B-15 B-16 B-17 B-18 B-19 N-1 N-5 N-11 B-29 B-34 B-36 B-37", 1),
     ("Q-1 Q-2 Q-3 Q-10 Q-12 Q-13 Q-15 Q-17 B-33", 2),
     ("B-20 B-21 B-22 B-23 N-17 N-18 B-24 B-25 B-26 B-27 B-28 N-20 N-21 N-22 N-23 N-24 Q-11 Q-14 Q-18 Q-20 B-30 B-31 B-32 B-35 N-25 T-4", 3),
-    ("B-5 B-6 B-7 N-2 N-3 N-4 N-6 N-7 N-8 N-9 N-10 N-12 N-13 N-14 N-15 N-16 N-19 N-26 N-27 N-28 N-29 N-30 B-38 B-39 B-40 B-41 B-42 B-43 B-44 N-31 N-32 N-33 N-34 N-35 N-36 Q-21 Q-22", 4),
-    ("S-1 S-2 S-3 S-4 S-5 S-6 S-7 S-8 S-9", 4),
+    ("B-5 B-6 B-7 N-2 N-3 N-4 N-6 N-7 N-8 N-9 N-10 N-12 N-13 N-14 N-15 N-16 N-19 N-26 N-27 N-28 N-29 N-30 B-38 B-39 B-40 B-41 B-42 B-43 B-44 B-45 B-46 N-31 N-32 N-33 N-34 N-35 N-36 Q-21 Q-22", 4),
+    ("S-1 S-2 S-3 S-4 S-5 S-6 S-7 S-8 S-9 S-10 S-11", 4),
     ("P-1 P-2 P-3 P-4 P-5 P-6 P-7 P-8 P-9 P-10 P-12 P-13 P-14 P-15 T-5", 5),
     ("B-10 B-11 M-1 M-2 M-3 M-4 M-5 M-6 M-7 M-8 M-9", 6),
     ("B-12 B-14 T-1 T-2 T-3 Q-4 Q-5 Q-6 Q-7 Q-8 Q-9 Q-16 Q-19 P-11", 7),
@@ -225,6 +225,18 @@ def cmd_project(dry):
                "--format", "json", json_out=True)["items"]
     on_board = {it.get("content", {}).get("number") for it in items}
     rows = {r["ID"]: r for r in parse_rows()}
+    # Items already on the board without a plan step get it once STEP has
+    # their ID (the step is often decided after the issue is created)
+    number_of = existing_issues()
+    for it in items:
+        n = it.get("content", {}).get("number")
+        i = next((k for k, v in number_of.items() if v == n), None)
+        if i in STEP and not it.get("plan step"):
+            print(f"plan step {STEP[i]} for #{n} [{i}]")
+            gh("project", "item-edit", "--id", it["id"], "--project-id", pid,
+               "--field-id", fields["Plan step"]["id"],
+               "--single-select-option-id", opt["Plan step"][str(STEP[i])])
+            gh("issue", "edit", str(n), "-R", REPO, "--add-label", f"step-{STEP[i]}")
     for i, n in sorted(existing_issues().items(), key=lambda kv: kv[1]):
         if n in on_board:
             continue
