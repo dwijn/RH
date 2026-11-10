@@ -1641,6 +1641,12 @@ memory its history takes; RSS is the peak of the Ng run.
        after three iterations of the shipped rhf1d file. Each of these
        either still holds under Anderson or pins `SOLVER = NG`; this gets
        checked case by case.
+   - Done (S-10 step 2): `make_references.sh` and the stress cases
+     `1d_falc_nong`, `1d_falc_h6_tight`, `1d_falc_prdng` and
+     `1d_falxco_collrel` pin `SOLVER = NG`. `prd_hybrid` holds under
+     Anderson as it is (all four checks pass with differences of 0, run
+     with `SOLVER = ANDERSON` and the Ng lines removed), and `stokes_1d`
+     does no iterations (`N_MAX_ITER = 0`), so neither needs a pin.
    - The manual's solver section waits for Q-19. The change fragment and
      the release notes say what changed and how to keep Ng.
 7. **The way to a multi-D default (agreed; S-11).**

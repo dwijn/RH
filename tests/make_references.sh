@@ -15,8 +15,9 @@
 #   --kw           extra keyword settings after the recipe (e.g. collisional
 #                  relaxation for a case that needs it)
 #
-# Recipe: 1 thread in 1-D (run_stress.sh), no acceleration (NG_ORDER = 0,
-# PRD_NG_ORDER = 0), a fixed number of PRD sub-iterations (PRD_ITER_LIMIT =
+# Recipe: 1 thread in 1-D (run_stress.sh), the NG solver (SOLVER = NG, pinned
+# so the recipe stays plain MALI when the default changes, S-10) with no
+# acceleration (NG_ORDER = 0, PRD_NG_ORDER = 0), a fixed number of PRD sub-iterations (PRD_ITER_LIMIT =
 # 0, so every main iteration does PRD_N_MAX_ITER of them, as S-2's G),
 # ITER_LIMIT = 1e-10 (main iterations and the final background-scattering
 # iteration, up to N_MAX_SCATTER = 50 sweeps), N_MAX_ITER = 3000. A case
@@ -25,7 +26,7 @@
 # cases on the SE residual alone.
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-RECIPE='NG_ORDER=0;PRD_NG_ORDER=0;PRD_ITER_LIMIT=0;ITER_LIMIT=1e-10;N_MAX_ITER=3000;N_MAX_SCATTER=50'
+RECIPE='SOLVER=NG;NG_ORDER=0;PRD_NG_ORDER=0;PRD_ITER_LIMIT=0;ITER_LIMIT=1e-10;N_MAX_ITER=3000;N_MAX_SCATTER=50'
 TREE=; OUT=; PASS=(); KW=; COMMIT=
 while [ $# -gt 0 ]; do
   case "$1" in
