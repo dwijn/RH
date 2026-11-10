@@ -18,8 +18,11 @@
 #   --work DIR       scratch directory (default tests/work_stress)
 #   --kw 'K=V;...'   keyword.input settings applied to every case after its
 #                    own (e.g. the reference recipe of make_references.sh);
-#                    -K removes keyword K (e.g. -NG_DELAY: G solvers refuse
-#                    Ng keywords that are set at all)
+#                    -K removes keyword K. The G solvers refuse keywords
+#                    they do not honour (docs/SOLVER.md, Anderson as the
+#                    default solver, item 2): e.g. -NG_DELAY;-NG_PERIOD for
+#                    the shipped 1-D file; a case that sets one, such as
+#                    1d_falxco_collrel (COLL_RELAX_FACTOR), stops at input
 #   --ref DIR        reference solutions (make_references.sh): every case with
 #                    a DIR/CASE directory is compared with it (population and
 #                    spectrum errors, analyze_run.py compare)

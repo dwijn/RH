@@ -432,15 +432,17 @@ void readInput()
 
 	if (input.solver != SOLVER_NG) {
 		/* --- Keywords without an "off" value: an error when set.
-			   FIXED_POINT keeps Ng for the "Ng on G" control -- -- */
+			   FIXED_POINT keeps Ng for the "Ng on G" control. (An
+			   "off" value states what the solver does and is
+			   accepted: NG_ORDER, PRD_NG_ORDER, PRD_ITER_LIMIT and
+			   COLL_RELAX_NSTEP 0, COLL_RELAX_FACTOR 1.) -- -- */
 		static const struct {
 			const char *name;
 			bool_t      ng;
 		} noOff[] = {{"NG_DELAY", TRUE},
 					 {"NG_PERIOD", TRUE},
 					 {"PRD_NG_DELAY", FALSE},
-					 {"PRD_NG_PERIOD", FALSE},
-					 {"COLL_RELAX_FACTOR", FALSE}};
+					 {"PRD_NG_PERIOD", FALSE}};
 
 		Nconflict = 0;
 		for (n = 0; n < (int) (sizeof(noOff) / sizeof(noOff[0])); n++) {
@@ -496,6 +498,10 @@ void readInput()
 			   does PRD_N_MAX_ITER sub-iterations -- -------------- */
 		if (!keywordSet(theKeywords, Nkeyword, "PRD_ITER_LIMIT")) {
 			input.PRDiterLimit = 0.0;
+			for (n = 0; n < Nkeyword; n++) { /* for -showkeywords */
+				if (!strcmp(theKeywords[n].keyword, "PRD_ITER_LIMIT"))
+					strcpy(theKeywords[n].value, "0.0");
+			}
 		} else if (input.PRDiterLimit != 0.0) {
 			sprintf(messageStr,
 					"SOLVER = %s: PRD_ITER_LIMIT = %g lets the PRD"
@@ -520,6 +526,16 @@ void readInput()
 					" needs at least one\n PRD sub-iteration. Set"
 					" PRD_N_MAX_ITER >= 1.",
 					sname, input.PRD_NmaxIter);
+			Error(WARNING, routineName, messageStr);
+			Nconflict++;
+		}
+		if (keywordSet(theKeywords, Nkeyword, "COLL_RELAX_FACTOR") &&
+			input.CR_factor != 1.0) {
+			sprintf(messageStr,
+					"SOLVER = %s: COLL_RELAX_FACTOR = %g, but the map has no"
+					" collisional\n relaxation. Remove the keyword or set it"
+					" to 1.",
+					sname, input.CR_factor);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}

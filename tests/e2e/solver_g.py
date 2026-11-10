@@ -16,7 +16,8 @@ Ca II with angle-averaged PRD (two PRD lines) on FAL-C, H_6 passive:
     changes nothing.
  3. validation: SOLVER = FIXED_POINT with the shipped PRD_ITER_LIMIT
     (1e-2) stops at input with a message that names PRD_ITER_LIMIT; so do
-    PRD_NG_DELAY and COLL_RELAX_FACTOR (set at all), and
+    PRD_NG_DELAY and PRD_NG_PERIOD (set at all), COLL_RELAX_FACTOR other
+    than 1, and
     SOLVE_NE = ITERATION with BACKGROUND_DOUBLE = FALSE.
 
 Exit status 0 = pass.
@@ -147,10 +148,12 @@ if not ok:
     failed.append("validation")
 
 # Keywords without an "off" value stop the run when set at all
-for kw, val in (("PRD_NG_DELAY", "2"), ("COLL_RELAX_FACTOR", "1.0")):
+for kw, val, want in (("PRD_NG_DELAY", "2", "PRD_NG_DELAY is set"),
+                      ("PRD_NG_PERIOD", "3", "PRD_NG_PERIOD is set"),
+                      ("COLL_RELAX_FACTOR", "0.01", "COLL_RELAX_FACTOR = 0.01")):
     d = prepare(f"validate_{kw.lower()}", "1d", G_KEYWORDS + [(kw, val)])
     r = execute(os.path.abspath(a.rhf1d), d)
-    ok = r.returncode == 70 and f"{kw} is set" in r.stdout
+    ok = r.returncode == 70 and want in r.stdout
     print(f"validate SOLVER = FIXED_POINT with {kw} = {val}: "
           f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})")
     if not ok:

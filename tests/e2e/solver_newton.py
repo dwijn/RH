@@ -132,6 +132,8 @@ for label, kws, want in (
          MAP + [("SOLVER", "NEWTON_KRYLOV"), ("ANDERSON_DEPTH", "3")], "ANDERSON_DEPTH"),
         ("NG_ORDER = 2 with SOLVER = NEWTON_KRYLOV",
          MAP + [("SOLVER", "NEWTON_KRYLOV"), ("NG_ORDER", "2")], "NG_ORDER = 2"),
+        ("NG_PERIOD with SOLVER = NEWTON_KRYLOV",
+         MAP + [("SOLVER", "NEWTON_KRYLOV"), ("NG_PERIOD", "3")], "NG_PERIOD is set"),
         ("NEWTON_KRYLOV_MAX = 0",
          MAP + [("SOLVER", "NEWTON_KRYLOV"), ("NEWTON_KRYLOV_MAX", "0")], "out of range"),
         ("PRD_ITER_LIMIT = 1e-2 with SOLVER = NEWTON_KRYLOV",
