@@ -483,8 +483,6 @@ void readInput()
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		/* --- PRD_N_MAX_ITER < 1 is valid (B-46): readAtom then treats
-			   every line in CRD, and G has no PRD sub-iterations -- */
 		if (input.CR_Nstep > 0) {
 			sprintf(messageStr,
 					"SOLVER = %s: COLL_RELAX_NSTEP = %d makes the map"
