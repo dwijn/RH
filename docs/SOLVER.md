@@ -1602,9 +1602,11 @@ memory its history takes; RSS is the peak of the Ng run.
      `COLL_RELAX_NSTEP` = 0. `NG_DELAY`, `NG_PERIOD`, `PRD_NG_DELAY`,
      `PRD_NG_PERIOD` and `COLL_RELAX_FACTOR` have no such value and stop
      the run when they are set.
-   - `PRD_N_MAX_ITER` ≥ 1 under a G solver, in CRD runs too.
-     `run_tests.sh`'s `1d/crd` sets it to 0 and so pins `SOLVER = NG`
-     (item 6).
+   - `PRD_N_MAX_ITER` < 1 is valid under every solver: it is RH's
+     switch for "every line in CRD" (`readAtom`), and G then has no PRD
+     sub-iterations. S-2's check that refused it is removed (found
+     while implementing this item); `run_tests.sh`'s `1d/crd` needs no
+     pin.
    - The test tools gain a way to remove a keyword from a shipped file
      (`run_stress.sh --kw '-NG_DELAY'`), since `rhsc2d` and `rhsc3d`
      keep their Ng lines.

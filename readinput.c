@@ -514,15 +514,8 @@ void readInput()
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (input.PRD_NmaxIter < 1) {
-			sprintf(messageStr,
-					"SOLVER = %s: PRD_N_MAX_ITER = %d, but the map"
-					" needs at least one\n PRD sub-iteration. Set"
-					" PRD_N_MAX_ITER >= 1.",
-					sname, input.PRD_NmaxIter);
-			Error(WARNING, routineName, messageStr);
-			Nconflict++;
-		}
+		/* --- PRD_N_MAX_ITER < 1 is valid: readAtom then treats every
+			   line in CRD, and G has no PRD sub-iterations -- ---- */
 		if (input.CR_Nstep != 0) {
 			sprintf(messageStr,
 					"SOLVER = %s: COLL_RELAX_NSTEP = %d makes the map"
