@@ -84,7 +84,8 @@ done
 # be compared without summation-order noise (some cases, e.g. He_large, end at
 # visibly different "converged" solutions for different thread counts).
 #
-# Cases run each program's default solver. Those that test the Ng iteration
+# Cases run each program's default solver: ANDERSON in 1-D and spherical
+# geometry, NG in 2-D and 3-D (S-10). Those that test the Ng iteration
 # itself (no Ng, PRD Ng, collisional relaxation, tight convergence without Ng)
 # pin it with $NG: SOLVER = NG and the Ng settings of the shipped rhf1d
 # keyword file, written out, since S-10 removes them from that file. They
@@ -94,7 +95,10 @@ done
 #
 # conv: run to convergence (N_MAX_ITER large), compare converged results.
 # perf: fixed number of iterations, for wall time and peak memory.
-# The comment after each group says what the case is known to expose.
+# The comment after each group says what the case is known to expose; where
+# it names Ng, that is what the case showed with NG, the default before
+# S-10 (--kw with the $NG settings shows it again; MODERNIZATION.md 2.2 and
+# 2.5 have the results of both solvers).
 L='ITER_LIMIT=1e-3;N_MAX_ITER=200'
 NG='SOLVER=NG;NG_ORDER=2;NG_DELAY=10;NG_PERIOD=3;PRD_ITER_LIMIT=1.0E-2'
 CASES=(
@@ -130,7 +134,7 @@ CASES=(
 "3d_perf_many      |perf|3d|gen:3d:24:24   |H_6,CaII,MgII,Fe33|N_MAX_ITER=3;N_THREADS=16;@NOMOL=MgH"
 "3d_perf_mgi66     |perf|3d|gen:3d:16:16   |MgI_66            |N_MAX_ITER=3;N_THREADS=16"
 # Bifrost cuts (need --bifrost). Ca II in CRD: with PRD the iteration
-# diverges in these moving atmospheres (B-29); the _prd cases reproduce that
+# diverged in these moving atmospheres (B-29, fixed); the _prd cases test that
 "1d_bf_c260_ca     |conv|1d|bifrost:1d:260 |CaII_CRD          |$L"
 "1d_bf_c260_prd    |conv|1d|bifrost:1d:260 |CaII              |$L"
 "1d_bf_c100_prd    |conv|1d|bifrost:1d:100 |CaII              |$L"

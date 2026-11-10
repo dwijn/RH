@@ -488,7 +488,7 @@ void readInput()
 			sprintf(messageStr,
 					"SOLVER = %s: NG_ORDER = %d would extrapolate the"
 					" populations a second\n time after the solver's step."
-					" Set NG_ORDER = 0.",
+					" Set SOLVER = NG, or remove the keyword or set it\n to 0.",
 					sname, input.Ngorder);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -532,8 +532,8 @@ void readInput()
 			sprintf(messageStr,
 					"SOLVER = %s: PRD_ITER_LIMIT = %g lets the PRD"
 					" sub-iterations stop early,\n which makes the map"
-					" discontinuous. Remove the keyword or set it to 0;"
-					" G then does\n PRD_N_MAX_ITER sub-iterations.",
+					" discontinuous. Set SOLVER = NG, or remove the keyword\n or"
+					" set it to 0 (G then does PRD_N_MAX_ITER sub-iterations).",
 					sname, input.PRDiterLimit);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -541,7 +541,8 @@ void readInput()
 		if (input.PRD_Ngorder != 0) {
 			sprintf(messageStr,
 					"SOLVER = %s: PRD_NG_ORDER = %d, but there is no"
-					" acceleration inside\n the map. Set PRD_NG_ORDER = 0.",
+					" acceleration inside\n the map. Set SOLVER = NG, or remove"
+					" the keyword or set it to 0.",
 					sname, input.PRD_Ngorder);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -550,8 +551,8 @@ void readInput()
 			input.CR_factor != 1.0) {
 			sprintf(messageStr,
 					"SOLVER = %s: COLL_RELAX_FACTOR = %g, but the map has no"
-					" collisional\n relaxation. Remove the keyword or set it"
-					" to 1.",
+					" collisional\n relaxation. Set SOLVER = NG, or remove the"
+					" keyword or set it to 1.",
 					sname, input.CR_factor);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -559,8 +560,8 @@ void readInput()
 		if (input.CR_Nstep != 0) {
 			sprintf(messageStr,
 					"SOLVER = %s: COLL_RELAX_NSTEP = %d makes the map"
-					" depend on the\n iteration number. Set"
-					" COLL_RELAX_NSTEP = 0.",
+					" depend on the\n iteration number. Set SOLVER = NG, or"
+					" remove the keyword or set it to 0.",
 					sname, input.CR_Nstep);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -568,7 +569,8 @@ void readInput()
 		if (atmos.hydrostatic) {
 			sprintf(messageStr,
 					"SOLVER = %s: HYDROSTATIC = TRUE changes the"
-					" atmosphere between\n iterations. Set HYDROSTATIC = FALSE.",
+					" atmosphere between\n iterations. Set SOLVER = NG or"
+					" HYDROSTATIC = FALSE.",
 					sname);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -576,7 +578,7 @@ void readInput()
 		if (input.limit_memory) {
 			sprintf(messageStr,
 					"SOLVER = %s: the mean intensity J is part of the"
-					" state and must be\n kept in memory. Set"
+					" state and must be\n kept in memory. Set SOLVER = NG or"
 					" LIMIT_MEMORY = FALSE.",
 					sname);
 			Error(WARNING, routineName, messageStr);
@@ -585,7 +587,8 @@ void readInput()
 		if (input.solve_ne == ITERATION && input.old_background) {
 			sprintf(messageStr,
 					"SOLVER = %s with SOLVE_NE = ITERATION recomputes the"
-					" background\n from the state. Set OLD_BACKGROUND = FALSE.",
+					" background\n from the state. Set SOLVER = NG or"
+					" OLD_BACKGROUND = FALSE.",
 					sname);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -593,7 +596,8 @@ void readInput()
 		if (input.solve_ne == ITERATION && input.NonICE) {
 			sprintf(messageStr,
 					"SOLVER = %s with SOLVE_NE = ITERATION computes the"
-					" chemical\n equilibrium from the state. Set NON_ICE = FALSE.",
+					" chemical\n equilibrium from the state. Set SOLVER = NG or"
+					" NON_ICE = FALSE.",
 					sname);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
