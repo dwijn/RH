@@ -17,7 +17,12 @@
 #   --threads N      override N_THREADS of the multi-D cases
 #   --work DIR       scratch directory (default tests/work_stress)
 #   --kw 'K=V;...'   keyword.input settings applied to every case after its
-#                    own (e.g. the reference recipe of make_references.sh)
+#                    own (e.g. the reference recipe of make_references.sh);
+#                    -K removes keyword K. The G solvers refuse keywords
+#                    they do not honour (docs/SOLVER.md, Anderson as the
+#                    default solver, item 2): e.g. -NG_DELAY;-NG_PERIOD for
+#                    the shipped 1-D file; a case that sets one, such as
+#                    1d_falxco_collrel (COLL_RELAX_FACTOR), stops at input
 #   --ref DIR        reference solutions (make_references.sh): every case with
 #                    a DIR/CASE directory is compared with it (population and
 #                    spectrum errors, analyze_run.py compare)
@@ -71,7 +76,8 @@ done
 # field of the cut. ACTIVE ATOMS is a comma-separated
 # list of atom files in Atoms/ to make active; each replaces the line of the
 # same element in the geometry's example atoms.input. KEYWORDS are
-# ';'-separated keyword.input settings, plus @NOMOL=NAME to drop a molecule
+# ';'-separated keyword.input settings (K=V, or -K to remove K), plus
+# @NOMOL=NAME to drop a molecule
 # (e.g. MgH, which needs neutral Mg, when Mg II is the Mg model).
 #
 # 1-D cases run on 1 thread unless they set N_THREADS, so that two builds can
@@ -155,6 +161,11 @@ for d in Atoms Atmos Molecules; do ln -sfn "$REF/$d" "$WORK/$d"; done
 
 geomdir() { case $1 in 1d) echo rhf1d;; 2d) echo rhsc2d;; 3d) echo rhsc3d;; sph) echo rhsphere;; esac; }
 
+# Remove keyword $2 from keyword file $1 (comment it out), so it is not set
+unsetkw() {
+  sed -E -i "s|^([[:space:]]*$2[[:space:]]*=.*)|#\1|" "$1"
+}
+
 setkw() {
   if grep -Eq "^[[:space:]]*$2[[:space:]]*=" "$1"; then
     sed -E -i "s|^[[:space:]]*$2[[:space:]]*=.*|  $2 = $3|" "$1"
@@ -213,6 +224,7 @@ prepare() {   # NAME GEOM ATMOS ATOMS KEYWORDS TREENAME -> RUNDIR
                      { print $1 - 1; done = 1 }' "$RUNDIR/mol.tmp" > "$RUNDIR/molecules.input"
                 rm -f "$RUNDIR/mol.tmp";;
       STOKES_INPUT=@B) local B=$(atmos_path $atm); setkw "$RUNDIR/keyword.input" STOKES_INPUT "${B%.atmos}.B";;
+      -?*)      unsetkw "$RUNDIR/keyword.input" "${m#-}";;
       ?*=*)     setkw "$RUNDIR/keyword.input" "${m%%=*}" "${m#*=}";;
     esac
   done

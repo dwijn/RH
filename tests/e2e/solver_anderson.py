@@ -12,8 +12,9 @@ solver_g.py:
     variables and PER_BLOCK coefficients, 15 iterations extrapolate, and
     two runs give bit-identical output.
  3. Conflicting keywords stop the run at input: an ANDERSON_* keyword with
-    SOLVER = FIXED_POINT, NG_ORDER > 0 with SOLVER = ANDERSON, and a map
-    keyword (PRD_ITER_LIMIT) with a message that names ANDERSON.
+    SOLVER = FIXED_POINT, NG_ORDER > 0 and NG_DELAY (set at all) with
+    SOLVER = ANDERSON, and a map keyword (PRD_ITER_LIMIT) with a message
+    that names ANDERSON.
 """
 
 import argparse
@@ -38,19 +39,24 @@ for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels dow
     if not os.path.lexists(link):
         os.symlink(os.path.join(src, d), link)
 
-MAP = [("NG_ORDER", "0"), ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0")]
+# The shipped file sets NG_DELAY and NG_PERIOD, which SOLVER = ANDERSON
+# refuses when set
+MAP = [("NG_ORDER", "0"), ("NG_DELAY", None), ("NG_PERIOD", None),
+       ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0")]
 
 
 def setkw(text, key, value):
+    """Set key = value in a keyword.input text; value None removes the key
+    (comments it out), so that it is not set at all."""
     out, done = [], False
     for l in text.splitlines():
         s = l.strip()
         if not s.startswith("#") and "=" in s and s.split("=")[0].strip() == key:
-            out.append(f"  {key} = {value}")
+            out.append(f"# {s}" if value is None else f"  {key} = {value}")
             done = True
         else:
             out.append(l)
-    if not done:
+    if not done and value is not None:
         out.append(f"  {key} = {value}")
     return "\n".join(out) + "\n"
 
@@ -136,6 +142,8 @@ for label, kws, want in (
          MAP + [("SOLVER", "FIXED_POINT"), ("ANDERSON_DEPTH", "3")], "ANDERSON_DEPTH"),
         ("NG_ORDER = 2 with SOLVER = ANDERSON",
          MAP + [("SOLVER", "ANDERSON"), ("NG_ORDER", "2")], "NG_ORDER = 2"),
+        ("NG_DELAY with SOLVER = ANDERSON",
+         MAP + [("SOLVER", "ANDERSON"), ("NG_DELAY", "10")], "NG_DELAY is set"),
         ("PRD_ITER_LIMIT = 1e-2 with SOLVER = ANDERSON",
          [("SOLVER", "ANDERSON"), ("NG_ORDER", "0"), ("PRD_NG_ORDER", "0"),
           ("PRD_ITER_LIMIT", "1e-2")], "SOLVER = ANDERSON: PRD_ITER_LIMIT")):

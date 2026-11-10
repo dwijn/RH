@@ -1599,9 +1599,9 @@ memory its history takes; RSS is the peak of the Ng run.
      under every G solver.
    - A value that means "off" states what the solver does, and is
      accepted: `NG_ORDER`, `PRD_NG_ORDER`, `PRD_ITER_LIMIT` and
-     `COLL_RELAX_NSTEP` = 0. `NG_DELAY`, `NG_PERIOD`, `PRD_NG_DELAY`,
-     `PRD_NG_PERIOD` and `COLL_RELAX_FACTOR` have no such value and stop
-     the run when they are set.
+     `COLL_RELAX_NSTEP` = 0, `COLL_RELAX_FACTOR` = 1. `NG_DELAY`,
+     `NG_PERIOD`, `PRD_NG_DELAY` and `PRD_NG_PERIOD` have no such value
+     and stop the run when they are set.
    - `PRD_N_MAX_ITER` ≥ 1 under a G solver, in CRD runs too.
      `run_tests.sh`'s `1d/crd` sets it to 0 and so pins `SOLVER = NG`
      (item 6).
