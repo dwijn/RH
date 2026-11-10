@@ -1161,29 +1161,90 @@ O'Donoghue & Boyd (2020) replaces it (Safeguards, above).
 ### S-4 — Newton–GMRES on the MALI map (Form A)
 
 **Goal:** the minimal-intrusion test of the Newton hypothesis: same G as
-S-3, Newton outer loop instead of Anderson.
+S-3, Newton outer loop instead of Anderson. Also the scaffold for Form B
+(S-6).
 
-- Solve R(x) = G(x) − x = 0 with inexact Newton (§3.2), finite-difference
-  Jacobian products (one G_eval each), restarted GMRES(k) (default k = 20),
-  Eisenstat–Walker forcing, backtracking line search on ‖R‖ (§3.3).
-- Step size for finite differences: ε = sqrt(δ)(1 + ‖x‖)/‖v‖ in scaled
-  variables, with δ measured per case in S-2 (§7 trap 3). **Decided:**
-  never the textbook sqrt(u) of double: on a G with a float background it
-  cost up to 9× more evaluations in the toy model of §3.7, while the step
-  from the measured noise cost the same as all-double. Measured so far:
-  δ ≈ 10⁻¹⁰ (populations, `1d_falc_h6_ca_mg`), ε ≈ 10⁻⁵; δ ≈ 4×10⁻⁹ with
-  the float background inside G, ε ≈ 6×10⁻⁵.
-- Stop on ‖F_SE‖ (S-1), not on the step size.
-- Every numerical parameter (ε and the δ it came from, forcing constants,
-  restart length, line-search constants, tolerances) is printed in the run
-  log and stated in the pull request; none is buried as a default.
-- Log per Newton step: ‖R‖, ‖F_SE‖, number of GMRES iterations, line
-  search factor, work counts so far.
-- Keyword: `SOLVER = NEWTON_KRYLOV`.
+**Expectation (2026-11-09, before the runs).** Near the solution the
+problem is effectively linear, and there Anderson with unlimited depth is
+GMRES on the linearized problem (Walker & Ni 2011; `test_anderson`), as is
+one Newton step. Newton discards its Krylov space every Newton step,
+where Anderson carries its history over, and pays for line-search trials.
+So Form A is expected at best to tie with Anderson on the easy cases, and
+warm starts help both alike. Newton can win where the nonlinearity
+dominates (the slow tail of `1d_shock_h6` and `1d_t5750_h6`, with many
+Anderson rejections), and Form B (cheaper products, preconditioners not
+tied to MALI) is where the method could pay off.
 
-**Acceptance:** default runs unchanged; on the S-5 case set the solver runs
-to its stopping criterion or reports failure clearly (exit status bit),
-with all S-1 metrics.
+**Decided (2026-11-09):** the design below. Implementation on
+`s4/newton`, one pull request; the runs on the S-5 set follow in a
+separate one.
+
+1. **Unknowns and residual.** u = s(x) in the variables of S-3
+   (`NEWTON_VARIABLES = LOG`, default, or `RELATIVE`; J20 as J20/J),
+   R(u) = s(G(s⁻¹(u))) − u, the block-weighted norm ‖·‖_W of S-3 for
+   GMRES inner products, the forcing test and the line search. Entries
+   with no value in the variables (x or G(x) ≤ 0 in `LOG`) are left out of
+   the step at that Newton iteration and take G's value, as in Anderson.
+2. **Finite-difference products.** J v ≈ (R(u + h v/‖v‖_W) − R(u))·‖v‖_W/h,
+   one G evaluation each, h = √δ with δ = `NEWTON_NOISE` (default 10⁻¹⁰,
+   measured on `1d_falc_h6_ca_mg`, §7 trap 3), so h = 10⁻⁵. In `LOG`
+   variables a step in u is already relative, so the textbook factor
+   (1 + ‖x‖) does not apply; never √u of double.
+3. **GMRES.** Zero initial guess, at most k = `NEWTON_KRYLOV_MAX` (20)
+   Krylov iterations per Newton step, no restart: if the forcing test is
+   not met, the best step found is taken. Arnoldi by classical
+   Gram–Schmidt with reorthogonalization in a fixed summation order
+   (bit-reproducible, as Anderson's QR), Givens rotations. Forcing:
+   Eisenstat & Walker (1996) choice 2, η_k = γ(‖R_k‖/‖R_{k−1}‖)^α with
+   γ = 0.9, α = 2, their safeguard η_k ≥ γη_{k−1}^α when that exceeds 0.1,
+   η_k ≤ η_max = `NEWTON_ETA_MAX` (0.9), η_0 = η_max, and against
+   oversolving η_k ≥ ½·`ITER_LIMIT`/‖R_k‖_W (Kelley 1995).
+4. **Globalization.** Backtracking on ‖R‖_W: trial u + λδ for
+   λ = 1, ½, ¼, ⅛, 1/16, accepted if
+   ‖R(u + λδ)‖_W ≤ (1 − 10⁻⁴λ)‖R(u)‖_W. The S-3 guard (finite, no new
+   negatives, no new population inversions against G(x_k)) runs before
+   each trial and a failure halves λ without a G evaluation. If no λ is
+   accepted, the plain step x ← G(x_k) is taken; it costs nothing, as
+   G(x_k) is known. The G evaluation of an accepted trial is the base of
+   the next Newton step, never paid twice.
+5. **Stopping and output.** As every other solver: `MaxChange`'s
+   definition on (x_k, G(x_k)) at each base point, per atom, against
+   `ITER_LIMIT` (S-5: 10⁻⁶); ‖F_SE‖ is reported by the S-1 metrics, not
+   used to stop (this replaces "stop on ‖F_SE‖" in the first version of
+   this item, for like-for-like comparisons in S-5). `N_MAX_ITER` caps G
+   evaluations (all of them: base, Krylov, line search), so it bounds the
+   work as for Anderson. The output is G of the last base point, never a
+   probe or a trial.
+6. **Accounting and log.** G evaluations split into base, Krylov and line
+   search; per Newton step ‖R‖_W, η, GMRES iterations and the residual
+   reached, λ (or "plain step"), guard halvings, and the evaluations so
+   far; at the start every constant above (h and δ, γ, α, η_max, k, the
+   line-search constants) and the memory. The per-atom `delta` lines of
+   the other solvers are printed at every base point.
+
+**Keywords:** `SOLVER = NEWTON_KRYLOV`, `NEWTON_NOISE` (10⁻¹⁰),
+`NEWTON_KRYLOV_MAX` (20), `NEWTON_ETA_MAX` (0.9), `NEWTON_VARIABLES`
+(`LOG` | `RELATIVE`). readInput stops on the `FIXED_POINT` conflicts
+(map keywords, `NG_ORDER > 0`), on `NEWTON_*` with another solver and on
+`ANDERSON_*` with `NEWTON_KRYLOV`.
+
+**Code:** `newton.c` / `newton.h`, generic without RH globals
+(matrix-free weighted GMRES with a product callback, Eisenstat–Walker
+forcing), unit-tested alone; `iterateNewton()` in `solver.c`, sharing the
+variable transform, guard and block setup with `iterateAnderson()`
+(`G_eval` unchanged); keywords in `readinput.c`, dispatch in `iterate.c`,
+counters read by `tests/analyze_run.py`.
+
+**Tests:** unit (`test_newton`): GMRES on a nonsymmetric system matches a
+dense solve with k = n, its residual history is non-increasing, a
+tolerance stops it early, two runs are bit-identical; the forcing
+sequence on a given residual history. e2e: a short `NEWTON_KRYLOV` run is
+bit-reproducible and takes Newton steps; the keyword conflicts stop the
+run.
+
+**Acceptance:** default runs unchanged bit for bit; on the S-5 case set
+the solver runs to its stopping criterion or reports failure clearly
+(exit status bit), with all S-1 metrics and the counts of item 6.
 
 ### S-5 — Experiment and decision gate
 
@@ -1388,9 +1449,11 @@ Findings:
   that set them behave, the multi-D cases (not yet measured; the 2-D
   stress case is blocked by N-33), and the change of results for every
   run.
-- S-4 (Newton–GMRES) is under review; whether it is still wanted is open.
-  The decision rule above made Anderson the default with Newton kept as
-  an option, but Newton now has no failing 1-D case left to win.
+- S-4 (Newton–GMRES) is built anyway (decided 2026-11-09): Newton has no
+  failing 1-D case left to win, but it measures Newton's outer
+  convergence on the same G and is the scaffold for Form B (S-6). It
+  replaces Anderson as the recommendation only if it wins in wall time;
+  the expectation is in S-4.
 
 **Open:** the envelope safeguard on `shock_h6`; a margin in the inversion
 guard; N-36 (the two ne formulations); multi-D (after N-33).
@@ -1617,6 +1680,9 @@ from memory and should be checked before being quoted.
   chapter 13
 - Janett, G. et al. 2021, A&A 655, A13: stationary iterative methods for
   polarized transfer (paper I)
+- Kelley, C. T. 1995, Iterative Methods for Linear and Nonlinear
+  Equations, SIAM (Frontiers in Applied Mathematics 16), chapter 6:
+  inexact Newton, the safeguard against oversolving
 - Kelley, C. T. 2022, SIAM Review 64, 191: Newton's method in mixed
   precision
 - Kelley, C. T., Keyes, D. E. 1998, SIAM J. Numer. Anal. 35, 508:
