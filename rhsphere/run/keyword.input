@@ -40,26 +40,35 @@
   N_MAX_ITER = 25
   ITER_LIMIT = 1.0E-2
 
-# Parameters for Ng convergence acceleration (all are KEYWORD_OPTIONAL)
-# (default for NG_ORDER = 0 --> no acceleration)
+# Iteration scheme (KEYWORD_DEFAULT): ANDERSON, the default in 1-D and
+# spherical geometry; NG (MALI with Ng acceleration, the default in 2-D
+# and 3-D and before S-10 everywhere); FIXED_POINT; or NEWTON_KRYLOV.
+# See docs/SOLVER.md. A keyword that the solver does not use stops the
+# run: the NG_*, PRD_ITER_LIMIT and PRD_NG_* keywords below need
+# SOLVER = NG.
 
-  NG_DELAY  = 6
-  NG_ORDER  = 2
-  NG_PERIOD = 3
+#  SOLVER = ANDERSON
 
-# PRD specific parameters. PRD_N_MAX_ITER is the maximum number of
-# PRD iterations per main iteration. PRD_ITER_LIMIT is the convergence
-# limit of PRD iterations in each main iteration. If PRD_ITER_LIMIT is
-# negative, the dpopsmax of the current main iteration is taken as the
-# PRD convergence limit. Both are KEYWORD_OPTIONAL. If PRD_N_MAX_ITER
-# all lines will be treated in CRD.
+# With SOLVER = NG: parameters for Ng convergence acceleration (all are
+# KEYWORD_OPTIONAL; default NG_ORDER = 0 --> no acceleration).
+
+#  NG_DELAY  = 6
+#  NG_ORDER  = 2
+#  NG_PERIOD = 3
+
+# PRD_N_MAX_ITER is the number of PRD iterations per main iteration
+# (with SOLVER = NG the maximum). If PRD_N_MAX_ITER < 1 all lines are
+# treated in CRD (KEYWORD_OPTIONAL).
 
   PRD_N_MAX_ITER = 3
-  PRD_ITER_LIMIT = 1.0E-2
 
-# PRD_NG_?? are the Ng accelleration parameters for PRD iterations
-# (all are KEYWORD_OPTIONAL).
+# With SOLVER = NG: PRD_ITER_LIMIT is the convergence limit of the PRD
+# iterations in each main iteration (default 1.0E-2); if negative, the
+# dpopsmax of the current main iteration is taken. PRD_NG_?? are the Ng
+# acceleration parameters for the PRD iterations. All are
+# KEYWORD_OPTIONAL.
 
+#  PRD_ITER_LIMIT = 1.0E-2
 #  PRD_NG_DELAY   = 0
 #  PRD_NG_ORDER   = 2
 #  PRD_NG_PERIOD  = 3

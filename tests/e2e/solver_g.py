@@ -15,8 +15,8 @@ Ca II with angle-averaged PRD (two PRD lines) on FAL-C, H_6 passive:
  2. gcheck (rhf1d, and rhsc2d at 2 threads with --gcheck2d): G(x_a) twice
     gives bit-identical results, and G(x_b) between two calls of G(x_a)
     changes nothing.
- 3. validation: SOLVER = FIXED_POINT with the shipped PRD_ITER_LIMIT
-    (1e-2) stops at input with a message that names PRD_ITER_LIMIT; so do
+ 3. validation: SOLVER = FIXED_POINT with PRD_ITER_LIMIT = 1e-2 (NG's
+    default, set in the file) stops at input with a message that names PRD_ITER_LIMIT; so do
     PRD_NG_DELAY and PRD_NG_PERIOD (set at all), COLL_RELAX_FACTOR other
     than 1, and SOLVE_NE = ITERATION with BACKGROUND_DOUBLE = FALSE. With
     SOLVER = NG, a negative NG_ORDER, NG_DELAY, PRD_NG_ORDER or
@@ -150,7 +150,7 @@ for name, geom, program, threads in checks:
             failed.append(f"{name}: {l}")
 
 # --- 3. Conflicting keywords stop the run at input
-d = prepare("validate", "1d", [("SOLVER", "FIXED_POINT")])
+d = prepare("validate", "1d", [("SOLVER", "FIXED_POINT"), ("PRD_ITER_LIMIT", "1e-2")])
 r = execute(os.path.abspath(a.rhf1d), d)
 ok = r.returncode == 70 and "PRD_ITER_LIMIT" in r.stdout and \
     "reading input file" not in r.stdout.split("TERMINATING")[0].split("readInput")[-1]

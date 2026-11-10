@@ -44,7 +44,8 @@ void readInput()
 	char       errorStr[MAX_MESSAGE_LENGTH];
 
 	int              Nkeyword, Nconflict, n, p;
-	const char      *sname, *prefix;
+	char             sname[MAX_KEYWORD_LENGTH + 16];
+	const char      *prefix;
 	enum solver_type owner;
 	FILE            *fp_keyword;
 
@@ -216,6 +217,17 @@ void readInput()
 		{"ALLOW_PASSIVE_BB", "TRUE", FALSE, KEYWORD_DEFAULT,
 		 &input.allow_passive_bb, setboolValue}};
 	Nkeyword = sizeof(theKeywords) / sizeof(Keyword);
+
+	/* --- The default solver depends on the geometry (S-10): ANDERSON
+		   in 1-D and spherical geometry, NG in 2-D and 3-D, where
+		   Anderson's history does not fit in memory yet (S-11) -- -- */
+
+	if (topology == ONE_D_PLANE || topology == SPHERICAL_SYMMETRIC) {
+		for (n = 0; n < Nkeyword; n++) {
+			if (!strcmp(theKeywords[n].keyword, "SOLVER"))
+				strcpy(theKeywords[n].value, "ANDERSON");
+		}
+	}
 
 	/* --- Open the input data file --                    ------------- */
 
@@ -404,7 +416,12 @@ void readInput()
 		   NEWTON_* by SOLVER = NEWTON_KRYLOV only; set with another
 		   solver they would be ignored silently -- ---------------- */
 
-	sname = solverName(input.solver);
+	/* --- The messages say when the solver is the default, so that a
+		   keyword file written for the old default (NG) explains
+		   itself (S-10) -- -------------------------------------- */
+
+	sprintf(sname, "%s%s", solverName(input.solver),
+			keywordSet(theKeywords, Nkeyword, "SOLVER") ? "" : " (the default)");
 	for (p = 0; p < 2; p++) {
 		prefix = (p == 0) ? "ANDERSON_" : "NEWTON_";
 		owner  = (p == 0) ? SOLVER_ANDERSON : SOLVER_NEWTON_KRYLOV;
@@ -602,12 +619,16 @@ void readInput()
 		if (Nconflict) {
 			sprintf(messageStr,
 					"SOLVER = %s: %d keyword setting%s conflict with"
-					" it; see the\n warning%s above and S-2 in docs/SOLVER.md.",
+					" it; see the\n warning%s above. docs/SOLVER.md describes"
+					" the solvers and their keywords.",
 					sname, Nconflict, (Nconflict > 1) ? "s" : "",
 					(Nconflict > 1) ? "s" : "");
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 	}
+
+	sprintf(messageStr, " -- SOLVER = %s\n", sname);
+	Error(MESSAGE, routineName, messageStr);
 
 	/* --- If called with -showkeywords commandline option -- --------- */
 
