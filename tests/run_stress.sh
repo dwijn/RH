@@ -80,13 +80,17 @@ done
 #
 # Cases run each program's default solver. Those that test the Ng iteration
 # itself (no Ng, PRD Ng, collisional relaxation, tight convergence without Ng)
-# pin SOLVER = NG, so that they keep testing it when the default changes
-# (S-10); --kw settings come after a case's own and can still override it.
+# pin it with $NG: SOLVER = NG and the Ng settings of the shipped rhf1d
+# keyword file, written out, since S-10 removes them from that file. They
+# keep testing Ng when the default changes. --kw settings come after a
+# case's own; a G solver set there stops these cases at input, because they
+# set keywords it does not honour.
 #
 # conv: run to convergence (N_MAX_ITER large), compare converged results.
 # perf: fixed number of iterations, for wall time and peak memory.
 # The comment after each group says what the case is known to expose.
 L='ITER_LIMIT=1e-3;N_MAX_ITER=200'
+NG='SOLVER=NG;NG_ORDER=2;NG_DELAY=10;NG_PERIOD=3;PRD_ITER_LIMIT=1.0E-2'
 CASES=(
 # Well-behaved references (converge in 15-30 iterations)
 "1d_falc_h6_ca_mg  |conv|1d|FALC_82.atmos  |H_6,CaII,MgII     |$L"
@@ -94,13 +98,13 @@ CASES=(
 "1d_falc_h20       |conv|1d|FALC_82.atmos  |H_20              |$L"
 "1d_falc_mgi66     |conv|1d|FALC_82.atmos  |MgI_66            |$L"
 "1d_falc_fe33      |conv|1d|FALC_82.atmos  |Fe33              |$L"
-"1d_falc_nong      |conv|1d|FALC_82.atmos  |H_6,CaII,MgII     |$L;SOLVER=NG;NG_ORDER=0"
+"1d_falc_nong      |conv|1d|FALC_82.atmos  |H_6,CaII,MgII     |$L;$NG;NG_ORDER=0"
 "1d_falxco_h6crd   |conv|1d|FALXCO_80.atmos|H_6_CRD,CaII      |$L"
 # Slow / non-convergence: PRD sub-iteration (H Lyman PRD), Ng without safeguards
 "1d_falxco_h6_ca   |conv|1d|FALXCO_80.atmos|H_6,CaII          |$L"
 "1d_t5750_h6       |conv|1d|T5750_g4.5_p00_ext.atmos|H_6     |$L"
 "1d_falc_helarge   |conv|1d|FALC_82.atmos  |He_large          |$L"
-"1d_falc_h6_tight  |conv|1d|FALC_82.atmos  |H_6               |ITER_LIMIT=1e-8;N_MAX_ITER=300;SOLVER=NG;NG_ORDER=0"
+"1d_falc_h6_tight  |conv|1d|FALC_82.atmos  |H_6               |ITER_LIMIT=1e-8;N_MAX_ITER=300;$NG;NG_ORDER=0"
 "1d_falc_civi      |conv|1d|FALC_82.atmos  |CI-VI_Judge       |$L"
 # Moving atmospheres: linear vs Bezier (they differ by 5-16 % in the
 # chromosphere on this 82-point grid: depth resolution, not the scheme)
@@ -111,8 +115,8 @@ CASES=(
 "1d_falc_cail      |conv|1d|FALC_82.atmos  |CaII_large        |$L"
 "1d_falc_solvene   |conv|1d|FALC_82.atmos  |H_6,CaII          |$L;SOLVE_NE=ITERATION"
 "1d_shock_h6crd_ne |conv|1d|FALC_shock.atmos|H_6_CRD          |$L;SOLVE_NE=ITERATION"
-"1d_falc_prdng     |conv|1d|FALC_82.atmos  |CaII              |$L;SOLVER=NG;PRD_NG_ORDER=2"
-"1d_falxco_collrel |conv|1d|FALXCO_80.atmos|H_6               |$L;SOLVER=NG;COLL_RELAX_NSTEP=20;COLL_RELAX_FACTOR=0.01"
+"1d_falc_prdng     |conv|1d|FALC_82.atmos  |CaII              |$L;$NG;PRD_NG_ORDER=2"
+"1d_falxco_collrel |conv|1d|FALXCO_80.atmos|H_6               |$L;$NG;COLL_RELAX_NSTEP=20;COLL_RELAX_FACTOR=0.01"
 # Multi-D
 "2d_pert_h6_ca_mg  |conv|2d|gen:2d:32      |H_6,CaII,MgII     |$L;N_THREADS=8;S_INTERPOLATION=S_BEZIER3;@NOMOL=MgH"
 "3d_pert_h6_ca     |conv|3d|gen:3d:8:8     |H_6,CaII          |$L;N_THREADS=8"

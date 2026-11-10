@@ -17,8 +17,9 @@
 #
 # Recipe: 1 thread in 1-D (run_stress.sh), the NG solver (SOLVER = NG, pinned
 # so the recipe stays plain MALI when the default changes, S-10) with no
-# acceleration (NG_ORDER = 0, PRD_NG_ORDER = 0), a fixed number of PRD sub-iterations (PRD_ITER_LIMIT =
-# 0, so every main iteration does PRD_N_MAX_ITER of them, as S-2's G),
+# acceleration (NG_ORDER = 0, PRD_NG_ORDER = 0), a fixed number of PRD
+# sub-iterations (PRD_ITER_LIMIT = 0, so every main iteration does
+# PRD_N_MAX_ITER of them, as S-2's G),
 # ITER_LIMIT = 1e-10 (main iterations and the final background-scattering
 # iteration, up to N_MAX_SCATTER = 50 sweeps), N_MAX_ITER = 3000. A case
 # that does not reach ITER_LIMIT is kept but marked "reference: no" in its
