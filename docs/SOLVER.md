@@ -1054,7 +1054,8 @@ variables u = s(x):
   block counts as its mean square. Per-entry weights would let J
   (~150 times the H_6 block on FAL-C) decide alone.
 
-**Schedule.** `ANDERSON_DEPTH` m (default 5; report 3, 5, 10). History
+**Schedule.** `ANDERSON_DEPTH` m (default 10 since S-5; 5 before; report
+3, 5, 10). History
 from the first evaluation; the first extrapolation after evaluation
 max(`ANDERSON_DELAY`, 2). The default delay is chosen from a scan of
 {2, 5, 10} on the three easy controls and `1d_falxco_h6_ca`, and frozen
@@ -1092,7 +1093,7 @@ definition on (x_k, G(x_k)), per atom, as in `FIXED_POINT`; the run stops
 below `ITER_LIMIT`. The state left for the final formal solution and the
 output is G(x_k) of that evaluation, never an extrapolated point.
 
-**Keywords:** `SOLVER = ANDERSON`, `ANDERSON_DEPTH` (5),
+**Keywords:** `SOLVER = ANDERSON`, `ANDERSON_DEPTH` (10),
 `ANDERSON_DELAY` (from the scan), `ANDERSON_COND_MAX` (10⁸),
 `ANDERSON_SAFEGUARD` (1), `ANDERSON_VARIABLES` (`LOG` | `RELATIVE`),
 `ANDERSON_COEFFICIENTS` (`GLOBAL` | `PER_BLOCK`); all printed at the start
