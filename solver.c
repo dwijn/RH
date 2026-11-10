@@ -658,7 +658,8 @@ enum GuardResult { GUARD_OK,
 static const char *guardName[] = {"ok", "not finite", "negative",
 								  "new population inversion"};
 
-static enum GuardResult guardTrial(const double *xt, const double *gx)
+static enum GuardResult guardTrial(const double *xt, const double *gx,
+								   const double *xb)
 {
 	register long i;
 	register int  n, kr;
@@ -677,7 +678,12 @@ static enum GuardResult guardTrial(const double *xt, const double *gx)
 		   for a continuum n_i / n*_i > (n_j / n*_j) exp(-h nu_0 / kT)
 		   (positive opacity at the edge). Negative values and
 		   inversions G itself makes (the LU fallback of statEquil,
-		   N-31) are left alone. --                      -------------- */
+		   N-31) are left alone.
+
+		   With a base point xb (Newton: the trial is xb + lambda d), a
+		   value or inversion only counts as new where neither G's point
+		   nor xb has it, so that a small enough lambda always passes;
+		   Anderson passes NULL. --                      -------------- */
 
 	for (i = 0; i < Nstate; i++)
 		if (!isfinite(xt[i])) return GUARD_NONFINITE;
@@ -686,9 +692,9 @@ static enum GuardResult guardTrial(const double *xt, const double *gx)
 		off = blockStart[n];
 		if (blocks[n].kind != BLOCK_J20) {
 			for (i = off; i < off + blocks[n].N; i++)
-				if ((xt[i] < 0.0 && !(gx[i] < 0.0)) ||
+				if ((xt[i] < 0.0 && !(gx[i] < 0.0) && !(xb && xb[i] < 0.0)) ||
 					(varKind == VARIABLES_RELATIVE && xt[i] == 0.0 &&
-					 gx[i] > 0.0))
+					 gx[i] > 0.0 && !(xb && !(xb[i] > 0.0))))
 					return GUARD_NEGATIVE;
 		}
 		if (blocks[n].kind != BLOCK_ATOM) continue;
@@ -700,6 +706,8 @@ static enum GuardResult guardTrial(const double *xt, const double *gx)
 			iu   = off + (long) line->j * Nspace;
 			for (k = 0; k < Nspace; k++) {
 				if (gx[il + k] * atom->g[line->j] > gx[iu + k] * atom->g[line->i] &&
+					(!xb ||
+					 xb[il + k] * atom->g[line->j] > xb[iu + k] * atom->g[line->i]) &&
 					!(xt[il + k] * atom->g[line->j] > xt[iu + k] * atom->g[line->i]))
 					return GUARD_INVERSION;
 			}
@@ -715,6 +723,8 @@ static enum GuardResult guardTrial(const double *xt, const double *gx)
 						(cont->lambda0 * NM_TO_M * KBOLTZMANN * atmos.T[k]));
 				if (gx[il + k] * atom->nstar[cont->j][k] >
 						gx[iu + k] * atom->nstar[cont->i][k] * E &&
+					(!xb || xb[il + k] * atom->nstar[cont->j][k] >
+								xb[iu + k] * atom->nstar[cont->i][k] * E) &&
 					!(xt[il + k] * atom->nstar[cont->j][k] >
 					  xt[iu + k] * atom->nstar[cont->i][k] * E))
 					return GUARD_INVERSION;
@@ -883,7 +893,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			logSolve(Nsolve, opt.per_block, info, a->fnorm_acc);
 			memcpy(gacc, gx, Nstate * sizeof(double));
 			fromVars(un, gx, andersonMask(a), x);
-			guard = guardTrial(x, gx);
+			guard = guardTrial(x, gx, NULL);
 			for (t = 1, theta = 0.5; guard != GUARD_OK && t <= 2; t++, theta *= 0.5) {
 				sprintf(messageStr, "  Anderson: guard: %s; step damped to %g\n",
 						guardName[guard], theta);
@@ -891,7 +901,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 				Ndamped++;
 				andersonDamp(a, &opt, gamma, info, theta, un);
 				fromVars(un, gx, andersonMask(a), x);
-				guard = guardTrial(x, gx);
+				guard = guardTrial(x, gx, NULL);
 			}
 			if (guard != GUARD_OK) {
 				sprintf(messageStr, "  Anderson: guard: %s; plain step,"
@@ -1161,7 +1171,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 				 nback++, lambda *= 0.5) {
 				for (i = 0; i < Nstate; i++) ut[i] = (valid[i]) ? u[i] + lambda * d[i] : 0.0;
 				fromVars(ut, gx, valid, xt);
-				guard = guardTrial(xt, gx);
+				guard = guardTrial(xt, gx, x);
 				if (guard != GUARD_OK) {
 					Nhalve++;
 					Nguard++;
