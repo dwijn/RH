@@ -509,7 +509,7 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | [Q-4](https://github.com/dwijn/RH/issues/55) | medium | Pervasive global state: 315 `extern` declarations in .c files; `atmos` referenced 2145 times in 108 files | open |
 | [Q-5](https://github.com/dwijn/RH/issues/56) | medium | ~25 % of code in duplicated blocks; rhsc2d 53 %, rhsc3d 52 %, rhf1d 42 %, rhsphere 38 % | open |
 | [Q-6](https://github.com/dwijn/RH/issues/57) | medium | Very long functions: 77 over 100 lines, 31 over 200 (`initSolution` 647, `SortLambda` 572, `Background` 558, `readAtom` 543, `CollisionRate` 494) | open |
-| [Q-7](https://github.com/dwijn/RH/issues/58) | medium | Error handling: `Error()` calls `exit()` (262 sites), so the library cannot be unit-tested; 395 `sprintf`, 0 `snprintf`; unbounded `%s` in `sscanf` | open |
+| [Q-7](https://github.com/dwijn/RH/issues/58) | high | Error handling: `Error()` calls `exit()` (262 sites), so the library cannot be unit-tested; 395 `sprintf`, 0 `snprintf`; unbounded `%s` in `sscanf` | open |
 | [Q-8](https://github.com/dwijn/RH/issues/59) | medium | Memory ownership implicit; 493 allocations vs 310 frees; `matrix_double` has no NULL check | open |
 | [Q-9](https://github.com/dwijn/RH/issues/60) | medium | Headers not self-contained; reserved include-guard names; `rh.h` has none and pulls in `<rpc/types.h>` and `<pthread.h>` everywhere | open |
 | [Q-10](https://github.com/dwijn/RH/issues/61) | low | Dead or bit-rotted code: `collision_15d.c` (does not compile), `collision_Oslo.c`, `rhsphere/readinput.c`, `rhsphere/solveplane.c`, `tools/constructatom.c` (does not compile upstream either), `tools/adjustbf.c` | fixed |
@@ -701,7 +701,10 @@ Ordered so that every step can be verified against upstream: byte-identical
    estimate of §3.3; [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md) §4.3).
 7. **Structure** — shared geometry layer to remove duplication (Q-5),
    self-contained headers, reduced global state, error handling (Q-4, Q-7,
-   Q-9, Q-16). MPI domain decomposition (P-11) is a separate, larger project.
+   Q-9, Q-16). Q-7 comes first: the code is to be ported into STIC, which
+   calls RH as a library, so errors must return to the caller instead of
+   calling `exit()`. MPI domain decomposition (P-11) is a separate, larger
+   project.
    The manual is revised and rewritten with its source in the repository
    once the code has settled (Q-19).
 
