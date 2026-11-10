@@ -10,7 +10,8 @@ Ca II with angle-averaged PRD (two PRD lines) on FAL-C, H_6 passive:
     solver with NG_ORDER = PRD_NG_ORDER = PRD_ITER_LIMIT = 0 bit for bit
     (populations, J, spectrum) after 5 iterations, and so does
     FIXED_POINT without PRD_ITER_LIMIT in the file (its default is 0
-    under a G solver).
+    under a G solver). With PRD_N_MAX_ITER = 0 (every line in CRD, B-46)
+    NG and FIXED_POINT agree as well, and differ from the runs with PRD.
  2. gcheck (rhf1d, and rhsc2d at 2 threads with --gcheck2d): G(x_a) twice
     gives bit-identical results, and G(x_b) between two calls of G(x_a)
     changes nothing.
@@ -106,20 +107,30 @@ failed = []
 # --- 1. Iteration history of FIXED_POINT = default solver without Ng
 runs = {}
 UNSET = [k for k in G_KEYWORDS if k[0] != "PRD_ITER_LIMIT"] + [("PRD_ITER_LIMIT", None)]
+CRD = [("PRD_N_MAX_ITER", "0")]
 for name, extra in (("hist_ng", [("SOLVER", "NG")] + G_KEYWORDS[1:]),
-                    ("hist_fp", G_KEYWORDS), ("hist_fp_unset", UNSET)):
+                    ("hist_fp", G_KEYWORDS), ("hist_fp_unset", UNSET),
+                    ("hist_ng_crd", [("SOLVER", "NG")] + G_KEYWORDS[1:] + CRD),
+                    ("hist_fp_crd", G_KEYWORDS + CRD)):
     d = prepare(name, "1d", extra + [("N_MAX_ITER", "5"), ("ITER_LIMIT", "1e-14")])
     r = execute(os.path.abspath(a.rhf1d), d)
     if r.returncode not in (0, 1):            # 1: not converged, expected
         sys.exit(f"rhf1d failed in {d} (status {r.returncode})")
     runs[name] = d
-for other in ("hist_fp", "hist_fp_unset"):
+for ref, other in (("hist_ng", "hist_fp"), ("hist_ng", "hist_fp_unset"),
+                   ("hist_ng_crd", "hist_fp_crd")):
     for f in ("pops.CA.out", "J.dat", "spectrum.out"):
-        same = open(os.path.join(runs["hist_ng"], f), "rb").read() == \
+        same = open(os.path.join(runs[ref], f), "rb").read() == \
             open(os.path.join(runs[other], f), "rb").read()
         print(f"history  {other:13s} {f:13s} {'bit-identical' if same else 'DIFFERS'}")
         if not same:
             failed.append(f"history {other} {f}")
+# The CRD runs must really be CRD: their populations differ from the PRD runs'
+crd = open(os.path.join(runs["hist_fp_crd"], "pops.CA.out"), "rb").read() != \
+    open(os.path.join(runs["hist_fp"], "pops.CA.out"), "rb").read()
+print(f"history  PRD_N_MAX_ITER = 0 {'differs from PRD (CRD)' if crd else 'SAME AS PRD'}")
+if not crd:
+    failed.append("history: PRD_N_MAX_ITER = 0 did not change the run")
 
 # --- 2. gcheck: twice and history independence
 checks = [("gcheck_1d", "1d", a.gcheck1d, "1")]

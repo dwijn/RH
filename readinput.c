@@ -529,15 +529,6 @@ void readInput()
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (input.PRD_NmaxIter < 1) {
-			sprintf(messageStr,
-					"SOLVER = %s: PRD_N_MAX_ITER = %d, but the map"
-					" needs at least one\n PRD sub-iteration. Set"
-					" PRD_N_MAX_ITER >= 1.",
-					sname, input.PRD_NmaxIter);
-			Error(WARNING, routineName, messageStr);
-			Nconflict++;
-		}
 		if (keywordSet(theKeywords, Nkeyword, "COLL_RELAX_FACTOR") &&
 			input.CR_factor != 1.0) {
 			sprintf(messageStr,

@@ -755,10 +755,12 @@ pass first.
 - G relies on `initGammaMolecule` resetting all of the molecular Γ
   (B-38, fixed on its own in #251).
 - PRD inside G: `PRD_ITER_LIMIT = 0` exactly (negative values mean
-  MAX(dpopsmax, |value|)), `PRD_N_MAX_ITER` ≥ 1 sub-iterations on every
+  MAX(dpopsmax, |value|)), `PRD_N_MAX_ITER` sub-iterations on every
   call, no PRD Ng. The early exit makes G discontinuous (N-4). The cost:
   on `1d_falc_h6_ca_mg` with 3 and 10⁻² the current code used 3
   sub-iterations in 18 of 31 iterations, 2 in 2 and 1 in 11.
+  (`PRD_N_MAX_ITER` < 1 treats every line in CRD, and G then has no PRD
+  sub-iterations; B-46.)
 - Determinism: at a fixed thread count G is bit-reproducible in `rhf1d`,
   `rhsc2d` and `rhsc3d` (per-thread Γ and rate copies merged in thread
   order, static split of the wavelengths). Two exceptions sum under locks
@@ -855,7 +857,7 @@ acceptance items of S-2 and S-2b pass.
   contiguous array.
 - Keywords that G cannot honour stop the run in `readInput()` with one
   warning per conflict saying what to set (decided 2026-11-07): PRD early
-  exit or PRD Ng, `PRD_N_MAX_ITER` < 1, collisional relaxation,
+  exit or PRD Ng, collisional relaxation,
   hydrostatic equilibrium, `LIMIT_MEMORY`, and with ne in the state
   `OLD_BACKGROUND` or `NON_ICE`.
 - Checks: programs `gcheck_1d`, `gcheck_2d`, `gcheck_3d` (`gchecks.c`):
@@ -1602,9 +1604,12 @@ memory its history takes; RSS is the peak of the Ng run.
      `COLL_RELAX_NSTEP` = 0, `COLL_RELAX_FACTOR` = 1. `NG_DELAY`,
      `NG_PERIOD`, `PRD_NG_DELAY` and `PRD_NG_PERIOD` have no such value
      and stop the run when they are set.
-   - `PRD_N_MAX_ITER` ≥ 1 under a G solver, in CRD runs too.
-     `run_tests.sh`'s `1d/crd` sets it to 0 and so pins `SOLVER = NG`
-     (item 6).
+   - `PRD_N_MAX_ITER` < 1 is valid under every solver: it is RH's
+     switch for "every line in CRD" (`readAtom`), and G then has no PRD
+     sub-iterations. S-2's check that refused it is removed (B-46).
+     `PRD_ITER_LIMIT` and `PRD_NG_*` are still checked in such a run.
+     `run_tests.sh`'s `1d/crd` needs no pin once item 4 has removed
+     `PRD_ITER_LIMIT` from the shipped file.
    - The test tools gain a way to remove a keyword from a shipped file
      (`run_stress.sh --kw '-NG_DELAY'`), since `rhsc2d` and `rhsc3d`
      keep their Ng lines.
