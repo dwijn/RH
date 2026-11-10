@@ -304,8 +304,9 @@ void readInput()
 		break;
 	}
 
-	/* --- Ng orders and delays are counts (B-45: a negative order
-		   corrupts the history allocation and divides by zero), and Ng
+	/* --- Ng orders and delays are counts (B-45: with order + 2 <= 0
+		   the history allocation is corrupted or, at -2, Accelerate
+		   divides by zero; a negative delay means nothing), and Ng
 		   acceleration is applied every N_PERIOD iterations, so the
 		   period must be at least 1 --                  -------------- */
 

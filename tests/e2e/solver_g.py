@@ -15,8 +15,9 @@ Ca II with angle-averaged PRD (two PRD lines) on FAL-C, H_6 passive:
  3. validation: SOLVER = FIXED_POINT with the default PRD_ITER_LIMIT stops
     at input with a message that names PRD_ITER_LIMIT, and with
     SOLVE_NE = ITERATION and BACKGROUND_DOUBLE = FALSE with one that names
-    BACKGROUND_DOUBLE. With SOLVER = NG, a negative NG_ORDER or PRD_NG_ORDER
-    stops at input (B-45; they crashed the run).
+    BACKGROUND_DOUBLE. With SOLVER = NG, a negative NG_ORDER, NG_DELAY,
+    PRD_NG_ORDER or PRD_NG_DELAY stops in readInput (B-45; negative orders
+    crashed the run).
 
 Exit status 0 = pass.
 """
@@ -152,12 +153,16 @@ print(f"validate SOLVE_NE = ITERATION with BACKGROUND_DOUBLE = FALSE: "
 if not ok:
     failed.append("validation (BACKGROUND_DOUBLE)")
 
-# Negative Ng orders stop at input under every solver (B-45)
-for kw in ("NG_ORDER", "PRD_NG_ORDER"):
-    d = prepare(f"validate_{kw.lower()}", "1d", [("SOLVER", "NG"), (kw, "-2")])
+# Negative Ng orders and delays stop at input under every solver (B-45)
+for kw, val, want in (("NG_ORDER", "-2", "Values of NG_ORDER and NG_DELAY"),
+                      ("NG_DELAY", "-1", "Values of NG_ORDER and NG_DELAY"),
+                      ("PRD_NG_ORDER", "-2", "Values of PRD_NG_ORDER and PRD_NG_DELAY"),
+                      ("PRD_NG_DELAY", "-1", "Values of PRD_NG_ORDER and PRD_NG_DELAY")):
+    d = prepare(f"validate_{kw.lower()}", "1d", [("SOLVER", "NG"), (kw, val)])
     r = execute(os.path.abspath(a.rhf1d), d)
-    ok = r.returncode == 70 and kw in r.stdout and "at least 0" in r.stdout
-    print(f"validate SOLVER = NG with {kw} = -2: "
+    ok = r.returncode == 70 and want in r.stdout and \
+        "readInput" in r.stdout.split(want)[0].rsplit("TERMINATING", 1)[-1]
+    print(f"validate SOLVER = NG with {kw} = {val}: "
           f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})")
     if not ok:
         failed.append(f"validation ({kw} < 0)")
