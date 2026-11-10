@@ -307,9 +307,18 @@ void readInput()
 		break;
 	}
 
-	/* --- Ng acceleration is applied every N_PERIOD iterations, so the
+	/* --- Ng orders and delays are counts (B-45: with order + 2 <= 0
+		   the history allocation is corrupted or, at -2, Accelerate
+		   divides by zero; a negative delay means nothing), and Ng
+		   acceleration is applied every N_PERIOD iterations, so the
 		   period must be at least 1 --                  -------------- */
 
+	if (input.Ngorder < 0 || input.Ngdelay < 0)
+		Error(ERROR_LEVEL_2, routineName,
+			  "Values of NG_ORDER and NG_DELAY should be at least 0");
+	if (input.PRD_Ngorder < 0 || input.PRD_Ngdelay < 0)
+		Error(ERROR_LEVEL_2, routineName,
+			  "Values of PRD_NG_ORDER and PRD_NG_DELAY should be at least 0");
 	if (input.Ngorder > 0 && input.Ngperiod < 1)
 		Error(ERROR_LEVEL_2, routineName,
 			  "Value of NG_PERIOD should be at least 1 when NG_ORDER > 0");

@@ -39,6 +39,15 @@ struct Ng *NgInit(int N, int Ndelay, int Norder, int Nperiod,
 
 	struct Ng *Ngs;
 
+	/* --- The history has Norder + 2 rows and Accelerate takes the
+		   count modulo Norder + 2, so a negative order corrupts the
+		   allocation or divides by zero (B-45). readInput checks the
+		   keywords; this covers callers that do not read them -- -- */
+	if (Norder < 0 || (Norder > 0 && Nperiod < 1))
+		Error(ERROR_LEVEL_2, "NgInit",
+			  "Ng order must be at least 0, and the period at least 1"
+			  " when the order is positive");
+
 	Ngs = (struct Ng *) malloc(sizeof(struct Ng));
 
 	Ngs->N       = N;
