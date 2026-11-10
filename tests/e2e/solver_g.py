@@ -6,8 +6,8 @@ usage: solver_g.py --rhf1d PATH --gcheck1d PATH [--gcheck2d PATH]
 
 Ca II with angle-averaged PRD (two PRD lines) on FAL-C, H_6 passive:
 
- 1. history: SOLVER = FIXED_POINT with NG_ORDER = 0 reproduces the default
-    solver with NG_ORDER = PRD_NG_ORDER = PRD_ITER_LIMIT = 0 bit for bit
+ 1. history: SOLVER = FIXED_POINT with NG_ORDER = 0 reproduces SOLVER = NG
+    with NG_ORDER = PRD_NG_ORDER = PRD_ITER_LIMIT = 0 bit for bit
     (populations, J, spectrum) after 5 iterations, and so does
     FIXED_POINT without PRD_ITER_LIMIT in the file (its default is 0
     under a G solver). With PRD_N_MAX_ITER = 0 (every line in CRD, B-46)
@@ -104,7 +104,7 @@ def execute(program, d, args=()):
 
 failed = []
 
-# --- 1. Iteration history of FIXED_POINT = default solver without Ng
+# --- 1. Iteration history of FIXED_POINT = SOLVER = NG without Ng
 runs = {}
 UNSET = [k for k in G_KEYWORDS if k[0] != "PRD_ITER_LIMIT"] + [("PRD_ITER_LIMIT", None)]
 CRD = [("PRD_N_MAX_ITER", "0")]

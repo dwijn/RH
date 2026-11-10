@@ -35,6 +35,8 @@ extern char         messageStr[];
 
 static bool_t keywordSet(const Keyword *theKeywords, int Nkeyword,
 						 const char *name);
+static void   setKeywordValue(Keyword *theKeywords, int Nkeyword,
+							  const char *name, const char *value);
 
 /* ------- begin -------------------------- readInput.c ------------- */
 
@@ -129,6 +131,8 @@ void readInput()
 		 KEYWORD_REQUIRED, &input.pfData, setcharValue},
 		{"SOLVE_NE", "NONE", FALSE, KEYWORD_DEFAULT, &input.solve_ne,
 		 setnesolution},
+		/* --- NG is the default in 2-D and 3-D; ANDERSON in 1-D and
+			   spherical geometry, set below (S-10) -- -- */
 		{"SOLVER", "NG", FALSE, KEYWORD_DEFAULT, &input.solver, setsolver},
 		{"ANDERSON_DEPTH", "10", FALSE, KEYWORD_DEFAULT, &input.Anderson_depth,
 		 setintValue},
@@ -222,12 +226,8 @@ void readInput()
 		   in 1-D and spherical geometry, NG in 2-D and 3-D, where
 		   Anderson's history does not fit in memory yet (S-11) -- -- */
 
-	if (topology == ONE_D_PLANE || topology == SPHERICAL_SYMMETRIC) {
-		for (n = 0; n < Nkeyword; n++) {
-			if (!strcmp(theKeywords[n].keyword, "SOLVER"))
-				strcpy(theKeywords[n].value, "ANDERSON");
-		}
-	}
+	if (topology == ONE_D_PLANE || topology == SPHERICAL_SYMMETRIC)
+		setKeywordValue(theKeywords, Nkeyword, "SOLVER", "ANDERSON");
 
 	/* --- Open the input data file --                    ------------- */
 
@@ -420,8 +420,9 @@ void readInput()
 		   keyword file written for the old default (NG) explains
 		   itself (S-10) -- -------------------------------------- */
 
+	input.solver_default = !keywordSet(theKeywords, Nkeyword, "SOLVER");
 	sprintf(sname, "%s%s", solverName(input.solver),
-			keywordSet(theKeywords, Nkeyword, "SOLVER") ? "" : " (the default)");
+			input.solver_default ? " (the default)" : "");
 	for (p = 0; p < 2; p++) {
 		prefix = (p == 0) ? "ANDERSON_" : "NEWTON_";
 		owner  = (p == 0) ? SOLVER_ANDERSON : SOLVER_NEWTON_KRYLOV;
@@ -524,10 +525,7 @@ void readInput()
 			   does PRD_N_MAX_ITER sub-iterations -- -------------- */
 		if (!keywordSet(theKeywords, Nkeyword, "PRD_ITER_LIMIT")) {
 			input.PRDiterLimit = 0.0;
-			for (n = 0; n < Nkeyword; n++) { /* for -showkeywords */
-				if (!strcmp(theKeywords[n].keyword, "PRD_ITER_LIMIT"))
-					strcpy(theKeywords[n].value, "0.0");
-			}
+			setKeywordValue(theKeywords, Nkeyword, "PRD_ITER_LIMIT", "0.0");
 		} else if (input.PRDiterLimit != 0.0) {
 			sprintf(messageStr,
 					"SOLVER = %s: PRD_ITER_LIMIT = %g lets the PRD"
@@ -631,9 +629,6 @@ void readInput()
 		}
 	}
 
-	sprintf(messageStr, " -- SOLVER = %s\n", sname);
-	Error(MESSAGE, routineName, messageStr);
-
 	/* --- If called with -showkeywords commandline option -- --------- */
 
 	if (commandline.showkeywords) showValues(Nkeyword, theKeywords);
@@ -661,3 +656,23 @@ static bool_t keywordSet(const Keyword *theKeywords, int Nkeyword,
 	return FALSE;
 }
 /* ------- end ---------------------------- keywordSet -------------- */
+
+/* ------- begin -------------------------- setKeywordValue --------- */
+
+/* --- Change the value string of a keyword before or after reading:
+	   a default that depends on the program, or the value in use for
+	   -showkeywords -- ------------------------------------------- */
+
+static void setKeywordValue(Keyword *theKeywords, int Nkeyword,
+							const char *name, const char *value)
+{
+	int n;
+
+	for (n = 0; n < Nkeyword; n++) {
+		if (!strcmp(theKeywords[n].keyword, name)) {
+			strcpy(theKeywords[n].value, value);
+			return;
+		}
+	}
+}
+/* ------- end ---------------------------- setKeywordValue --------- */
