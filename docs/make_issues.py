@@ -49,9 +49,18 @@ for ids, step in [
     ("P-1 P-2 P-3 P-4 P-5 P-6 P-7 P-8 P-9 P-10 P-12 P-13 P-14 P-15 T-5", 5),
     ("B-10 B-11 M-1 M-2 M-3 M-4 M-5 M-6 M-7 M-8 M-9", 6),
     ("B-12 B-14 T-1 T-2 T-3 Q-4 Q-5 Q-6 Q-7 Q-8 Q-9 Q-16 Q-19 P-11", 7),
+    # Not planned work: the wishlist (section 3.7) has its own option
+    ("F-1 F-2 F-3 F-4 F-5", "Wishlist"),
 ]:
     for i in ids.split():
         STEP[i] = step
+
+
+def step_label(step):
+    """Label for a plan step: step-1 ... step-7, or wishlist."""
+    return f"step-{step}" if isinstance(step, int) else str(step).lower()
+
+
 # Problems introduced by the uncommitted threading work, not present upstream,
 # or not reachable there (B-39: upstream aborts on the second Background call, B-1;
 # N-33: triggered by B-40, which upstream does not have; Q-21: the test
@@ -118,7 +127,7 @@ def labels_of(row):
     if sev in SEV_COLOR:
         out.append(f"sev:{sev}")
     if row["ID"] in STEP:
-        out.append(f"step-{STEP[row['ID']]}")
+        out.append(step_label(STEP[row['ID']]))
     if row["ID"] not in NOT_UPSTREAM and not row["ID"].startswith(("F-", "S-")):
         out.append("upstream")
     return out
@@ -150,6 +159,7 @@ def ensure_labels(dry):
     want = {**{a: AREA_COLOR[a] for a in AREA.values()},
             **{f"sev:{s}": c for s, c in SEV_COLOR.items()},
             **{f"step-{i}": "bfdadc" for i in range(1, 8)},
+            "wishlist": "bfdadc",
             "upstream": "cccccc"}
     for name, color in want.items():
         if name not in have:
@@ -206,7 +216,7 @@ def cmd_project(dry):
     num, pid = str(proj["number"]), proj["id"]
 
     want = {"Area": list(AREA.values()), "Severity": ["high", "medium", "low"],
-            "Plan step": [str(i) for i in range(1, 8)]}
+            "Plan step": [str(i) for i in range(1, 8)] + ["Wishlist"]}
     fields = {f["name"]: f for f in gh("project", "field-list", num, "--owner", OWNER,
                                        "--format", "json", json_out=True)["fields"]}
     for name, opts in want.items():
@@ -236,7 +246,7 @@ def cmd_project(dry):
             gh("project", "item-edit", "--id", it["id"], "--project-id", pid,
                "--field-id", fields["Plan step"]["id"],
                "--single-select-option-id", opt["Plan step"][str(STEP[i])])
-            gh("issue", "edit", str(n), "-R", REPO, "--add-label", f"step-{STEP[i]}")
+            gh("issue", "edit", str(n), "-R", REPO, "--add-label", step_label(STEP[i]))
     for i, n in sorted(existing_issues().items(), key=lambda kv: kv[1]):
         if n in on_board:
             continue
