@@ -1679,7 +1679,8 @@ memory its history takes; RSS is the peak of the Ng run.
        on its own.
      - (c) A smaller depth in multi-D. Depth 5 met every S-5 criterion,
        but it saves only 40 %: 25 vectors instead of 40.
-   - (a) is §9 Q1 asked for Anderson; it is S-11.
+   - (a) is §9 Q1 asked for Anderson; it is S-11 (design in the next
+     section).
 
 **Order of work.**
 - One PR per step:
@@ -1689,6 +1690,172 @@ memory its history takes; RSS is the peak of the Ng run.
   3. The switch: items 1, 3 and 4 and the change fragment, with the
      `changes-results` label.
 - Log items S-10 (steps 1–3) and S-11 (item 7(a)).
+
+### S-11 — Anderson's history in multi-D (design)
+
+**Status:** agreed 2026-11-10, with the criteria and defaults of items 5
+and 6 decided by the user. It implements item 7(a) of
+the default-solver design above (§9 Q1 for Anderson).
+
+**Problem.** Anderson keeps (3m + 10) vectors of the whole state, 40 at
+depth 10. The state is mostly J. In the shipped `rhf1d` example, 60 % of
+it is J and 39 % is PRD ρ. On the 2-D perf case the J part of the
+history alone would take about 24 GB (about 26 GB with ρ and the masks,
+item 3), against 10.7 GB for the whole run. On the 3-D estimate of
+`MODERNIZATION.md` §3.3 it would be about 17 TB.
+
+**Idea.** Extrapolate only part of the state and carry the rest from
+the last G, as Ng does. RH's Ng extrapolates populations only; J is
+whatever the last formal solution gave, and ρ has its own Ng in the PRD
+sub-iterations. A carried entry of the next point takes the value of G
+at the last accepted point. That is G(x_k) after an accepted evaluation,
+the plain-iteration value. After a rejection the whole next point is
+G of the last accepted point, as now (decision 2). The code already does this for masked entries (`fromVars`), so
+the change is mostly which entries Anderson's vectors hold.
+
+**What changes in the method.**
+
+- The least squares sees only the residuals of the extrapolated blocks.
+  With `GLOBAL` coefficients, J's residual no longer steers γ. S-5 found
+  `GLOBAL` better than `PER_BLOCK`, and part of that may be J's
+  coupling. Only the measurement can tell.
+- The safeguard norm ‖f‖_W is taken over the extrapolated blocks only.
+  The convergence test is unchanged: `MaxChange` already looks only at
+  populations.
+- The guard is unchanged. Carried blocks hold G's values, so they cannot
+  create new inversions or negative values.
+- J is out of step with the populations. In plain iteration J and the
+  populations of x_{k+1} come from the same G. Here the populations jump
+  to the extrapolated point, while J stays G's J of the unextrapolated
+  x_k. RH's Ng has the same mismatch: the next formal solution pairs
+  the extrapolated populations with the J of the last one. G uses the J
+  of x only in the background scattering source term (`sca_c`·J in
+  `formal.c`, and J20 in the background polarization); the PRD
+  sub-iterations use the J of G's own formal solution. Whether the
+  mismatch costs iterations or rejections in scattering-dominated
+  continua (large `sca_c`) is for the measurement to show. ρ of x, by contrast, enters the line emissivity
+  of the first formal solution directly. That is why `POPULATIONS_RHO`
+  is a candidate.
+
+**Decisions** (agreed 2026-11-10):
+
+1. **Keyword.** `ANDERSON_EXTRAPOLATE = ALL | POPULATIONS |
+   POPULATIONS_RHO`.
+   - `POPULATIONS` covers atoms, molecules and ne (when ne is in the
+     state). ne is small and is the slow mode of the ne cases.
+   - `POPULATIONS_RHO` adds the ρ of PRD lines.
+   - J and J20 are always carried under the two reduced settings.
+   - The default is `ALL` until the measurements, so runs are unchanged
+     bit for bit. Item 6 gives the defaults after them.
+   - Like every `ANDERSON_*` keyword, it stops the run under another
+     solver.
+   - `POPULATIONS_RHO` on atoms without PRD lines runs as
+     `POPULATIONS`. It is accepted, because no keyword check depends on
+     the atoms (S-10, item 2). The start banner names the extrapolated
+     blocks, so the run shows what it does.
+2. **Carried blocks on rejection.** A rejected point is followed by the
+   plain step from the last accepted pair. That step is G of that pair,
+   carried blocks included (`gacc`, as now). The rule is the same as
+   for every other entry.
+3. **Memory, first stage.**
+   - The Anderson object and u, g(u), u_next, w and the masks cover the
+     extrapolated blocks only, packed by a block list.
+   - x, G(x) and `gacc` stay full: 3 full vectors. These copies are the
+     floor of this stage. On the 2-D perf case they take about 1.9 GB;
+     on the 3-D estimate they are 3 × 420 GB of J.
+   - The printed memory becomes 3·N + (3m + 7)·N_x doubles plus
+     (m + 4)·N_x bytes, where N_x is the length of the extrapolated part.
+     With `RELATIVE` the scales add N_x doubles.
+   - Estimate for the 2-D perf case at m = 10: `ALL` about 26 GB,
+     `POPULATIONS` about 2.1 GB, `POPULATIONS_RHO` about 3.5 GB. The
+     estimate assumes ρ is about 6 % of J per point (4 angle-averaged
+     PRD lines); this gets measured.
+4. **Memory, second stage (open; only if the 3 copies matter).** The
+   carried blocks could stay in RH's own arrays: G_eval would scatter
+   and gather only the extrapolated part.
+   - That removes x and G(x) for J.
+   - A rejection then needs J of `gacc`, which is one copy. Or it uses
+     J of the rejected evaluation, which changes the safeguard's
+     meaning.
+   - Neither variant is proposed now.
+5. **Measurement, with criteria frozen before the runs (§7 trap 8).**
+   1. The S-5 set, at m = 10 with the frozen S-5 calibration (1 thread,
+      `ITER_LIMIT` 10⁻⁶), with all three settings.
+      - Reported: G evaluations, wall time, rejections, guard actions,
+        and the S-1 metrics against `refs2`.
+      - A reduced setting is **viable** (decided by the user) if it
+        converges on every case where `ALL` converges, meets the S-5
+        correctness tolerance there, and beats Ng on G as in the S-5
+        criteria. It need not match `ALL`: beating Ng is enough for it
+        to be an option.
+   2. The shipped examples (`rhf1d`, `rhsphere`, `rhsc2d`, `rhsc3d`),
+      as in the measurements above, plus peak RSS.
+   3. The 2-D perf case: peak RSS over a few iterations under `NG` and
+      the three settings, to check the estimate of item 3.
+   4. `2d_pert_h6_ca_mg` once N-33 is fixed.
+   5. Held-out inputs (§7 trap 8, S-5 note 5), named now: Bifrost row
+      0, column 400 (`bifrost:1d:400`, Ca II with PRD), and the 2-D cut
+      of every 12th column (`bifrost:2d:12`, Ca II with PRD). Neither was
+      used for development. A setting that is viable on the S-5 set but
+      fails on these is not viable.
+6. **Defaults (decided by the user).** Sensible defaults, documented. No
+   choice at run time from the available memory: users who need another
+   setting set the keyword.
+   - 2-D and 3-D (`rhsc2d`, `rhsc3d`): `POPULATIONS_RHO`, if it is
+     viable there.
+   - 1-D (`rhf1d`, `rhsphere`): `ALL`. Memory is almost never a problem
+     in 1-D, so a reduced setting must not cost much work there.
+     `POPULATIONS_RHO` becomes the 1-D default as well, so that one
+     setting holds everywhere, if it needs at most 1.1× the G
+     evaluations of `ALL` on every case where both converge: the S-5
+     set, the shipped 1-D examples and `bifrost:1d:400`.
+   - `POPULATIONS` stays an option. If `POPULATIONS_RHO` is not viable
+     in multi-D, the multi-D default goes back to the user with the
+     numbers.
+   - Making `ANDERSON` the default of `rhsc2d` and `rhsc3d` is a
+     separate PR with `changes-results`, after N-33 and the 2-D
+     measurements.
+
+**Order of work.** One PR per step:
+1. The code, with `ALL` as the default. No results change
+   (`run_tests.sh --exact`).
+2. The measurements of item 5, written up in this section and
+   `MODERNIZATION.md` §2.
+3. The defaults of item 6 (`changes-results`).
+
+**Code.** All in `solver.c`.
+- A per-block flag set from the keyword.
+- Two offset tables. `blockStart` keeps indexing the full x, which
+  `guardTrial`, `printChange` and the J offset for J20 in
+  `toVars`/`fromVars` use. A new packed table indexes u.
+- `toVars` maps full x to the packed u. `fromVars` maps the packed u and
+  full G(x) to full x: carried blocks from G(x), the rest as now.
+- `setVarScale` and the weights work over the packed blocks.
+- `PER_BLOCK` solves one system per extrapolated block. `opt.Nblock`
+  and `opt.start` come from the packed table, and `logSolve` names
+  blocks through it.
+- The safeguard norm and the rejection message use the packed length
+  (`andersonNorm(N_x, …)`).
+- The start banner names the extrapolated blocks and gives the memory
+  of item 3.
+- `anderson.c` stays generic and is unchanged.
+- Newton-Krylov shares `setupVariables`, `toVars` and `fromVars`. It
+  uses them with every block in the packed table (the `ALL` packing),
+  and its results must not change.
+
+**Tests.**
+- e2e:
+  - `ALL` repeats the current Anderson bit for bit.
+  - With `ANDERSON_DEPTH = 0`, every setting repeats `FIXED_POINT` with
+    `NG_ORDER = 0` bit for bit.
+  - Under `POPULATIONS`, the J of every evaluated point equals the J of
+    G at the last accepted point, bit for bit, rejections included
+    (decision 2). The exact form of the check gets settled in the PR.
+  - The `NEWTON_KRYLOV` e2e results are bit-identical before and after
+    the change.
+  - A short `POPULATIONS` run is bit-reproducible.
+  - The keyword under another solver stops the run.
+- Unit: none new. `anderson.c` does not change.
 
 ### S-6 — Analytic residual (Form B), conditional on S-5
 
