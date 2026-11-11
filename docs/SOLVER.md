@@ -1698,21 +1698,24 @@ memory its history takes; RSS is the peak of the Ng run.
 **Status:** agreed 2026-11-10, with the criteria and defaults of items 5
 and 6 decided by the user. It implements item 7(a) of
 the default-solver design above (§9 Q1 for Anderson). Step 1 (the code)
-is on branch `s11/extrapolate`. Measurements (step 2) and defaults
-(step 3) are still to come.
+is #310. Measurements (step 2) and defaults (step 3) are still to come.
 
-- The invariant of decision 2 is checked by the solver itself. Before
+- The plumbing of decision 2 is checked by the solver itself. Before
   every evaluation after the first, the carried blocks of x are
   compared bit for bit with those of G at the last accepted point, and
   the end of the run reports in how many evaluations they agreed. The
-  e2e test forces rejections (`ANDERSON_SAFEGUARD = 0.5`) and requires
-  every evaluation to agree. A mutation that skips the copy of the
-  carried blocks fails it.
+  check covers the packing and the copy of the carried blocks in
+  `fromVars`; it cannot see an error in G. The e2e test forces
+  rejections (`ANDERSON_SAFEGUARD = 0.5`) and requires every
+  evaluation to agree. A mutation that skips the copy of the carried
+  blocks fails it.
 - First look on the shipped `rhf1d` example (Ca II, two PRD lines, 1
-  thread, `ITER_LIMIT` 10⁻⁵): `ALL` takes 21 iterations, a 13.3 MB
-  history and 20.9 MB peak RSS. `POPULATIONS` takes 20 iterations,
-  1.1 MB and 16.2 MB. `POPULATIONS_RHO` takes 21 iterations, 5.9 MB and
-  16.1 MB. The comparison itself is step 2.
+  thread, `ITER_LIMIT` 10⁻⁵): `ALL` takes 21 iterations, with 12.4 MB
+  of history and variables and 20.9 MB peak RSS. `POPULATIONS` takes 20
+  iterations, 0.15 MB and 16.2 MB. `POPULATIONS_RHO` takes 21
+  iterations, 5.0 MB and 16.1 MB. The three full states (x, G(x) and G
+  at the last accepted point) add 0.96 MB in every setting. The
+  comparison itself is step 2.
 
 **Problem.** Anderson keeps (3m + 10) vectors of the whole state, 40 at
 depth 10. The state is mostly J. In the shipped `rhf1d` example, 60 % of

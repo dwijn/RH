@@ -525,6 +525,8 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 
 static long                 *blockStart = NULL; /* Nblocks + 1 offsets into x */
 static int                  *packBlock  = NULL; /* block of each packed block */
+static int                  *carryBlock = NULL; /* the other blocks: carried */
+static int                   Ncarry     = 0;
 static long                 *packStart  = NULL; /* Npack + 1 offsets into u */
 static int                   Npack      = 0;
 static long                  Npacked    = 0;    /* length of u */
@@ -577,14 +579,9 @@ static void fromVars(const double *u, const double *gx,
 		   u and mask are packed, gx and x full. J comes before J20,
 		   and J20 is packed only when J is (ALL) -- ---------------- */
 
-	if (Npacked < Nstate) {
-		for (n = 0, p = 0; n < Nblocks; n++) {
-			if (p < Npack && packBlock[p] == n) {
-				p++;
-				continue;
-			}
-			memcpy(x + blockStart[n], gx + blockStart[n], blocks[n].N * sizeof(double));
-		}
+	for (p = 0; p < Ncarry; p++) {
+		n = carryBlock[p];
+		memcpy(x + blockStart[n], gx + blockStart[n], blocks[n].N * sizeof(double));
 	}
 	for (p = 0; p < Npack; p++) {
 		n   = packBlock[p];
@@ -686,11 +683,16 @@ static double *setupVariables(enum solver_variables     kind,
 		if (blocks[n].kind == BLOCK_J) offJ = blockStart[n];
 	}
 	packBlock    = (int *) realloc(packBlock, Nblocks * sizeof(int));
+	carryBlock   = (int *) realloc(carryBlock, Nblocks * sizeof(int));
 	packStart    = (long *) realloc(packStart, (Nblocks + 1) * sizeof(long));
 	Npack        = 0;
+	Ncarry       = 0;
 	packStart[0] = 0;
 	for (n = 0; n < Nblocks; n++) {
-		if (!extrapolated(blocks[n].kind, which)) continue;
+		if (!extrapolated(blocks[n].kind, which)) {
+			carryBlock[Ncarry++] = n;
+			continue;
+		}
 		packBlock[Npack]     = n;
 		packStart[Npack + 1] = packStart[Npack] + blocks[n].N;
 		Npack++;
@@ -867,13 +869,10 @@ static bool_t carriedEqual(const double *x, const double *y)
 {
 	register int n, p;
 
-	/* --- The blocks that are not packed agree bit for bit -- ---- */
+	/* --- The carried blocks agree bit for bit -- --------------- */
 
-	for (n = 0, p = 0; n < Nblocks; n++) {
-		if (p < Npack && packBlock[p] == n) {
-			p++;
-			continue;
-		}
+	for (p = 0; p < Ncarry; p++) {
+		n = carryBlock[p];
 		if (memcmp(x + blockStart[n], y + blockStart[n], blocks[n].N * sizeof(double)))
 			return FALSE;
 	}
@@ -928,30 +927,30 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			" ANDERSON_DELAY = %d, ANDERSON_COND_MAX = %.1E,\n"
 			"    ANDERSON_SAFEGUARD = %g, ANDERSON_VARIABLES = %s,"
 			" ANDERSON_COEFFICIENTS = %s,\n    ANDERSON_EXTRAPOLATE = %s:"
-			" %ld unknowns in %d blocks extrapolated;\n    history %.1f MB\n",
+			" %ld unknowns in %d blocks extrapolated;\n    memory: history"
+			" and variables %.1f MB, x, G(x) and G at the last accepted"
+			" point %.1f MB\n",
 			Nstate, Nblocks, (atmos.NPRDactive > 0) ? input.PRD_NmaxIter : 0, m,
 			input.Anderson_delay, input.Anderson_cond_max,
 			input.Anderson_safeguard,
 			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
 			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
 			extrapolateName[input.Anderson_extrapolate], Npacked, Npack,
-			(3.0 * sizeof(double) * Nstate +
-			 ((3.0 * m + 7 + (varKind == VARIABLES_RELATIVE)) * sizeof(double) +
-			  m + 4) *
-				 Npacked) /
-				1.0E6);
+			((3.0 * m + 7 + (varKind == VARIABLES_RELATIVE)) * sizeof(double) + m + 4) *
+				Npacked / 1.0E6,
+			3.0 * sizeof(double) * Nstate / 1.0E6);
 	Error(MESSAGE, routineName, messageStr);
-	if (Npacked < Nstate) {
-		sprintf(messageStr, "    carried from G:");
-		for (n = 0, t = 0; n < Nblocks; n++) {
-			if (t < Npack && packBlock[t] == n) {
-				t++;
-				continue;
-			}
-			snprintf(messageStr + strlen(messageStr),
-					 MAX_MESSAGE_LENGTH - strlen(messageStr), " %s;", blocks[n].name);
-		}
-		messageStr[strlen(messageStr) - 1] = '\n';
+	/* --- The carried blocks, several lines if needed -- -------- */
+
+	for (t = 0; t < Ncarry;) {
+		sprintf(messageStr, "    %s", (t == 0) ? "carried from G:" : "               ");
+		do {
+			sprintf(messageStr + strlen(messageStr), " %s%s", blocks[carryBlock[t]].name,
+					(t < Ncarry - 1) ? ";" : "");
+			t++;
+		} while (t < Ncarry &&
+				 strlen(messageStr) + strlen(blocks[carryBlock[t]].name) + 4 < 80);
+		strcat(messageStr, "\n");
 		Error(MESSAGE, NULL, messageStr);
 	}
 
@@ -966,7 +965,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		/* --- The carried blocks of every point are those of G at the
 			   last accepted point (S-11), checked bit for bit -- ---- */
 
-		if (Npacked < Nstate && niter > 1) {
+		if (Ncarry > 0 && niter > 1) {
 			Ncarried++;
 			if (carriedEqual(x, gacc)) Ncarried_ok++;
 		}
@@ -1066,7 +1065,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
 			a->Ndropped);
 	Error(MESSAGE, routineName, messageStr);
-	if (Npacked < Nstate) {
+	if (Ncarry > 0) {
 		sprintf(messageStr,
 				" -- Anderson: carried blocks equal to G at the last accepted"
 				" point in %ld of %ld evaluations\n",

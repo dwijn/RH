@@ -18,10 +18,12 @@ solver_g.py:
  4. ANDERSON_EXTRAPOLATE (S-11): with depth 0, POPULATIONS and
     POPULATIONS_RHO repeat FIXED_POINT bit for bit as well; POPULATIONS
     extrapolates the Ca II populations only and POPULATIONS_RHO also the
-    two rho blocks (start banner); a POPULATIONS run is bit-reproducible;
+    two rho blocks (start banner); a POPULATIONS_RHO run with PER_BLOCK
+    coefficients (three solves) is bit-reproducible;
     and with ANDERSON_SAFEGUARD = 0.5, which forces rejections, the carried
     blocks (rho, J) of every point equal those of G at the last accepted
-    point bit for bit (the solver's own check, end of the run).
+    point bit for bit (the solver's own check, end of the run; it checks
+    the packing and the copy of the carried blocks, not G).
 """
 
 import argparse
@@ -133,8 +135,8 @@ for name in ("aa0", "aa0_pop", "aa0_rho"):
 for label, extra in (("defaults", []),
                      ("RELATIVE, PER_BLOCK", [("ANDERSON_VARIABLES", "RELATIVE"),
                                               ("ANDERSON_COEFFICIENTS", "PER_BLOCK")]),
-                     ("POPULATIONS, RELATIVE, PER_BLOCK",
-                      [("ANDERSON_EXTRAPOLATE", "POPULATIONS"),
+                     ("POPULATIONS_RHO, RELATIVE, PER_BLOCK",
+                      [("ANDERSON_EXTRAPOLATE", "POPULATIONS_RHO"),
                        ("ANDERSON_VARIABLES", "RELATIVE"),
                        ("ANDERSON_COEFFICIENTS", "PER_BLOCK")])):
     pair = []
@@ -192,7 +194,9 @@ for setting, want in (("POPULATIONS", (492, 1)), ("POPULATIONS_RHO", (None, 3)))
     ok_banner = (m is not None and m.group(1) == setting and int(m.group(3)) == want[1]
                  and (want[0] is None or int(m.group(2)) == want[0]))
     n_rej = int(rej.group(1)) if rej else 0
-    ok_carry = c is not None and c.group(1) == c.group(2) and int(c.group(2)) == 14
+    n_eval = len(re.findall(r"-- Iteration +\d+", r.stdout))
+    ok_carry = (c is not None and c.group(1) == c.group(2)
+                and int(c.group(2)) == n_eval - 1 > 0)
     print(f"{setting}: banner {'ok' if ok_banner else 'WRONG'}"
           f" ({m.group(0) if m else 'missing'}); {n_rej} rejected; carried "
           f"{(c.group(1) + ' of ' + c.group(2)) if c else 'no check line'}")
