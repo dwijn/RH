@@ -1693,7 +1693,8 @@ memory its history takes; RSS is the peak of the Ng run.
 
 ### S-11 — Anderson's history in multi-D (design)
 
-**Status:** proposed 2026-11-10, not agreed. It implements item 7(a) of
+**Status:** agreed 2026-11-10, with the criteria and defaults of items 5
+and 6 decided by the user. It implements item 7(a) of
 the default-solver design above (§9 Q1 for Anderson).
 
 **Problem.** Anderson keeps (3m + 10) vectors of the whole state, 40 at
@@ -1736,7 +1737,7 @@ the change is mostly which entries Anderson's vectors hold.
   of the first formal solution directly. That is why `POPULATIONS_RHO`
   is a candidate.
 
-**Decisions** (proposed):
+**Decisions** (agreed 2026-11-10):
 
 1. **Keyword.** `ANDERSON_EXTRAPOLATE = ALL | POPULATIONS |
    POPULATIONS_RHO`.
@@ -1745,7 +1746,7 @@ the change is mostly which entries Anderson's vectors hold.
    - `POPULATIONS_RHO` adds the ρ of PRD lines.
    - J and J20 are always carried under the two reduced settings.
    - The default is `ALL` until the measurements, so runs are unchanged
-     bit for bit.
+     bit for bit. Item 6 gives the defaults after them.
    - Like every `ANDERSON_*` keyword, it stops the run under another
      solver.
    - `POPULATIONS_RHO` on atoms without PRD lines runs as
@@ -1782,11 +1783,11 @@ the change is mostly which entries Anderson's vectors hold.
       `ITER_LIMIT` 10⁻⁶), with all three settings.
       - Reported: G evaluations, wall time, rejections, guard actions,
         and the S-1 metrics against `refs2`.
-      - A reduced setting passes if it converges on every case where
-        `ALL` converges, and meets the S-5 correctness tolerance there.
-        It must need at most 1.25× the G evaluations of `ALL` on each
-        case, and still beat Ng on G on the easy controls (S-5
-        criterion).
+      - A reduced setting is **viable** (decided by the user) if it
+        converges on every case where `ALL` converges, meets the S-5
+        correctness tolerance there, and beats Ng on G as in the S-5
+        criteria. It need not match `ALL`: beating Ng is enough for it
+        to be an option.
    2. The shipped examples (`rhf1d`, `rhsphere`, `rhsc2d`, `rhsc3d`),
       as in the measurements above, plus peak RSS.
    3. The 2-D perf case: peak RSS over a few iterations under `NG` and
@@ -1795,15 +1796,22 @@ the change is mostly which entries Anderson's vectors hold.
    5. Held-out inputs (§7 trap 8, S-5 note 5), named now: Bifrost row
       0, column 400 (`bifrost:1d:400`, Ca II with PRD), and the 2-D cut
       of every 12th column (`bifrost:2d:12`, Ca II with PRD). Neither was
-      used for development. A reduced setting that passes on the S-5 set
-      but fails on these does not become a default.
-6. **Defaults, decided with the numbers.**
-   - If both reduced settings pass, the one with less memory
-     (`POPULATIONS`) is chosen.
-   - If a reduced setting passes in 1-D as well, it becomes the default
-     everywhere: one behaviour, less memory.
-   - If it passes only in multi-D, the default follows the topology,
-     like `SOLVER` (S-10).
+      used for development. A setting that is viable on the S-5 set but
+      fails on these is not viable.
+6. **Defaults (decided by the user).** Sensible defaults, documented. No
+   choice at run time from the available memory: users who need another
+   setting set the keyword.
+   - 2-D and 3-D (`rhsc2d`, `rhsc3d`): `POPULATIONS_RHO`, if it is
+     viable there.
+   - 1-D (`rhf1d`, `rhsphere`): `ALL`. Memory is almost never a problem
+     in 1-D, so a reduced setting must not cost much work there.
+     `POPULATIONS_RHO` becomes the 1-D default as well, so that one
+     setting holds everywhere, if it needs at most 1.1× the G
+     evaluations of `ALL` on every case where both converge: the S-5
+     set, the shipped 1-D examples and `bifrost:1d:400`.
+   - `POPULATIONS` stays an option. If `POPULATIONS_RHO` is not viable
+     in multi-D, the multi-D default goes back to the user with the
+     numbers.
    - Making `ANDERSON` the default of `rhsc2d` and `rhsc3d` is a
      separate PR with `changes-results`, after N-33 and the 2-D
      measurements.
