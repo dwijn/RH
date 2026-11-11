@@ -15,7 +15,10 @@ then turned into links to their issues.
 
 project: creates the user-owned Project (if missing), its custom fields
 (Area, Severity, Plan step) and adds every "[ID]" issue to it with those
-fields set. Views (board, grouping) cannot be created from the CLI; set them
+fields set; items already on the board without a plan step get one. Plan
+step has the options 1 to 7 and Wishlist (F-* items, label "wishlist"
+instead of step-N). gh cannot add options to an existing field: add a
+missing one in the web UI, and the command says when one is missing. Views (board, grouping) cannot be created from the CLI; set them
 up once in the web UI.
 """
 import json
@@ -58,7 +61,7 @@ for ids, step in [
 
 def step_label(step):
     """Label for a plan step: step-1 ... step-7, or wishlist."""
-    return f"step-{step}" if isinstance(step, int) else str(step).lower()
+    return "wishlist" if step == "Wishlist" else f"step-{step}"
 
 
 # Problems introduced by the uncommitted threading work, not present upstream,
@@ -242,6 +245,10 @@ def cmd_project(dry):
         n = it.get("content", {}).get("number")
         i = next((k for k, v in number_of.items() if v == n), None)
         if i in STEP and not it.get("plan step"):
+            if str(STEP[i]) not in opt["Plan step"]:
+                print(f"no option '{STEP[i]}' in field Plan step: add it in the web UI, "
+                      f"then rerun to set it on #{n} [{i}]")
+                continue
             print(f"plan step {STEP[i]} for #{n} [{i}]")
             gh("project", "item-edit", "--id", it["id"], "--project-id", pid,
                "--field-id", fields["Plan step"]["id"],
