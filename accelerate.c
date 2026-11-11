@@ -63,7 +63,8 @@ struct Ng *NgInit(int N, int Ndelay, int Norder, int Nperiod,
 	Ngs->theStorage = Ngs->previous[0];
 	for (k = 0; k < N; k++)
 		Ngs->previous[0][k] = solution[k];
-	Ngs->count = 1;
+	Ngs->count    = 1;
+	Ngs->rejected = 0;
 
 	return Ngs;
 }
@@ -138,19 +139,60 @@ bool_t Accelerate(struct Ng *Ngs, double *solution)
 							   (Ngs->previous[ip][k] - Ngs->previous[i0][k]);
 			}
 		}
-		for (k = 0; k < Ngs->N; k++) Ngs->previous[i0][k] = solution[k];
+		/* --- Keep the step only if it stays positive where the
+			   unaccelerated solution (still in previous[i0]) is, and
+			   finite: Ng's extrapolation has no safeguard, and far from
+			   the solution it can overshoot to negative populations,
+			   then negative opacities (N-33). Otherwise restore that
+			   solution: the iteration goes on with the plain step --- */
 
+		Ngs->rejected = 0;
+		for (k = 0; k < Ngs->N; k++) {
+			if (!isfinite(solution[k]) ||
+				(solution[k] <= 0.0 && Ngs->previous[i0][k] > 0.0))
+				Ngs->rejected++;
+		}
+		if (Ngs->rejected) {
+			for (k = 0; k < Ngs->N; k++) solution[k] = Ngs->previous[i0][k];
+		} else {
+			for (k = 0; k < Ngs->N; k++) Ngs->previous[i0][k] = solution[k];
+		}
 		/* --- Clean up the temporary variables --        --------------- */
 
 		free(weight);
 		freeMatrix((void **) Delta);
 
 		getCPU(4, TIME_POLL, "Accelerate");
-		return TRUE;
-	} else
+		return (Ngs->rejected == 0);
+	} else {
+		Ngs->rejected = 0;
 		return FALSE;
+	}
 }
 /* ------- end ---------------------------- Accelerate.c ------------ */
+
+/* ------- begin -------------------------- NgStatus.c -------------- */
+
+const char *NgStatus(struct Ng *Ngs, bool_t accel)
+{
+	/* --- End of a caller's log line after Accelerate(): whether the
+		   step was extrapolated, or the extrapolation rejected (N-33).
+		   Returns a static buffer --                  -------------- */
+
+	static char str[MAX_MESSAGE_LENGTH];
+
+	if (accel)
+		return " (accelerated)\n";
+	if (Ngs->rejected) {
+		snprintf(str, sizeof(str),
+				 " (Ng step rejected: %ld value%s not positive or not finite;"
+				 " plain step kept)\n",
+				 Ngs->rejected, (Ngs->rejected == 1) ? "" : "s");
+		return str;
+	}
+	return "\n";
+}
+/* ------- end ---------------------------- NgStatus.c -------------- */
 
 /* ------- begin -------------------------- NgFree.c ---------------- */
 

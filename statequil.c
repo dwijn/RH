@@ -248,7 +248,7 @@ double updatePopulations(int niter)
 
 		sprintf(messageStr, " %s,", atom->ID);
 		dpops = MaxChange(atom->Ng_n, messageStr, quiet = FALSE);
-		Error(MESSAGE, NULL, (accel) ? " (accelerated)\n" : "\n");
+		Error(MESSAGE, NULL, NgStatus(atom->Ng_n, accel));
 
 		dpopsmax = MAX(dpops, dpopsmax);
 	}
@@ -262,7 +262,7 @@ double updatePopulations(int niter)
 
 		sprintf(messageStr, " %s ,", molecule->ID);
 		dpops = MaxChange(molecule->Ng_nv, messageStr, quiet = FALSE);
-		Error(MESSAGE, NULL, (accel) ? " (accelerated)\n" : "\n");
+		Error(MESSAGE, NULL, NgStatus(molecule->Ng_nv, accel));
 
 		dpopsmax = MAX(dpops, dpopsmax);
 	}

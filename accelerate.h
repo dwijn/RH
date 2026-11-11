@@ -14,15 +14,19 @@
 struct Ng {
 	int      N, Ndelay, Norder, Nperiod, count;
 	double **previous, **A, *b, *theStorage;
+	/* --- Values the last extrapolation made non-positive or
+		   non-finite; it was rejected if > 0 (N-33) --  ------------ */
+	long rejected;
 };
 
 /* --- Associated function prototypes --               -------------- */
 
-bool_t     Accelerate(struct Ng *Ngs, double *solution);
-void       NgFree(struct Ng *Ngs);
-struct Ng *NgInit(int N, int Ndelay, int Norder, int Nperiod,
-				  double *solution);
-double     MaxChange(struct Ng *Ngs, char *text, bool_t quiet);
+bool_t      Accelerate(struct Ng *Ngs, double *solution);
+void        NgFree(struct Ng *Ngs);
+struct Ng  *NgInit(int N, int Ndelay, int Norder, int Nperiod,
+				   double *solution);
+double      MaxChange(struct Ng *Ngs, char *text, bool_t quiet);
+const char *NgStatus(struct Ng *Ngs, bool_t accel);
 
 #endif /* !__ACCELERATE_H__ */
 

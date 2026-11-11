@@ -425,7 +425,7 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 			accel = Accelerate(atom->Ng_n, atom->n[0]);
 			sprintf(messageStr, " %s,", atom->ID);
 			dpops = MaxChange(atom->Ng_n, messageStr, quiet = FALSE);
-			Error(MESSAGE, NULL, (accel) ? " (accelerated)\n" : "\n");
+			Error(MESSAGE, NULL, NgStatus(atom->Ng_n, accel));
 			dpopsmax = MAX(dpops, dpopsmax);
 		}
 		for (nact = 0; nact < atmos.Nactivemol; nact++) {
@@ -433,7 +433,7 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 			accel    = Accelerate(molecule->Ng_nv, molecule->nv[0]);
 			sprintf(messageStr, " %s ,", molecule->ID);
 			dpops = MaxChange(molecule->Ng_nv, messageStr, quiet = FALSE);
-			Error(MESSAGE, NULL, (accel) ? " (accelerated)\n" : "\n");
+			Error(MESSAGE, NULL, NgStatus(molecule->Ng_nv, accel));
 			dpopsmax = MAX(dpops, dpopsmax);
 		}
 		if (input.solve_ne == ITERATION) {

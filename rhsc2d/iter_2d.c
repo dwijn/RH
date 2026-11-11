@@ -107,7 +107,7 @@ void Iterate(int NmaxIter, double iterLimit)
 		accel = Accelerate(Ng_S, S);
 		sprintf(messageStr, "-- Main iteration: %3d,", niter);
 		dSmax = MaxChange(Ng_S, messageStr, quiet = FALSE);
-		Error(MESSAGE, NULL, (accel) ? " (accelerated)\n" : "\n");
+		Error(MESSAGE, NULL, NgStatus(Ng_S, accel));
 
 		sprintf(messageStr, "Total Iteration %3d", niter);
 		getCPU(2, TIME_POLL, messageStr);
