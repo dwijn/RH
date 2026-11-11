@@ -77,7 +77,7 @@ bool_t Accelerate(struct Ng *Ngs, double *solution)
 	register int i, j, k;
 
 	int      Norder = Ngs->Norder, ip, ipp, i0;
-	double **Delta, *weight;
+	double **Delta, *weight, g;
 
 	/* --- Store the current solution --                --------------- */
 
@@ -139,17 +139,22 @@ bool_t Accelerate(struct Ng *Ngs, double *solution)
 							   (Ngs->previous[ip][k] - Ngs->previous[i0][k]);
 			}
 		}
-		/* --- Keep the step only if it stays positive where the
-			   unaccelerated solution (still in previous[i0]) is, and
-			   finite: Ng's extrapolation has no safeguard, and far from
-			   the solution it can overshoot to negative populations,
-			   then negative opacities (N-33). Otherwise restore that
-			   solution: the iteration goes on with the plain step --- */
+		/* --- Keep the step only if it keeps the sign of the
+			   unaccelerated solution g (still in previous[i0]): no
+			   value below 0 where g >= 0, none at 0 where g > 0, and
+			   none non-finite where g is finite. Ng's extrapolation has
+			   no safeguard, and far from the solution it can overshoot
+			   to negative populations, then negative opacities (N-33).
+			   Otherwise restore g: the iteration goes on with the plain
+			   step. With floating-point traps on (SetFPEtraps) an
+			   overflow traps before this check; without them a
+			   non-finite step is rejected here --        -------------- */
 
 		Ngs->rejected = 0;
 		for (k = 0; k < Ngs->N; k++) {
-			if (!isfinite(solution[k]) ||
-				(solution[k] <= 0.0 && Ngs->previous[i0][k] > 0.0))
+			g = Ngs->previous[i0][k];
+			if ((isfinite(g) && !isfinite(solution[k])) ||
+				(g >= 0.0 && solution[k] < 0.0) || (g > 0.0 && solution[k] == 0.0))
 				Ngs->rejected++;
 		}
 		if (Ngs->rejected) {
