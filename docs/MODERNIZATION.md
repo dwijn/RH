@@ -20,47 +20,95 @@ upstream. Newest changes go at the top of the changelog.
 
 ## At a glance
 
-- **State of the code (2026-10-15):** the uncommitted threading work is
-  correct. It is bit-identical to upstream at 1 thread in every regression and
-  convergence case, and only the Fortran-vs-C Voigt choice changes Stokes
-  results.
-- **Robustness is the weakest area.** Of 19 one-dimensional convergence cases,
-  8 converge cleanly, 1 converges slowly, 3 fail to converge, and 7 crash or
-  return a wrong answer. Neither tree reports non-convergence. A 3-D
-  chromospheric test diverges in both.
-- **Memory blocks realistic 3-D runs:** line profiles stored per ray, dense
-  rate and collision matrices, per-thread copies and per-point PRD weight files
-  put a 256²×200 run with five atoms in the tens of TB.
-- **Speed:** the formal solution and per-transition work dominate; about
-  40 % of a PRD run is serial; `-O3 -march=native` alone gives 14 %.
-- **Code quality:** 354 compiler warnings, a quarter of the code duplicated
-  across the four geometries, global state everywhere, no unit tests or CI.
-- **Next step:** fix the crashes and silent failures (plan step 1), then the
-  build and Fortran removal, before any numerical or structural change.
-- **Solver (2026-10-16):** the iteration scheme is to be redesigned rather
-  than patched: Ng is Anderson acceleration without safeguards, and the
-  nested PRD/ne loops are a block splitting that can cycle or diverge where
-  the coupled problem has a solution. Plan: a monolithic residual solved by
-  globalized Newton–Krylov with MALI as preconditioner, tested against
-  stabilized Anderson before anything is committed to (S-track, §3.8 and
+*Status on 2026-11-10.* The work is on the fork
+[dwijn/RH](https://github.com/dwijn/RH), integration branch `modernize`.
+Every change is a pull request, verified against upstream RH (`c95bdf6`)
+or against its base commit. 151 issues are logged; 75 are fixed and 2
+closed without a fix.
+Plan steps 1–3 (crash fixes, build and hygiene, tests) are done, and
+step 4 (the solver) is under way. Steps 5–7 follow: speed, memory and
+structure.
+
+- **Wrong answers that looked right, also in upstream RH.**
+  - 52 of the bugs found also exist upstream (§3.9), and 31 of them are
+    fixed here.
+  - **Formal solvers:**
+    - 2-D and 3-D long characteristics stopped one section short (B-24):
+      7–11 % off on a slab with an exact solution, and up to 25 % in the
+      shipped examples.
+    - The polarized DELO-Bezier solvers had two wrong terms (B-25):
+      Stokes V was 38 % off for Ca II on FAL-C.
+  - **Statistical equilibrium:** converged populations did not satisfy
+    statistical equilibrium where transitions overlap (B-6).
+  - **Chemical equilibrium:** the stored H⁻ density was too large by the
+    inverse neutral fraction of hydrogen (B-40), up to 10¹¹ at the top of
+    FAL-C. With the fix, continua below 200 nm change by up to 9–15 %
+    on inclined rays, and the limb rays of the spherical example by up
+    to 17 %.
+  - **Atomic data:**
+    - Two model atoms had wrong collision strengths (B-42 for C II,
+      B-43 for Ca II).
+    - Tabulated rates are now interpolated monotonically in log-log, so
+      they no longer go negative (N-32).
+  - The unit tests check against problems with known answers (exact
+    slabs, the analytic polarized solution, first-principles Zeeman
+    patterns), which is how most of these were found.
+- **Convergence: a new solver, `ANDERSON`, the default in 1-D since
+  S-10.** RH's Ng is replaced by stabilized Anderson acceleration of an
+  explicit, deterministic MALI map G (S-2, S-3; design and reasoning in
   [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)).
-- **Solver comparison (S-5, 2026-11-09):** stabilized Anderson acceleration
-  of the map G (`SOLVER = ANDERSON`, S-3) meets every S-5 criterion. At
-  depth 10 it needs 26–77 % less work than Ng on G on the easy controls
-  (9–72 % at depth 5) and 3.1× less on the slow case (2.9×). It converges all five cases where the current
-  Ng fails, three of which crash with Ng; and it converges the ne case
-  where plain G diverges. Decided: depth 10 by default; Anderson becomes
-  the default of the 1-D programs (S-10), and of 2-D and 3-D once its
-  history shrinks (S-11). S-4 (Newton) stays for the derivatives that
-  STIC needs (§2.5).
-- **Unit tests (2026-10-17/18) found two serious upstream bugs:** 2-D and
-  3-D long characteristics stopped one section short (B-24), wrong by
-  7–11 % on a slab with an exact solution and by up to 25 % in the
-  shipped examples; and the polarized DELO-Bezier solvers had two wrong
-  terms in their control points (B-25), first order where the
-  propagation matrix varies with depth: Stokes V 38 % from the converged
-  answer for Ca II on FALC. Both looked like believable solutions. Bugs
-  that also exist upstream are collected in §3.9 for reporting there.
+  - On the 1-D test set (§2.5) it converges every case. That includes
+    five where Ng fails, three of them with a crash.
+  - Applied to the same map, it needs 26–77 % less work than Ng on the
+    easy cases and 3× less on the slow one.
+  - On the shipped examples it never needs more iterations than Ng, and
+    `rhsphere` needs half as many.
+  - Rate equations are solved by GTH elimination (N-31). He_large, which
+    stalled at 2×10⁻³ because of rounding in the LU solve, now
+    converges.
+  - Runs report whether they converged, also in the exit status (N-1).
+  - Every keyword that is set is checked against the solver, and a
+    conflict stops the run with a clear message.
+  - A Newton–Krylov solver (S-4) is also built: G is bit-reproducible at
+    a fixed thread count, so its derivatives can be taken by finite
+    differences.
+- **Speed:**
+  - PRD scattering integrals are 4× faster, and whole PRD runs 1.3–1.4×
+    (P-8).
+  - The vectorized per-transition loops and `-O3` give 1.15–1.23× (P-7).
+  - Threading gives 1.7–1.8× on 2-D and 3-D cases at 16 threads.
+- **Memory:**
+  - Line profiles and the background are stored in single precision:
+    the 2-D perf case peaks at 10.7 GB instead of 17.5 GB (M-1, M-7).
+  - Realistic 3-D runs are still out of reach, at tens of TB. The
+    causes are line profiles stored per ray, dense rate and collision
+    matrices, per-thread copies and PRD weights (§3.3, plan step 6).
+  - Anderson's history can now cover only the populations (S-11), the
+    prerequisite for making it the default in 2-D and 3-D.
+- **Code and testing:**
+  - CMake builds. The Fortran is gone, and one C Voigt function replaces
+    five.
+  - Zero compiler warnings, enforced as errors in CI, and one code style
+    (clang-format).
+  - CI on Linux and macOS with gcc and clang, also under sanitizers. 27
+    tests run in ctest: 17 unit and 6 end-to-end.
+  - Every pull request is compared with its base commit, and drift from
+    upstream is reported.
+  - A stress suite covers convergence and performance, including cuts of
+    a Bifrost snapshot.
+- **For codes that call RH as a library (STIC):**
+  - 1-D columns get the robust solver by default.
+  - Each run says whether it converged.
+  - The map G is deterministic, which is what derivatives and
+    Newton–Krylov need.
+  - The next structural step is that errors return to the caller
+    instead of calling `exit()` (Q-7, high severity, first in plan
+    step 7).
+- **Next:**
+  - Measure S-11's settings and set the defaults.
+  - Fix N-33, then make `ANDERSON` the default in 2-D and 3-D.
+  - The rest of step 4, then speed (step 5) and memory (step 6).
+  - Report the upstream bugs of §3.9 to upstream RH.
 
 Issue IDs: **B** bug or crash, **N** numerics/convergence, **P** speed,
 **M** memory, **T** threading, **Q** code quality / build, **F** feature,
