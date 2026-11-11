@@ -1698,15 +1698,18 @@ the default-solver design above (§9 Q1 for Anderson).
 
 **Problem.** Anderson keeps (3m + 10) vectors of the whole state, 40 at
 depth 10. The state is mostly J. In the shipped `rhf1d` example, 60 % of
-it is J and 39 % is PRD ρ. On the 2-D perf case the history would take
-about 24 GB, against 10.7 GB for the whole run. On the 3-D estimate of
+it is J and 39 % is PRD ρ. On the 2-D perf case the J part of the
+history alone would take about 24 GB (about 26 GB with ρ and the masks,
+item 3), against 10.7 GB for the whole run. On the 3-D estimate of
 `MODERNIZATION.md` §3.3 it would be about 17 TB.
 
 **Idea.** Extrapolate only part of the state and carry the rest from
 the last G, as Ng does. RH's Ng extrapolates populations only; J is
 whatever the last formal solution gave, and ρ has its own Ng in the PRD
-sub-iterations. For a carried entry, x_{k+1} = G(x_k), the plain-iteration
-value. The code already does this for masked entries (`fromVars`), so
+sub-iterations. A carried entry of the next point takes the value of G
+at the last accepted point. That is G(x_k) after an accepted evaluation,
+the plain-iteration value. After a rejection the whole next point is
+G of the last accepted point, as now (decision 2). The code already does this for masked entries (`fromVars`), so
 the change is mostly which entries Anderson's vectors hold.
 
 **What changes in the method.**
@@ -1720,12 +1723,16 @@ the change is mostly which entries Anderson's vectors hold.
   populations.
 - The guard is unchanged. Carried blocks hold G's values, so they cannot
   create new inversions or negative values.
-- J lags by one G, as in plain iteration and in Ng. G uses the J of x
-  only in the background scattering source term (`sca_c`·J in
+- J is out of step with the populations. In plain iteration J and the
+  populations of x_{k+1} come from the same G. Here the populations jump
+  to the extrapolated point, while J stays G's J of the unextrapolated
+  x_k. RH's Ng has the same mismatch: the next formal solution pairs
+  the extrapolated populations with the J of the last one. G uses the J
+  of x only in the background scattering source term (`sca_c`·J in
   `formal.c`, and J20 in the background polarization); the PRD
-  sub-iterations use the J of G's own formal solution. Whether that lag
-  costs iterations in scattering-dominated continua is for the
-  measurement to show. ρ of x, by contrast, enters the line emissivity
+  sub-iterations use the J of G's own formal solution. Whether the
+  mismatch costs iterations or rejections in scattering-dominated
+  continua (large `sca_c`) is for the measurement to show. ρ of x, by contrast, enters the line emissivity
   of the first formal solution directly. That is why `POPULATIONS_RHO`
   is a candidate.
 
@@ -1741,6 +1748,10 @@ the change is mostly which entries Anderson's vectors hold.
      bit for bit.
    - Like every `ANDERSON_*` keyword, it stops the run under another
      solver.
+   - `POPULATIONS_RHO` on atoms without PRD lines runs as
+     `POPULATIONS`. It is accepted, because no keyword check depends on
+     the atoms (S-10, item 2). The start banner names the extrapolated
+     blocks, so the run shows what it does.
 2. **Carried blocks on rejection.** A rejected point is followed by the
    plain step from the last accepted pair. That step is G of that pair,
    carried blocks included (`gacc`, as now). The rule is the same as
@@ -1753,6 +1764,7 @@ the change is mostly which entries Anderson's vectors hold.
      on the 3-D estimate they are 3 × 420 GB of J.
    - The printed memory becomes 3·N + (3m + 7)·N_x doubles plus
      (m + 4)·N_x bytes, where N_x is the length of the extrapolated part.
+     With `RELATIVE` the scales add N_x doubles.
    - Estimate for the 2-D perf case at m = 10: `ALL` about 26 GB,
      `POPULATIONS` about 2.1 GB, `POPULATIONS_RHO` about 3.5 GB. The
      estimate assumes ρ is about 6 % of J per point (4 angle-averaged
@@ -1780,7 +1792,14 @@ the change is mostly which entries Anderson's vectors hold.
    3. The 2-D perf case: peak RSS over a few iterations under `NG` and
       the three settings, to check the estimate of item 3.
    4. `2d_pert_h6_ca_mg` once N-33 is fixed.
+   5. Held-out inputs (§7 trap 8, S-5 note 5), named now: Bifrost row
+      0, column 400 (`bifrost:1d:400`, Ca II with PRD), and the 2-D cut
+      of every 12th column (`bifrost:2d:12`, Ca II with PRD). Neither was
+      used for development. A reduced setting that passes on the S-5 set
+      but fails on these does not become a default.
 6. **Defaults, decided with the numbers.**
+   - If both reduced settings pass, the one with less memory
+     (`POPULATIONS`) is chosen.
    - If a reduced setting passes in 1-D as well, it becomes the default
      everywhere: one behaviour, less memory.
    - If it passes only in multi-D, the default follows the topology,
@@ -1797,26 +1816,35 @@ the change is mostly which entries Anderson's vectors hold.
 3. The defaults of item 6 (`changes-results`).
 
 **Code.** All in `solver.c`.
-- A per-block flag set from the keyword. Packed offsets for the
-  extrapolated blocks.
+- A per-block flag set from the keyword.
+- Two offset tables. `blockStart` keeps indexing the full x, which
+  `guardTrial`, `printChange` and the J offset for J20 in
+  `toVars`/`fromVars` use. A new packed table indexes u.
 - `toVars` maps full x to the packed u. `fromVars` maps the packed u and
   full G(x) to full x: carried blocks from G(x), the rest as now.
-- `setVarScale` and `setupVariables` work over the packed blocks.
-- `PER_BLOCK` solves one system per extrapolated block.
+- `setVarScale` and the weights work over the packed blocks.
+- `PER_BLOCK` solves one system per extrapolated block. `opt.Nblock`
+  and `opt.start` come from the packed table, and `logSolve` names
+  blocks through it.
+- The safeguard norm and the rejection message use the packed length
+  (`andersonNorm(N_x, …)`).
 - The start banner names the extrapolated blocks and gives the memory
   of item 3.
-- `anderson.c` stays generic and is unchanged. Newton-Krylov is
-  unchanged.
+- `anderson.c` stays generic and is unchanged.
+- Newton-Krylov shares `setupVariables`, `toVars` and `fromVars`. It
+  uses them with every block in the packed table (the `ALL` packing),
+  and its results must not change.
 
 **Tests.**
 - e2e:
   - `ALL` repeats the current Anderson bit for bit.
   - With `ANDERSON_DEPTH = 0`, every setting repeats `FIXED_POINT` with
     `NG_ORDER = 0` bit for bit.
-  - Under `POPULATIONS`, the J of every point equals G's J of the
-    previous point bit for bit. The check is the state at a stop after
-    a few iterations against a `FIXED_POINT` G evaluation of the
-    previous point; the exact form gets settled in the PR.
+  - Under `POPULATIONS`, the J of every evaluated point equals the J of
+    G at the last accepted point, bit for bit, rejections included
+    (decision 2). The exact form of the check gets settled in the PR.
+  - The `NEWTON_KRYLOV` e2e results are bit-identical before and after
+    the change.
   - A short `POPULATIONS` run is bit-reproducible.
   - The keyword under another solver stops the run.
 - Unit: none new. `anderson.c` does not change.
