@@ -1086,7 +1086,10 @@ part of G.
   last accepted pair (x_k, g_k). The wasted evaluation counts in the work
   totals; rejections are logged and counted. If c = 1 rejects often on
   the easy controls, the decreasing envelope of Zhang, O'Donoghue & Boyd
-  (2020) replaces it (decided with the numbers).
+  (2020) replaces it (decided with the numbers). At m = 5, S-5 found
+  few rejections on the easy controls, 27 of 215 points on `t5750_h6` and
+  78 of 282 on `shock_h6`, where Anderson then does worse than plain G
+  (S-5 Results); the envelope is now S-12.
 - Negative radiative rates (the GTH → LU fallback of N-31) are counted
   per run and reported as an S-3 metric, not used as a guard.
 
@@ -1158,7 +1161,8 @@ extrapolated, 11 rejected), `RELATIVE` in 97; `FIXED_POINT` has not
 converged after 200. The rejected points had ‖f‖_W only 0.2–8 % above
 the last accepted one, the case where a strict c = 1 can discard useful
 steps; S-5 decides with numbers whether the envelope of Zhang,
-O'Donoghue & Boyd (2020) replaces it (Safeguards, above).
+O'Donoghue & Boyd (2020) replaces it (Safeguards, above; after S-5 this
+is S-12).
 
 ### S-4 — Newton–GMRES on the MALI map (Form A)
 
