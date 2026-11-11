@@ -35,6 +35,8 @@ extern char         messageStr[];
 
 static bool_t keywordSet(const Keyword *theKeywords, int Nkeyword,
 						 const char *name);
+static void   setKeywordValue(Keyword *theKeywords, int Nkeyword,
+							  const char *name, const char *value);
 
 /* ------- begin -------------------------- readInput.c ------------- */
 
@@ -44,7 +46,8 @@ void readInput()
 	char       errorStr[MAX_MESSAGE_LENGTH];
 
 	int              Nkeyword, Nconflict, n, p;
-	const char      *sname, *prefix;
+	char             sname[MAX_KEYWORD_LENGTH + 16];
+	const char      *prefix;
 	enum solver_type owner;
 	FILE            *fp_keyword;
 
@@ -128,6 +131,8 @@ void readInput()
 		 KEYWORD_REQUIRED, &input.pfData, setcharValue},
 		{"SOLVE_NE", "NONE", FALSE, KEYWORD_DEFAULT, &input.solve_ne,
 		 setnesolution},
+		/* --- NG is the default in 2-D and 3-D; ANDERSON in 1-D and
+			   spherical geometry, set below (S-10) -- -- */
 		{"SOLVER", "NG", FALSE, KEYWORD_DEFAULT, &input.solver, setsolver},
 		{"ANDERSON_DEPTH", "10", FALSE, KEYWORD_DEFAULT, &input.Anderson_depth,
 		 setintValue},
@@ -216,6 +221,13 @@ void readInput()
 		{"ALLOW_PASSIVE_BB", "TRUE", FALSE, KEYWORD_DEFAULT,
 		 &input.allow_passive_bb, setboolValue}};
 	Nkeyword = sizeof(theKeywords) / sizeof(Keyword);
+
+	/* --- The default solver depends on the geometry (S-10): ANDERSON
+		   in 1-D and spherical geometry, NG in 2-D and 3-D, where
+		   Anderson's history does not fit in memory yet (S-11) -- -- */
+
+	if (topology == ONE_D_PLANE || topology == SPHERICAL_SYMMETRIC)
+		setKeywordValue(theKeywords, Nkeyword, "SOLVER", "ANDERSON");
 
 	/* --- Open the input data file --                    ------------- */
 
@@ -404,7 +416,13 @@ void readInput()
 		   NEWTON_* by SOLVER = NEWTON_KRYLOV only; set with another
 		   solver they would be ignored silently -- ---------------- */
 
-	sname = solverName(input.solver);
+	/* --- The messages say when the solver is the default, so that a
+		   keyword file written for the old default (NG) explains
+		   itself (S-10) -- -------------------------------------- */
+
+	input.solver_default = !keywordSet(theKeywords, Nkeyword, "SOLVER");
+	sprintf(sname, "%s%s", solverName(input.solver),
+			input.solver_default ? " (the default)" : "");
 	for (p = 0; p < 2; p++) {
 		prefix = (p == 0) ? "ANDERSON_" : "NEWTON_";
 		owner  = (p == 0) ? SOLVER_ANDERSON : SOLVER_NEWTON_KRYLOV;
@@ -471,7 +489,7 @@ void readInput()
 			sprintf(messageStr,
 					"SOLVER = %s: NG_ORDER = %d would extrapolate the"
 					" populations a second\n time after the solver's step."
-					" Set NG_ORDER = 0.",
+					" Set SOLVER = NG, or remove the keyword or set it\n to 0.",
 					sname, input.Ngorder);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -507,16 +525,13 @@ void readInput()
 			   does PRD_N_MAX_ITER sub-iterations -- -------------- */
 		if (!keywordSet(theKeywords, Nkeyword, "PRD_ITER_LIMIT")) {
 			input.PRDiterLimit = 0.0;
-			for (n = 0; n < Nkeyword; n++) { /* for -showkeywords */
-				if (!strcmp(theKeywords[n].keyword, "PRD_ITER_LIMIT"))
-					strcpy(theKeywords[n].value, "0.0");
-			}
+			setKeywordValue(theKeywords, Nkeyword, "PRD_ITER_LIMIT", "0.0");
 		} else if (input.PRDiterLimit != 0.0) {
 			sprintf(messageStr,
 					"SOLVER = %s: PRD_ITER_LIMIT = %g lets the PRD"
 					" sub-iterations stop early,\n which makes the map"
-					" discontinuous. Remove the keyword or set it to 0;"
-					" G then does\n PRD_N_MAX_ITER sub-iterations.",
+					" discontinuous. Set SOLVER = NG, or remove the keyword\n or"
+					" set it to 0 (G then does PRD_N_MAX_ITER sub-iterations).",
 					sname, input.PRDiterLimit);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -524,7 +539,8 @@ void readInput()
 		if (input.PRD_Ngorder != 0) {
 			sprintf(messageStr,
 					"SOLVER = %s: PRD_NG_ORDER = %d, but there is no"
-					" acceleration inside\n the map. Set PRD_NG_ORDER = 0.",
+					" acceleration inside\n the map. Set SOLVER = NG, or remove"
+					" the keyword or set it to 0.",
 					sname, input.PRD_Ngorder);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -533,8 +549,8 @@ void readInput()
 			input.CR_factor != 1.0) {
 			sprintf(messageStr,
 					"SOLVER = %s: COLL_RELAX_FACTOR = %g, but the map has no"
-					" collisional\n relaxation. Remove the keyword or set it"
-					" to 1.",
+					" collisional\n relaxation. Set SOLVER = NG, or remove the"
+					" keyword or set it to 1.",
 					sname, input.CR_factor);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -542,8 +558,8 @@ void readInput()
 		if (input.CR_Nstep != 0) {
 			sprintf(messageStr,
 					"SOLVER = %s: COLL_RELAX_NSTEP = %d makes the map"
-					" depend on the\n iteration number. Set"
-					" COLL_RELAX_NSTEP = 0.",
+					" depend on the\n iteration number. Set SOLVER = NG, or"
+					" remove the keyword or set it to 0.",
 					sname, input.CR_Nstep);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -551,7 +567,8 @@ void readInput()
 		if (atmos.hydrostatic) {
 			sprintf(messageStr,
 					"SOLVER = %s: HYDROSTATIC = TRUE changes the"
-					" atmosphere between\n iterations. Set HYDROSTATIC = FALSE.",
+					" atmosphere between\n iterations. Set SOLVER = NG or"
+					" HYDROSTATIC = FALSE.",
 					sname);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -559,7 +576,7 @@ void readInput()
 		if (input.limit_memory) {
 			sprintf(messageStr,
 					"SOLVER = %s: the mean intensity J is part of the"
-					" state and must be\n kept in memory. Set"
+					" state and must be\n kept in memory. Set SOLVER = NG or"
 					" LIMIT_MEMORY = FALSE.",
 					sname);
 			Error(WARNING, routineName, messageStr);
@@ -568,7 +585,8 @@ void readInput()
 		if (input.solve_ne == ITERATION && input.old_background) {
 			sprintf(messageStr,
 					"SOLVER = %s with SOLVE_NE = ITERATION recomputes the"
-					" background\n from the state. Set OLD_BACKGROUND = FALSE.",
+					" background\n from the state. Set SOLVER = NG or"
+					" OLD_BACKGROUND = FALSE.",
 					sname);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -576,7 +594,8 @@ void readInput()
 		if (input.solve_ne == ITERATION && input.NonICE) {
 			sprintf(messageStr,
 					"SOLVER = %s with SOLVE_NE = ITERATION computes the"
-					" chemical\n equilibrium from the state. Set NON_ICE = FALSE.",
+					" chemical\n equilibrium from the state. Set SOLVER = NG or"
+					" NON_ICE = FALSE.",
 					sname);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
@@ -602,7 +621,8 @@ void readInput()
 		if (Nconflict) {
 			sprintf(messageStr,
 					"SOLVER = %s: %d keyword setting%s conflict with"
-					" it; see the\n warning%s above and S-2 in docs/SOLVER.md.",
+					" it; see the\n warning%s above. docs/SOLVER.md describes"
+					" the solvers and their keywords.",
 					sname, Nconflict, (Nconflict > 1) ? "s" : "",
 					(Nconflict > 1) ? "s" : "");
 			Error(ERROR_LEVEL_2, routineName, messageStr);
@@ -636,3 +656,23 @@ static bool_t keywordSet(const Keyword *theKeywords, int Nkeyword,
 	return FALSE;
 }
 /* ------- end ---------------------------- keywordSet -------------- */
+
+/* ------- begin -------------------------- setKeywordValue --------- */
+
+/* --- Change the value string of a keyword before or after reading:
+	   a default that depends on the program, or the value in use for
+	   -showkeywords -- ------------------------------------------- */
+
+static void setKeywordValue(Keyword *theKeywords, int Nkeyword,
+							const char *name, const char *value)
+{
+	int n;
+
+	for (n = 0; n < Nkeyword; n++) {
+		if (!strcmp(theKeywords[n].keyword, name)) {
+			strcpy(theKeywords[n].value, value);
+			return;
+		}
+	}
+}
+/* ------- end ---------------------------- setKeywordValue --------- */

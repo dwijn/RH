@@ -1527,7 +1527,9 @@ guard; N-36 (the two ne formulations); multi-D (after N-33).
 
 **Status:** agreed 2026-11-10, with items 2 and 3 decided stricter than
 proposed (below). Work items: S-10 (the switch, items 1–6) and S-11 (the
-history in multi-D, item 7). It answers the design step
+history in multi-D, item 7). S-10 is done: the keyword checks (#296),
+the Ng pins in the test tools (#297), and the switch (step 3, this
+section's items 1, 3 and 4). S-11 is open. It answers the design step
 that the S-5 decision asked for: the keywords and defaults that `ANDERSON`
 refuses, the shipped keyword files, runs that set Ng-only keywords,
 multi-D, and the change of results. Measurements are in
@@ -1717,9 +1719,12 @@ Two tiers, as agreed:
 
 **Tier 1, regression (gate on every pull request).**
 
-- With the default solver (`SOLVER = NG`), the existing `run_tests.sh`
+- With each program's default solver (`ANDERSON` in 1-D and spherical
+  geometry since S-10, `NG` in 2-D and 3-D), the existing `run_tests.sh`
   (4 iterations; the CI gate compares with the base commit, `--exact` for
-  refactors, and reports drift from upstream) is unchanged.
+  refactors, and reports drift from upstream) is unchanged. Its drift
+  from upstream in 1-D and spherical geometry includes the change of
+  solver.
 - A new solver changes the iteration history by design, so its regression
   test compares **converged** solutions against stored references
   (populations, spectra) within a tolerance, on a small, fast set

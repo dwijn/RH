@@ -49,15 +49,20 @@ void Iterate(int NmaxIter, double iterLimit)
 	double t_start;
 
 	/* --- The main iteration with the solver selected by keyword
-		   SOLVER: RH's Ng-accelerated MALI iteration (NG, the default)
-		   the fixed-point iteration of the map G (FIXED_POINT), or
-		   Anderson acceleration of it (ANDERSON) or inexact Newton on
+		   SOLVER: RH's Ng-accelerated MALI iteration (NG, the default in
+		   2-D and 3-D), the fixed-point iteration of the map G (FIXED_POINT), or
+		   Anderson acceleration of it (ANDERSON, the default in 1-D and
+		   spherical geometry, S-10) or inexact Newton on
 		   G(x) - x (NEWTON_KRYLOV; see solver.c) --                                   -------------- */
 
 	if (NmaxIter <= 0) {
 		workPhase(WORK_FINAL);
 		return;
 	}
+	sprintf(messageStr, " -- SOLVER = %s%s\n", solverName(input.solver),
+			input.solver_default ? " (the default)" : "");
+	Error(MESSAGE, "Iterate", messageStr);
+
 	getCPU(1, TIME_START, NULL);
 	workPhase(WORK_ITERATE);
 	t_start = wallClock();

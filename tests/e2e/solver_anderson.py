@@ -39,8 +39,8 @@ for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels dow
     if not os.path.lexists(link):
         os.symlink(os.path.join(src, d), link)
 
-# The shipped file sets NG_DELAY and NG_PERIOD, which SOLVER = ANDERSON
-# refuses when set
+# NG_DELAY and NG_PERIOD, which SOLVER = ANDERSON refuses when set, are
+# removed in case the keyword file sets them (the shipped one did before S-10)
 MAP = [("NG_ORDER", "0"), ("NG_DELAY", None), ("NG_PERIOD", None),
        ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0")]
 
