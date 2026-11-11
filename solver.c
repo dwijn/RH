@@ -513,34 +513,51 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	   J20 (background polarization, signed) is J20 / J in both. An
 	   entry that has no value in these variables (x <= 0 in LOG) is
 	   invalid: it takes no part in the least squares (the Newton
-	   step) and takes G's value. --                   -------------- */
+	   step) and takes G's value.
+
+	   The variables need not cover all of x. Anderson can extrapolate
+	   only some blocks (ANDERSON_EXTRAPOLATE, S-11); the others are
+	   carried: they take G's value, like an invalid entry. The packed
+	   blocks are listed in packBlock[], in the order of x, and u holds
+	   them one after the other (packStart[]). blockStart[] indexes the
+	   full x. With every block packed (ALL, and Newton-Krylov) the two
+	   tables are the same. --                         -------------- */
 
 static long                 *blockStart = NULL; /* Nblocks + 1 offsets into x */
-static double               *varScale   = NULL; /* RELATIVE: fixed scale per entry */
+static int                  *packBlock  = NULL; /* block of each packed block */
+static int                  *carryBlock = NULL; /* the other blocks: carried */
+static int                   Ncarry     = 0;
+static long                 *packStart  = NULL; /* Npack + 1 offsets into u */
+static int                   Npack      = 0;
+static long                  Npacked    = 0;    /* length of u */
+static long                  offJ       = -1;   /* offset of J in x */
+static double               *varScale   = NULL; /* RELATIVE: fixed scale per entry of u */
 static enum solver_variables varKind    = VARIABLES_LOG;
 
 static void toVars(const double *x, double *u, unsigned char *valid)
 {
-	register long i;
-	register int  n;
+	register long i, j;
+	register int  p, n;
 
-	long   off, offJ = -1;
+	long   off;
 	double J;
 
-	for (n = 0; n < Nblocks; n++) {
+	/* --- x is the full state, u and valid the packed variables -- */
+
+	for (p = 0; p < Npack; p++) {
+		n   = packBlock[p];
 		off = blockStart[n];
-		if (blocks[n].kind == BLOCK_J) offJ = off;
-		for (i = off; i < off + blocks[n].N; i++) {
+		for (i = off, j = packStart[p]; i < off + blocks[n].N; i++, j++) {
 			if (blocks[n].kind == BLOCK_J20) {
 				J        = x[offJ + (i - off)];
-				valid[i] = (J > 0.0 && isfinite(x[i]) && isfinite(J));
-				u[i]     = (valid[i]) ? x[i] / J : 0.0;
+				valid[j] = (J > 0.0 && isfinite(x[i]) && isfinite(J));
+				u[j]     = (valid[j]) ? x[i] / J : 0.0;
 			} else if (varKind == VARIABLES_LOG) {
-				valid[i] = (x[i] > 0.0 && isfinite(x[i]));
-				u[i]     = (valid[i]) ? log(x[i]) : 0.0;
+				valid[j] = (x[i] > 0.0 && isfinite(x[i]));
+				u[j]     = (valid[j]) ? log(x[i]) : 0.0;
 			} else {
-				valid[i] = (varScale[i] > 0.0 && isfinite(x[i]));
-				u[i]     = (valid[i]) ? x[i] / varScale[i] : 0.0;
+				valid[j] = (varScale[j] > 0.0 && isfinite(x[i]));
+				u[j]     = (valid[j]) ? x[i] / varScale[j] : 0.0;
 			}
 		}
 	}
@@ -552,26 +569,32 @@ static void toVars(const double *x, double *u, unsigned char *valid)
 static void fromVars(const double *u, const double *gx,
 					 const unsigned char *mask, double *x)
 {
-	register long i;
-	register int  n;
+	register long i, j;
+	register int  p, n;
 
-	long off, offJ = -1;
+	long off;
 
 	/* --- x = s^-1(u) where the entry took part, G's value (copied,
-		   not transformed) where it did not. J comes before J20 -- */
+		   not transformed) where it did not and in the carried blocks.
+		   u and mask are packed, gx and x full. J comes before J20,
+		   and J20 is packed only when J is (ALL) -- ---------------- */
 
-	for (n = 0; n < Nblocks; n++) {
+	for (p = 0; p < Ncarry; p++) {
+		n = carryBlock[p];
+		memcpy(x + blockStart[n], gx + blockStart[n], blocks[n].N * sizeof(double));
+	}
+	for (p = 0; p < Npack; p++) {
+		n   = packBlock[p];
 		off = blockStart[n];
-		if (blocks[n].kind == BLOCK_J) offJ = off;
-		for (i = off; i < off + blocks[n].N; i++) {
-			if (!mask[i])
+		for (i = off, j = packStart[p]; i < off + blocks[n].N; i++, j++) {
+			if (!mask[j])
 				x[i] = gx[i];
 			else if (blocks[n].kind == BLOCK_J20)
-				x[i] = u[i] * x[offJ + (i - off)];
+				x[i] = u[j] * x[offJ + (i - off)];
 			else if (varKind == VARIABLES_LOG)
-				x[i] = exp(u[i]);
+				x[i] = exp(u[j]);
 			else
-				x[i] = u[i] * varScale[i];
+				x[i] = u[j] * varScale[j];
 		}
 	}
 }
@@ -582,38 +605,41 @@ static void fromVars(const double *u, const double *gx,
 static void setVarScale(const double *x0)
 {
 	register long i;
-	register int  n, l;
+	register int  p, n, l;
 
-	long      off, k, Nspace = atmos.Nspace;
+	long      off, poff, k, Nspace = atmos.Nspace;
 	double    total;
 	Atom     *atom;
 	Molecule *molecule;
 
-	for (n = 0; n < Nblocks; n++) {
-		off = blockStart[n];
+	/* --- x0 is the full state, the scales are packed -- -------- */
+
+	for (p = 0; p < Npack; p++) {
+		n    = packBlock[p];
+		off  = blockStart[n];
+		poff = packStart[p];
 		switch (blocks[n].kind) {
 		case BLOCK_ATOM:
 			atom = (Atom *) blocks[n].owner;
-			for (i = off; i < off + blocks[n].N; i++)
-				varScale[i] = atom->ntotal[(i - off) % Nspace];
+			for (i = 0; i < blocks[n].N; i++)
+				varScale[poff + i] = atom->ntotal[i % Nspace];
 			break;
 		case BLOCK_MOLECULE:
 			molecule = (Molecule *) blocks[n].owner;
 			for (k = 0; k < Nspace; k++) {
 				total = 0.0;
 				for (l = 0; l < molecule->Nv; l++) total += x0[off + l * Nspace + k];
-				for (l = 0; l < molecule->Nv; l++) varScale[off + l * Nspace + k] = total;
+				for (l = 0; l < molecule->Nv; l++) varScale[poff + l * Nspace + k] = total;
 			}
 			break;
 		case BLOCK_J:
-			for (i = off; i < off + blocks[n].N; i++) varScale[i] = x0[i];
+			for (i = 0; i < blocks[n].N; i++) varScale[poff + i] = x0[off + i];
 			break;
 		case BLOCK_NE:
-			for (i = off; i < off + blocks[n].N; i++)
-				varScale[i] = atmos.nHtot[i - off];
+			for (i = 0; i < blocks[n].N; i++) varScale[poff + i] = atmos.nHtot[i];
 			break;
 		default: /* rho, J20 (J20 / J is used instead) */
-			for (i = off; i < off + blocks[n].N; i++) varScale[i] = 1.0;
+			for (i = 0; i < blocks[n].N; i++) varScale[poff + i] = 1.0;
 			break;
 		}
 	}
@@ -622,30 +648,66 @@ static void setVarScale(const double *x0)
 
 /* ------- begin -------------------------- setupVariables.c -------- */
 
-static double *setupVariables(enum solver_variables kind, double *x)
+static bool_t extrapolated(enum BlockKind kind, enum anderson_extrapolate which)
+{
+	switch (which) {
+	case EXTRAPOLATE_POPULATIONS:
+		return (kind == BLOCK_ATOM || kind == BLOCK_MOLECULE || kind == BLOCK_NE);
+	case EXTRAPOLATE_POPULATIONS_RHO:
+		return (kind == BLOCK_ATOM || kind == BLOCK_MOLECULE || kind == BLOCK_NE ||
+				kind == BLOCK_RHO);
+	default:
+		return TRUE;
+	}
+}
+
+static double *setupVariables(enum solver_variables     kind,
+							  enum anderson_extrapolate which, double *x)
 {
 	register int n;
 
 	long    i;
 	double *w;
 
-	/* --- After stateInit(): the block offsets, the block weights
-		   (every block counts as its mean square: 1/sqrt(N)), x_0 in
-		   x, and the variables. Returns the weights -- ------------ */
+	/* --- After stateInit(): the block offsets in x, the packed
+		   blocks (which: those the variables cover), the weights of
+		   the packed blocks (every block counts as its mean square:
+		   1/sqrt(N)), x_0 in x, and the variables. Returns the
+		   weights, packed --                          -------------- */
 
 	blockStart    = (long *) realloc(blockStart, (Nblocks + 1) * sizeof(long));
 	blockStart[0] = 0;
-	for (n = 0; n < Nblocks; n++) blockStart[n + 1] = blockStart[n] + blocks[n].N;
+	offJ          = -1;
+	for (n = 0; n < Nblocks; n++) {
+		blockStart[n + 1] = blockStart[n] + blocks[n].N;
+		if (blocks[n].kind == BLOCK_J) offJ = blockStart[n];
+	}
+	packBlock    = (int *) realloc(packBlock, Nblocks * sizeof(int));
+	carryBlock   = (int *) realloc(carryBlock, Nblocks * sizeof(int));
+	packStart    = (long *) realloc(packStart, (Nblocks + 1) * sizeof(long));
+	Npack        = 0;
+	Ncarry       = 0;
+	packStart[0] = 0;
+	for (n = 0; n < Nblocks; n++) {
+		if (!extrapolated(blocks[n].kind, which)) {
+			carryBlock[Ncarry++] = n;
+			continue;
+		}
+		packBlock[Npack]     = n;
+		packStart[Npack + 1] = packStart[Npack] + blocks[n].N;
+		Npack++;
+	}
+	Npacked = packStart[Npack];
 
-	w = (double *) malloc(Nstate * sizeof(double));
-	for (n = 0; n < Nblocks; n++)
-		for (i = blockStart[n]; i < blockStart[n + 1]; i++)
-			w[i] = 1.0 / sqrt((double) blocks[n].N);
+	w = (double *) malloc(MAX(Npacked, 1) * sizeof(double));
+	for (n = 0; n < Npack; n++)
+		for (i = packStart[n]; i < packStart[n + 1]; i++)
+			w[i] = 1.0 / sqrt((double) blocks[packBlock[n]].N);
 
 	varKind = kind;
 	stateGather(x);
 	if (kind == VARIABLES_RELATIVE) {
-		varScale = (double *) realloc(varScale, Nstate * sizeof(double));
+		varScale = (double *) realloc(varScale, MAX(Npacked, 1) * sizeof(double));
 		setVarScale(x);
 	}
 	return w;
@@ -753,7 +815,7 @@ static void logSolve(int Nsolve, bool_t per_block, const AndersonSolve *info,
 		sprintf(messageStr,
 				"  Anderson%s%s: %d column%s, cond %.2E, %d dropped;"
 				" |f|_W %.3E\n",
-				(per_block) ? " " : "", (per_block) ? blocks[b].name : "",
+				(per_block) ? " " : "", (per_block) ? blocks[packBlock[b]].name : "",
 				info[b].Ncols, (info[b].Ncols == 1) ? "" : "s", info[b].cond,
 				info[b].Ndrop, fnorm);
 		Error(MESSAGE, NULL, messageStr);
@@ -801,6 +863,22 @@ static double printChange(const char *routineName, int niter, const double *x,
 
 /* ------- begin -------------------------- iterateAnderson.c ------- */
 
+static const char *extrapolateName[] = {"ALL", "POPULATIONS", "POPULATIONS_RHO"};
+
+static bool_t carriedEqual(const double *x, const double *y)
+{
+	register int n, p;
+
+	/* --- The carried blocks agree bit for bit -- --------------- */
+
+	for (p = 0; p < Ncarry; p++) {
+		n = carryBlock[p];
+		if (memcmp(x + blockStart[n], y + blockStart[n], blocks[n].N * sizeof(double)))
+			return FALSE;
+	}
+	return TRUE;
+}
+
 void iterateAnderson(int NmaxIter, double iterLimit)
 {
 	const char   routineName[] = "iterateAnderson";
@@ -808,7 +886,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 
 	bool_t              converged = FALSE, stopped = FALSE;
 	int                 m = input.Anderson_depth, Nsolve, delay, t;
-	long                i, Ndamped = 0, Nguardplain = 0;
+	long                i, Ndamped = 0, Nguardplain = 0, Ncarried = 0, Ncarried_ok = 0;
 	double             *x, *gx, *gacc, *u, *gu, *un, *w, *gamma, dpopsmax = 0.0, theta;
 	unsigned char      *valid, *validg;
 	enum AndersonAction action;
@@ -818,22 +896,26 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	Anderson           *a;
 
 	stateInit();
+	/* --- x, G(x) and G of the last accepted point are full states;
+		   the variables and the history cover the extrapolated blocks
+		   only (ANDERSON_EXTRAPOLATE, S-11) --         -------------- */
+
 	x      = (double *) malloc(Nstate * sizeof(double));
 	gx     = (double *) malloc(Nstate * sizeof(double));
 	gacc   = (double *) malloc(Nstate * sizeof(double));
-	u      = (double *) malloc(Nstate * sizeof(double));
-	gu     = (double *) malloc(Nstate * sizeof(double));
-	un     = (double *) malloc(Nstate * sizeof(double));
-	w      = setupVariables(input.Anderson_variables, x);
-	valid  = (unsigned char *) malloc(Nstate);
-	validg = (unsigned char *) malloc(Nstate);
-	Nsolve = (input.Anderson_coefficients == ANDERSON_PER_BLOCK) ? Nblocks : 1;
+	w      = setupVariables(input.Anderson_variables, input.Anderson_extrapolate, x);
+	u      = (double *) malloc(Npacked * sizeof(double));
+	gu     = (double *) malloc(Npacked * sizeof(double));
+	un     = (double *) malloc(Npacked * sizeof(double));
+	valid  = (unsigned char *) malloc(Npacked);
+	validg = (unsigned char *) malloc(Npacked);
+	Nsolve = (input.Anderson_coefficients == ANDERSON_PER_BLOCK) ? Npack : 1;
 	gamma  = (double *) calloc((size_t) Nsolve * (m > 0 ? m : 1), sizeof(double));
 	info   = (AndersonSolve *) calloc(Nsolve, sizeof(AndersonSolve));
-	a      = andersonInit(Nstate, m);
+	a      = andersonInit(Npacked, m);
 
-	opt.Nblock    = Nblocks;
-	opt.start     = blockStart;
+	opt.Nblock    = Npack;
+	opt.start     = packStart;
 	opt.per_block = (input.Anderson_coefficients == ANDERSON_PER_BLOCK);
 	opt.cond_max  = input.Anderson_cond_max;
 	opt.safeguard = input.Anderson_safeguard;
@@ -844,17 +926,45 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			" sub-iterations per G: %d;\n    ANDERSON_DEPTH = %d,"
 			" ANDERSON_DELAY = %d, ANDERSON_COND_MAX = %.1E,\n"
 			"    ANDERSON_SAFEGUARD = %g, ANDERSON_VARIABLES = %s,"
-			" ANDERSON_COEFFICIENTS = %s;\n    history %.1f MB\n",
+			" ANDERSON_COEFFICIENTS = %s,\n    ANDERSON_EXTRAPOLATE = %s:"
+			" %ld unknowns in %d blocks extrapolated;\n    memory: history"
+			" and variables %.1f MB, x, G(x) and G at the last accepted"
+			" point %.1f MB\n",
 			Nstate, Nblocks, (atmos.NPRDactive > 0) ? input.PRD_NmaxIter : 0, m,
 			input.Anderson_delay, input.Anderson_cond_max,
 			input.Anderson_safeguard,
 			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
 			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
-			((3.0 * m + 10 + (varKind == VARIABLES_RELATIVE)) *
-				 sizeof(double) +
-			 m + 4) *
-				Nstate / 1.0E6);
+			extrapolateName[input.Anderson_extrapolate], Npacked, Npack,
+			((3.0 * m + 7 + (varKind == VARIABLES_RELATIVE)) * sizeof(double) + m + 4) *
+				Npacked / 1.0E6,
+			3.0 * sizeof(double) * Nstate / 1.0E6);
 	Error(MESSAGE, routineName, messageStr);
+	/* --- Without PRD lines there is no rho to extrapolate: say so,
+		   the run goes on as POPULATIONS (S-11) --     -------------- */
+
+	if (input.Anderson_extrapolate == EXTRAPOLATE_POPULATIONS_RHO) {
+		for (n = 0; n < Nblocks && blocks[n].kind != BLOCK_RHO; n++);
+		if (n == Nblocks) {
+			sprintf(messageStr,
+					"ANDERSON_EXTRAPOLATE = POPULATIONS_RHO, but there are no PRD"
+					" lines:\n the same as POPULATIONS");
+			Error(WARNING, routineName, messageStr);
+		}
+	}
+	/* --- The carried blocks, several lines if needed -- -------- */
+
+	for (t = 0; t < Ncarry;) {
+		sprintf(messageStr, "    %s", (t == 0) ? "carried from G:" : "               ");
+		do {
+			sprintf(messageStr + strlen(messageStr), " %s%s", blocks[carryBlock[t]].name,
+					(t < Ncarry - 1) ? ";" : "");
+			t++;
+		} while (t < Ncarry &&
+				 strlen(messageStr) + strlen(blocks[carryBlock[t]].name) + 4 < 80);
+		strcat(messageStr, "\n");
+		Error(MESSAGE, NULL, messageStr);
+	}
 
 	niter = 1;
 	while (niter <= NmaxIter) {
@@ -864,6 +974,13 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		}
 		getCPU(2, TIME_START, NULL);
 
+		/* --- The carried blocks of every point are those of G at the
+			   last accepted point (S-11), checked bit for bit -- ---- */
+
+		if (Ncarry > 0 && niter > 1) {
+			Ncarried++;
+			if (carriedEqual(x, gacc)) Ncarried_ok++;
+		}
 		G_eval(x, gx);
 
 		dpopsmax = printChange(routineName, niter, x, gx);
@@ -878,7 +995,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 
 		toVars(x, u, valid);
 		toVars(gx, gu, validg);
-		for (i = 0; i < Nstate; i++) valid[i] &= validg[i];
+		for (i = 0; i < Npacked; i++) valid[i] &= validg[i];
 
 		action = andersonStep(a, &opt, u, gu, valid, w, (m > 0 && niter >= delay),
 							  un, gamma, info);
@@ -887,7 +1004,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			sprintf(messageStr,
 					"  Anderson: point rejected, |f|_W %.3E > %g x %.3E;"
 					" plain step from the last accepted point\n",
-					andersonNorm(Nstate, u, gu, valid, w), opt.safeguard,
+					andersonNorm(Npacked, u, gu, valid, w), opt.safeguard,
 					a->fnorm_acc);
 			Error(MESSAGE, NULL, messageStr);
 			memcpy(x, gacc, Nstate * sizeof(double));
@@ -960,6 +1077,13 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
 			a->Ndropped);
 	Error(MESSAGE, routineName, messageStr);
+	if (Ncarry > 0) {
+		sprintf(messageStr,
+				" -- Anderson: carried blocks equal to G at the last accepted"
+				" point in %ld of %ld evaluations\n",
+				Ncarried_ok, Ncarried);
+		Error(MESSAGE, routineName, messageStr);
+	}
 
 	if (input.solve_ne == ITERATION) BackgroundOfState(TRUE);
 
@@ -1088,7 +1212,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	ut      = (double *) malloc(Nstate * sizeof(double));
 	gut     = (double *) malloc(Nstate * sizeof(double));
 	rt      = (double *) malloc(Nstate * sizeof(double));
-	w       = setupVariables(input.Newton_variables, x);
+	w       = setupVariables(input.Newton_variables, EXTRAPOLATE_ALL, x);
 	valid   = (unsigned char *) malloc(Nstate);
 	validg  = (unsigned char *) malloc(Nstate);
 	validt  = (unsigned char *) malloc(Nstate);

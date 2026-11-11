@@ -572,3 +572,31 @@ void setAndersonCoefficients(char *value, void *pointer)
 	memcpy(pointer, &coefficients, sizeof(enum_t));
 }
 /* ------- end ---------------------------- setAndersonCoefficients.c */
+
+/* ------- begin -------------------------- setAndersonExtrapolate.c - */
+
+void setAndersonExtrapolate(char *value, void *pointer)
+{
+	const char routineName[] = "setAndersonExtrapolate";
+
+	enum anderson_extrapolate extrapolate = EXTRAPOLATE_ALL;
+
+	/* --- Which blocks of the state Anderson extrapolates (S-11 in
+		   docs/SOLVER.md); the others take G's value -- ----------- */
+
+	if (!strcmp(value, "ALL"))
+		extrapolate = EXTRAPOLATE_ALL;
+	else if (!strcmp(value, "POPULATIONS"))
+		extrapolate = EXTRAPOLATE_POPULATIONS;
+	else if (!strcmp(value, "POPULATIONS_RHO"))
+		extrapolate = EXTRAPOLATE_POPULATIONS_RHO;
+	else {
+		sprintf(messageStr,
+				"Invalid value for keyword ANDERSON_EXTRAPOLATE: %s\n"
+				" Valid options are ALL, POPULATIONS and POPULATIONS_RHO",
+				value);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+	memcpy(pointer, &extrapolate, sizeof(enum_t));
+}
+/* ------- end ---------------------------- setAndersonExtrapolate.c - */
