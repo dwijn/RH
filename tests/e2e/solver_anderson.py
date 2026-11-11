@@ -23,7 +23,9 @@ solver_g.py:
     and with ANDERSON_SAFEGUARD = 0.5, which forces rejections, the carried
     blocks (rho, J) of every point equal those of G at the last accepted
     point bit for bit (the solver's own check, end of the run; it checks
-    the packing and the copy of the carried blocks, not G).
+    the packing and the copy of the carried blocks, not G). Without PRD
+    lines (PRD_N_MAX_ITER = 0: all lines in CRD) POPULATIONS_RHO warns
+    that it is the same as POPULATIONS, and runs.
 """
 
 import argparse
@@ -204,6 +206,17 @@ for setting, want in (("POPULATIONS", (492, 1)), ("POPULATIONS_RHO", (None, 3)))
         failed.append(f"{setting} banner")
     if n_rej == 0 or not ok_carry:
         failed.append(f"{setting} carried blocks (rejections {n_rej})")
+
+d, r = run("rho_no_prd", MAP + [("SOLVER", "ANDERSON"),
+                               ("ANDERSON_EXTRAPOLATE", "POPULATIONS_RHO"),
+                               ("PRD_N_MAX_ITER", "0")] + SHORT + [("N_MAX_ITER", "4")])
+ok = (r.returncode in (0, 1) and "no PRD lines" in r.stdout
+      and "the same as POPULATIONS" in r.stdout
+      and re.search(r"POPULATIONS_RHO: 492 unknowns in 1 blocks", r.stdout) is not None)
+print(f"POPULATIONS_RHO without PRD lines: {'warns and runs' if ok else 'WRONG'}"
+      f" (status {r.returncode})")
+if not ok:
+    failed.append("POPULATIONS_RHO without PRD lines")
 
 if failed:
     sys.exit("FAILED: " + "; ".join(failed) + f"\n runs in {work}")

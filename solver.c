@@ -940,6 +940,18 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 				Npacked / 1.0E6,
 			3.0 * sizeof(double) * Nstate / 1.0E6);
 	Error(MESSAGE, routineName, messageStr);
+	/* --- Without PRD lines there is no rho to extrapolate: say so,
+		   the run goes on as POPULATIONS (S-11) --     -------------- */
+
+	if (input.Anderson_extrapolate == EXTRAPOLATE_POPULATIONS_RHO) {
+		for (n = 0; n < Nblocks && blocks[n].kind != BLOCK_RHO; n++);
+		if (n == Nblocks) {
+			sprintf(messageStr,
+					"ANDERSON_EXTRAPOLATE = POPULATIONS_RHO, but there are no PRD"
+					" lines:\n the same as POPULATIONS");
+			Error(WARNING, routineName, messageStr);
+		}
+	}
 	/* --- The carried blocks, several lines if needed -- -------- */
 
 	for (t = 0; t < Ncarry;) {

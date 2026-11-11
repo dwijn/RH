@@ -1696,7 +1696,8 @@ memory its history takes; RSS is the peak of the Ng run.
 ### S-11 — Anderson's history in multi-D (design)
 
 **Status:** agreed 2026-11-10, with the criteria and defaults of items 5
-and 6 decided by the user. It implements item 7(a) of
+and 6 decided by the user (revised the same day: viable against Ng,
+the 1-D switch on the mean ratio). It implements item 7(a) of
 the default-solver design above (§9 Q1 for Anderson). Step 1 (the code)
 is #310. Measurements (step 2) and defaults (step 3) are still to come.
 
@@ -1770,9 +1771,10 @@ the change is mostly which entries Anderson's vectors hold.
    - Like every `ANDERSON_*` keyword, it stops the run under another
      solver.
    - `POPULATIONS_RHO` on atoms without PRD lines runs as
-     `POPULATIONS`. It is accepted, because no keyword check depends on
-     the atoms (S-10, item 2). The start banner names the extrapolated
-     blocks, so the run shows what it does.
+     `POPULATIONS`. It does not stop the run, because no keyword check
+     depends on the atoms (S-10, item 2), but the solver warns that it is
+     the same as `POPULATIONS` (decided by the user 2026-11-10). The start
+     banner names the extrapolated blocks.
 2. **Carried blocks on rejection.** A rejected point is followed by the
    plain step from the last accepted pair. That step is G of that pair,
    carried blocks included (`gacc`, as now). The rule is the same as
@@ -1804,10 +1806,10 @@ the change is mostly which entries Anderson's vectors hold.
       - Reported: G evaluations, wall time, rejections, guard actions,
         and the S-1 metrics against `refs2`.
       - A reduced setting is **viable** (decided by the user) if it
-        converges on every case where `ALL` converges, meets the S-5
-        correctness tolerance there, and beats Ng on G as in the S-5
-        criteria. It need not match `ALL`: beating Ng is enough for it
-        to be an option.
+        converges on every case where Ng (`SOLVER = NG`, the old
+        default) converges, meets the S-5 correctness tolerance there,
+        and beats Ng as in the S-5 criteria. It need not match `ALL`:
+        beating Ng is enough for it to be an option.
    2. The shipped examples (`rhf1d`, `rhsphere`, `rhsc2d`, `rhsc3d`),
       as in the measurements above, plus peak RSS.
    3. The 2-D perf case: peak RSS over a few iterations under `NG` and
@@ -1826,9 +1828,13 @@ the change is mostly which entries Anderson's vectors hold.
    - 1-D (`rhf1d`, `rhsphere`): `ALL`. Memory is almost never a problem
      in 1-D, so a reduced setting must not cost much work there.
      `POPULATIONS_RHO` becomes the 1-D default as well, so that one
-     setting holds everywhere, if it needs at most 1.1× the G
-     evaluations of `ALL` on every case where both converge: the S-5
-     set, the shipped 1-D examples and `bifrost:1d:400`.
+     setting holds everywhere, if both of these hold on the 1-D cases
+     (the S-5 set, the shipped 1-D examples and `bifrost:1d:400`):
+     - it converges on every case where `ALL` converges;
+     - on average it needs at most 1.1× the G evaluations of `ALL`.
+       That is the mean over the cases where both converge of the
+       per-case ratio (`POPULATIONS_RHO` / `ALL`), so that every case
+       counts the same whatever its length.
    - `POPULATIONS` stays an option. If `POPULATIONS_RHO` is not viable
      in multi-D, the multi-D default goes back to the user with the
      numbers.
