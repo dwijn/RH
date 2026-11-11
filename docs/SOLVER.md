@@ -1520,8 +1520,8 @@ Findings:
   replaces Anderson as the recommendation only if it wins in wall time;
   the expectation is in S-4.
 
-**Open:** the envelope safeguard on `shock_h6`; a margin in the inversion
-guard; N-36 (the two ne formulations); multi-D (after N-33).
+**Open:** the envelope safeguard on `shock_h6` (S-12); a margin in the
+inversion guard (S-13); N-36 (the two ne formulations); multi-D (after N-33).
 
 ### Anderson as the default solver (design for the S-5 decision)
 
