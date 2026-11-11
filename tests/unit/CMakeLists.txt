@@ -23,6 +23,7 @@ endfunction()
 rh_unit_test(test_voigt test_voigt.c)
 rh_unit_test(test_linalg test_linalg.c)
 rh_unit_test(test_gth test_gth.c)
+rh_unit_test(test_ng test_ng.c)
 rh_unit_test(test_anderson test_anderson.c)
 rh_unit_test(test_newton test_newton.c)
 rh_unit_test(test_coupling test_coupling.c

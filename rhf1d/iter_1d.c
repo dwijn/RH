@@ -150,7 +150,7 @@ void Iterate(int NmaxIter, double iterLimit)
 		accel = Accelerate(NgS, Sny);
 		sprintf(messageStr, "-- Main iteration No: %d", nIter);
 		if (MaxChange(NgS, messageStr, quiet = FALSE) <= iterLimit) break;
-		Error(MESSAGE, NULL, (accel == TRUE) ? " (accelerated)\n" : "\n");
+		Error(MESSAGE, NULL, NgStatus(NgS, accel));
 
 		fwrite(Sny, sizeof(double), Ndep, fp_iter);
 

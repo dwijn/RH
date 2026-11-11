@@ -94,7 +94,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 					sprintf(messageStr, "  PRD: iter #%d, atom %s, line %d,",
 							line->Ng_prd->count - 1, atom->ID, kr);
 					drho = MaxChange(line->Ng_prd, messageStr, quiet = FALSE);
-					sprintf(messageStr, (accel) ? " (accelerated)\n" : "\n");
+					sprintf(messageStr, "%s", NgStatus(line->Ng_prd, accel));
 					Error(MESSAGE, routineName, messageStr);
 
 					drhomax = MAX(drho, drhomax);
