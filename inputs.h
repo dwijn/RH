@@ -39,6 +39,9 @@ enum solver_variables { VARIABLES_LOG,
 						VARIABLES_RELATIVE };
 enum anderson_coefficients { ANDERSON_GLOBAL,
 							 ANDERSON_PER_BLOCK };
+enum anderson_extrapolate { EXTRAPOLATE_ALL,
+							EXTRAPOLATE_POPULATIONS,
+							EXTRAPOLATE_POPULATIONS_RHO };
 
 typedef struct {
 	char   name[MAX_KEYWORD_LENGTH];
@@ -104,6 +107,7 @@ typedef struct {
 
 	enum solver_variables      Anderson_variables;
 	enum anderson_coefficients Anderson_coefficients;
+	enum anderson_extrapolate  Anderson_extrapolate;
 	int                        Anderson_depth, Anderson_delay;
 	double                     Anderson_cond_max, Anderson_safeguard;
 
@@ -141,6 +145,7 @@ void setThreadValue(char *value, void *pointer);
 
 void        setSolverVariables(char *value, void *pointer);
 void        setAndersonCoefficients(char *value, void *pointer);
+void        setAndersonExtrapolate(char *value, void *pointer);
 const char *solverName(enum solver_type solver);
 
 void setInterpolate_3D(char *value, void *pointer);

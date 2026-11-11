@@ -146,6 +146,8 @@ void readInput()
 		 &input.Anderson_variables, setSolverVariables},
 		{"ANDERSON_COEFFICIENTS", "GLOBAL", FALSE, KEYWORD_DEFAULT,
 		 &input.Anderson_coefficients, setAndersonCoefficients},
+		{"ANDERSON_EXTRAPOLATE", "ALL", FALSE, KEYWORD_DEFAULT,
+		 &input.Anderson_extrapolate, setAndersonExtrapolate},
 		{"NEWTON_NOISE", "1.0E-10", FALSE, KEYWORD_DEFAULT, &input.Newton_noise,
 		 setdoubleValue},
 		{"NEWTON_KRYLOV_MAX", "20", FALSE, KEYWORD_DEFAULT,

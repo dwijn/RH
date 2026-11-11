@@ -14,7 +14,14 @@ solver_g.py:
  3. Conflicting keywords stop the run at input: an ANDERSON_* keyword with
     SOLVER = FIXED_POINT, NG_ORDER > 0 and NG_DELAY (set at all) with
     SOLVER = ANDERSON, and a map keyword (PRD_ITER_LIMIT) with a message
-    that names ANDERSON.
+    that names ANDERSON; also an invalid ANDERSON_EXTRAPOLATE.
+ 4. ANDERSON_EXTRAPOLATE (S-11): with depth 0, POPULATIONS and
+    POPULATIONS_RHO repeat FIXED_POINT bit for bit as well; POPULATIONS
+    extrapolates the Ca II populations only and POPULATIONS_RHO also the
+    two rho blocks (start banner); a POPULATIONS run is bit-reproducible;
+    and with ANDERSON_SAFEGUARD = 0.5, which forces rejections, the carried
+    blocks (rho, J) of every point equal those of G at the last accepted
+    point bit for bit (the solver's own check, end of the run).
 """
 
 import argparse
@@ -105,21 +112,31 @@ SHORT = [("ITER_LIMIT", "1e-14")]
 # --- 1. Depth 0 is FIXED_POINT without Ng
 dirs = {}
 for name, solver in (("fp", [("SOLVER", "FIXED_POINT")]),
-                     ("aa0", [("SOLVER", "ANDERSON"), ("ANDERSON_DEPTH", "0")])):
+                     ("aa0", [("SOLVER", "ANDERSON"), ("ANDERSON_DEPTH", "0")]),
+                     ("aa0_pop", [("SOLVER", "ANDERSON"), ("ANDERSON_DEPTH", "0"),
+                                  ("ANDERSON_EXTRAPOLATE", "POPULATIONS")]),
+                     ("aa0_rho", [("SOLVER", "ANDERSON"), ("ANDERSON_DEPTH", "0"),
+                                  ("ANDERSON_EXTRAPOLATE", "POPULATIONS_RHO")])):
     d, r = run(name, MAP + solver + SHORT + [("N_MAX_ITER", "8")])
     if r.returncode not in (0, 1):            # 1: not converged, expected
         sys.exit(f"rhf1d failed in {d} (status {r.returncode})")
     dirs[name] = d
-for f in ("pops.CA.out", "J.dat", "spectrum.out"):
-    ok = same(dirs["fp"], dirs["aa0"], f)
-    print(f"depth 0  {f:13s} {'bit-identical to FIXED_POINT' if ok else 'DIFFERS'}")
-    if not ok:
-        failed.append(f"depth 0 {f}")
+for name in ("aa0", "aa0_pop", "aa0_rho"):
+    for f in ("pops.CA.out", "J.dat", "spectrum.out"):
+        ok = same(dirs["fp"], dirs[name], f)
+        print(f"depth 0 {name:8s} {f:13s} "
+              f"{'bit-identical to FIXED_POINT' if ok else 'DIFFERS'}")
+        if not ok:
+            failed.append(f"depth 0 {name} {f}")
 
 # --- 2. Extrapolating runs are reproducible
 for label, extra in (("defaults", []),
                      ("RELATIVE, PER_BLOCK", [("ANDERSON_VARIABLES", "RELATIVE"),
-                                              ("ANDERSON_COEFFICIENTS", "PER_BLOCK")])):
+                                              ("ANDERSON_COEFFICIENTS", "PER_BLOCK")]),
+                     ("POPULATIONS, RELATIVE, PER_BLOCK",
+                      [("ANDERSON_EXTRAPOLATE", "POPULATIONS"),
+                       ("ANDERSON_VARIABLES", "RELATIVE"),
+                       ("ANDERSON_COEFFICIENTS", "PER_BLOCK")])):
     pair = []
     for k in (1, 2):
         d, r = run(f"aa_{len(extra)}_{k}", MAP + [("SOLVER", "ANDERSON")] + extra +
@@ -146,13 +163,43 @@ for label, kws, want in (
          MAP + [("SOLVER", "ANDERSON"), ("NG_DELAY", "10")], "NG_DELAY is set"),
         ("PRD_ITER_LIMIT = 1e-2 with SOLVER = ANDERSON",
          [("SOLVER", "ANDERSON"), ("NG_ORDER", "0"), ("PRD_NG_ORDER", "0"),
-          ("PRD_ITER_LIMIT", "1e-2")], "SOLVER = ANDERSON: PRD_ITER_LIMIT")):
+          ("PRD_ITER_LIMIT", "1e-2")], "SOLVER = ANDERSON: PRD_ITER_LIMIT"),
+        ("ANDERSON_EXTRAPOLATE with SOLVER = FIXED_POINT",
+         MAP + [("SOLVER", "FIXED_POINT"), ("ANDERSON_EXTRAPOLATE", "POPULATIONS")],
+         "ANDERSON_EXTRAPOLATE is set"),
+        ("ANDERSON_EXTRAPOLATE = J",
+         MAP + [("SOLVER", "ANDERSON"), ("ANDERSON_EXTRAPOLATE", "J")],
+         "Invalid value for keyword ANDERSON_EXTRAPOLATE")):
     d, r = run("validate", kws)
     ok = r.returncode == 70 and want in r.stdout
     print(f"validate {label}: {'stops at input' if ok else 'NOT STOPPED'}"
           f" (status {r.returncode})")
     if not ok:
         failed.append(f"validate {label}")
+
+# --- 4. Reduced extrapolation: what is extrapolated, and the carried blocks
+for setting, want in (("POPULATIONS", (492, 1)), ("POPULATIONS_RHO", (None, 3))):
+    d, r = run(f"carry_{setting}", MAP + [("SOLVER", "ANDERSON"),
+                                          ("ANDERSON_EXTRAPOLATE", setting),
+                                          ("ANDERSON_SAFEGUARD", "0.5")] +
+               SHORT + [("N_MAX_ITER", "15")])
+    if r.returncode not in (0, 1):
+        sys.exit(f"rhf1d failed in {d} (status {r.returncode})")
+    m = re.search(r"ANDERSON_EXTRAPOLATE = (\w+): (\d+) unknowns in (\d+) blocks", r.stdout)
+    rej = re.search(r"rejected (\d+);", r.stdout)
+    c = re.search(r"carried blocks equal to G at the last accepted point in (\d+) of"
+                  r" (\d+) evaluations", r.stdout)
+    ok_banner = (m is not None and m.group(1) == setting and int(m.group(3)) == want[1]
+                 and (want[0] is None or int(m.group(2)) == want[0]))
+    n_rej = int(rej.group(1)) if rej else 0
+    ok_carry = c is not None and c.group(1) == c.group(2) and int(c.group(2)) == 14
+    print(f"{setting}: banner {'ok' if ok_banner else 'WRONG'}"
+          f" ({m.group(0) if m else 'missing'}); {n_rej} rejected; carried "
+          f"{(c.group(1) + ' of ' + c.group(2)) if c else 'no check line'}")
+    if not ok_banner:
+        failed.append(f"{setting} banner")
+    if n_rej == 0 or not ok_carry:
+        failed.append(f"{setting} carried blocks (rejections {n_rej})")
 
 if failed:
     sys.exit("FAILED: " + "; ".join(failed) + f"\n runs in {work}")
