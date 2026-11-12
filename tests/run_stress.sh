@@ -158,6 +158,28 @@ if [ $LIST -eq 1 ]; then
 fi
 
 [ ${#TREES[@]} -ge 1 ] || { sed -n '2,10p' "$0"; exit 1; }
+
+# An empty selection is an error, with the reason (B-47): --only naming a case
+# of another set (the default set is conv), or a bifrost case without --bifrost.
+case $SET in conv|perf|all) ;;
+  *) echo "run_stress.sh: --set must be conv, perf or all, not '$SET'" >&2; exit 1;; esac
+nsel=0; missed=()
+for c in "${CASES[@]}"; do IFS='|' read -r n s g a rest <<<"$c"
+  n=$(trim "$n"); s=$(trim "$s"); a=$(trim "$a")
+  if selected "$n" "$s" "$a"; then nsel=$((nsel + 1))
+  elif [ -n "$ONLY" ] && echo "$n" | grep -Eq "$ONLY"; then
+    if [ "$SET" != all ] && [ "$s" != "$SET" ]; then
+      missed+=("$n is in set $s (--set $s or --set all)")
+    else missed+=("$n is a bifrost case (--bifrost DIR or RH_BIFROST_DIR)"); fi
+  fi
+done
+if [ $nsel -eq 0 ]; then
+  echo "run_stress.sh: no case selected by --set $SET${ONLY:+ --only '$ONLY'}" >&2
+  if [ ${#missed[@]} -gt 0 ]; then printf '  %s\n' "${missed[@]}" >&2
+  elif [ -n "$ONLY" ]; then echo "  no case name matches '$ONLY' (--list shows them)" >&2; fi
+  exit 1
+fi
+[ ${#missed[@]} -eq 0 ] || printf 'not run: %s\n' "${missed[@]}"
 . "$HERE/tree.sh"
 NAMES=(); DIRS=(); SRCS=()      # DIRS: programs, SRCS: source trees
 for t in "${TREES[@]}"; do
