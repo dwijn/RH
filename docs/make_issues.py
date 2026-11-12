@@ -68,9 +68,9 @@ def step_label(step):
 # or not reachable there (B-39: upstream aborts on the second Background call, B-1;
 # N-33: triggered by B-40, which upstream does not have; Q-21: the test
 # harness exists only here; N-36: ne in the state, S-2b, exists only here;
-# B-46: the G solvers exist only here)
+# B-46: the G solvers exist only here; B-47: run_stress.sh exists only here)
 NOT_UPSTREAM = {"M-3", "M-9", "P-5", "Q-2", "Q-12", "B-39", "N-33", "Q-21", "Q-22",
-                "N-36", "B-46"}
+                "N-36", "B-46", "B-47"}
 
 
 def gh(*args, json_out=False, check=True):
