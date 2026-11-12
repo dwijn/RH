@@ -10,7 +10,10 @@
 #                    and rhsphere built in place or in build/, or a CMake
 #                    build directory. The first tree is the reference for
 #                    comparisons.
-#   --only PATTERN   only run cases whose name contains PATTERN (grep -E)
+#   --only PATTERN   only run cases whose name matches PATTERN (grep -E).
+#                    Matching cases that --set or a missing --bifrost exclude
+#                    are listed as "not run" with the reason; when no case is
+#                    left the script stops with status 1 and says why
 #   --set conv|perf|all   which group of cases to run (default conv)
 #   --jobs N         run up to N cases at the same time (default 4). Timing
 #                    cases always run one at a time.
@@ -30,7 +33,7 @@
 #                    (en024048_hion, Carlsson et al. 2016, A&A 585, A4; not
 #                    distributed with RH, download it yourself); also taken
 #                    from $RH_BIFROST_DIR. Without it the bifrost cases are
-#                    skipped
+#                    skipped (an error if --only leaves nothing else)
 #   --list           print the cases and exit
 #
 # Results go to WORK/results_<date-time>.tsv (one file per invocation, one line
@@ -58,7 +61,7 @@ while [ $# -gt 0 ]; do
     --ref)     REFSOL=$(cd "$2" && pwd) || exit 1; shift 2;;
     --bifrost) BIFROST=$2; shift 2;;
     --list)    LIST=1; shift;;
-    -h|--help) sed -n '2,37p' "$0"; exit 0;;
+    -h|--help) sed -n '2,40p' "$0"; exit 0;;
     *) echo "unknown option: $1"; exit 1;;
   esac
 done
@@ -146,9 +149,10 @@ CASES=(
 )
 
 trim() { local s=$1; s=${s#"${s%%[![:space:]]*}"}; echo "${s%"${s##*[![:space:]]}"}"; }
-selected() { [ "$SET" = all ] || [ "$2" = "$SET" ] || return 1
-             case $3 in bifrost:*) [ -n "$BIFROST" ] || return 1;; esac
-             [ -z "$ONLY" ] || echo "$1" | grep -Eq "$ONLY"; }
+# why_not SET ATMOS: every reason the case is excluded, one per line (none: selected)
+why_not() { [ "$SET" = all ] || [ "$1" = "$SET" ] || echo "in set $1, not selected by --set $SET"
+            case $2 in bifrost:*) [ -n "$BIFROST" ] || echo "a bifrost case, and no --bifrost DIR or RH_BIFROST_DIR";; esac; }
+matches() { [ -z "$ONLY" ] || grep -Eq -e "$ONLY" <<<"$1"; }
 
 if [ $LIST -eq 1 ]; then
   for c in "${CASES[@]}"; do IFS='|' read -r n s g a at kw <<<"$c"
@@ -158,6 +162,30 @@ if [ $LIST -eq 1 ]; then
 fi
 
 [ ${#TREES[@]} -ge 1 ] || { sed -n '2,10p' "$0"; exit 1; }
+
+# The selection, computed once (SEL: case lines). An empty selection is an
+# error with the reasons (B-47): --only naming a case of another set (the
+# default set is conv), or a bifrost case without --bifrost.
+case $SET in conv|perf|all) ;;
+  *) echo "run_stress.sh: --set must be conv, perf or all, not '$SET'" >&2; exit 1;; esac
+if [ -n "$ONLY" ]; then
+  err=$(grep -Eq -e "$ONLY" </dev/null 2>&1)
+  [ $? -le 1 ] || { echo "run_stress.sh: invalid --only pattern '$ONLY': $err" >&2; exit 1; }
+fi
+SEL=(); missed=()
+for c in "${CASES[@]}"; do IFS='|' read -r n s g a rest <<<"$c"
+  n=$(trim "$n"); matches "$n" || continue
+  why=$(why_not "$(trim "$s")" "$(trim "$a")")
+  if [ -z "$why" ]; then SEL+=("$c")
+  elif [ -n "$ONLY" ]; then missed+=("$n: ${why//$'\n'/; }"); fi
+done
+if [ ${#SEL[@]} -eq 0 ]; then
+  echo "run_stress.sh: no case selected by --set $SET${ONLY:+ --only '$ONLY'}" >&2
+  if [ ${#missed[@]} -gt 0 ]; then printf '  %s\n' "${missed[@]}" >&2
+  elif [ -n "$ONLY" ]; then echo "  no case name matches '$ONLY' (--list shows them)" >&2; fi
+  exit 1
+fi
+[ ${#missed[@]} -eq 0 ] || printf 'not run: %s\n' "${missed[@]}"
 . "$HERE/tree.sh"
 NAMES=(); DIRS=(); SRCS=()      # DIRS: programs, SRCS: source trees
 for t in "${TREES[@]}"; do
@@ -299,12 +327,11 @@ echo "trees: $(for i in "${!NAMES[@]}"; do printf '%s=%s ' "${NAMES[$i]}" "${DIR
 echo "work : $WORK"
 [ -n "$BIFROST" ] || echo "bifrost cases skipped (no --bifrost DIR or RH_BIFROST_DIR)"
 # Pre-generate atmospheres serially (avoids races between parallel jobs)
-for c in "${CASES[@]}"; do IFS='|' read -r n s g a rest <<<"$c"
-  selected "$(trim "$n")" "$(trim "$s")" "$(trim "$a")" && atmos_path "$(trim "$a")" >/dev/null; done
+for c in "${SEL[@]}"; do IFS='|' read -r n s g a rest <<<"$c"
+  atmos_path "$(trim "$a")" >/dev/null; done
 
-for c in "${CASES[@]}"; do
+for c in "${SEL[@]}"; do
   IFS='|' read -r n s g a rest <<<"$c"; n=$(trim "$n"); s=$(trim "$s")
-  selected "$n" "$s" "$(trim "$a")" || continue
   for i in "${!NAMES[@]}"; do
     if [ "$s" = perf ]; then
       run_one "$c" $i
