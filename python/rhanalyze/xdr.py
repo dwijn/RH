@@ -5,7 +5,9 @@ Replaces the standard-library module xdrlib, deprecated in Python 3.11 and
 removed in 3.13 (B-48), with the subset rhanalyze uses and the same
 behaviour: big-endian 4-byte integers and floats, 8-byte doubles, opaque
 data and strings padded to a multiple of 4 bytes, EOFError when the buffer
-runs out, Error from done() when data is left over.
+runs out, Error from done() when data is left over. As in xdrlib, a scalar
+unpack that raises EOFError has already moved the position past the end of
+the buffer, so done() passes afterwards.
 """
 import struct
 from io import BytesIO
