@@ -1,9 +1,4 @@
-import sys
-
-if sys.version_info[1] < 13:
-    import xdrlib
-else:
-    import mda_xdrlib.xdrlib as xdrlib
+from rhanalyze import xdr
 
 import numpy as np
 
@@ -25,7 +20,7 @@ class spectrum:
     def read(self, inputs, geometry, atmos):
 
         f  = open(self.filename, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
 
         self.Nspect = up.unpack_int()
@@ -56,7 +51,7 @@ class spectrum:
     def read_flux(self, geometry):
 
         f  = open(self.fluxfile, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
         
         match geometry.type:
@@ -80,7 +75,7 @@ class rays:
     def read(self, inputs, geometry, spectrum):
 
         f  = open(self.filename, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
         
         if geometry.type == "ONE_D_PLANE":

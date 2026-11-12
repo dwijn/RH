@@ -1,9 +1,4 @@
-import sys
-
-if sys.version_info[1] < 13:
-    import xdrlib
-else:
-    import mda_xdrlib.xdrlib as xdrlib
+from rhanalyze import xdr
 
 import numpy as np
 import os
@@ -35,7 +30,7 @@ class opacity:
 
         brsfile = '{0}/brs.out'.format(self.rhdir)
         f  = open(brsfile, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
 
         atmosID = read_string(up)
@@ -80,7 +75,7 @@ class opacity:
             return
         
         f  = open(asrsfile, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
 
         if self.atmos.moving or self.atmos.stokes or\
@@ -153,7 +148,7 @@ class opacity:
             offset_as = self.as_recno[index_as] * reclen_as
             chunk_as  = 2 * dim1 * SIZE_OF_DOUBLE
             file_as.seek(offset_as, 0)
-            up_as = xdrlib.Unpacker(file_as.read(chunk_as))
+            up_as = xdr.Unpacker(file_as.read(chunk_as))
 
             self.chi_as = read_farray(dim1, up_as, "double")
             self.eta_as = read_farray(dim1, up_as, "double")

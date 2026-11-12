@@ -1,9 +1,4 @@
-import sys
-
-if sys.version_info[1] < 13:
-    import xdrlib
-else:
-    import mda_xdrlib.xdrlib as xdrlib
+from rhanalyze import xdr
 
 import numpy as np
 import os.path
@@ -39,7 +34,7 @@ class atoms:
     def read(self, geometry):
 
         f  = open(self.filename, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
 
         self.active = up.unpack_int()
@@ -86,7 +81,7 @@ class atoms:
     def readpops(self, geometry, popsfile):
         
         f  = open(popsfile, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
 
         atmosID     = read_string(up)
@@ -110,7 +105,7 @@ class atoms:
     def readrates(self, geometry, filename):
         
         f  = open(filename, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
 
         Nrad = self.Nline + self.Ncont
@@ -132,7 +127,7 @@ class atoms:
     def readdamping(self, geometry, filename):
         
         f  = open(filename, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
          
         if geometry.type == "ONE_D_PLANE":   
@@ -154,7 +149,7 @@ class atoms:
     def readcollisions(self, geometry, filename):
         
         f  = open(filename, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
 
         if geometry.type == "ONE_D_PLANE":   

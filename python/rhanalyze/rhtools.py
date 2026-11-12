@@ -1,13 +1,9 @@
-import sys
 import os
 import glob
 import numpy as np
 
 
-if sys.version_info[1] < 13:
-    import xdrlib
-else:
-    import mda_xdrlib.xdrlib as xdrlib
+from rhanalyze import xdr
 
 
 def read_farray(dim, up, dtype="double"):
@@ -629,7 +625,7 @@ class wavetable:
 
     def write(self, wavefile='wavetable.wave'):
 
-        packer = xdrlib.Packer()
+        packer = xdr.Packer()
 
         packer.pack_int(self.Nspect)
         write_farray(air_to_vacuum(self.wavelengths), packer, dtype="double")
