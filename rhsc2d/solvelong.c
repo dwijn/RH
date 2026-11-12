@@ -36,19 +36,18 @@ double SolveLong(LongChar *lc, int local, double *chi, double *S, double *I)
 {
 	register int ls;
 
-	bool_t monotonic = TRUE;
 	double c1, c2, dtau_dw, dS_uw, dS_dw, w[3], chi_loc, S_loc,
 		dtau_uw, chi_uw, S_uw, I_uwp, I_uw, chi_dw, S_dw;
 
 	/* --- The first point is the intersection with the horizontal
 		   grid line --                                  -------------- */
 
-	S_uw   = Quadr(S, &lc->stencil[0], UPWIND, monotonic);
-	chi_uw = Quadr(chi, &lc->stencil[0], UPWIND, monotonic);
-	I_uwp  = Quadr(I, &lc->stencil[0], UPWIND, monotonic);
+	S_uw   = Interp_2D(S, &lc->stencil[0], UPWIND);
+	chi_uw = Interp_2D(chi, &lc->stencil[0], UPWIND);
+	I_uwp  = Interp_2D(I, &lc->stencil[0], UPWIND);
 
-	S_loc   = Quadr(S, &lc->stencil[1], UPWIND, monotonic);
-	chi_loc = Quadr(chi, &lc->stencil[1], UPWIND, monotonic);
+	S_loc   = Interp_2D(S, &lc->stencil[1], UPWIND);
+	chi_loc = Interp_2D(chi, &lc->stencil[1], UPWIND);
 	dtau_uw = 0.5 * (chi_uw + chi_loc) * lc->stencil[0].ds[UPWIND];
 
 	I_uw = I_uwp;
@@ -69,8 +68,8 @@ double SolveLong(LongChar *lc, int local, double *chi, double *S, double *I)
 			S_dw   = S[local];
 			chi_dw = chi[local];
 		} else {
-			S_dw   = Quadr(S, &lc->stencil[ls], UPWIND, monotonic);
-			chi_dw = Quadr(chi, &lc->stencil[ls], UPWIND, monotonic);
+			S_dw   = Interp_2D(S, &lc->stencil[ls], UPWIND);
+			chi_dw = Interp_2D(chi, &lc->stencil[ls], UPWIND);
 		}
 		dtau_dw = 0.5 * (chi_loc + chi_dw) * lc->stencil[ls - 1].ds[UPWIND];
 
@@ -113,7 +112,6 @@ void SolveLongStokes(int nspect, LongChar *lc, int local, double *chi,
 {
 	register int ls, n, m;
 
-	bool_t monotonic = TRUE;
 	double c1, c2, dtau_dw, dS_uw[4], dS_dw[4], w[3],
 		chi_loc, S_loc[4], dtau_uw, chi_uw, S_uw[4], chi_dw, S_dw[4],
 		P[4], Q[4][4], **R, K[4][4], K_uw[4][4];
@@ -123,16 +121,16 @@ void SolveLongStokes(int nspect, LongChar *lc, int local, double *chi,
 	/* --- The first point is the intersection with the horizontal
 		   grid line --                                  -------------- */
 
-	chi_uw = Quadr(chi, &lc->stencil[0], UPWIND, monotonic);
-	StokesK_2D(nspect, &lc->stencil[0], UPWIND, monotonic, chi_uw, K_uw);
+	chi_uw = Interp_2D(chi, &lc->stencil[0], UPWIND);
+	StokesK_2D(nspect, &lc->stencil[0], UPWIND, chi_uw, K_uw);
 
 	for (n = 0; n < 4; n++) {
-		S_uw[n]  = Quadr(S[n], &lc->stencil[0], UPWIND, monotonic);
-		I_uw[n]  = Quadr(I[n], &lc->stencil[0], UPWIND, monotonic);
-		S_loc[n] = Quadr(S[n], &lc->stencil[1], UPWIND, monotonic);
+		S_uw[n]  = Interp_2D(S[n], &lc->stencil[0], UPWIND);
+		I_uw[n]  = Interp_2D(I[n], &lc->stencil[0], UPWIND);
+		S_loc[n] = Interp_2D(S[n], &lc->stencil[1], UPWIND);
 	}
-	chi_loc = Quadr(chi, &lc->stencil[1], UPWIND, monotonic);
-	StokesK_2D(nspect, &lc->stencil[1], UPWIND, monotonic, chi_loc, K);
+	chi_loc = Interp_2D(chi, &lc->stencil[1], UPWIND);
+	StokesK_2D(nspect, &lc->stencil[1], UPWIND, chi_loc, K);
 
 	dtau_uw = 0.5 * (chi_uw + chi_loc) * lc->stencil[0].ds[UPWIND];
 
@@ -144,9 +142,9 @@ void SolveLongStokes(int nspect, LongChar *lc, int local, double *chi,
 			chi_dw = chi[local];
 			for (n = 0; n < 4; n++) S_dw[n] = S[n][local];
 		} else {
-			chi_dw = Quadr(chi, &lc->stencil[ls], UPWIND, monotonic);
+			chi_dw = Interp_2D(chi, &lc->stencil[ls], UPWIND);
 			for (n = 0; n < 4; n++)
-				S_dw[n] = Quadr(S[n], &lc->stencil[ls], UPWIND, monotonic);
+				S_dw[n] = Interp_2D(S[n], &lc->stencil[ls], UPWIND);
 		}
 		dtau_dw = 0.5 * (chi_loc + chi_dw) * lc->stencil[ls - 1].ds[UPWIND];
 		w3(dtau_uw, w);
@@ -191,7 +189,7 @@ void SolveLongStokes(int nspect, LongChar *lc, int local, double *chi,
 				for (m = 0; m < 4; m++) K_uw[n][m] = K[n][m];
 			}
 			StokesK_2D(nspect, &lc->stencil[ls],
-					   UPWIND, monotonic, chi_dw, K);
+					   UPWIND, chi_dw, K);
 		}
 	}
 	freeMatrix((void **) R);

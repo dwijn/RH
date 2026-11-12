@@ -51,67 +51,6 @@ extern Atmosphere atmos;
 extern Spectrum   spectrum;
 extern InputData  input;
 
-/* ------- begin -------------------------- Quadr.c ----------------- */
-
-/* --- Evaluates function value with polynomial interpolation. -- --- */
-
-double Quadr(double *values, Stencil *stencil,
-			 enum direction direction, bool_t monotonic)
-{
-	const char   routineName[] = "Quadr";
-	register int n;
-
-	int   *index;
-	double result, v[3], v_max, v_min, fraction, *coeff;
-
-	/* --- If monotonic = TRUE the interpolated value is forced to be
-		   monotonic with the original values.
-
-	  See: Auer & Paletou, A&A, 285, 675-686 --          -------------- */
-
-	index    = stencil->index[direction];
-	coeff    = stencil->coeff[direction];
-	fraction = stencil->fraction[direction];
-
-	result = 0.0;
-	switch (stencil->order[direction]) {
-	case SC_LINEAR:
-
-		result = (1.0 - fraction) * values[index[0]] + fraction * values[index[1]];
-		break;
-
-	case SC_QUADRATIC:
-
-		if (monotonic) {
-			for (n = 0; n < 3; n++) {
-				v[n] = values[index[n]];
-				result += coeff[n] * v[n];
-			}
-			v_max = MAX(MAX(v[0], v[1]), v[2]);
-			v_min = MIN(MIN(v[0], v[1]), v[2]);
-
-			if (result > v_max || result < v_min) {
-				if (stencil->triplet[direction] == UPPER_TRIPLET)
-					result =
-						(1.0 - fraction) * values[index[0]] + fraction * values[index[1]];
-				else
-					result =
-						(1.0 - fraction) * values[index[1]] + fraction * values[index[2]];
-			}
-		} else {
-			for (n = 0; n < 3; n++)
-				result += coeff[n] * values[index[n]];
-		}
-		break;
-
-	default:
-		Error(ERROR_LEVEL_2, routineName, "Illegal interpolation order");
-	}
-
-	return result;
-}
-/* ------- end ---------------------------- Quadr.c ----------------- */
-
 /* ------- begin -------------------------- Piecewise_Linear_2D.c --- */
 
 void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
@@ -123,7 +62,6 @@ void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
 	const char   routineName[] = "Piecewise_Linear_2D";
 	register int l, k, n;
 
-	bool_t         monotonic = TRUE;
 	enum boundval  bvalue;
 	enum direction upwind;
 	enum sweep     sweep;
@@ -186,11 +124,11 @@ void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
 			for (l = 0; l < Nx; l++) {
 				st = &geometry->stencil[mu][local];
 
-				T_uw = Quadr(atmos.T, st, UPWIND, monotonic);
+				T_uw = Interp_2D(atmos.T, st, UPWIND);
 				Planck(1, &T_uw, spectrum.lambda[nspect], &Bnu_uw);
 				Planck(1, &atmos.T[local], spectrum.lambda[nspect], &Bnu);
 
-				chi_uw  = Quadr(chi, st, UPWIND, monotonic);
+				chi_uw  = Interp_2D(chi, st, UPWIND);
 				dtau_uw = 0.5 * (chi_uw + chi[local]) * st->ds[UPWIND];
 
 				I[local] = Bnu - (Bnu_uw - Bnu) / dtau_uw;
@@ -262,14 +200,14 @@ void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
 				local = k * Nx + l;
 			st = &geometry->stencil[mu][local];
 
-			chi_uw  = Quadr(chi, st, upwind, monotonic);
+			chi_uw  = Interp_2D(chi, st, upwind);
 			dtau_uw = 0.5 * (chi_uw + chi[local]) * st->ds[upwind];
-			S_uw    = Quadr(S, st, upwind, monotonic);
+			S_uw    = Interp_2D(S, st, upwind);
 
 			if (geometry->hboundary == PERIODIC && l == lc->lstart && lc->Nlc > 0)
 				I_uw = SolveLong(lc, local, chi, S, I);
 			else
-				I_uw = Quadr(I, st, upwind, monotonic);
+				I_uw = Interp_2D(I, st, upwind);
 
 			w2(dtau_uw, w);
 

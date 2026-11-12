@@ -11,12 +11,17 @@
 		  solvers then reduce to the 1-D ones;
 	   -- "columns": columns narrow enough that deep layers are crossed
 		  at column lines, where S, chi and I are interpolated
-		  vertically between layers (quadratic, monotonic).
+		  vertically between layers (monotonic cubic Bezier, N-37).
 
 	   Checks: all columns agree; I+ is exact for linear S (a linear
 	   function of height survives any of the interpolations), and so is
 	   I- on the "layers" mesh; convergence order on a cubic S; Psi of
 	   the linear solver against the response to a unit S.
+
+	   The interpolation itself (Interp_2D): exact for linear and
+	   quadratic data, never outside the range of the two values it
+	   interpolates between, and continuous in the data; and the
+	   INTERPOLATE_2D = LINEAR_2D option on "columns".
 
 	   Polarized (Piece_Stokes_Bezier3_2D) with a constant propagation
 	   matrix and an unpolarized source vector (stokes_exact.h): with
@@ -486,14 +491,115 @@ static void check_stokes(bool_t verbose)
 	CHECK(em[2] <= 7.0e-5, "STOKES, layers: emergent error %.3g > 7e-5", em[2]);
 }
 
+/* --- Interp_2D on a stencil over four points with uneven spacing,
+	   with both, one or neither neighbour of the interval -- -------- */
+
+static double interp_at(const double v[4], const double h[3], double t,
+						bool_t left, bool_t right)
+{
+	Stencil st = {0};
+
+	st.order[UPWIND]    = SC_BEZIER;
+	st.fraction[UPWIND] = t;
+	for (int n = 0; n < 4; n++) st.index[UPWIND][n] = n;
+	double hs[3] = {left ? h[0] : 0.0, h[1], right ? h[2] : 0.0};
+
+	if (!left) st.index[UPWIND][0] = -1;
+	if (!right) st.index[UPWIND][3] = -1;
+	setStencilWeights(&st, UPWIND, hs);
+	return Interp_2D(v, &st, UPWIND);
+}
+
+static void check_interp(bool_t verbose)
+{
+	const double h[3] = {0.7, 1.0, 1.6}, x[4] = {0.0, 0.7, 1.7, 3.3};
+	double       lin[4], quad[4], err_lin = 0.0, err_quad = 0.0;
+
+	/* --- Exact for linear data with any neighbours, and for this
+		   quadratic (monotonic and gentle enough that the Steffen
+		   limiter does not act) with at least one -- -------------- */
+
+	for (int n = 0; n < 4; n++) {
+		lin[n]  = 2.0 - 3.0 * x[n];
+		quad[n] = x[n] * (x[n] + 3.0);
+	}
+	for (int m = 0; m < 4; m++)
+		for (int i = 0; i <= 20; i++) {
+			double t = i / 20.0, xi = x[1] + t * h[1];
+			bool_t left = m & 1, right = m & 2;
+
+			err_lin = MAX(err_lin, fabs(interp_at(lin, h, t, left, right) -
+										(2.0 - 3.0 * xi)));
+			if (left || right)
+				err_quad = MAX(err_quad, fabs(interp_at(quad, h, t, left, right) -
+											  xi * (xi + 3.0)));
+		}
+	if (verbose)
+		printf("INTERP   linear data %.1e, quadratic %.1e\n", err_lin, err_quad);
+	CHECK(err_lin <= 1.0e-14, "Interp_2D: linear data, error %.3g", err_lin);
+	CHECK(err_quad <= 1.0e-13, "Interp_2D: quadratic data, error %.3g", err_quad);
+
+	/* --- Bounded by the two values and continuous: sweep the value
+		   of one neighbour across the others, where the quadratic
+		   interpolation with its switch to linear jumped -- --------- */
+
+	const double base[3][4] = {{0.0, 1.0, 1.2, 0.0}, {2.0, 1.0, 1.2, 3.0}, {1.0, 0.0, 1.0, 0.0}};
+	double       out = 0.0, jump = 0.0;
+	const int    Nsweep = 4000;
+
+	for (int b = 0; b < 3; b++)
+		for (int side = 0; side <= 3; side += 3)
+			for (int i = 1; i <= 20; i++) {
+				double t = i / 21.0, v[4], prev = 0.0;
+
+				for (int j = 0; j <= Nsweep; j++) {
+					memcpy(v, base[b], sizeof(v));
+					v[side]  = -3.0 + 6.0 * j / Nsweep;
+					double y = interp_at(v, h, t, TRUE, TRUE);
+
+					out = MAX(out, MAX(MIN(v[1], v[2]) - y, y - MAX(v[1], v[2])));
+					if (j > 0) jump = MAX(jump, fabs(y - prev) / (6.0 / Nsweep));
+					prev = y;
+				}
+			}
+	if (verbose)
+		printf("INTERP   outside [y0, y1] by %.1e; largest dI/dv %.2f\n", out, jump);
+	CHECK(out <= 0.0, "Interp_2D: outside the range of the end values by %.3g", out);
+	CHECK(jump <= 1.0, "Interp_2D: dI/dv of a neighbour %.3g, not continuous", jump);
+}
+
+/* --- INTERPOLATE_2D = LINEAR_2D: linear S still exact upward;
+	   on "columns" (Nz = 161) the Bezier3 solver's emergent error for
+	   cubic S grows from 1.0e-4 to 4.1e-3 -- ------------------------ */
+
+static void check_linear_interp(bool_t verbose)
+{
+	const double lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
+
+	input.interpolate_2D = LINEAR_2D;
+	Slab  *slab          = slab_new(161, mesh_dx[1], FALSE);
+	Errors up            = ray_errors(Piecewise_Bezier3_2D, slab, lin, TRUE),
+		   cubic         = ray_errors(Piecewise_Bezier3_2D, slab, cub, TRUE);
+	input.interpolate_2D = BEZIER_2D;
+
+	if (verbose)
+		printf("LINEAR_2D columns Nz 161: linear S up %.2e; cubic S emergent %.2e\n",
+			   MAX(up.interior, up.ends), cubic.emergent);
+	CHECK(MAX(up.interior, up.ends) <= 1.0e-12, "LINEAR_2D: linear S, I+ error %.3g",
+		  MAX(up.interior, up.ends));
+	CHECK(cubic.emergent >= 2.0e-3 && cubic.emergent <= 8.0e-3,
+		  "LINEAR_2D: emergent error %.3g not in [2e-3, 8e-3]", cubic.emergent);
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
 
 	/* --- fillMesh reports the number of long characteristics -- */
 
-	commandline.logfile = stdout;
-	commandline.quiet   = !verbose;
+	commandline.logfile  = stdout;
+	commandline.quiet    = !verbose;
+	input.interpolate_2D = BEZIER_2D;
 
 	for (int r = 0; r < NREFINE; r++)
 		for (int m = 0; m < NMESH; m++)
@@ -501,6 +607,8 @@ int main(int argc, char *argv[])
 
 	for (int n = 0; n < N_METHODS; n++) check_method(&methods[n], verbose);
 	check_psi_linear(1.0e-14, verbose); /* layers: 2.2e-16 */
+	check_interp(verbose);
+	check_linear_interp(verbose);
 	check_stokes(verbose);
 
 	return check_summary("test_formal_2d");

@@ -164,6 +164,13 @@
 
  S_INTERPOLATION = S_BEZIER3
 
+# Interpolation of I, S and chi between grid points at the upwind and
+# downwind ends of the short characteristics (KEYWORD_DEFAULT):
+# BEZIER_2D (default; monotonic cubic Bezier with Steffen derivatives)
+# or LINEAR_2D.
+
+ INTERPOLATE_2D = BEZIER_2D
+
 # Input file for the magnetic field (KEYWORD_OPTIONAL). Default is "none".
 
 ##  STOKES_INPUT = ../../Atmos/

@@ -53,7 +53,7 @@ extern InputData  input;
 /* ------- begin -------------------------- StokesK_2D.c ------------ */
 
 void StokesK_2D(int nspect, Stencil *st, enum direction direction,
-				bool_t monotonic, double chi_I, double K[4][4])
+				double chi_I, double K[4][4])
 {
 	register int i, j;
 
@@ -80,39 +80,39 @@ void StokesK_2D(int nspect, Stencil *st, enum direction direction,
 	/* --- First the contribution from the active set -- -------------- */
 
 	if (containsPolarized(as)) {
-		K[0][1] = Quadr(as->chi + atmos.Nspace,
-						st, direction, monotonic);
-		K[0][2] = Quadr(as->chi + 2 * atmos.Nspace,
-						st, direction, monotonic);
-		K[0][3] = Quadr(as->chi + 3 * atmos.Nspace,
-						st, direction, monotonic);
+		K[0][1] = Interp_2D(as->chi + atmos.Nspace,
+							st, direction);
+		K[0][2] = Interp_2D(as->chi + 2 * atmos.Nspace,
+							st, direction);
+		K[0][3] = Interp_2D(as->chi + 3 * atmos.Nspace,
+							st, direction);
 
 		if (input.magneto_optical) {
-			K[1][2] = Quadr(as->chip + 2 * atmos.Nspace,
-							st, direction, monotonic);
-			K[1][3] = Quadr(as->chip + atmos.Nspace,
-							st, direction, monotonic);
-			K[2][3] = Quadr(as->chip,
-							st, direction, monotonic);
+			K[1][2] = Interp_2D(as->chip + 2 * atmos.Nspace,
+								st, direction);
+			K[1][3] = Interp_2D(as->chip + atmos.Nspace,
+								st, direction);
+			K[2][3] = Interp_2D(as->chip,
+								st, direction);
 		}
 	}
 	/* --- Add possible contribution from the background -- ----------- */
 
 	if (atmos.backgrflags[nspect].ispolarized) {
-		K[0][1] += Quadr(as->chi_c + atmos.Nspace,
-						 st, direction, monotonic);
-		K[0][2] += Quadr(as->chi_c + 2 * atmos.Nspace,
-						 st, direction, monotonic);
-		K[0][3] += Quadr(as->chi_c + 3 * atmos.Nspace,
-						 st, direction, monotonic);
+		K[0][1] += Interp_2D(as->chi_c + atmos.Nspace,
+							 st, direction);
+		K[0][2] += Interp_2D(as->chi_c + 2 * atmos.Nspace,
+							 st, direction);
+		K[0][3] += Interp_2D(as->chi_c + 3 * atmos.Nspace,
+							 st, direction);
 
 		if (input.magneto_optical) {
-			K[1][2] += Quadr(as->chip_c + 2 * atmos.Nspace,
-							 st, direction, monotonic);
-			K[1][3] += Quadr(as->chip_c + atmos.Nspace,
-							 st, direction, monotonic);
-			K[2][3] += Quadr(as->chip_c,
-							 st, direction, monotonic);
+			K[1][2] += Interp_2D(as->chip_c + 2 * atmos.Nspace,
+								 st, direction);
+			K[1][3] += Interp_2D(as->chip_c + atmos.Nspace,
+								 st, direction);
+			K[2][3] += Interp_2D(as->chip_c,
+								 st, direction);
 		}
 	}
 	/* --- Divide by Stokes I opacity and fill lower diagonal part -- - */

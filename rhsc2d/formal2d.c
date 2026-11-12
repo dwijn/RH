@@ -51,6 +51,7 @@ int main(int argc, char *argv[])
 	input.Eddington     = FALSE;
 
 	input.S_interpolation = S_BEZIER3;
+	input.interpolate_2D  = BEZIER_2D;
 
 	getCPU(0, TIME_START, NULL);
 	SetFPEtraps();

@@ -55,7 +55,6 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 	const char   routineName[] = "Piecewise_Bezier3_2D";
 	register int l, lp, k, n, m, i, j;
 
-	bool_t         monotonic = TRUE;
 	enum boundval  bvalue;
 	enum direction upwind, downwind;
 	enum sweep     sweep;
@@ -106,11 +105,11 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 			for (l = 0; l < geometry->Nx; l++) {
 				st = &geometry->stencil[mu][local];
 
-				T_uw = Quadr(atmos.T, st, UPWIND, monotonic);
+				T_uw = Interp_2D(atmos.T, st, UPWIND);
 				Planck(1, &T_uw, spectrum.lambda[nspect], &Bnu_uw);
 				Planck(1, &atmos.T[local], spectrum.lambda[nspect], &Bnu);
 
-				chi_uw  = Quadr(chi, st, UPWIND, monotonic);
+				chi_uw  = Interp_2D(chi, st, UPWIND);
 				dtau_uw = 0.5 * (chi_uw + chi[local]) * st->ds[UPWIND];
 
 				I[0][local] = Bnu - (Bnu_uw - Bnu) / dtau_uw;
@@ -174,14 +173,14 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 				SolveLongStokes(nspect, lc, local, chi, S, I, I_uw);
 			else {
 				for (n = 0; n < 4; n++)
-					I_uw[n] = Quadr(I[n], st, upwind, monotonic);
+					I_uw[n] = Interp_2D(I[n], st, upwind);
 			}
 
-			chi_uw  = Quadr(chi, st, upwind, monotonic);
+			chi_uw  = Interp_2D(chi, st, upwind);
 			dchi_uw = (chi[local] - chi_uw) / st->ds[upwind];
-			StokesK_2D(nspect, st, upwind, monotonic, chi_uw, K_uw);
+			StokesK_2D(nspect, st, upwind, chi_uw, K_uw);
 			for (n = 0; n < 4; n++) {
-				S_uw[n] = Quadr(S[n], st, upwind, monotonic);
+				S_uw[n] = Interp_2D(S[n], st, upwind);
 			}
 			StokesK(nspect, local, chi[local], K_loc);
 			for (n = 0; n < 4; n++) S_loc[n] = S[n][local];
@@ -205,9 +204,9 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 
 				/* --- Bezier piecewise elsewhere --          --------------- */
 
-				chi_dw  = Quadr(chi, st, downwind, monotonic);
+				chi_dw  = Interp_2D(chi, st, downwind);
 				dchi_dw = (chi_dw - chi[local]) / st->ds[downwind];
-				StokesK_2D(nspect, st, downwind, monotonic, chi_dw, K_dw);
+				StokesK_2D(nspect, st, downwind, chi_dw, K_dw);
 
 				dchi_c = cent_deriv(st->ds[upwind], st->ds[downwind],
 									chi_uw, chi[local], chi_dw);
@@ -234,7 +233,7 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 				dtau_dw = st->ds[downwind] * (chi[local] + chi_dw + c1 + c2) * 0.25;
 
 				for (n = 0; n < 4; n++) {
-					S_dw[n]  = Quadr(S[n], st, downwind, monotonic);
+					S_dw[n]  = Interp_2D(S[n], st, downwind);
 					dS_uw[n] = (S_loc[n] - S_uw[n]) / dtau_uw;
 
 					for (m = 0; m < 4; m++)
@@ -321,7 +320,6 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 	const char   routineName[] = "Piecewise_Bezier3_2D";
 	register int l, k, n;
 
-	bool_t         monotonic = TRUE;
 	enum boundval  bvalue;
 	enum direction upwind, downwind;
 	enum sweep     sweep;
@@ -389,11 +387,11 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 			for (l = 0; l < Nx; l++) {
 				st = &geometry->stencil[mu][local];
 
-				T_uw = Quadr(atmos.T, st, UPWIND, monotonic);
+				T_uw = Interp_2D(atmos.T, st, UPWIND);
 				Planck(1, &T_uw, spectrum.lambda[nspect], &Bnu_uw);
 				Planck(1, &atmos.T[local], spectrum.lambda[nspect], &Bnu);
 
-				chi_uw  = Quadr(chi, st, UPWIND, monotonic);
+				chi_uw  = Interp_2D(chi, st, UPWIND);
 				dtau_uw = 0.5 * (chi_uw + chi[local]) * st->ds[UPWIND];
 
 				I[local] = Bnu - (Bnu_uw - Bnu) / dtau_uw;
@@ -472,11 +470,11 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 				l == lc->lstart && lc->Nlc > 0)
 				I_uw = SolveLong(lc, local, chi, S, I);
 			else
-				I_uw = Quadr(I, st, upwind, monotonic);
+				I_uw = Interp_2D(I, st, upwind);
 
-			chi_uw  = Quadr(chi, st, upwind, monotonic);
+			chi_uw  = Interp_2D(chi, st, upwind);
 			dchi_uw = (chi[local] - chi_uw) / st->ds[upwind];
-			S_uw    = Quadr(S, st, upwind, monotonic);
+			S_uw    = Interp_2D(S, st, upwind);
 
 			if (k == kend ||
 				(geometry->hboundary == FIXED && n == Nrow - 1)) {
@@ -490,7 +488,7 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 
 				/* --- Bezier integration --                   -------------- */
 
-				chi_dw  = Quadr(chi, st, downwind, monotonic);
+				chi_dw  = Interp_2D(chi, st, downwind);
 				dchi_dw = (chi_dw - chi[local]) / st->ds[downwind];
 
 				dchi_c = cent_deriv(st->ds[upwind], st->ds[downwind],
@@ -519,7 +517,7 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 
 				/* --- dS/dt at central point --               -------------- */
 
-				S_dw = Quadr(S, st, downwind, monotonic);
+				S_dw = Interp_2D(S, st, downwind);
 				dS_c = cent_deriv(dtau_uw, dtau_dw, S_uw, S[local], S_dw);
 			}
 			/* --- Source function control points --       ---------------- */
