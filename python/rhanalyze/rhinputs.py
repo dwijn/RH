@@ -1,9 +1,4 @@
-import sys
-
-if sys.version_info[1] < 13:
-    import xdrlib
-else:
-    import mda_xdrlib.xdrlib as xdrlib
+from rhanalyze import xdr
 
     
 class inputs:
@@ -17,7 +12,7 @@ class inputs:
         stokes_mode = ["NO_STOKES", "FIELD_FREE", "FULL_STOKES"]
         
         f  = open(self.filename, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
         
         self.magneto_optical = up.unpack_int()

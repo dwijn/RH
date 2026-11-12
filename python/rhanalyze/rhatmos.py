@@ -1,10 +1,6 @@
-import sys
 import os
 
-if sys.version_info[1] < 13:
-    import xdrlib
-else:
-    import mda_xdrlib.xdrlib as xdrlib
+from rhanalyze import xdr
 
 import numpy as np
 
@@ -68,7 +64,7 @@ class molecule:
 
         
         f  = open(filename, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
         
         self.EvJ    = read_farray([self.Nv, self.NJ], up, "double")
@@ -93,7 +89,7 @@ class atmos:
     def read(self, geometry):
 
         f  = open(self.filename, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
 
         self.NHydr  = up.unpack_int()
@@ -150,7 +146,7 @@ class atmos:
     def read_molecules(self, geometry):
 
         f  = open(self.molfile, 'rb')
-        up = xdrlib.Unpacker(f.read())
+        up = xdr.Unpacker(f.read())
         f.close()
 
         self.Nmolecule = up.unpack_int()
@@ -263,7 +259,7 @@ class input_atmos:
         elif self.type == "TWO_D_PLANE" or self.type == "THREE_D_PLANE":
             
             f = open(self.atmosfile, 'rb')
-            up = xdrlib.Unpacker(f.read())
+            up = xdr.Unpacker(f.read())
             f.close()
              
             if self.type == "TWO_D_PLANE":
@@ -315,7 +311,7 @@ class input_atmos:
         if self.Bfile != None:
             
             f = open(self.Bfile, 'rb')
-            up = xdrlib.Unpacker(f.read())
+            up = xdr.Unpacker(f.read())
             f.close()
 
             self.B     = read_farray(dim1, up, "double")
@@ -412,7 +408,7 @@ class input_atmos:
              
         elif self.type == "TWO_D_PLANE" or self.type == "THREE_D_PLANE":
 
-            pck = xdrlib.Packer()
+            pck = xdr.Packer()
 
             if self.type == "TWO_D_PLANE":
                 write_farray(np.array([self.Nx, self.Nz, self.NHydr]),\
@@ -455,7 +451,7 @@ class input_atmos:
 
         if self.Bfile != None:
 
-            pck = xdrlib.Packer()
+            pck = xdr.Packer()
 
             write_farray(self.B, pck, "double")
             write_farray(self.gamma, pck, "double")
