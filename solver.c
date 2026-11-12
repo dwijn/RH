@@ -722,7 +722,7 @@ enum GuardResult { GUARD_OK,
 				   GUARD_INVERSION };
 
 static const char *guardName[] = {"ok", "not finite", "negative",
-								  "new population inversion"};
+								  "new line inversion"};
 
 static enum GuardResult guardTrial(const double *xt, const double *gx,
 								   const double *xb)
@@ -730,21 +730,24 @@ static enum GuardResult guardTrial(const double *xt, const double *gx,
 	register long i;
 	register int  n, kr;
 
-	long             off, k, Nspace = atmos.Nspace, il, iu;
-	double           E;
-	Atom            *atom;
-	AtomicLine      *line;
-	AtomicContinuum *cont;
+	long        off, k, Nspace = atmos.Nspace, il, iu;
+	Atom       *atom;
+	AtomicLine *line;
 
 	/* --- The extrapolated point must be finite, must not be negative
 		   where G's point is not (and with RELATIVE not zero where it
 		   is positive; in LOG a zero is an underflow of exp, not a
-		   sign change), and must not invert a transition at a depth
-		   where G's point does not: for a line n_l / g_l > n_u / g_u,
-		   for a continuum n_i / n*_i > (n_j / n*_j) exp(-h nu_0 / kT)
-		   (positive opacity at the edge). Negative values and
-		   inversions G itself makes (the LU fallback of statEquil,
-		   N-31) are left alone.
+		   sign change), and must not invert a line at a depth where
+		   G's point does not (n_l / g_l > n_u / g_u): a strong
+		   inverted line makes the total opacity at its centre
+		   negative, and the formal solver overflows (SOLVER.md trap
+		   5). Continua are not checked (S-13): converged solutions
+		   have inverted continua (on falc_helarge high He I levels
+		   at 236 of the 246 depths where a continuum test fired),
+		   and that test held the iteration back without a failure
+		   to prevent.
+		   Negative values and inversions G itself makes (the LU
+		   fallback of statEquil, N-31) are left alone.
 
 		   With a base point xb (Newton: the trial is xb + lambda d), a
 		   value or inversion only counts as new where neither G's point
@@ -775,24 +778,6 @@ static enum GuardResult guardTrial(const double *xt, const double *gx,
 					(!xb ||
 					 xb[il + k] * atom->g[line->j] > xb[iu + k] * atom->g[line->i]) &&
 					!(xt[il + k] * atom->g[line->j] > xt[iu + k] * atom->g[line->i]))
-					return GUARD_INVERSION;
-			}
-		}
-		for (kr = 0; kr < atom->Ncont; kr++) {
-			cont = atom->continuum + kr;
-			il   = off + (long) cont->i * Nspace;
-			iu   = off + (long) cont->j * Nspace;
-			for (k = 0; k < Nspace; k++) {
-				if (!(atom->nstar[cont->i][k] > 0.0 && atom->nstar[cont->j][k] > 0.0))
-					continue;
-				E = exp(-(HPLANCK * CLIGHT) /
-						(cont->lambda0 * NM_TO_M * KBOLTZMANN * atmos.T[k]));
-				if (gx[il + k] * atom->nstar[cont->j][k] >
-						gx[iu + k] * atom->nstar[cont->i][k] * E &&
-					(!xb || xb[il + k] * atom->nstar[cont->j][k] >
-								xb[iu + k] * atom->nstar[cont->i][k] * E) &&
-					!(xt[il + k] * atom->nstar[cont->j][k] >
-					  xt[iu + k] * atom->nstar[cont->i][k] * E))
 					return GUARD_INVERSION;
 			}
 		}

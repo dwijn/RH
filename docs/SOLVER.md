@@ -1071,12 +1071,12 @@ part of G.
 **Safeguards.**
 
 - Before the evaluation (no G cost): the trial point must be finite,
-  positive (RELATIVE), and must not create population inversions that
-  g_k does not have: for every line, at every depth where
-  n_l/g_l > n_u/g_u in g_k, also in the trial point; for every continuum
-  likewise with n_i/n_i* > (n_j/n_j*)·exp(−hν₀/kT), positive opacity at
-  the edge. Inversions that G itself makes
-  are left alone. On failure the extrapolation is damped
+  positive (RELATIVE), and must not create line inversions that g_k does
+  not have: for every line, at every depth where n_l/g_l > n_u/g_u in
+  g_k, also in the trial point. Inversions that G itself makes are left
+  alone. Continua are not checked (S-13, below): the test on
+  n_i/n_i* > (n_j/n_j*)·exp(−hν₀/kT) that was here blocked steps towards
+  converged solutions that have inverted continua. On failure the extrapolation is damped
   (u = g_k − θΔGγ, θ = ½, then ¼); if it still fails, the plain step is
   taken and the history restarted. All actions are counted. (Trap 5:
   H_20's Rydberg levels, negative opacity, overflow in Bezier3.)
@@ -1144,8 +1144,7 @@ these details fixed in the code:
   the safeguard would have rejected its point.
 - A run that stops without converging writes G of the last accepted
   point, not of a rejected one.
-- `ANDERSON_DELAY` defaults to 2 until the delay scan; the
-  inversion guard uses the LTE populations of the last evaluation.
+- `ANDERSON_DELAY` defaults to 2 until the delay scan.
 - The guard flags only values that G's point does not have: a negative
   entry where G's is not negative (G can return negative populations
   where statistical equilibrium falls back to LU, N-31), and with
@@ -1210,7 +1209,7 @@ separate one.
 4. **Globalization.** Backtracking on ‖R‖_W: trial u + λδ for
    λ = 1, ½, ¼, ⅛, 1/16, accepted if
    ‖R(u + λδ)‖_W ≤ (1 − 10⁻⁴λ)‖R(u)‖_W. The S-3 guard (finite, no new
-   negatives, no new population inversions against G(x_k)) runs before
+   negatives, no new line inversions against G(x_k)) runs before
    each trial and a failure halves λ without a G evaluation. If no λ is
    accepted, the plain step x ← G(x_k) is taken; it costs nothing, as
    G(x_k) is known. The G evaluation of an accepted trial is the base of
@@ -1495,7 +1494,7 @@ Findings:
   plain steps), `falc_civi`, `t5750_h6` and `falc_mgi66`, from the first
   extrapolations on, while Anderson still wins clearly there. A small
   margin in the test (levels whose n/g are nearly equal) is to be looked
-  at.
+  at. Done in S-13 (below): not a margin; the continuum test went.
 - ne: on `falc_solvene` Anderson at m = 10 needs 4.3× less work than Ng
   on G, and 6× fewer G evaluations and `Background()` calls (40 against
   244). On `shock_h6crd_ne`, where
@@ -1526,8 +1525,8 @@ Findings:
   replaces Anderson as the recommendation only if it wins in wall time;
   the expectation is in S-4.
 
-**Open:** the envelope safeguard on `shock_h6` (S-12); a margin in the
-inversion guard (S-13); N-36 (the two ne formulations); multi-D (after N-33).
+**Open:** the envelope safeguard on `shock_h6` (S-12); N-36 (the two ne
+formulations); multi-D (after N-33). The inversion guard is S-13 (below).
 
 ### Anderson as the default solver (design for the S-5 decision)
 
@@ -1882,6 +1881,57 @@ the change is mostly which entries Anderson's vectors hold.
   - A short `POPULATIONS` run is bit-reproducible.
   - The keyword under another solver stops the run.
 - Unit: none new. `anderson.c` does not change.
+
+### S-13 — The inversion guard (measured, decided 2026-11-11)
+
+The S-5 note above asked for a margin in the guard's inversion test. A
+diagnostic build (scratch, not committed) printed every violation of each
+rejected trial point (Anderson, m = 10, the S-5 calibration):
+
+- `falc_helarge`: 149 rejected points, median 15 violations each, all
+  continua: high He I levels to the ion at 9–18 kK (hν₀/kT 0.3–1) and
+  He II levels to He III at 7–8 kK. G's own point is 3–12 % (median)
+  from the threshold, the trial 3–9 % past it: not a borderline flip. At
+  236 of the 246 (continuum, depth) pairs that fired, the converged
+  solution is itself inverted (median ratio 0.69, the same in the
+  plain-G reference converged to 10⁻¹⁰). At one depth G's iterates go
+  1.135, 1.096, 1.067, 1.044, 1.027, 1.012, 1.0005 and then cross: the
+  test rejected steps towards the solution until G got there by itself.
+- `falc_mgi66`: 23 points, lines with small hν₀/kT (10⁻²–10⁻¹, nearly
+  degenerate levels) near the threshold; 24 of the 47 (line, depth) pairs
+  are inverted at convergence, the rest only crossed on the way.
+- `t5750_h6`: all 11 guard actions are the H n = 4 continuum (hν₀/kT
+  2.7) in the cool upper layers (3.7–3.9 kK); 26 of the 28 (continuum,
+  depth) pairs are inverted at convergence (ratio 0.946, the same in the
+  reference). `shock_h6`: no guard actions; its rejections are the
+  residual safeguard (S-12).
+
+Inversions of individual transitions are therefore physical, and RH's
+MALI iteration never guarded them; what breaks the formal solver is a
+negative total opacity (trap 5). A strong inverted line can make it
+negative at line centre (H_20's Rydberg lines under 10 % FD perturbations,
+S-2); a continuum sits on the background. Work (formal solutions) with
+each part of the test, S-5 calibration:
+
+| case | both (S-3) | lines only | none |
+|---|---|---|---|
+| `falc_helarge` | 139 | 109 | 105 |
+| `falc_mgi66` | 82 | 82 | 76 |
+| `t5750_h6` | 300 | 310 | 310 |
+| `falc_civi` | 151 | 151 | 146 |
+| `shock_h6crd_ne` | 109 | 95 | 95 |
+
+The other six cases are the same in all three columns. With no test the
+whole S-5 set converged, with errors within 10⁻⁴. Only `t5750_h6` costs
+more without the continuum test (3 %), although its continua are
+inverted at convergence too. **Decided (user):**
+keep the line test, drop the continuum test. If a case needs the
+continuum test after all, it comes back. Results of the change on the
+S-5 set and `2d_pert_h6_ca_mg` are in the PR (`docs/changes/S-13.md`).
+In 2-D it is neutral on `2d_pert_h6_ca_mg` (the first iteration below
+10⁻³ and 10⁻⁴: 165 → 171 and 364 → 349; that case has a floor, N-37) and
+lets Anderson extrapolate on `2d_perf_many`, where the old test rejected
+every trial point.
 
 ### S-6 — Analytic residual (Form B), conditional on S-5
 
