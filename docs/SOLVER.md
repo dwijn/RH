@@ -1079,7 +1079,9 @@ part of G.
   converged solutions that have inverted continua. On failure the extrapolation is damped
   (u = g_k − θΔGγ, θ = ½, then ¼); if it still fails, the plain step is
   taken and the history restarted. All actions are counted. (Trap 5:
-  H_20's Rydberg levels, negative opacity, overflow in Bezier3.)
+  H_20's Rydberg levels, negative opacity, overflow in Bezier3. The
+  inversion test stands in for the real condition, a negative total
+  opacity, and since S-13 covers lines only.)
 - After the evaluation: accept if ‖f_{k+1}‖_W ≤ c‖f_k‖_W with
   c = `ANDERSON_SAFEGUARD` (default 1; 0 turns it off). Otherwise take the
   plain step G(x_k), already computed, and restart the history from the
@@ -1910,7 +1912,11 @@ Inversions of individual transitions are therefore physical, and RH's
 MALI iteration never guarded them; what breaks the formal solver is a
 negative total opacity (trap 5). A strong inverted line can make it
 negative at line centre (H_20's Rydberg lines under 10 % FD perturbations,
-S-2); a continuum sits on the background. Work (formal solutions) with
+S-2). No run with the continuum test off failed (the S-5 set;
+`2d_pert_h6_ca_mg` for 904 iterations). That is evidence, not a bound:
+an active atom's continua are not in the background, so an inverted
+continuum of the dominant absorber could in principle make the total
+opacity negative. Work (formal solutions) with
 each part of the test, S-5 calibration:
 
 | case | both (S-3) | lines only | none |

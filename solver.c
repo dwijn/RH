@@ -55,7 +55,6 @@
 #include "error.h"
 #include "statistics.h"
 #include "background.h"
-#include "constant.h"
 #include "anderson.h"
 #include "newton.h"
 #include "solver.h"
@@ -742,10 +741,8 @@ static enum GuardResult guardTrial(const double *xt, const double *gx,
 		   inverted line makes the total opacity at its centre
 		   negative, and the formal solver overflows (SOLVER.md trap
 		   5). Continua are not checked (S-13): converged solutions
-		   have inverted continua (on falc_helarge high He I levels
-		   at 236 of the 246 depths where a continuum test fired),
-		   and that test held the iteration back without a failure
-		   to prevent.
+		   often have inverted continua, and that test held the
+		   iteration back from them without a failure to prevent.
 		   Negative values and inversions G itself makes (the LU
 		   fallback of statEquil, N-31) are left alone.
 
