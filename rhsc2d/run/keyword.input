@@ -210,6 +210,9 @@
 
 ##  BACKGROUND_POLARIZATION = TRUE
 
+# LIMIT_MEMORY = TRUE keeps J on disk; it needs SOLVER = NG, since
+# ANDERSON keeps J in memory.
+
 ##  LIMIT_MEMORY = TRUE
 
 #  ALLOW_PASSIVE_BB = FALSE

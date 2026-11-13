@@ -908,7 +908,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			" sub-iterations per G: %d;\n    ANDERSON_DEPTH = %d,"
 			" ANDERSON_DELAY = %d, ANDERSON_COND_MAX = %.1E,\n"
 			"    ANDERSON_SAFEGUARD = %g, ANDERSON_VARIABLES = %s,"
-			" ANDERSON_COEFFICIENTS = %s,\n    ANDERSON_EXTRAPOLATE = %s:"
+			" ANDERSON_COEFFICIENTS = %s,\n    ANDERSON_EXTRAPOLATE = %s%s:"
 			" %ld unknowns in %d blocks extrapolated;\n    memory: history"
 			" and variables %.1f MB, x, G(x) and G at the last accepted"
 			" point %.1f MB\n",
@@ -917,7 +917,8 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			input.Anderson_safeguard,
 			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
 			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
-			extrapolateName[input.Anderson_extrapolate], Npacked, Npack,
+			extrapolateName[input.Anderson_extrapolate],
+			input.Anderson_extrapolate_default ? " (the default)" : "", Npacked, Npack,
 			((3.0 * m + 7 + (varKind == VARIABLES_RELATIVE)) * sizeof(double) + m + 4) *
 				Npacked / 1.0E6,
 			3.0 * sizeof(double) * Nstate / 1.0E6);

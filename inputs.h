@@ -106,8 +106,8 @@ typedef struct {
 	enum order_3D          interpolate_3D;
 	enum ne_solution       solve_ne;
 	enum solver_type       solver;
-	/* --- SOLVER, ANDERSON_EXTRAPOLATE not set in the file -- ---- */
-	bool_t solver_default, Anderson_extrapolate_default;
+	bool_t                 solver_default;               /* SOLVER not set in the file */
+	bool_t                 Anderson_extrapolate_default; /* ANDERSON_EXTRAPOLATE not set */
 
 	enum solver_variables      Anderson_variables;
 	enum anderson_coefficients Anderson_coefficients;

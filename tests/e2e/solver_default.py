@@ -3,13 +3,17 @@
 the default solver).
 
 usage: solver_default.py --rhf1d PATH --rhsphere PATH --rhsc2d PATH
-                         [--src DIR] [--work DIR]
+                         --rhsc3d PATH [--src DIR] [--work DIR]
 
 Each program runs its shipped example (run/) for one or two iterations:
- 1. rhf1d, rhsphere and rhsc2d iterate with ANDERSON when the keyword file
-    does not set SOLVER, and say so (" -- SOLVER = ANDERSON (the default)").
-    rhf1d and rhsphere extrapolate the whole state (ANDERSON_EXTRAPOLATE =
-    ALL), rhsc2d only the populations and rho (POPULATIONS_RHO, S-11).
+ 1. rhf1d, rhsphere, rhsc2d and rhsc3d iterate with ANDERSON when the
+    keyword file does not set SOLVER, and say so (" -- SOLVER = ANDERSON
+    (the default)"). rhf1d and rhsphere extrapolate the whole state
+    (ANDERSON_EXTRAPOLATE = ALL), rhsc2d and rhsc3d only the populations
+    and rho (POPULATIONS_RHO, S-11); the banner marks it "(the default)".
+    Without PRD lines (PRD_N_MAX_ITER = 0) rhsc2d's default runs as
+    POPULATIONS without the warning that a keyword file setting
+    POPULATIONS_RHO gets.
  2. A 1-D keyword file written for the old default (Ng keywords, no SOLVER)
     stops at input (status 70) with messages that name the default and
     SOLVER = NG as a fix; with SOLVER = NG added it runs, and the banner
@@ -27,6 +31,7 @@ p = argparse.ArgumentParser()
 p.add_argument("--rhf1d", required=True)
 p.add_argument("--rhsphere", required=True)
 p.add_argument("--rhsc2d", required=True)
+p.add_argument("--rhsc3d", required=True)
 p.add_argument("--src", default=os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))
 p.add_argument("--work", help="keep the runs here (default: a temporary dir)")
@@ -85,12 +90,23 @@ def check(label, ok, r):
 for name, program, rundir, want in (
         ("rhf1d", a.rhf1d, "rhf1d", "ALL"),
         ("rhsphere", a.rhsphere, "rhsphere", "ALL"),
-        ("rhsc2d", a.rhsc2d, "rhsc2d", "POPULATIONS_RHO")):
+        ("rhsc2d", a.rhsc2d, "rhsc2d", "POPULATIONS_RHO"),
+        ("rhsc3d", a.rhsc3d, "rhsc3d", "POPULATIONS_RHO")):
     r = run(f"default_{name}", program, rundir, [("N_MAX_ITER", "2")])
     ok = r.returncode in (0, 1) and " -- SOLVER = ANDERSON (the default)\n" in r.stdout \
         and "-- Anderson: extrapolated" in r.stdout \
-        and f"ANDERSON_EXTRAPOLATE = {want}:" in r.stdout
+        and f"ANDERSON_EXTRAPOLATE = {want} (the default):" in r.stdout
     check(f"{name} without SOLVER iterates with ANDERSON, {want} (the default)", ok, r)
+
+# --- Without PRD lines: the 2-D default is silent, an explicit setting warns
+WARN = "ANDERSON_EXTRAPOLATE = POPULATIONS_RHO, but there are no PRD"
+for label, extra, warn in (("default", [], False),
+                           ("explicit", [("ANDERSON_EXTRAPOLATE", "POPULATIONS_RHO")], True)):
+    r = run(f"noprd_{label}", a.rhsc2d, "rhsc2d", [("N_MAX_ITER", "2"), ("PRD_N_MAX_ITER", "0")] + extra)
+    ok = r.returncode in (0, 1) and (WARN in r.stdout) == warn \
+        and "ANDERSON_EXTRAPOLATE = POPULATIONS_RHO" in r.stdout
+    check(f"rhsc2d without PRD lines, POPULATIONS_RHO {label}: "
+          f"{'warns' if warn else 'no warning'}", ok, r)
 
 # --- 2. A keyword file written for the old default
 OLD = [("NG_ORDER", "2"), ("NG_DELAY", "10"), ("NG_PERIOD", "3"),
