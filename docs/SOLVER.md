@@ -1070,18 +1070,17 @@ part of G.
 
 **Safeguards.**
 
-- Before the evaluation (no G cost): the trial point must be finite,
-  positive (RELATIVE), and must not create line inversions that g_k does
-  not have: for every line, at every depth where n_l/g_l > n_u/g_u in
-  g_k, also in the trial point. Inversions that G itself makes are left
-  alone. Continua are not checked (S-13, below): the test on
-  n_i/n_i* > (n_j/n_j*)·exp(−hν₀/kT) that was here blocked steps towards
-  converged solutions that have inverted continua. On failure the extrapolation is damped
-  (u = g_k − θΔGγ, θ = ½, then ¼); if it still fails, the plain step is
-  taken and the history restarted. All actions are counted. (Trap 5:
-  H_20's Rydberg levels, negative opacity, overflow in Bezier3. The
-  inversion test stands in for the real condition, a negative total
-  opacity, and since S-13 covers lines only.)
+- Before the evaluation (no G cost): the trial point must be finite and
+  positive (RELATIVE; no new negative values where g_k has none). On
+  failure the extrapolation is damped (u = g_k − θΔGγ, θ = ½, then ¼); if
+  it still fails, the plain step is taken and the history restarted. All
+  actions are counted. Population inversions are not checked: the tests
+  on continua (S-13) and on lines (S-14) that were here stood in for a
+  negative total opacity (trap 5: H_20's Rydberg levels, overflow in
+  Bezier3), did not prevent it, and held steps back from converged
+  solutions that have inversions (S-13, below). A negative opacity deep
+  enough to overflow is detected in the formal solution itself (N-40),
+  which rejects the trial point.
 - After the evaluation: accept if ‖f_{k+1}‖_W ≤ c‖f_k‖_W with
   c = `ANDERSON_SAFEGUARD` (default 1; 0 turns it off). Otherwise take the
   plain step G(x_k), already computed, and restart the history from the
