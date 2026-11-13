@@ -271,7 +271,7 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 	int     l0, m0, k0, countXZ, countYZ, count, Nvalid;
 	bool_t *valid;
 	double  rx, ry, rz, frac1, frac2, muz, dz, longfracx, longfracy,
-		svalid;
+		svalid, sgn;
 	Stencil   *st;
 	Longchar  *lc;
 	Intersect *vis;
@@ -407,7 +407,13 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 		countYZ = (int) floor(fabs(longfracx));
 		countXZ = (int) floor(fabs(longfracy));
 
-		/* --- Tabulate the vertical intersects --         -------------- */
+		/* --- Tabulate the vertical intersects, at distance s from the
+			   local point along the ray, upwind: +(mux, muy) s for the
+			   UPWIND stencils (upwind of the downward sweep), -(mux, muy) s
+			   for the DOWNWIND ones (upwind of the upward sweep), like
+			   longfracx, longfracy and the z fractions (B-52) -- ------ */
+
+		sgn = (wind == UPWIND) ? 1.0 : -1.0;
 
 		vis = (Intersect *) malloc((countYZ + countXZ) * sizeof(Intersect));
 
@@ -415,16 +421,16 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 		for (l = 0; l < countYZ; l++) {
 			vis[count].plane = YZ;
 			vis[count].s     = ((l + 1) * geometry->dx) / fabs(geometry->mux[mu]);
-			vis[count].x     = geometry->mux[mu] * vis[count].s;
-			vis[count].y     = geometry->muy[mu] * vis[count].s;
+			vis[count].x     = sgn * geometry->mux[mu] * vis[count].s;
+			vis[count].y     = sgn * geometry->muy[mu] * vis[count].s;
 			vis[count].z     = muz * vis[count].s;
 			count++;
 		}
 		for (m = 0; m < countXZ; m++) {
 			vis[count].plane = XZ;
 			vis[count].s     = ((m + 1) * geometry->dy) / fabs(geometry->muy[mu]);
-			vis[count].x     = geometry->mux[mu] * vis[count].s;
-			vis[count].y     = geometry->muy[mu] * vis[count].s;
+			vis[count].x     = sgn * geometry->mux[mu] * vis[count].s;
+			vis[count].y     = sgn * geometry->muy[mu] * vis[count].s;
 			vis[count].z     = muz * vis[count].s;
 			count++;
 		}

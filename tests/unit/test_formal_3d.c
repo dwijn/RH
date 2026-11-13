@@ -362,13 +362,14 @@ static void check_stokes(bool_t verbose)
 	}
 }
 
-/* --- Positions of the long-characteristic points (B-53): x, y and z
+/* --- Positions of the long-characteristic points (B-52, B-53): x, y and z
 	   interpolated with each stencil of fillMesh from coordinate
 	   arrays, against the ray. On a 64 x 64 mesh with dtau 0.25 every
 	   oblique ray here crosses vertical planes (up to 48 points); the
 	   local point is mid-mesh and no characteristic reaches the
 	   periodic wrap. UPWIND stencils (upwind of the downward sweep)
-	   lie along +(mux, muy, muz) --                  -------------- */
+	   lie along +(mux, muy, muz), DOWNWIND ones (upwind of the upward
+	   sweep) along -(mux, muy, muz) --               -------------- */
 
 static void check_longchar_positions(bool_t verbose)
 {
@@ -409,28 +410,31 @@ static void check_longchar_positions(bool_t verbose)
 				xyz[2][n] = geo->z[kk];
 			}
 
-	for (int mu = 0; mu < NRAYS; mu++) {
-		Stencil  *st  = &geo->stencil_uw[mu][k];
-		Longchar *lc  = st->longchar;
-		double    err = 0.0, x0[3] = {l * dx, m * dx, geo->z[k]};
+	for (int mu = 0; mu < NRAYS; mu++)
+		for (int wind = 0; wind < 2; wind++) {
+			Stencil  *st  = wind ? &geo->stencil_dw[mu][k] : &geo->stencil_uw[mu][k];
+			Longchar *lc  = st->longchar;
+			double    sgn = wind ? -1.0 : 1.0, err = 0.0,
+				   x0[3] = {l * dx, m * dx, geo->z[k]};
 
-		if (lc == NULL) continue;
-		for (int n = 0; n < lc->Nst; n++) {
-			double s = 0.0;
+			if (lc == NULL) continue;
+			for (int n = 0; n < lc->Nst; n++) {
+				double s = 0.0;
 
-			for (int j = n; j < lc->Nst; j++) s += lc->stencil[j].ds;
-			for (int c = 0; c < 3; c++) {
-				double got = Interpolate_3D(xyz[c], geo, &lc->stencil[n], l, m) - x0[c];
+				for (int j = n; j < lc->Nst; j++) s += lc->stencil[j].ds;
+				for (int c = 0; c < 3; c++) {
+					double got = Interpolate_3D(xyz[c], geo, &lc->stencil[n], l, m) - x0[c];
 
-				err = MAX(err, fabs(got - ray_mu[mu][c] * s));
+					err = MAX(err, fabs(got - sgn * ray_mu[mu][c] * s));
+				}
 			}
+			if (verbose)
+				printf("LONGCHAR ray %d (%+.1f %+.1f) %-8s: %2d points, position error %.1e\n",
+					   mu, ray_mu[mu][0], ray_mu[mu][1], wind ? "DOWNWIND" : "UPWIND",
+					   lc->Nst, err);
+			CHECK(err <= 1.0e-12, "ray %d (%+.1f, %+.1f), %s long characteristic: points off by %.3g (dx = %.3g)",
+				  mu, ray_mu[mu][0], ray_mu[mu][1], wind ? "DOWNWIND" : "UPWIND", err, dx);
 		}
-		if (verbose)
-			printf("LONGCHAR ray %d (%+.1f %+.1f) UPWIND: %2d points, position error %.1e\n",
-				   mu, ray_mu[mu][0], ray_mu[mu][1], lc->Nst, err);
-		CHECK(err <= 1.0e-12, "ray %d (%+.1f, %+.1f), UPWIND long characteristic: points off by %.3g (dx = %.3g)",
-			  mu, ray_mu[mu][0], ray_mu[mu][1], err, dx);
-	}
 	for (int c = 0; c < 3; c++) free(xyz[c]);
 }
 
