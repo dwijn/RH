@@ -362,6 +362,78 @@ static void check_stokes(bool_t verbose)
 	}
 }
 
+/* --- Positions of the long-characteristic points (B-53): x, y and z
+	   interpolated with each stencil of fillMesh from coordinate
+	   arrays, against the ray. On a 64 x 64 mesh with dtau 0.25 every
+	   oblique ray here crosses vertical planes (up to 48 points); the
+	   local point is mid-mesh and no characteristic reaches the
+	   periodic wrap. UPWIND stencils (upwind of the downward sweep)
+	   lie along +(mux, muy, muz) --                  -------------- */
+
+static void check_longchar_positions(bool_t verbose)
+{
+	const int N = 64, Nz = 17, Nplane = N * N, Nspace = Nplane * Nz, k = 8,
+			  l = 32, m = 32;
+	const double dx = 1.0 / N, dtau = 0.25;
+	Geometry    *geo = calloc(1, sizeof(Geometry));
+	double      *xyz[3];
+
+	input.interpolate_3D = LINEAR_3D;
+	geo->x_boundary = geo->y_boundary = PERIODIC;
+	geo->Nx = geo->Ny = N;
+	geo->Nz           = Nz;
+	geo->Nplane       = Nplane;
+	geo->Nrays        = NRAYS;
+	geo->dx = geo->dy = dx;
+	geo->z            = malloc(Nz * sizeof(double));
+	for (int kk = 0; kk < Nz; kk++) geo->z[kk] = -kk * dtau;
+	geo->mux = malloc(NRAYS * sizeof(double));
+	geo->muy = malloc(NRAYS * sizeof(double));
+	geo->muz = malloc(NRAYS * sizeof(double));
+	geo->wmu = malloc(NRAYS * sizeof(double));
+	for (int mu = 0; mu < NRAYS; mu++) {
+		geo->mux[mu] = ray_mu[mu][0];
+		geo->muy[mu] = ray_mu[mu][1];
+		geo->muz[mu] = ray_mu[mu][2];
+		geo->wmu[mu] = 1.0 / NRAYS;
+	}
+	fillMesh(geo);
+
+	for (int c = 0; c < 3; c++) xyz[c] = malloc(Nspace * sizeof(double));
+	for (int kk = 0; kk < Nz; kk++)
+		for (int mm = 0; mm < N; mm++)
+			for (int ll = 0; ll < N; ll++) {
+				int n     = kk * Nplane + mm * N + ll;
+				xyz[0][n] = ll * dx;
+				xyz[1][n] = mm * dx;
+				xyz[2][n] = geo->z[kk];
+			}
+
+	for (int mu = 0; mu < NRAYS; mu++) {
+		Stencil  *st  = &geo->stencil_uw[mu][k];
+		Longchar *lc  = st->longchar;
+		double    err = 0.0, x0[3] = {l * dx, m * dx, geo->z[k]};
+
+		if (lc == NULL) continue;
+		for (int n = 0; n < lc->Nst; n++) {
+			double s = 0.0;
+
+			for (int j = n; j < lc->Nst; j++) s += lc->stencil[j].ds;
+			for (int c = 0; c < 3; c++) {
+				double got = Interpolate_3D(xyz[c], geo, &lc->stencil[n], l, m) - x0[c];
+
+				err = MAX(err, fabs(got - ray_mu[mu][c] * s));
+			}
+		}
+		if (verbose)
+			printf("LONGCHAR ray %d (%+.1f %+.1f) UPWIND: %2d points, position error %.1e\n",
+				   mu, ray_mu[mu][0], ray_mu[mu][1], lc->Nst, err);
+		CHECK(err <= 1.0e-12, "ray %d (%+.1f, %+.1f), UPWIND long characteristic: points off by %.3g (dx = %.3g)",
+			  mu, ray_mu[mu][0], ray_mu[mu][1], err, dx);
+	}
+	for (int c = 0; c < 3; c++) free(xyz[c]);
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
@@ -378,6 +450,7 @@ int main(int argc, char *argv[])
 
 	for (int n = 0; n < N_METHODS; n++) check_method(&methods[n], verbose);
 	check_stokes(verbose);
+	check_longchar_positions(verbose);
 
 	return check_summary("test_formal_3d");
 }

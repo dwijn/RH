@@ -79,7 +79,6 @@
 double         cubicconvol(double *f, int Nx, int *x_base, int *y_base,
 						   double *x_kernel, double *y_kernel, bool_t monotonic);
 int            sascend(const void *vis1, const void *vis2);
-double         round(double x);
 double         calcDistance(double frac1, double frac2, enum intersect plane,
 							double dx, double dy, double dz);
 void           calcFrac(double *frac1, double *frac2,
@@ -515,12 +514,12 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 					lc->stencil[count].xkernel[1] = frac1;
 
 					lc->stencil[count].ybase[0] =
-						(int) round(vis[n].y / geometry->dy);
+						(int) lround(vis[n].y / geometry->dy);
 					break;
 
 				case YZ:
 					lc->stencil[count].xbase[0] =
-						(int) round(vis[n].x / geometry->dx);
+						(int) lround(vis[n].x / geometry->dx);
 
 					m0                            = floor(vis[n].y / geometry->dy);
 					lc->stencil[count].ybase[0]   = m0;
@@ -564,17 +563,6 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 	}
 }
 /* ------- end ---------------------------- setStencil.c ------------ */
-
-/* ------- begin -------------------------- round.c ----------------- */
-
-double round(double x)
-{
-	double integr;
-
-	modf(x + 0.5, &integr);
-	return integr;
-}
-/* ------- end ---------------------------- round.c ----------------- */
 
 /* ------- begin -------------------------- sascend.c --------------- */
 
