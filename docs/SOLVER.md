@@ -1943,6 +1943,22 @@ In 2-D it is neutral on `2d_pert_h6_ca_mg` (the first iteration below
 lets Anderson extrapolate on `2d_perf_many`, where the old test rejected
 every trial point.
 
+**Follow-up (S-14, N-40, decided by the user 2026-11-13).** Would a check
+on the total opacity itself do better than the inversion proxy? Counted
+on the S-5 cases where the guard acts (scratch build, `claude-tmp/s1/s13/chi`):
+the total opacity χ is ≤ 0 at G's own points (the ZERO_RADIATION starts
+of `falc_helarge`, 118 000 (wavelength, depth) points down to −44 χ_c;
+`falc_civi`; `falc_mgi66`) and at `falc_helarge`'s converged solution (504
+points, down to −6.6 χ_c, IR He I 4296 nm), so rejecting χ ≤ 0 would stop
+every solver there. What breaks the formal solver is `exp` overflowing,
+at a negative optical depth of about −709; the deepest run of negative
+slant optical depth was −0.094 (`falc_mgi66`, with the line test on;
+−0.026 without), −4.9×10⁻⁶ on `falc_helarge`. The line test does not
+prevent negative opacity, and no case needs it: it went too (S-14). In
+its place a detector in the formal solution (N-40) stops the run with a
+message, or rejects the trial point, where a run of negative optical
+depth goes below −50.
+
 ### S-6 — Analytic residual (Form B), conditional on S-5
 
 Implement F(x) = Γ(x, J[x]) n (Arramy et al. 2024) with MALI's Γ + Ψ* as
