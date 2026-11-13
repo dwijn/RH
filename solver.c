@@ -922,10 +922,13 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 				Npacked / 1.0E6,
 			3.0 * sizeof(double) * Nstate / 1.0E6);
 	Error(MESSAGE, routineName, messageStr);
-	/* --- Without PRD lines there is no rho to extrapolate: say so,
-		   the run goes on as POPULATIONS (S-11) --     -------------- */
+	/* --- Without PRD lines there is no rho to extrapolate: say so
+		   when the keyword file asked for POPULATIONS_RHO, the run goes
+		   on as POPULATIONS (S-11). The 2-D and 3-D default says
+		   nothing: the banner lists the extrapolated blocks -- ----- */
 
-	if (input.Anderson_extrapolate == EXTRAPOLATE_POPULATIONS_RHO) {
+	if (input.Anderson_extrapolate == EXTRAPOLATE_POPULATIONS_RHO &&
+		!input.Anderson_extrapolate_default) {
 		for (n = 0; n < Nblocks && blocks[n].kind != BLOCK_RHO; n++);
 		if (n == Nblocks) {
 			sprintf(messageStr,

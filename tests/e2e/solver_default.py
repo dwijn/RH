@@ -6,9 +6,10 @@ usage: solver_default.py --rhf1d PATH --rhsphere PATH --rhsc2d PATH
                          [--src DIR] [--work DIR]
 
 Each program runs its shipped example (run/) for one or two iterations:
- 1. rhf1d and rhsphere iterate with ANDERSON when the keyword file does not
-    set SOLVER, and say so (" -- SOLVER = ANDERSON (the default)"); rhsc2d
-    with NG (" -- SOLVER = NG (the default)").
+ 1. rhf1d, rhsphere and rhsc2d iterate with ANDERSON when the keyword file
+    does not set SOLVER, and say so (" -- SOLVER = ANDERSON (the default)").
+    rhf1d and rhsphere extrapolate the whole state (ANDERSON_EXTRAPOLATE =
+    ALL), rhsc2d only the populations and rho (POPULATIONS_RHO, S-11).
  2. A 1-D keyword file written for the old default (Ng keywords, no SOLVER)
     stops at input (status 70) with messages that name the default and
     SOLVER = NG as a fix; with SOLVER = NG added it runs, and the banner
@@ -82,14 +83,14 @@ def check(label, ok, r):
 
 # --- 1. The default of each geometry
 for name, program, rundir, want in (
-        ("rhf1d", a.rhf1d, "rhf1d", "ANDERSON"),
-        ("rhsphere", a.rhsphere, "rhsphere", "ANDERSON"),
-        ("rhsc2d", a.rhsc2d, "rhsc2d", "NG")):
+        ("rhf1d", a.rhf1d, "rhf1d", "ALL"),
+        ("rhsphere", a.rhsphere, "rhsphere", "ALL"),
+        ("rhsc2d", a.rhsc2d, "rhsc2d", "POPULATIONS_RHO")):
     r = run(f"default_{name}", program, rundir, [("N_MAX_ITER", "2")])
-    ok = r.returncode in (0, 1) and f" -- SOLVER = {want} (the default)\n" in r.stdout
-    if want == "ANDERSON":
-        ok = ok and "-- Anderson: extrapolated" in r.stdout
-    check(f"{name} without SOLVER iterates with {want} (the default)", ok, r)
+    ok = r.returncode in (0, 1) and " -- SOLVER = ANDERSON (the default)\n" in r.stdout \
+        and "-- Anderson: extrapolated" in r.stdout \
+        and f"ANDERSON_EXTRAPOLATE = {want}:" in r.stdout
+    check(f"{name} without SOLVER iterates with ANDERSON, {want} (the default)", ok, r)
 
 # --- 2. A keyword file written for the old default
 OLD = [("NG_ORDER", "2"), ("NG_DELAY", "10"), ("NG_PERIOD", "3"),

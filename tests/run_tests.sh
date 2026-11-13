@@ -232,11 +232,13 @@ run_case() {
 
 # Peak memory must not grow with the number of wavelengths on a large grid.
 # (Per-wavelength caching of opacity buffers once added Nspect*Nspace*40 bytes.)
+# Both runs use SOLVER = NG, whose history is small, so that a change of the
+# default solver does not count as growth (S-11 made ANDERSON the 2-D default).
 run_mem_case() {
   [ -x /usr/bin/time ] || { record SKIP "2d/mem" "no /usr/bin/time"; return; }
   python3 -I "$HERE/make_tiled_2d_atmos.py" "$CAND/Atmos/FALC_03x82.atmos" \
           "$WORK/tiled_2d.atmos" 192 >/dev/null || { record FAIL "2d/mem" "tiling failed"; return; }
-  local mods="ATMOS_FILE=$WORK/tiled_2d.atmos;N_MAX_ITER=1" rc why bm cm
+  local mods="ATMOS_FILE=$WORK/tiled_2d.atmos;N_MAX_ITER=1;SOLVER=NG" rc why bm cm
   prepare 2d mem base 1 "$mods"; local B=$RUNDIR; execute "$BASE_BIN" 2d; rc=$?
   completed $rc || { record SKIP "2d/mem" "baseline failed (rc=$rc)"; return; }
   prepare 2d mem cand 1 "$mods"; local C=$RUNDIR; execute "$CAND_BIN" 2d; rc=$?; why=$(log_problem)

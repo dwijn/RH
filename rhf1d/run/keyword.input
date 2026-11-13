@@ -46,8 +46,8 @@
   ITER_LIMIT = 1.0E-2
 
 # Iteration scheme (KEYWORD_DEFAULT): ANDERSON, the default in 1-D and
-# spherical geometry; NG (MALI with Ng acceleration, the default in 2-D
-# and 3-D and before S-10 everywhere); FIXED_POINT; or NEWTON_KRYLOV.
+# spherical geometry (and in 2-D and 3-D); NG (MALI with Ng
+# acceleration, the default before S-10); FIXED_POINT; or NEWTON_KRYLOV.
 # See docs/SOLVER.md. A setting that the solver would not honour stops
 # the run: the NG_*, PRD_ITER_LIMIT and PRD_NG_* settings below belong
 # to SOLVER = NG (FIXED_POINT also takes NG_*); other solvers accept

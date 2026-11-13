@@ -133,7 +133,7 @@ void readInput()
 		 setnesolution},
 		/* --- NG is the default in 2-D and 3-D; ANDERSON in 1-D and
 			   spherical geometry, set below (S-10) -- -- */
-		{"SOLVER", "NG", FALSE, KEYWORD_DEFAULT, &input.solver, setsolver},
+		{"SOLVER", "ANDERSON", FALSE, KEYWORD_DEFAULT, &input.solver, setsolver},
 		{"ANDERSON_DEPTH", "10", FALSE, KEYWORD_DEFAULT, &input.Anderson_depth,
 		 setintValue},
 		{"ANDERSON_DELAY", "2", FALSE, KEYWORD_DEFAULT, &input.Anderson_delay,
@@ -226,12 +226,13 @@ void readInput()
 		 &input.allow_passive_bb, setboolValue}};
 	Nkeyword = sizeof(theKeywords) / sizeof(Keyword);
 
-	/* --- The default solver depends on the geometry (S-10): ANDERSON
-		   in 1-D and spherical geometry, NG in 2-D and 3-D, where
-		   Anderson's history does not fit in memory yet (S-11) -- -- */
+	/* --- The default solver is ANDERSON in every geometry (S-10,
+		   S-11). In 2-D and 3-D it extrapolates only the populations
+		   and the PRD rho, and carries J from G: a history of the whole
+		   state does not fit in memory there (S-11, item 6) -- ----- */
 
-	if (topology == ONE_D_PLANE || topology == SPHERICAL_SYMMETRIC)
-		setKeywordValue(theKeywords, Nkeyword, "SOLVER", "ANDERSON");
+	if (topology != ONE_D_PLANE && topology != SPHERICAL_SYMMETRIC)
+		setKeywordValue(theKeywords, Nkeyword, "ANDERSON_EXTRAPOLATE", "POPULATIONS_RHO");
 
 	/* --- Open the input data file --                    ------------- */
 
@@ -425,6 +426,8 @@ void readInput()
 		   itself (S-10) -- -------------------------------------- */
 
 	input.solver_default = !keywordSet(theKeywords, Nkeyword, "SOLVER");
+	input.Anderson_extrapolate_default =
+		!keywordSet(theKeywords, Nkeyword, "ANDERSON_EXTRAPOLATE");
 	sprintf(sname, "%s%s", solverName(input.solver),
 			input.solver_default ? " (the default)" : "");
 	for (p = 0; p < 2; p++) {
