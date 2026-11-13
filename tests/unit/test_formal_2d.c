@@ -127,6 +127,50 @@ static Slab *slab_new(int Nz, double DX, bool_t uneven)
 	return slab;
 }
 
+/* --- Free what fillMesh allocated and the arrays of the mesh (RH
+	   itself keeps its mesh to the end of the run). Long
+	   characteristics: DOWN sweep from layer 1, UP sweep to layer
+	   Nz - 2, with stencils where Nlc > 0 --         -------------- */
+
+static void mesh_free(Geometry *geo)
+{
+	for (int mu = 0; mu < geo->Nrays; mu++) {
+		free(geo->stencil[mu]);
+		if (geo->longchar == NULL) continue;
+		for (int k = 1; k < geo->Nz; k++)
+			if (geo->longchar[mu][DOWN * geo->Nz + k].Nlc > 0)
+				free(geo->longchar[mu][DOWN * geo->Nz + k].stencil);
+		for (int k = 0; k < geo->Nz - 1; k++)
+			if (geo->longchar[mu][UP * geo->Nz + k].Nlc > 0)
+				free(geo->longchar[mu][UP * geo->Nz + k].stencil);
+		free(geo->longchar[mu]);
+	}
+	free(geo->stencil);
+	free(geo->longchar);
+	if (geo->Itop != NULL) freeMatrix((void **) geo->Itop);
+	if (geo->Ibottom != NULL) freeMatrix((void **) geo->Ibottom);
+	free(geo->x);
+	free(geo->dx);
+	free(geo->z);
+	free(geo->dz);
+	free(geo->mux);
+	free(geo->muy);
+	free(geo->muz);
+	free(geo->wmu);
+}
+
+static void slab_free(Slab *slab)
+{
+	mesh_free(&slab->geo);
+	free(slab->tau);
+	free(slab->chi);
+	free(slab->S);
+	free(slab->S1);
+	free(slab->I);
+	free(slab->Psi);
+	free(slab);
+}
+
 static void set_source(Slab *slab, const double s[NPOLY])
 {
 	for (int k = 0; k < slab->Nz; k++) {
@@ -576,17 +620,15 @@ static void check_interp(bool_t verbose)
 	   on "columns" (Nz = 161) the Bezier3 solver's emergent error for
 	   cubic S grows from 1.0e-4 to 4.1e-3 -- ------------------------ */
 
-static Slab *linear_slab; /* reachable to the end, as slabs[][] */
-
 static void check_linear_interp(bool_t verbose)
 {
 	const double lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
 
 	input.interpolate_2D = LINEAR_2D;
-	Slab  *slab = linear_slab = slab_new(161, mesh_dx[1], FALSE);
-	Errors up                 = ray_errors(Piecewise_Bezier3_2D, slab, lin, TRUE),
-		   cubic              = ray_errors(Piecewise_Bezier3_2D, slab, cub, TRUE);
-	input.interpolate_2D      = BEZIER_2D;
+	Slab  *slab          = slab_new(161, mesh_dx[1], FALSE);
+	Errors up            = ray_errors(Piecewise_Bezier3_2D, slab, lin, TRUE),
+		   cubic         = ray_errors(Piecewise_Bezier3_2D, slab, cub, TRUE);
+	input.interpolate_2D = BEZIER_2D;
 
 	if (verbose)
 		printf("LINEAR_2D columns Nz 161: linear S up %.2e; cubic S emergent %.2e\n",
@@ -595,6 +637,7 @@ static void check_linear_interp(bool_t verbose)
 		  MAX(up.interior, up.ends));
 	CHECK(cubic.emergent >= 2.0e-3 && cubic.emergent <= 8.0e-3,
 		  "LINEAR_2D: emergent error %.3g not in [2e-3, 8e-3]", cubic.emergent);
+	slab_free(slab);
 }
 
 /* --- The stencils of fillMesh on a periodic mesh with uneven
@@ -616,10 +659,10 @@ static void check_stencils(bool_t verbose)
 		   Nrays = 6 };
 	const double mux[Nrays] = {0.6, -0.6, 0.95, -0.95, 0.2, -0.2},
 				 muz[Nrays] = {0.5, 0.5, 0.15, 0.15, 0.9, 0.9};
-	static Geometry geo; /* reachable to the end */
-	double          X[Nx * Nz], Z[Nx * Nz], L[Nx * Nz], Qx[Nx * Nz], Qz[Nx * Nz];
-	double          err_lin = 0.0, err_quad = 0.0, err_long = 0.0;
-	int             n_lin = 0, n_quad = 0, n_long = 0;
+	Geometry geo            = {0};
+	double   X[Nx * Nz], Z[Nx * Nz], L[Nx * Nz], Qx[Nx * Nz], Qz[Nx * Nz];
+	double   err_lin = 0.0, err_quad = 0.0, err_long = 0.0;
+	int      n_lin = 0, n_quad = 0, n_long = 0;
 
 	geo.hboundary = PERIODIC;
 	geo.Nx        = Nx;
@@ -723,6 +766,7 @@ static void check_stencils(bool_t verbose)
 	CHECK(err_lin <= 1.0e-12, "stencils: linear field, error %.3g", err_lin);
 	CHECK(err_quad <= 2.0e-12, "stencils: quadratic field, error %.3g", err_quad);
 	CHECK(err_long <= 1.0e-12, "long characteristics: linear field, error %.3g", err_long);
+	mesh_free(&geo);
 }
 
 int main(int argc, char *argv[])
