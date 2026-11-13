@@ -20,6 +20,7 @@
 #include "error.h"
 #include "background.h"
 #include "inputs.h"
+#include "negtau.h"
 #include "constant.h"
 #include "statistics.h"
 #include "xdr.h"
@@ -45,7 +46,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	int      Nspace = atmos.Nspace, Nrays = atmos.Nrays;
 	long int idx;
 	double  *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
-						 dJmax, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
+						 dJmax = 0.0, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
 						 *J, *J20 = NULL, *lambda, sign,
 						 lambda_gas, lambda_prv, lambda_nxt, fac, dl, frac;
 	ActiveSet *as;
@@ -161,6 +162,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 					chi[k] = as->chi[k] + as->chi_c[k];
 					S[k]   = as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k];
 				}
+				if (negTauColumns(nspect, mu, to_obs, geometry.Nz, geometry.Nplane, chi,
+								  geometry.z, geometry.muz[mu]))
+					goto cleanup;
 				if (input.backgr_pol) {
 					for (k = 0; k < Nspace; k++) {
 						S[k] += threemu1 * as->sca_c[k] * J20dag[k];
@@ -330,12 +334,12 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		Opacity(nspect, 0, 0, initialize = TRUE);
 		if (eval_operator) addtoCoupling(nspect);
 
-		for (k = 0; k < Nspace; k++) {
-			chi[k] = as->chi[k] + as->chi_c[k];
-			S[k]   = (as->eta[k] +
-                    as->eta_c[k] + as->sca_c[k] * Jdag[k]) /
-				   chi[k];
-		}
+		for (k = 0; k < Nspace; k++) chi[k] = as->chi[k] + as->chi_c[k];
+		for (mu = 0; mu < Nrays; mu++)
+			if (negTauColumns(nspect, mu, FALSE, geometry.Nz, geometry.Nplane, chi,
+							  geometry.z, geometry.muz[mu])) goto cleanup;
+		for (k = 0; k < Nspace; k++)
+			S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k]) / chi[k];
 		for (mu = 0; mu < Nrays; mu++) {
 			wmu = 0.5 * geometry.wmu[mu];
 			for (to_obs = 0; to_obs <= 1; to_obs++) {
@@ -384,7 +388,11 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		}
 	}
 
-	/* --- Clean up --                                 ---------------- */
+	/* --- Clean up; the formal solution of this wavelength stops here
+		   when the opacity is negative enough to overflow it (N-40;
+		   the caller stops the run or rejects the trial point) -- --- */
+
+cleanup:
 
 	free_as(nspect, eval_operator);
 	if (eval_operator) free(Psi);

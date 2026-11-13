@@ -52,6 +52,7 @@
 #include "spectrum.h"
 #include "accelerate.h"
 #include "inputs.h"
+#include "negtau.h"
 #include "error.h"
 #include "statistics.h"
 #include "background.h"
@@ -285,6 +286,7 @@ static double prdSubIterations(int Nsub)
 			}
 		}
 		solveSpectrum(eval_operator = FALSE, redistribute = TRUE);
+		if (negTauFound()) break; /* G_eval gives up (N-40) */
 	}
 	free(old);
 
@@ -294,13 +296,17 @@ static double prdSubIterations(int Nsub)
 
 /* ------- begin -------------------------- G_eval.c ---------------- */
 
-void G_eval(const double *x_in, double *x_out)
+bool_t G_eval(const double *x_in, double *x_out)
 {
 	register int nact;
 
 	bool_t eval_operator, redistribute;
 
-	/* --- x_in and x_out may be the same array --     -------------- */
+	/* --- x_in and x_out may be the same array. Returns FALSE, with
+		   x_out left as it was, when a formal solution met a total
+		   opacity negative enough to overflow (N-40). That can only
+		   happen at a trial point (negTauTrial(TRUE)): anywhere else
+		   solveSpectrum stops the run --               -------------- */
 
 	stateScatter(x_in);
 
@@ -324,6 +330,10 @@ void G_eval(const double *x_in, double *x_out)
 	/* --- 2. Formal solution with the approximate operator -- ------- */
 
 	solveSpectrum(eval_operator = TRUE, redistribute = FALSE);
+	if (negTauFound()) {
+		Gcount++;
+		return FALSE;
+	}
 	for (nact = 0; nact < atmos.Nactiveatom; nact++)
 		mergeGammaThreads(atmos.activeatoms[nact]);
 	for (nact = 0; nact < atmos.Nactivemol; nact++)
@@ -339,6 +349,10 @@ void G_eval(const double *x_in, double *x_out)
 	/* --- 4. PRD sub-iterations --                     -------------- */
 
 	if (atmos.NPRDactive > 0) prdSubIterations(input.PRD_NmaxIter);
+	if (negTauFound()) {
+		Gcount++;
+		return FALSE;
+	}
 
 	/* --- 5. With ne in the state: ne from charge conservation with
 		   the new populations, Newton from the ne of x_in -- ------- */
@@ -349,6 +363,8 @@ void G_eval(const double *x_in, double *x_out)
 	}
 	stateGather(x_out);
 	Gcount++;
+
+	return TRUE;
 }
 /* ------- end ---------------------------- G_eval.c ---------------- */
 
@@ -849,9 +865,11 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	const char   routineName[] = "iterateAnderson";
 	register int niter, n;
 
-	bool_t              converged = FALSE, stopped = FALSE;
-	int                 m = input.Anderson_depth, Nsolve, delay, t;
-	long                i, Ndamped = 0, Nguardplain = 0, Ncarried = 0, Ncarried_ok = 0;
+	bool_t converged = FALSE, stopped = FALSE, Gok;
+	char   what[256];
+	int    m = input.Anderson_depth, Nsolve, delay, t;
+	long   i, Ndamped = 0, Nguardplain = 0, Ncarried = 0, Ncarried_ok = 0,
+			Nnegtau = 0;
 	double             *x, *gx, *gacc, *u, *gu, *un, *w, *gamma, dpopsmax = 0.0, theta;
 	unsigned char      *valid, *validg;
 	enum AndersonAction action;
@@ -950,7 +968,29 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			Ncarried++;
 			if (carriedEqual(x, gacc)) Ncarried_ok++;
 		}
-		G_eval(x, gx);
+
+		/* --- An extrapolated point whose total opacity is negative
+			   enough to overflow the formal solution is rejected like
+			   one that fails the safeguard (N-40) --      -------------- */
+
+		negTauReset();
+		negTauTrial(a->trial);
+		Gok = G_eval(x, gx);
+		negTauTrial(FALSE);
+		if (!Gok) {
+			negTauMessage(what, sizeof(what));
+			sprintf(messageStr,
+					"\n -- Iteration %3d\n  Anderson: %s at the extrapolated point:"
+					" point rejected; plain step from the last accepted point\n",
+					niter, what);
+			Error(MESSAGE, NULL, messageStr);
+			Nnegtau++;
+			negTauReset();
+			andersonRejectTrial(a);
+			memcpy(x, gacc, Nstate * sizeof(double));
+			niter++;
+			continue;
+		}
 
 		dpopsmax = printChange(routineName, niter, x, gx);
 		sprintf(messageStr, "Total Iteration %3d", niter);
@@ -1046,6 +1086,13 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
 			a->Ndropped);
 	Error(MESSAGE, routineName, messageStr);
+	if (Nnegtau > 0) {
+		sprintf(messageStr,
+				" -- Anderson: %ld of the rejected points had a negative total"
+				" opacity (N-40)\n",
+				Nnegtau);
+		Error(MESSAGE, routineName, messageStr);
+	}
 	if (Ncarry > 0) {
 		sprintf(messageStr,
 				" -- Anderson: carried blocks equal to G at the last accepted"
@@ -1155,9 +1202,9 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	const char   routineName[] = "iterateNewton";
 	register int niter;
 
-	bool_t converged = FALSE, stopped = FALSE, accepted;
+	bool_t converged = FALSE, stopped = FALSE, accepted, Gok;
 	int    k = input.Newton_krylov_max, kmax, nback, Nhalve, n, ninf,
-		Nreason[GUARD_NRESULT];
+		Nreason[GUARD_NRESULT], Nnegtau = 0;
 	long i, Neval = 0, Nbase = 0, Nkrylov = 0, Nline = 0, Nplain = 0,
 			Nguard = 0, Nsteps = 0, Nlost = 0, Nrestore = 0;
 	double *x, *gx, *u, *gu, *r, *d, *xt, *gt, *ut, *gut, *rt, *w;
@@ -1266,6 +1313,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 
 		accepted = FALSE;
 		Nhalve   = 0;
+		Nnegtau  = 0;
 		memset(Nreason, 0, sizeof(Nreason));
 		dinf = 0.0;
 		ninf = 0;
@@ -1298,8 +1346,18 @@ void iterateNewton(int NmaxIter, double iterLimit)
 					Nreason[guard]++;
 					continue;
 				}
-				G_eval(xt, gt);
+				negTauReset();
+				negTauTrial(TRUE);
+				Gok = G_eval(xt, gt);
+				negTauTrial(FALSE);
 				Neval++;
+				if (!Gok) { /* negative opacity (N-40): halve */
+					Nhalve++;
+					Nguard++;
+					Nnegtau++;
+					negTauReset();
+					continue;
+				}
 				Nline++;
 				rtnorm = residualOf(xt, gt, ut, gut, validt, validgt, rt, w);
 
@@ -1323,12 +1381,12 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			sprintf(messageStr,
 					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
 					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); lambda %g"
-					" (guard halvings %d: %d not finite, %d negative),"
+					" (guard halvings %d: %d not finite, %d negative, %d negative opacity),"
 					" |R(trial)|_W %.3E; G evaluations %ld\n",
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
 					(gres.breakdown) ? " (invariant space)" : "", dinf,
 					blocks[ninf].name, lambda, Nhalve, Nreason[GUARD_NONFINITE],
-					Nreason[GUARD_NEGATIVE], rtnorm, Neval);
+					Nreason[GUARD_NEGATIVE], Nnegtau, rtnorm, Neval);
 			Error(MESSAGE, NULL, messageStr);
 			memcpy(x, xt, Nstate * sizeof(double));
 			memcpy(gx, gt, Nstate * sizeof(double));
@@ -1336,12 +1394,12 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			sprintf(messageStr,
 					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
 					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); no lambda accepted"
-					" (guard halvings %d: %d not finite, %d negative):"
+					" (guard halvings %d: %d not finite, %d negative, %d negative opacity):"
 					" plain step; G evaluations %ld\n",
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
 					(gres.breakdown) ? " (invariant space)" : "", dinf,
 					blocks[ninf].name, Nhalve, Nreason[GUARD_NONFINITE],
-					Nreason[GUARD_NEGATIVE], Neval);
+					Nreason[GUARD_NEGATIVE], Nnegtau, Neval);
 			Error(MESSAGE, NULL, messageStr);
 			Nplain++;
 			if (Neval >= NmaxIter) {

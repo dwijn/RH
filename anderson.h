@@ -74,6 +74,7 @@ void                 andersonDamp(const Anderson *a, const AndersonOptions *opt,
 								  const double *gamma, const AndersonSolve *info,
 								  double theta, double *u_next);
 void                 andersonAbandon(Anderson *a, double *u_next);
+void                 andersonRejectTrial(Anderson *a);
 
 #endif /* !__ANDERSON_H__ */
 

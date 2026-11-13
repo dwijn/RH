@@ -22,6 +22,7 @@
 #include "statistics.h"
 #include "solver.h"
 #include "inputs.h"
+#include "negtau.h"
 
 typedef struct {
 	bool_t eval_operator, redistribute;
@@ -385,6 +386,13 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 		   reads them --                                  -------------- */
 
 	mergeRates(redistribute);
+
+	/* --- A wavelength whose total opacity was negative enough to
+		   overflow the formal solution was skipped (N-40): stop with a
+		   message, unless a solver is evaluating a trial point, which it
+		   then rejects --                                -------------- */
+
+	negTauStop();
 
 	sprintf(messageStr, " Spectrum max delta J = %6.4E (lambda#: %d)\n",
 			dJmax, lambda_max);

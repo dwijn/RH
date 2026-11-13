@@ -16,7 +16,7 @@ void        stateScatter(const double *x);
 int         stateNblocks(void);
 const char *stateBlockName(int n);
 long        stateBlockSize(int n);
-void        G_eval(const double *x_in, double *x_out);
+bool_t      G_eval(const double *x_in, double *x_out);
 long        G_count(void);
 
 void iterateFixedPoint(int NmaxIter, double iterLimit);

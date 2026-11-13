@@ -19,12 +19,15 @@
 #include "geometry.h"
 #include "error.h"
 #include "inputs.h"
+#include "negtau.h"
 #include "background.h"
 #include "constant.h"
 #include "statistics.h"
 #include "xdr.h"
 
 /* --- Function prototypes --                          -------------- */
+
+static bool_t negTauRay(int nspect, int mu, const double *chi);
 
 /* --- Global variables --                             -------------- */
 
@@ -44,7 +47,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	bool_t              initialize, boundbound, PRD_angle_dep, polarized;
 	enum FeautrierOrder F_order;
 	int                 Nspace = atmos.Nspace, Nrays = atmos.Nrays;
-	double             *I, *chi, *S, *Psi, *Jdag, dJ, dJmax, *J;
+	double             *I, *chi, *S, *Psi, *Jdag, dJ, dJmax = 0.0, *J;
 	ActiveSet          *as;
 	Ray                *ray;
 
@@ -108,6 +111,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
                     as->eta_c[k] + as->sca_c[k] * Jdag[k]) /
 				   chi[k];
 		}
+		for (mu = 0; mu < Nrays; mu++)
+			if (negTauRay(nspect, mu, chi)) goto cleanup;
+
 		for (mu = 0; mu < Nrays; mu++) {
 			spectrum.I[nspect][mu] =
 				Feautrier(nspect, mu, chi, S, F_order = STANDARD, I, Psi);
@@ -140,7 +146,11 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		}
 		if (input.limit_memory) writeJlambda(nspect, J);
 	}
-	/* --- Clean up --                                 ---------------- */
+	/* --- Clean up; the formal solution of this wavelength stops here
+		   when the opacity is negative enough to break it (N-40; the
+		   caller stops the run or rejects the trial point) -- ------- */
+
+cleanup:
 
 	if (input.limit_memory) free(J);
 	free_as(nspect, eval_operator);
@@ -154,6 +164,36 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	return dJmax;
 }
 /* ------- end ---------------------------- Formal.c ---------------- */
+
+/* ------- begin -------------------------- negTauRay.c ------------- */
+
+static bool_t negTauRay(int nspect, int mu, const double *chi)
+{
+	register int k;
+
+	Ray    *ray = geometry.rays + mu;
+	bool_t  hit;
+	double *dtau;
+
+	/* --- N-40: the optical depth of each interval along ray mu, which
+		   runs through the radii 0 .. Ns - 1 at path positions s; the
+		   Feautrier solution has no exponential to overflow, but its
+		   difference equations lose their meaning just the same.
+		   Nothing to do where no total opacity is negative -- ------ */
+
+	for (k = 0; k < ray->Ns; k++)
+		if (chi[k] < 0.0) break;
+	if (k == ray->Ns) return FALSE;
+
+	dtau = (double *) malloc((ray->Ns - 1) * sizeof(double));
+	for (k = 0; k < ray->Ns - 1; k++)
+		dtau[k] = 0.5 * (chi[k] + chi[k + 1]) * fabs(ray->s[k] - ray->s[k + 1]);
+	hit = negTauCheck(nspect, mu, -1, ray->Ns - 1, dtau, NULL);
+	free(dtau);
+
+	return hit;
+}
+/* ------- end ---------------------------- negTauRay.c ------------- */
 
 /* ------- begin -------------------------- writeFlux.c ------------- */
 
