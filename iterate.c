@@ -369,6 +369,7 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 		/* --- Else call the solution for wavelengths sequentially -- --- */
 
 		for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+			if (negTauFound()) break; /* the sweep is void (N-40) */
 			if (!redistribute ||
 				(redistribute && containsPRDline(&spectrum.as[nspect]))) {
 				dJ = Formal(nspect, eval_operator, redistribute);
@@ -420,6 +421,7 @@ void *Formal_pthread(void *argument)
 	ti->lambda_max = -1;
 
 	for (nspect = ti->nt; nspect < spectrum.Nspect; nspect += ti->Nthreads) {
+		if (negTauFound()) break; /* the sweep is void (N-40) */
 		if (!ti->redistribute ||
 			(ti->redistribute && containsPRDline(&spectrum.as[nspect]))) {
 			dJ = Formal(nspect, ti->eval_operator, ti->redistribute);

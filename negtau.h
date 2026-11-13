@@ -7,7 +7,7 @@
 	   optical depth, and the formal solvers overflow when the run is
 	   deeper than about -709. Each Formal() checks the opacity of every
 	   wavelength and ray before solving: the most negative optical depth
-	   summed over consecutive intervals with negative optical depth, and
+	   summed over a contiguous stretch of intervals (Kadane), and
 	   skips the rest of that wavelength when it is below NEG_TAU_LIMIT.
 
 	   Outside a trial point, solveSpectrum then stops the run with a
@@ -31,8 +31,8 @@
 
 double negTauRun(int Ninterval, const double *dtau, int *kfirst, int *klast);
 bool_t negTauCheck(int nspect, int mu, int to_obs, int Ninterval,
-				   const double *dtau, const long *column);
-bool_t negTauColumns(int nspect, int mu, bool_t to_obs, int Nz, long Ncol,
+				   const double *dtau, long column);
+bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
 					 const double *chi, const double *z, double muz);
 
 void   negTauTrial(bool_t trial);

@@ -988,6 +988,8 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			negTauReset();
 			andersonRejectTrial(a);
 			memcpy(x, gacc, Nstate * sizeof(double));
+			sprintf(messageStr, "Total Iteration %3d", niter);
+			getCPU(2, TIME_POLL, messageStr);
 			niter++;
 			continue;
 		}
@@ -1136,7 +1138,7 @@ typedef struct {
 	const unsigned char *mask;          /* entries in the step */
 	double              *up, *xp, *gp, *gup, h;
 	unsigned char       *validp;
-	long                 Nprobe, Ninvalid;
+	long                 Nprobe, Ninvalid, Nnegtau;
 } FDContext;
 
 static void fdProduct(void *vctx, const double *v, double *y)
@@ -1158,7 +1160,22 @@ static void fdProduct(void *vctx, const double *v, double *y)
 	eps   = c->h / ((vnorm > 0.0) ? vnorm : 1.0);
 	for (i = 0; i < Nstate; i++) c->up[i] = (c->mask[i]) ? c->u[i] + eps * v[i] : 0.0;
 	fromVars(c->up, c->x, c->mask, c->xp);
-	G_eval(c->xp, c->gp);
+
+	/* --- A probe whose total opacity is negative enough to overflow
+		   (N-40) has no image: its product is zero, as for invalid
+		   entries, and GMRES works with the directions it has -- --- */
+
+	negTauReset();
+	negTauTrial(TRUE);
+	if (!G_eval(c->xp, c->gp)) {
+		negTauTrial(FALSE);
+		negTauReset();
+		c->Nprobe++;
+		c->Nnegtau++;
+		for (i = 0; i < Nstate; i++) y[i] = 0.0;
+		return;
+	}
+	negTauTrial(FALSE);
 	c->Nprobe++;
 	toVars(c->gp, c->gup, c->validp);
 	for (i = 0; i < Nstate; i++) {
@@ -1251,6 +1268,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	ctx.h        = h;
 	ctx.Nprobe   = 0;
 	ctx.Ninvalid = 0;
+	ctx.Nnegtau  = 0;
 
 	sprintf(messageStr,
 			"\n -- SOLVER = NEWTON_KRYLOV: %ld unknowns in %d blocks; PRD"
@@ -1457,6 +1475,13 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			Neval, Nsteps, Nbase, Nkrylov, Nline, Nlost, Nplain, Nguard,
 			ctx.Ninvalid, Nrestore);
 	Error(MESSAGE, routineName, messageStr);
+	if (ctx.Nnegtau > 0) {
+		sprintf(messageStr,
+				" -- Newton: %ld Jacobian probes had a negative total opacity"
+				" (N-40) and gave a zero product\n",
+				ctx.Nnegtau);
+		Error(MESSAGE, routineName, messageStr);
+	}
 
 	if (input.solve_ne == ITERATION) BackgroundOfState(TRUE);
 

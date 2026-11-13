@@ -67,7 +67,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	bool_t initialize, boundbound, polarized_as, polarized_c,
 		PRD_angle_dep, to_obs, solveStokes, angle_dep;
-	int      Nspace = atmos.Nspace, Nrays = atmos.Nrays;
+	int      Nspace = atmos.Nspace, Nrays = atmos.Nrays, muslant;
 	long int idx;
 	double  *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
 						 dJmax = 0.0, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
@@ -371,10 +371,11 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		if (eval_operator) addtoCoupling(nspect);
 
 		for (k = 0; k < Nspace; k++) chi[k] = as->chi[k] + as->chi_c[k];
-		for (mu = 0; mu < Nrays; mu++)
-			if (negTauColumns(nspect, mu, FALSE, Nspace, 1, chi, geometry.height,
-							  geometry.muz[mu]))
-				goto cleanup;
+		for (mu = 1, muslant = 0; mu < Nrays; mu++) /* the most slanted ray */
+			if (geometry.muz[mu] < geometry.muz[muslant]) muslant = mu;
+		if (negTauColumns(nspect, muslant, -1, Nspace, 1, chi, geometry.height,
+						  geometry.muz[muslant]))
+			goto cleanup;
 		for (k = 0; k < Nspace; k++)
 			S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k]) / chi[k];
 

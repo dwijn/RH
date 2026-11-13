@@ -45,23 +45,27 @@ double negTauRun(int Ninterval, const double *dtau, int *kfirst, int *klast)
 	int    start = 0;
 	double run = 0.0, runmin = 0.0;
 
-	/* --- The most negative sum of dtau over a run of consecutive
-		   intervals with dtau < 0, and the first and last interval of
-		   that run (-1 if there is none). Interval k lies between
-		   points k and k + 1 --                         -------------- */
+	/* --- The most negative sum of dtau over a contiguous stretch of
+		   intervals (Kadane's minimum-subarray sum), and its first and
+		   last interval (-1 if no interval is negative). Interval k lies
+		   between points k and k + 1. The intensity along the ray grows
+		   by exp(-dtau) per interval, so this sum, not a run of
+		   negative intervals only, sets how far it can grow: a zero or
+		   slightly positive interval between negative ones does not
+		   stop the growth --                            -------------- */
 
 	*kfirst = *klast = -1;
 	for (k = 0; k < Ninterval; k++) {
-		if (dtau[k] < 0.0) {
-			if (run == 0.0) start = k;
-			run += dtau[k];
-			if (run < runmin) {
-				runmin  = run;
-				*kfirst = start;
-				*klast  = k;
-			}
+		if (k == 0 || run > 0.0) { /* a positive sum only adds */
+			run   = dtau[k];
+			start = k;
 		} else
-			run = 0.0;
+			run += dtau[k];
+		if (run < runmin) {
+			runmin  = run;
+			*kfirst = start;
+			*klast  = k;
+		}
 	}
 	return runmin;
 }
@@ -70,17 +74,17 @@ double negTauRun(int Ninterval, const double *dtau, int *kfirst, int *klast)
 /* ------- begin -------------------------- negTauCheck.c ----------- */
 
 bool_t negTauCheck(int nspect, int mu, int to_obs, int Ninterval,
-				   const double *dtau, const long *column)
+				   const double *dtau, long column)
 {
 	int    kfirst, klast;
 	double tau = negTauRun(Ninterval, dtau, &kfirst, &klast);
 
-	/* --- dtau[k] is the optical depth of interval k along the ray
-		   (for 2-D and 3-D the most negative over the columns, which
-		   column[k] names; NULL in 1-D and spherical geometry). to_obs
-		   is the direction, -1 for none (a spherical ray, whose
-		   Feautrier solution covers both). Records
-		   a run below NEG_TAU_LIMIT and returns TRUE for it -- ----- */
+	/* --- dtau[k] is the optical depth of interval k along ray mu;
+		   to_obs is the direction (-1: none, for an angle-independent
+		   check or a spherical ray, whose Feautrier solution covers
+		   both) and column the column in 2-D and 3-D (-1 in 1-D and
+		   spherical geometry). Records a stretch below NEG_TAU_LIMIT and
+		   returns TRUE for it --                        -------------- */
 
 	if (!(tau < NEG_TAU_LIMIT)) return FALSE;
 
@@ -92,7 +96,7 @@ bool_t negTauCheck(int nspect, int mu, int to_obs, int Ninterval,
 		detected.to_obs = to_obs;
 		detected.kfirst = kfirst;
 		detected.klast  = klast;
-		detected.column = (column) ? column[kfirst] : -1;
+		detected.column = column;
 		detected.tau    = tau;
 	}
 	pthread_mutex_unlock(&lock);
@@ -103,46 +107,56 @@ bool_t negTauCheck(int nspect, int mu, int to_obs, int Ninterval,
 
 /* ------- begin -------------------------- negTauColumns.c --------- */
 
-bool_t negTauColumns(int nspect, int mu, bool_t to_obs, int Nz, long Ncol,
+bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
 					 const double *chi, const double *z, double muz)
 {
 	register long c, n;
 	register int  k;
 
-	bool_t  hit;
-	long   *column;
-	double *dtau, d;
+	int     kf, kl;
+	long    cmin = -1;
+	double *dtau = NULL, tau, taumin = 0.0;
 
 	/* --- Plane-parallel geometries: chi[k * Ncol + c] at height z[k]
-		   in column c (1-D: Ncol = 1). The optical depth of interval k
-		   along a ray with direction cosine muz is taken in the column
-		   where it is most negative, a bound for a ray that crosses
-		   columns in 2-D and 3-D. Nothing to do where no total opacity
-		   is negative, the common case: one pass over chi -- ------- */
+		   in column c (1-D: Ncol = 1); also a spherical ray, with its
+		   path positions as z, Ncol = 1 and muz = 1. Each column is
+		   checked along the vertical scaled by 1 / muz. A ray in 2-D or
+		   3-D crosses columns, but the threshold is more than ten times
+		   short of an overflow, and a bound over all columns (each
+		   interval in the column where it is most negative) could stop
+		   a run that would finish. Nothing to do where no total
+		   opacity is negative, the common case: one pass over chi -- */
 
 	for (n = 0; n < Nz * Ncol; n++)
 		if (chi[n] < 0.0) break;
 	if (n == Nz * Ncol) return FALSE;
 
-	dtau   = (double *) malloc((Nz - 1) * sizeof(double));
-	column = (long *) malloc((Nz - 1) * sizeof(long));
-	for (k = 0; k < Nz - 1; k++) {
-		dtau[k]   = HUGE_VAL;
-		column[k] = 0;
-		for (c = 0; c < Ncol; c++) {
-			d = chi[k * Ncol + c] + chi[(k + 1) * Ncol + c];
-			if (d < dtau[k]) {
-				dtau[k]   = d;
-				column[k] = c;
-			}
-		}
-		dtau[k] *= 0.5 * fabs(z[k] - z[k + 1]) / muz;
-	}
-	hit = negTauCheck(nspect, mu, to_obs, Nz - 1, dtau, (Ncol > 1) ? column : NULL);
-	free(dtau);
-	free(column);
+	dtau = (double *) malloc((Nz - 1) * sizeof(double));
+	for (c = 0; c < Ncol; c++) {
+		for (k = 0; k < Nz; k++)
+			if (chi[k * Ncol + c] < 0.0) break;
+		if (k == Nz) continue;
 
-	return hit;
+		for (k = 0; k < Nz - 1; k++)
+			dtau[k] = 0.5 * (chi[k * Ncol + c] + chi[(k + 1) * Ncol + c]) *
+					  fabs(z[k] - z[k + 1]) / muz;
+		tau = negTauRun(Nz - 1, dtau, &kf, &kl);
+		if (tau < taumin) {
+			taumin = tau;
+			cmin   = c;
+		}
+	}
+	if (!(taumin < NEG_TAU_LIMIT)) {
+		free(dtau);
+		return FALSE;
+	}
+	for (k = 0; k < Nz - 1; k++)
+		dtau[k] = 0.5 * (chi[k * Ncol + cmin] + chi[(k + 1) * Ncol + cmin]) *
+				  fabs(z[k] - z[k + 1]) / muz;
+	negTauCheck(nspect, mu, to_obs, Nz - 1, dtau, (Ncol > 1) ? cmin : -1);
+	free(dtau);
+
+	return TRUE;
 }
 /* ------- end ---------------------------- negTauColumns.c --------- */
 
@@ -161,7 +175,16 @@ void negTauTrial(bool_t is_trial)
 
 bool_t negTauFound(void)
 {
-	return detected.found;
+	bool_t found;
+
+	/* --- Also read by the threads of solveSpectrum, to skip the
+		   wavelengths left once one has been found --   -------------- */
+
+	pthread_mutex_lock(&lock);
+	found = detected.found;
+	pthread_mutex_unlock(&lock);
+
+	return found;
 }
 /* ------- end ---------------------------- negTauFound.c ----------- */
 
@@ -187,7 +210,7 @@ void negTauMessage(char *message, size_t size)
 
 	snprintf(message, size,
 			 "negative total opacity at lambda = %.6f nm (wavelength %d),"
-			 " ray %d%s: optical depth %.4g over depth intervals %d-%d%s"
+			 " ray %d%s: optical depth %.4g between depth points %d and %d%s"
 			 " (limit %g)",
 			 spectrum.lambda[detected.nspect], detected.nspect, detected.mu,
 			 (detected.to_obs < 0) ? "" : (detected.to_obs) ? " upward"
