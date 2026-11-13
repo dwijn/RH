@@ -123,7 +123,7 @@ typedef struct {
 	int isum, Ngdelay, Ngorder, Ngperiod, NmaxIter,
 		PRD_NmaxIter, PRD_Ngdelay, PRD_Ngorder, PRD_Ngperiod,
 		NmaxScatter, Nthreads, CR_Nstep;
-	double iterLimit, PRDiterLimit, metallicity, CR_factor;
+	double iterLimit, PRDiterLimit, PRD_damping, metallicity, CR_factor;
 
 	pthread_attr_t thread_attr;
 } InputData;

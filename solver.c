@@ -276,6 +276,7 @@ static double prdSubIterations(int Nsub)
 					PRDAngleScatter(line);
 				else
 					PRDScatter(line);
+				PRDDamp(line, old, N);
 
 				drho = relChange(old, line->rho_prd[0], N);
 				sprintf(messageStr, "  PRD: sub-iteration %d, atom %s, line %d,"
