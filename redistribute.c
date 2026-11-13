@@ -41,22 +41,33 @@ extern char        messageStr[];
 	   sub-iteration can flip the sign of the change of rho, and an
 	   odd number of them carries the flip into the main iteration:
 	   plain G on 2d_pert_h6_ca_mg with the Mg II atom of before B-44
-	   ends in a period-2 cycle at 4e-6 --            -------------- */
+	   ends in a period-2 cycle at 4e-6.
 
-void PRDDamp(AtomicLine *line, const double *old, long N)
+	   Returns the largest relative change of the undamped update,
+	   max |rho - old| / |rho| over rho != 0 (the residual of the
+	   sub-iteration, which the PRD_ITER_LIMIT test and the log use;
+	   the damped step is PRD_DAMPING times it), or 0 without old --- */
+
+double PRDDamp(AtomicLine *line, const double *old, long N)
 {
 	const char    routineName[] = "PRDDamp";
 	const double  w             = input.PRD_damping;
-	double       *rho           = line->rho_prd[0];
-	static bool_t told          = FALSE;
+	double       *rho = line->rho_prd[0], dmax = 0.0;
+	static bool_t told = FALSE;
 
 	if (!told) {
 		sprintf(messageStr, " PRD sub-iterations: PRD_DAMPING = %g\n", w);
 		Error(MESSAGE, routineName, messageStr);
 		told = TRUE;
 	}
-	if (w == 1.0) return;
-	for (long k = 0; k < N; k++) rho[k] = old[k] + w * (rho[k] - old[k]);
+	if (old == NULL) return 0.0;
+	for (long k = 0; k < N; k++) {
+		if (rho[k]) dmax = MAX(dmax, fabs((rho[k] - old[k]) / rho[k]));
+	}
+	if (w != 1.0) {
+		for (long k = 0; k < N; k++) rho[k] = old[k] + w * (rho[k] - old[k]);
+	}
+	return dmax;
 }
 /* ------- end ---------------------------- PRDDamp.c --------------- */
 
@@ -70,7 +81,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 	bool_t      quiet, accel, eval_operator, redistribute;
 	int         niter, Nlamu;
 	long        NlamuL;
-	double      drho, drhomax, drhomaxa, *old = NULL;
+	double      drho, dres = 0.0, drhomax, drhomaxa, *old = NULL;
 	Atom       *atom;
 	AtomicLine *line;
 
@@ -122,12 +133,21 @@ void Redistribute(int NmaxIter, double iterLimit)
 						PRDAngleScatter(line);
 					else
 						PRDScatter(line);
-					PRDDamp(line, old, line->Ng_prd->N);
+					dres = PRDDamp(line, old, line->Ng_prd->N);
+
+					/* --- Damped, the change of rho is PRD_DAMPING times
+						   the residual; the log and the PRD_ITER_LIMIT
+						   test use the residual (N-38) --  -------------- */
 
 					accel = Accelerate(line->Ng_prd, line->rho_prd[0]);
 					sprintf(messageStr, "  PRD: iter #%d, atom %s, line %d,",
 							line->Ng_prd->count - 1, atom->ID, kr);
-					drho = MaxChange(line->Ng_prd, messageStr, quiet = FALSE);
+					if (input.PRD_damping == 1.0)
+						drho = MaxChange(line->Ng_prd, messageStr, quiet = FALSE);
+					else {
+						drho = dres;
+						fprintf(commandline.logfile, "%s delta = %6.4E", messageStr, drho);
+					}
 					sprintf(messageStr, "%s", NgStatus(line->Ng_prd, accel));
 					Error(MESSAGE, routineName, messageStr);
 
