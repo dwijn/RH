@@ -718,38 +718,36 @@ static double *setupVariables(enum solver_variables     kind,
 enum GuardResult { GUARD_OK,
 				   GUARD_NONFINITE,
 				   GUARD_NEGATIVE,
-				   GUARD_INVERSION };
+				   GUARD_NRESULT };
 
-static const char *guardName[] = {"ok", "not finite", "negative",
-								  "new line inversion"};
+static const char *guardName[] = {"ok", "not finite", "negative"};
 
 static enum GuardResult guardTrial(const double *xt, const double *gx,
 								   const double *xb)
 {
 	register long i;
-	register int  n, kr;
+	register int  n;
 
-	long        off, k, Nspace = atmos.Nspace, il, iu;
-	Atom       *atom;
-	AtomicLine *line;
+	long off;
 
-	/* --- The extrapolated point must be finite, must not be negative
-		   where G's point is not (and with RELATIVE not zero where it
-		   is positive; in LOG a zero is an underflow of exp, not a
-		   sign change), and must not invert a line at a depth where
-		   G's point does not (n_l / g_l > n_u / g_u): a strong
-		   inverted line makes the total opacity at its centre
-		   negative, and the formal solver overflows (SOLVER.md trap
-		   5). Continua are not checked (S-13): converged solutions
-		   often have inverted continua, and that test held the
-		   iteration back from them without a failure to prevent.
-		   Negative values and inversions G itself makes (the LU
+	/* --- The extrapolated point must be finite and must not be
+		   negative where G's point is not (and with RELATIVE not zero
+		   where it is positive; in LOG a zero is an underflow of exp,
+		   not a sign change). Negative values G itself makes (the LU
 		   fallback of statEquil, N-31) are left alone.
 
+		   Population inversions are not checked. Converged solutions
+		   have inverted continua and lines (S-13), and a test on line
+		   inversions did not keep the total opacity from going
+		   negative, which is what breaks the formal solver (SOLVER.md
+		   trap 5); that is now detected where it happens, in the
+		   formal solution (N-40). The continuum test went in S-13, the
+		   line test in S-14.
+
 		   With a base point xb (Newton: the trial is xb + lambda d), a
-		   value or inversion only counts as new where neither G's point
-		   nor xb has it, so that a small enough lambda always passes;
-		   Anderson passes NULL. --                      -------------- */
+		   value only counts as new where neither G's point nor xb has
+		   it, so that a small enough lambda always passes; Anderson
+		   passes NULL. --                               -------------- */
 
 	for (i = 0; i < Nstate; i++)
 		if (!isfinite(xt[i])) return GUARD_NONFINITE;
@@ -762,21 +760,6 @@ static enum GuardResult guardTrial(const double *xt, const double *gx,
 					(varKind == VARIABLES_RELATIVE && xt[i] == 0.0 &&
 					 gx[i] > 0.0 && !(xb && !(xb[i] > 0.0))))
 					return GUARD_NEGATIVE;
-		}
-		if (blocks[n].kind != BLOCK_ATOM) continue;
-
-		atom = (Atom *) blocks[n].owner;
-		for (kr = 0; kr < atom->Nline; kr++) {
-			line = atom->line + kr;
-			il   = off + (long) line->i * Nspace;
-			iu   = off + (long) line->j * Nspace;
-			for (k = 0; k < Nspace; k++) {
-				if (gx[il + k] * atom->g[line->j] > gx[iu + k] * atom->g[line->i] &&
-					(!xb ||
-					 xb[il + k] * atom->g[line->j] > xb[iu + k] * atom->g[line->i]) &&
-					!(xt[il + k] * atom->g[line->j] > xt[iu + k] * atom->g[line->i]))
-					return GUARD_INVERSION;
-			}
 		}
 	}
 	return GUARD_OK;
@@ -1174,7 +1157,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 
 	bool_t converged = FALSE, stopped = FALSE, accepted;
 	int    k = input.Newton_krylov_max, kmax, nback, Nhalve, n, ninf,
-		Nreason[4];
+		Nreason[GUARD_NRESULT];
 	long i, Neval = 0, Nbase = 0, Nkrylov = 0, Nline = 0, Nplain = 0,
 			Nguard = 0, Nsteps = 0, Nlost = 0, Nrestore = 0;
 	double *x, *gx, *u, *gu, *r, *d, *xt, *gt, *ut, *gut, *rt, *w;
@@ -1340,12 +1323,12 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			sprintf(messageStr,
 					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
 					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); lambda %g"
-					" (guard halvings %d: %d not finite, %d negative, %d inversion),"
+					" (guard halvings %d: %d not finite, %d negative),"
 					" |R(trial)|_W %.3E; G evaluations %ld\n",
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
 					(gres.breakdown) ? " (invariant space)" : "", dinf,
 					blocks[ninf].name, lambda, Nhalve, Nreason[GUARD_NONFINITE],
-					Nreason[GUARD_NEGATIVE], Nreason[GUARD_INVERSION], rtnorm, Neval);
+					Nreason[GUARD_NEGATIVE], rtnorm, Neval);
 			Error(MESSAGE, NULL, messageStr);
 			memcpy(x, xt, Nstate * sizeof(double));
 			memcpy(gx, gt, Nstate * sizeof(double));
@@ -1353,12 +1336,12 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			sprintf(messageStr,
 					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
 					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); no lambda accepted"
-					" (guard halvings %d: %d not finite, %d negative, %d inversion):"
+					" (guard halvings %d: %d not finite, %d negative):"
 					" plain step; G evaluations %ld\n",
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
 					(gres.breakdown) ? " (invariant space)" : "", dinf,
 					blocks[ninf].name, Nhalve, Nreason[GUARD_NONFINITE],
-					Nreason[GUARD_NEGATIVE], Nreason[GUARD_INVERSION], Neval);
+					Nreason[GUARD_NEGATIVE], Neval);
 			Error(MESSAGE, NULL, messageStr);
 			Nplain++;
 			if (Neval >= NmaxIter) {
