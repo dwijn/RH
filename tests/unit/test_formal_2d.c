@@ -18,6 +18,10 @@
 	   I- on the "layers" mesh; convergence order on a cubic S; Psi of
 	   the linear solver against the response to a unit S.
 
+	   The stencils of fillMesh, short and long characteristics, on an
+	   uneven mesh: exact for linear fields, and for quadratic ones
+	   where all four points are present.
+
 	   The interpolation itself (Interp_2D): exact for linear and
 	   quadratic data, never outside the range of the two values it
 	   interpolates between, and continuous in the data; and the
@@ -591,6 +595,134 @@ static void check_linear_interp(bool_t verbose)
 		  "LINEAR_2D: emergent error %.3g not in [2e-3, 8e-3]", cubic.emergent);
 }
 
+/* --- The stencils of fillMesh on a periodic mesh with uneven
+	   spacing in x and z, rays of either sign of mux and both shallow
+	   and steep (long characteristics): every short- and long-
+	   characteristic stencil reproduces a field linear in x and z at
+	   its crossing point, and, where all four points are present, x^2
+	   (horizontal crossings) or z^2 (vertical ones). Stencils that wrap
+	   around the periodic boundary are skipped: their coordinates are
+	   not monotonic. Measured (gcc, x86-64): 13336 short-
+	   characteristic stencils, linear 1.1e-13; 7184 with four points,
+	   quadratic 6.8e-13 (values up to 2.5e3); 574 long-characteristic
+	   ones, linear 5.7e-14 --                    -------------- */
+
+static void check_stencils(bool_t verbose)
+{
+	enum { Nx    = 40,
+		   Nz    = 30,
+		   Nrays = 6 };
+	const double mux[Nrays] = {0.6, -0.6, 0.95, -0.95, 0.2, -0.2},
+				 muz[Nrays] = {0.5, 0.5, 0.15, 0.15, 0.9, 0.9};
+	Geometry geo            = {0};
+	double   X[Nx * Nz], Z[Nx * Nz], L[Nx * Nz], Qx[Nx * Nz], Qz[Nx * Nz];
+	double   err_lin = 0.0, err_quad = 0.0, err_long = 0.0;
+	int      n_lin = 0, n_quad = 0, n_long = 0;
+
+	geo.hboundary = PERIODIC;
+	geo.Nx        = Nx;
+	geo.Nz        = Nz;
+	geo.Nrays     = Nrays;
+	geo.x         = malloc(Nx * sizeof(double));
+	geo.dx        = malloc(Nx * sizeof(double));
+	geo.z         = malloc(Nz * sizeof(double));
+	geo.dz        = malloc(Nz * sizeof(double));
+	geo.mux       = malloc(Nrays * sizeof(double));
+	geo.muy       = malloc(Nrays * sizeof(double));
+	geo.muz       = malloc(Nrays * sizeof(double));
+	geo.wmu       = malloc(Nrays * sizeof(double));
+	for (int l = 0; l < Nx; l++) {
+		geo.dx[l] = (l % 3 == 0) ? 0.7 : ((l % 3 == 1) ? 1.0 : 1.3);
+		geo.x[l]  = (l == 0) ? 10.0 : geo.x[l - 1] + geo.dx[l - 1];
+	}
+	for (int k = 0; k < Nz; k++)
+		geo.z[k] = (k == 0) ? -10.0 : geo.z[k - 1] - ((k % 2) ? 0.4 : 0.9);
+	for (int k = 0; k < Nz - 1; k++) geo.dz[k] = geo.z[k] - geo.z[k + 1];
+	geo.dz[Nz - 1] = 0.0;
+	for (int mu = 0; mu < Nrays; mu++) {
+		geo.mux[mu] = mux[mu];
+		geo.muz[mu] = muz[mu];
+		geo.muy[mu] = sqrt(MAX(0.0, 1.0 - SQ(mux[mu]) - SQ(muz[mu])));
+		geo.wmu[mu] = 1.0 / Nrays;
+	}
+	fillMesh(&geo);
+
+	for (int k = 0; k < Nz; k++)
+		for (int l = 0; l < Nx; l++) {
+			int n = k * Nx + l;
+			X[n]  = geo.x[l];
+			Z[n]  = geo.z[k];
+			L[n]  = 3.0 + 2.0 * X[n] - 5.0 * Z[n];
+			Qx[n] = SQ(X[n]);
+			Qz[n] = SQ(Z[n]);
+		}
+
+	/* --- Short characteristics: UPWIND below the top layer, DOWNWIND
+		   above the bottom one --                       -------------- */
+
+	for (int mu = 0; mu < Nrays; mu++)
+		for (int d = UPWIND; d <= DOWNWIND; d++)
+			for (int n = 0; n < Nx * Nz; n++) {
+				const Stencil *st   = &geo.stencil[mu][n];
+				const int     *ix   = st->index[d];
+				const double   t    = st->fraction[d];
+				bool_t         wrap = FALSE;
+
+				if ((d == UPWIND && n < Nx) || (d == DOWNWIND && n >= (Nz - 1) * Nx))
+					continue;
+				for (int m = 0; m < 3; m++)
+					if (ix[m] >= 0 && ix[m + 1] >= 0 && fabs(X[ix[m + 1]] - X[ix[m]]) > 2.0)
+						wrap = TRUE;
+				if (wrap) continue;
+
+				double xc = (1.0 - t) * X[ix[1]] + t * X[ix[2]],
+					   zc = (1.0 - t) * Z[ix[1]] + t * Z[ix[2]];
+
+				err_lin = MAX(err_lin, fabs(Interp_2D(L, st, d) - (3.0 + 2.0 * xc - 5.0 * zc)));
+				n_lin++;
+				if (ix[0] >= 0 && ix[3] >= 0) {
+					double q = (st->intersect[d] == HORIZONTAL)
+								   ? fabs(Interp_2D(Qx, st, d) - SQ(xc))
+								   : fabs(Interp_2D(Qz, st, d) - SQ(zc));
+					err_quad = MAX(err_quad, q);
+					n_quad++;
+				}
+			}
+
+	/* --- Long characteristics: DOWN sweep below the top layer, UP
+		   sweep above the bottom one --                 -------------- */
+
+	for (int mu = 0; mu < Nrays; mu++)
+		for (int sweep = DOWN; sweep <= UP; sweep++)
+			for (int k = (sweep == DOWN) ? 1 : 0; k < ((sweep == DOWN) ? Nz : Nz - 1); k++) {
+				const LongChar *lc = &geo.longchar[mu][sweep * Nz + k];
+
+				for (int j = 0; j < lc->Nlc; j++) {
+					const Stencil *st = &lc->stencil[j];
+					const int     *ix = st->index[UPWIND];
+					const double   t  = st->fraction[UPWIND];
+
+					if (fabs(X[ix[2]] - X[ix[1]]) > 2.0) continue;
+					double xc = (1.0 - t) * X[ix[1]] + t * X[ix[2]],
+						   zc = (1.0 - t) * Z[ix[1]] + t * Z[ix[2]];
+
+					err_long = MAX(err_long, fabs(Interp_2D(L, st, UPWIND) -
+												  (3.0 + 2.0 * xc - 5.0 * zc)));
+					n_long++;
+				}
+			}
+
+	if (verbose)
+		printf("STENCILS short: %d linear %.1e, %d quadratic %.1e; long: %d linear %.1e\n",
+			   n_lin, err_lin, n_quad, err_quad, n_long, err_long);
+	CHECK(n_lin > 10000 && n_quad > 5000 && n_long > 100,
+		  "stencils: too few checked (%d short, %d quadratic, %d long)", n_lin, n_quad,
+		  n_long);
+	CHECK(err_lin <= 1.0e-12, "stencils: linear field, error %.3g", err_lin);
+	CHECK(err_quad <= 2.0e-12, "stencils: quadratic field, error %.3g", err_quad);
+	CHECK(err_long <= 1.0e-12, "long characteristics: linear field, error %.3g", err_long);
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
@@ -608,6 +740,7 @@ int main(int argc, char *argv[])
 	for (int n = 0; n < N_METHODS; n++) check_method(&methods[n], verbose);
 	check_psi_linear(1.0e-14, verbose); /* layers: 2.2e-16 */
 	check_interp(verbose);
+	check_stencils(verbose);
 	check_linear_interp(verbose);
 	check_stokes(verbose);
 
