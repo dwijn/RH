@@ -576,15 +576,17 @@ static void check_interp(bool_t verbose)
 	   on "columns" (Nz = 161) the Bezier3 solver's emergent error for
 	   cubic S grows from 1.0e-4 to 4.1e-3 -- ------------------------ */
 
+static Slab *linear_slab; /* reachable to the end, as slabs[][] */
+
 static void check_linear_interp(bool_t verbose)
 {
 	const double lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
 
 	input.interpolate_2D = LINEAR_2D;
-	Slab  *slab          = slab_new(161, mesh_dx[1], FALSE);
-	Errors up            = ray_errors(Piecewise_Bezier3_2D, slab, lin, TRUE),
-		   cubic         = ray_errors(Piecewise_Bezier3_2D, slab, cub, TRUE);
-	input.interpolate_2D = BEZIER_2D;
+	Slab  *slab = linear_slab = slab_new(161, mesh_dx[1], FALSE);
+	Errors up                 = ray_errors(Piecewise_Bezier3_2D, slab, lin, TRUE),
+		   cubic              = ray_errors(Piecewise_Bezier3_2D, slab, cub, TRUE);
+	input.interpolate_2D      = BEZIER_2D;
 
 	if (verbose)
 		printf("LINEAR_2D columns Nz 161: linear S up %.2e; cubic S emergent %.2e\n",
@@ -614,10 +616,10 @@ static void check_stencils(bool_t verbose)
 		   Nrays = 6 };
 	const double mux[Nrays] = {0.6, -0.6, 0.95, -0.95, 0.2, -0.2},
 				 muz[Nrays] = {0.5, 0.5, 0.15, 0.15, 0.9, 0.9};
-	Geometry geo            = {0};
-	double   X[Nx * Nz], Z[Nx * Nz], L[Nx * Nz], Qx[Nx * Nz], Qz[Nx * Nz];
-	double   err_lin = 0.0, err_quad = 0.0, err_long = 0.0;
-	int      n_lin = 0, n_quad = 0, n_long = 0;
+	static Geometry geo; /* reachable to the end */
+	double          X[Nx * Nz], Z[Nx * Nz], L[Nx * Nz], Qx[Nx * Nz], Qz[Nx * Nz];
+	double          err_lin = 0.0, err_quad = 0.0, err_long = 0.0;
+	int             n_lin = 0, n_quad = 0, n_long = 0;
 
 	geo.hboundary = PERIODIC;
 	geo.Nx        = Nx;

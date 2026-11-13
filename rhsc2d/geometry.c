@@ -42,6 +42,7 @@
 
 	   --                                              -------------- */
 
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 
@@ -63,7 +64,8 @@ void setStencil(Geometry *geometry, Stencil *stencil,
 void setVertStencil(Geometry *geometry, Stencil *stencil,
 					enum direction direction, double ds, int l, int k);
 
-void fillLongChar(Geometry *geometry, int mu, int k, enum sweep sweep);
+void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
+				  enum sweep sweep);
 
 /* --- Global variables --                             -------------- */
 
@@ -158,7 +160,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][DOWN * Nz + k];
 					if (count == 0) {
 						lc->lstart = Nx - 1;
-						fillLongChar(geometry, mu, k, DOWN);
+						fillLongChar(geometry, mu, k, order, DOWN);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -207,7 +209,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][UP * Nz + k];
 					if (count == 0) {
 						lc->lstart = 0;
-						fillLongChar(geometry, mu, k, UP);
+						fillLongChar(geometry, mu, k, order, UP);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -289,7 +291,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][DOWN * Nz + k];
 					if (count == 0) {
 						lc->lstart = 0;
-						fillLongChar(geometry, mu, k, DOWN);
+						fillLongChar(geometry, mu, k, order, DOWN);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -338,7 +340,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][UP * Nz + k];
 					if (count == 0) {
 						lc->lstart = Nx - 1;
-						fillLongChar(geometry, mu, k, UP);
+						fillLongChar(geometry, mu, k, order, UP);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -462,8 +464,16 @@ void setStencilWeights(Stencil *stencil, enum direction direction,
 		   point is missing) to the weights Interp_2D uses, so that it
 		   needs no division --                           -------------- */
 
+	/* --- Where a point is missing (h = 0) Interp_2D does not read its
+		   1/h, which is then 1/DBL_MIN, finite. A guarded division,
+		   h[n] > 0.0 ? 1.0 / h[n] : 0.0, traps on 1/0 with the
+		   floating-point exceptions of SetFPEtraps: compilers (icx,
+		   clang) turn the guard into a select and compute the division
+		   for every n anyway, and they do the same with a guarded
+		   divisor. fmax is not a select -- ----------------------- */
+
 	for (int n = 0; n < 3; n++)
-		stencil->ih[direction][n] = (h[n] > 0.0) ? 1.0 / h[n] : 0.0;
+		stencil->ih[direction][n] = 1.0 / fmax(h[n], DBL_MIN);
 	stencil->a[direction][0] = (h[0] > 0.0) ? h[1] / (h[0] + h[1]) : 0.0;
 	stencil->a[direction][1] = (h[2] > 0.0) ? h[2] / (h[1] + h[2]) : 0.0;
 	stencil->hc[direction]   = h[1] / 3.0;
@@ -472,12 +482,12 @@ void setStencilWeights(Stencil *stencil, enum direction direction,
 
 /* ------- begin -------------------------- fillLongChar.c ---------- */
 
-void fillLongChar(Geometry *geometry, int mu, int k, enum sweep sweep)
+void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
+				  enum sweep sweep)
 {
 	register int l, n;
 
-	enum SC_order order = (input.interpolate_2D == LINEAR_2D) ? SC_LINEAR : SC_BEZIER;
-	int           Nx = geometry->Nx, Nz = geometry->Nz, dl, k_upwind, count,
+	int Nx = geometry->Nx, Nz = geometry->Nz, dl, k_upwind, count,
 		l_intersect;
 	double mux, muz, dx_total, dx_intersect, dz, dz_total, ds_total,
 		ds, fraction;
@@ -535,11 +545,10 @@ void fillLongChar(Geometry *geometry, int mu, int k, enum sweep sweep)
 		   coefficients, and pathlength.
 
 	 Note: Interpolation data is stored in an array of Stencil structures
-		   so that the setStencil function can be used to determine the
-		   interpolation coefficients, and Quadr can be used to do the
-		   actual interpolation. Only the UPWIND half of each stencil is
-		   used because the long characteristic is solved only in one
-		   direction, towards the root. --               -------------- */
+		   so that setStencil can determine the indices and weights, and
+		   Interp_2D can do the actual interpolation. Only the UPWIND
+		   half of each stencil is used because the long characteristic
+		   is solved only in one direction, towards the root. -- ------ */
 
 	lc->Nlc     = count;
 	lc->stencil = (Stencil *) malloc(count * sizeof(Stencil));
