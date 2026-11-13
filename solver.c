@@ -908,7 +908,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			" sub-iterations per G: %d;\n    ANDERSON_DEPTH = %d,"
 			" ANDERSON_DELAY = %d, ANDERSON_COND_MAX = %.1E,\n"
 			"    ANDERSON_SAFEGUARD = %g, ANDERSON_VARIABLES = %s,"
-			" ANDERSON_COEFFICIENTS = %s,\n    ANDERSON_EXTRAPOLATE = %s:"
+			" ANDERSON_COEFFICIENTS = %s,\n    ANDERSON_EXTRAPOLATE = %s%s:"
 			" %ld unknowns in %d blocks extrapolated;\n    memory: history"
 			" and variables %.1f MB, x, G(x) and G at the last accepted"
 			" point %.1f MB\n",
@@ -917,15 +917,19 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			input.Anderson_safeguard,
 			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
 			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
-			extrapolateName[input.Anderson_extrapolate], Npacked, Npack,
+			extrapolateName[input.Anderson_extrapolate],
+			input.Anderson_extrapolate_default ? " (the default)" : "", Npacked, Npack,
 			((3.0 * m + 7 + (varKind == VARIABLES_RELATIVE)) * sizeof(double) + m + 4) *
 				Npacked / 1.0E6,
 			3.0 * sizeof(double) * Nstate / 1.0E6);
 	Error(MESSAGE, routineName, messageStr);
-	/* --- Without PRD lines there is no rho to extrapolate: say so,
-		   the run goes on as POPULATIONS (S-11) --     -------------- */
+	/* --- Without PRD lines there is no rho to extrapolate: say so
+		   when the keyword file asked for POPULATIONS_RHO, the run goes
+		   on as POPULATIONS (S-11). The 2-D and 3-D default says
+		   nothing: the banner lists the extrapolated blocks -- ----- */
 
-	if (input.Anderson_extrapolate == EXTRAPOLATE_POPULATIONS_RHO) {
+	if (input.Anderson_extrapolate == EXTRAPOLATE_POPULATIONS_RHO &&
+		!input.Anderson_extrapolate_default) {
 		for (n = 0; n < Nblocks && blocks[n].kind != BLOCK_RHO; n++);
 		if (n == Nblocks) {
 			sprintf(messageStr,

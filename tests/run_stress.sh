@@ -87,11 +87,12 @@ done
 # be compared without summation-order noise (some cases, e.g. He_large, end at
 # visibly different "converged" solutions for different thread counts).
 #
-# Cases run each program's default solver: ANDERSON in 1-D and spherical
-# geometry, NG in 2-D and 3-D (S-10). Those that test the Ng iteration
-# itself (no Ng, PRD Ng, collisional relaxation, tight convergence without Ng)
-# pin it with $NG: SOLVER = NG and the Ng settings of the shipped rhf1d
-# keyword file, written out, since S-10 removes them from that file. They
+# Cases run each program's default solver: ANDERSON everywhere (S-10; S-11
+# in 2-D and 3-D, where it extrapolates POPULATIONS_RHO). Those that test
+# the Ng iteration itself (no Ng, PRD Ng, collisional relaxation, tight
+# convergence without Ng) pin it with $NG: SOLVER = NG and the Ng settings
+# the shipped keyword files had, written out, since S-10 and S-11 removed
+# them from those files. They
 # keep testing Ng when the default changes. --kw settings come after a
 # case's own; a G solver set there stops these cases at input, because they
 # set keywords it does not honour.

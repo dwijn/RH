@@ -257,7 +257,8 @@ if(Python3_Interpreter_FOUND)
   add_test(NAME e2e_solver_default
            COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/solver_default.py
                    --rhf1d $<TARGET_FILE:rhf1d> --rhsphere $<TARGET_FILE:rhsphere>
-                   --rhsc2d $<TARGET_FILE:rhsc2d> --src ${PROJECT_SOURCE_DIR})
+                   --rhsc2d $<TARGET_FILE:rhsc2d> --rhsc3d $<TARGET_FILE:rhsc3d>
+                   --src ${PROJECT_SOURCE_DIR})
   set_tests_properties(e2e_solver_default PROPERTIES LABELS e2e TIMEOUT 900)
   add_test(NAME e2e_solver_newton
            COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/solver_newton.py

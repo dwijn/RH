@@ -1700,7 +1700,11 @@ memory its history takes; RSS is the peak of the Ng run.
 and 6 decided by the user (revised the same day: viable against Ng,
 the 1-D switch on the mean ratio). It implements item 7(a) of
 the default-solver design above (§9 Q1 for Anderson). Step 1 (the code)
-is #310. Measurements (step 2) and defaults (step 3) are still to come.
+is #310. Step 3 (the defaults): the user decided 2026-11-13 from the 2-D
+measurements that `ANDERSON` with `POPULATIONS_RHO` is the default of
+`rhsc2d` and `rhsc3d`, and that 1-D keeps `ALL` (the numbers are in
+`docs/changes/S-11.md`). The write-up of step 2, with the 1-D
+measurements redone after S-13, is still to come.
 
 - The plumbing of decision 2 is checked by the solver itself. Before
   every evaluation after the first, the carried blocks of x are
