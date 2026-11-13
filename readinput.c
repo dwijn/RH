@@ -131,8 +131,7 @@ void readInput()
 		 KEYWORD_REQUIRED, &input.pfData, setcharValue},
 		{"SOLVE_NE", "NONE", FALSE, KEYWORD_DEFAULT, &input.solve_ne,
 		 setnesolution},
-		/* --- NG is the default in 2-D and 3-D; ANDERSON in 1-D and
-			   spherical geometry, set below (S-10) -- -- */
+		/* --- ANDERSON in every geometry (S-10, S-11) -- -- */
 		{"SOLVER", "ANDERSON", FALSE, KEYWORD_DEFAULT, &input.solver, setsolver},
 		{"ANDERSON_DEPTH", "10", FALSE, KEYWORD_DEFAULT, &input.Anderson_depth,
 		 setintValue},
@@ -146,6 +145,7 @@ void readInput()
 		 &input.Anderson_variables, setSolverVariables},
 		{"ANDERSON_COEFFICIENTS", "GLOBAL", FALSE, KEYWORD_DEFAULT,
 		 &input.Anderson_coefficients, setAndersonCoefficients},
+		/* --- POPULATIONS_RHO in 2-D and 3-D, set below (S-11) -- */
 		{"ANDERSON_EXTRAPOLATE", "ALL", FALSE, KEYWORD_DEFAULT,
 		 &input.Anderson_extrapolate, setAndersonExtrapolate},
 		{"NEWTON_NOISE", "1.0E-10", FALSE, KEYWORD_DEFAULT, &input.Newton_noise,

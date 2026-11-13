@@ -86,8 +86,9 @@ structure.
   - Realistic 3-D runs are still out of reach, at tens of TB. The
     causes are line profiles stored per ray, dense rate and collision
     matrices, per-thread copies and PRD weights (§3.3, plan step 6).
-  - Anderson's history can now cover only the populations (S-11), the
-    prerequisite for making it the default in 2-D and 3-D.
+  - Anderson's history can cover only the populations and the PRD ρ
+    (S-11), which makes it the default in 2-D and 3-D at 1.65× Ng's
+    memory on the 2-D perf case instead of 3.8×.
 - **Code and testing:**
   - CMake builds. The Fortran is gone, and one C Voigt function replaces
     five.
@@ -109,8 +110,8 @@ structure.
     instead of calling `exit()` (Q-7, high severity, first in plan
     step 7).
 - **Next:**
-  - Measure S-11's settings and set the defaults.
-  - Fix N-33, then make `ANDERSON` the default in 2-D and 3-D.
+  - Write up the S-11 measurements; settle the PRD sub-iteration
+    damping (N-38).
   - The rest of step 4, then speed (step 5) and memory (step 6).
   - Report the upstream bugs of §3.9 to upstream RH.
 
@@ -628,7 +629,7 @@ item that resolves them lands.
 | [S-8](https://github.com/dwijn/RH/issues/124) | medium | Pseudo-transient continuation and physics continuation (CRD → +ne → +PRD → finer grid), warm starts from neighbouring columns or snapshots | N-9 (partly) | open |
 | [S-9](https://github.com/dwijn/RH/issues/125) | low | Mesh-independent convergence: multigrid preconditioner or nonlinear multigrid (FAS), for fine-grid RMHD columns | N-14 (iteration count only) | open |
 | [S-10](https://github.com/dwijn/RH/issues/293) | medium | `ANDERSON` the default solver of `rhf1d` and `rhsphere`; `rhsc2d` and `rhsc3d` stay on `NG` until S-11. Every keyword that is set is checked against the solver that runs, independent of the atoms (an unset `PRD_ITER_LIMIT` is 0 under a G solver); keyword files with Ng keywords and no `SOLVER` stop with a generic message, no fallback to `NG`; the default is printed; shipped 1-D keyword files without Ng keywords; test tools that mean Ng pin `SOLVER = NG`. Changes results (SOLVER.md, Anderson as the default solver, decided 2026-11-10) | — | fixed |
-| [S-11](https://github.com/dwijn/RH/issues/294) | medium | Anderson's history in 2-D and 3-D: the state is 60 % J and 39 % PRD ρ in the shipped examples, so 40 history vectors take about 24 GB on the 2-D perf case (10.7 GB run) and about 17 TB on the 3-D estimate of §3.3. Extrapolate only the populations (perhaps ρ) and carry J from the last G, as Ng does; measure on the S-5 set in 1-D, then on `2d_pert_h6_ca_mg` after N-33. Prerequisite of `ANDERSON` as the multi-D default (SOLVER.md §9 Q1) | — | open |
+| [S-11](https://github.com/dwijn/RH/issues/294) | medium | Anderson's history in 2-D and 3-D: the state is 60 % J and 39 % PRD ρ in the shipped examples, so 40 history vectors take about 24 GB on the 2-D perf case (10.7 GB run) and about 17 TB on the 3-D estimate of §3.3. Extrapolate only the populations (perhaps ρ) and carry J from the last G, as Ng does; measure on the S-5 set in 1-D, then on `2d_pert_h6_ca_mg` after N-33. Prerequisite of `ANDERSON` as the multi-D default (SOLVER.md §9 Q1). `ANDERSON` with `POPULATIONS_RHO` is the default in 2-D and 3-D; 1-D keeps `ALL` (decided 2026-11-13). Changes results | — | fixed |
 | [S-12](https://github.com/dwijn/RH/issues/306) | low | Decreasing-envelope safeguard for Anderson: with c = 1 (`ANDERSON_SAFEGUARD`; a point is accepted only if its residual is at most that of the newest accepted pair, `anderson.c:391`) `shock_h6` rejects 78 of 282 points at m = 5 (31 of 146 at m = 10), and m = 5 then needs 12 % more G evaluations than plain G (580 against 517; the rejected points' evaluations count). Try the decreasing envelope of Zhang, O'Donoghue & Boyd (2020), which also accepts a point whose residual is under a slowly shrinking bound; keep it only if it beats plain G on `shock_h6` without costing the easy controls of S-5 | SOLVER.md, Safeguards (S-3) and S-5 Results | open |
 | [S-13](https://github.com/dwijn/RH/issues/307) | low | A margin in Anderson's inversion guard: the check for new population inversions (line test on n/g, continuum test with n/n* and the Boltzmann factor at the edge) damps or replaces extrapolated points from the first extrapolations on: on `falc_helarge` 105 damped and 44 plain steps, the same at m = 3, 5 and 10; also often on `falc_civi`, `t5750_h6` and `falc_mgi66`, though Anderson still wins clearly there. Cause not measured: first find which test fires, for which transitions and how far past the threshold (levels with nearly equal n/g, or n/n* across an edge, would flip on tiny changes); then try a small relative margin and measure guard actions and work on the S-5 set | SOLVER.md, Safeguards (S-3) and S-5 Results | open |
 
