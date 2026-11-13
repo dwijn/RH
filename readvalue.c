@@ -338,6 +338,29 @@ void setThreadValue(char *value, void *pointer)
 }
 /* ------- end ---------------------------- setThreadValue.c -------- */
 
+/* ------- begin -------------------------- setInterpolate_2D.c ----- */
+
+void setInterpolate_2D(char *value, void *pointer)
+{
+	const char routineName[] = "setInterpolate_2D";
+
+	enum order_2D order;
+
+	if (!strcmp(value, "LINEAR_2D"))
+		order = LINEAR_2D;
+	else if (!strcmp(value, "BEZIER_2D"))
+		order = BEZIER_2D;
+	else {
+		sprintf(messageStr,
+				"\n  Invalid value for keyword INTERPOLATE_2D: %s\n"
+				"  Use BEZIER_2D (monotonic cubic Bezier) or LINEAR_2D",
+				value);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+	memcpy(pointer, &order, sizeof(enum order_2D));
+}
+/* ------- end ---------------------------- setInterpolate_2D.c ----- */
+
 /* ------- begin -------------------------- setInterpolate_3D.c ----- */
 
 void setInterpolate_3D(char *value, void *pointer)

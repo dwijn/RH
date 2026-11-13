@@ -11,12 +11,21 @@
 		  solvers then reduce to the 1-D ones;
 	   -- "columns": columns narrow enough that deep layers are crossed
 		  at column lines, where S, chi and I are interpolated
-		  vertically between layers (quadratic, monotonic).
+		  vertically between layers (monotonic cubic Bezier, N-37).
 
 	   Checks: all columns agree; I+ is exact for linear S (a linear
 	   function of height survives any of the interpolations), and so is
 	   I- on the "layers" mesh; convergence order on a cubic S; Psi of
 	   the linear solver against the response to a unit S.
+
+	   The stencils of fillMesh, short and long characteristics, on an
+	   uneven mesh: exact for linear fields, and for quadratic ones
+	   where all four points are present.
+
+	   The interpolation itself (Interp_2D): exact for linear and
+	   quadratic data, never outside the range of the two values it
+	   interpolates between, and continuous in the data; and the
+	   INTERPOLATE_2D = LINEAR_2D option on "columns".
 
 	   Polarized (Piece_Stokes_Bezier3_2D) with a constant propagation
 	   matrix and an unpolarized source vector (stokes_exact.h): with
@@ -116,6 +125,50 @@ static Slab *slab_new(int Nz, double DX, bool_t uneven)
 
 	fillMesh(geo);
 	return slab;
+}
+
+/* --- Free what fillMesh allocated and the arrays of the mesh (RH
+	   itself keeps its mesh to the end of the run). Long
+	   characteristics: DOWN sweep from layer 1, UP sweep to layer
+	   Nz - 2, with stencils where Nlc > 0 --         -------------- */
+
+static void mesh_free(Geometry *geo)
+{
+	for (int mu = 0; mu < geo->Nrays; mu++) {
+		free(geo->stencil[mu]);
+		if (geo->longchar == NULL) continue;
+		for (int k = 1; k < geo->Nz; k++)
+			if (geo->longchar[mu][DOWN * geo->Nz + k].Nlc > 0)
+				free(geo->longchar[mu][DOWN * geo->Nz + k].stencil);
+		for (int k = 0; k < geo->Nz - 1; k++)
+			if (geo->longchar[mu][UP * geo->Nz + k].Nlc > 0)
+				free(geo->longchar[mu][UP * geo->Nz + k].stencil);
+		free(geo->longchar[mu]);
+	}
+	free(geo->stencil);
+	free(geo->longchar);
+	if (geo->Itop != NULL) freeMatrix((void **) geo->Itop);
+	if (geo->Ibottom != NULL) freeMatrix((void **) geo->Ibottom);
+	free(geo->x);
+	free(geo->dx);
+	free(geo->z);
+	free(geo->dz);
+	free(geo->mux);
+	free(geo->muy);
+	free(geo->muz);
+	free(geo->wmu);
+}
+
+static void slab_free(Slab *slab)
+{
+	mesh_free(&slab->geo);
+	free(slab->tau);
+	free(slab->chi);
+	free(slab->S);
+	free(slab->S1);
+	free(slab->I);
+	free(slab->Psi);
+	free(slab);
 }
 
 static void set_source(Slab *slab, const double s[NPOLY])
@@ -486,14 +539,245 @@ static void check_stokes(bool_t verbose)
 	CHECK(em[2] <= 7.0e-5, "STOKES, layers: emergent error %.3g > 7e-5", em[2]);
 }
 
+/* --- Interp_2D on a stencil over four points with uneven spacing,
+	   with both, one or neither neighbour of the interval -- -------- */
+
+static double interp_at(const double v[4], const double h[3], double t,
+						bool_t left, bool_t right)
+{
+	Stencil st = {0};
+
+	st.order[UPWIND]    = SC_BEZIER;
+	st.fraction[UPWIND] = t;
+	for (int n = 0; n < 4; n++) st.index[UPWIND][n] = n;
+	double hs[3] = {left ? h[0] : 0.0, h[1], right ? h[2] : 0.0};
+
+	if (!left) st.index[UPWIND][0] = -1;
+	if (!right) st.index[UPWIND][3] = -1;
+	setStencilWeights(&st, UPWIND, hs);
+	return Interp_2D(v, &st, UPWIND);
+}
+
+static void check_interp(bool_t verbose)
+{
+	const double h[3] = {0.7, 1.0, 1.6}, x[4] = {0.0, 0.7, 1.7, 3.3};
+	double       lin[4], quad[4], err_lin = 0.0, err_quad = 0.0;
+
+	/* --- Exact for linear data with any neighbours, and for this
+		   quadratic (monotonic and gentle enough that the Steffen
+		   limiter does not act) with at least one -- -------------- */
+
+	for (int n = 0; n < 4; n++) {
+		lin[n]  = 2.0 - 3.0 * x[n];
+		quad[n] = x[n] * (x[n] + 3.0);
+	}
+	for (int m = 0; m < 4; m++)
+		for (int i = 0; i <= 20; i++) {
+			double t = i / 20.0, xi = x[1] + t * h[1];
+			bool_t left = m & 1, right = m & 2;
+
+			err_lin = MAX(err_lin, fabs(interp_at(lin, h, t, left, right) -
+										(2.0 - 3.0 * xi)));
+			if (left || right)
+				err_quad = MAX(err_quad, fabs(interp_at(quad, h, t, left, right) -
+											  xi * (xi + 3.0)));
+		}
+	if (verbose)
+		printf("INTERP   linear data %.1e, quadratic %.1e\n", err_lin, err_quad);
+	CHECK(err_lin <= 1.0e-14, "Interp_2D: linear data, error %.3g", err_lin);
+	CHECK(err_quad <= 1.0e-13, "Interp_2D: quadratic data, error %.3g", err_quad);
+
+	/* --- Bounded by the two values and continuous: sweep the value
+		   of one neighbour across the others, where the quadratic
+		   interpolation with its switch to linear jumped -- --------- */
+
+	const double base[3][4] = {{0.0, 1.0, 1.2, 0.0}, {2.0, 1.0, 1.2, 3.0}, {1.0, 0.0, 1.0, 0.0}};
+	double       out = 0.0, jump = 0.0;
+	const int    Nsweep = 4000;
+
+	for (int b = 0; b < 3; b++)
+		for (int side = 0; side <= 3; side += 3)
+			for (int i = 1; i <= 20; i++) {
+				double t = i / 21.0, v[4], prev = 0.0;
+
+				for (int j = 0; j <= Nsweep; j++) {
+					memcpy(v, base[b], sizeof(v));
+					v[side]  = -3.0 + 6.0 * j / Nsweep;
+					double y = interp_at(v, h, t, TRUE, TRUE);
+
+					out = MAX(out, MAX(MIN(v[1], v[2]) - y, y - MAX(v[1], v[2])));
+					if (j > 0) jump = MAX(jump, fabs(y - prev) / (6.0 / Nsweep));
+					prev = y;
+				}
+			}
+	if (verbose)
+		printf("INTERP   outside [y0, y1] by %.1e; largest dI/dv %.2f\n", out, jump);
+	CHECK(out <= 0.0, "Interp_2D: outside the range of the end values by %.3g", out);
+	CHECK(jump <= 1.0, "Interp_2D: dI/dv of a neighbour %.3g, not continuous", jump);
+}
+
+/* --- INTERPOLATE_2D = LINEAR_2D: linear S still exact upward;
+	   on "columns" (Nz = 161) the Bezier3 solver's emergent error for
+	   cubic S grows from 1.0e-4 to 4.1e-3 -- ------------------------ */
+
+static void check_linear_interp(bool_t verbose)
+{
+	const double lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
+
+	input.interpolate_2D = LINEAR_2D;
+	Slab  *slab          = slab_new(161, mesh_dx[1], FALSE);
+	Errors up            = ray_errors(Piecewise_Bezier3_2D, slab, lin, TRUE),
+		   cubic         = ray_errors(Piecewise_Bezier3_2D, slab, cub, TRUE);
+	input.interpolate_2D = BEZIER_2D;
+
+	if (verbose)
+		printf("LINEAR_2D columns Nz 161: linear S up %.2e; cubic S emergent %.2e\n",
+			   MAX(up.interior, up.ends), cubic.emergent);
+	CHECK(MAX(up.interior, up.ends) <= 1.0e-12, "LINEAR_2D: linear S, I+ error %.3g",
+		  MAX(up.interior, up.ends));
+	CHECK(cubic.emergent >= 2.0e-3 && cubic.emergent <= 8.0e-3,
+		  "LINEAR_2D: emergent error %.3g not in [2e-3, 8e-3]", cubic.emergent);
+	slab_free(slab);
+}
+
+/* --- The stencils of fillMesh on a periodic mesh with uneven
+	   spacing in x and z, rays of either sign of mux and both shallow
+	   and steep (long characteristics): every short- and long-
+	   characteristic stencil reproduces a field linear in x and z at
+	   its crossing point, and, where all four points are present, x^2
+	   (horizontal crossings) or z^2 (vertical ones). Stencils that wrap
+	   around the periodic boundary are skipped: their coordinates are
+	   not monotonic. Measured (gcc, x86-64): 13336 short-
+	   characteristic stencils, linear 1.1e-13; 7184 with four points,
+	   quadratic 6.8e-13 (values up to 2.5e3); 574 long-characteristic
+	   ones, linear 5.7e-14 --                    -------------- */
+
+static void check_stencils(bool_t verbose)
+{
+	enum { Nx    = 40,
+		   Nz    = 30,
+		   Nrays = 6 };
+	const double mux[Nrays] = {0.6, -0.6, 0.95, -0.95, 0.2, -0.2},
+				 muz[Nrays] = {0.5, 0.5, 0.15, 0.15, 0.9, 0.9};
+	Geometry geo            = {0};
+	double   X[Nx * Nz], Z[Nx * Nz], L[Nx * Nz], Qx[Nx * Nz], Qz[Nx * Nz];
+	double   err_lin = 0.0, err_quad = 0.0, err_long = 0.0;
+	int      n_lin = 0, n_quad = 0, n_long = 0;
+
+	geo.hboundary = PERIODIC;
+	geo.Nx        = Nx;
+	geo.Nz        = Nz;
+	geo.Nrays     = Nrays;
+	geo.x         = malloc(Nx * sizeof(double));
+	geo.dx        = malloc(Nx * sizeof(double));
+	geo.z         = malloc(Nz * sizeof(double));
+	geo.dz        = malloc(Nz * sizeof(double));
+	geo.mux       = malloc(Nrays * sizeof(double));
+	geo.muy       = malloc(Nrays * sizeof(double));
+	geo.muz       = malloc(Nrays * sizeof(double));
+	geo.wmu       = malloc(Nrays * sizeof(double));
+	for (int l = 0; l < Nx; l++) {
+		geo.dx[l] = (l % 3 == 0) ? 0.7 : ((l % 3 == 1) ? 1.0 : 1.3);
+		geo.x[l]  = (l == 0) ? 10.0 : geo.x[l - 1] + geo.dx[l - 1];
+	}
+	for (int k = 0; k < Nz; k++)
+		geo.z[k] = (k == 0) ? -10.0 : geo.z[k - 1] - ((k % 2) ? 0.4 : 0.9);
+	for (int k = 0; k < Nz - 1; k++) geo.dz[k] = geo.z[k] - geo.z[k + 1];
+	geo.dz[Nz - 1] = 0.0;
+	for (int mu = 0; mu < Nrays; mu++) {
+		geo.mux[mu] = mux[mu];
+		geo.muz[mu] = muz[mu];
+		geo.muy[mu] = sqrt(MAX(0.0, 1.0 - SQ(mux[mu]) - SQ(muz[mu])));
+		geo.wmu[mu] = 1.0 / Nrays;
+	}
+	fillMesh(&geo);
+
+	for (int k = 0; k < Nz; k++)
+		for (int l = 0; l < Nx; l++) {
+			int n = k * Nx + l;
+			X[n]  = geo.x[l];
+			Z[n]  = geo.z[k];
+			L[n]  = 3.0 + 2.0 * X[n] - 5.0 * Z[n];
+			Qx[n] = SQ(X[n]);
+			Qz[n] = SQ(Z[n]);
+		}
+
+	/* --- Short characteristics: UPWIND below the top layer, DOWNWIND
+		   above the bottom one --                       -------------- */
+
+	for (int mu = 0; mu < Nrays; mu++)
+		for (int d = UPWIND; d <= DOWNWIND; d++)
+			for (int n = 0; n < Nx * Nz; n++) {
+				const Stencil *st   = &geo.stencil[mu][n];
+				const int     *ix   = st->index[d];
+				const double   t    = st->fraction[d];
+				bool_t         wrap = FALSE;
+
+				if ((d == UPWIND && n < Nx) || (d == DOWNWIND && n >= (Nz - 1) * Nx))
+					continue;
+				for (int m = 0; m < 3; m++)
+					if (ix[m] >= 0 && ix[m + 1] >= 0 && fabs(X[ix[m + 1]] - X[ix[m]]) > 2.0)
+						wrap = TRUE;
+				if (wrap) continue;
+
+				double xc = (1.0 - t) * X[ix[1]] + t * X[ix[2]],
+					   zc = (1.0 - t) * Z[ix[1]] + t * Z[ix[2]];
+
+				err_lin = MAX(err_lin, fabs(Interp_2D(L, st, d) - (3.0 + 2.0 * xc - 5.0 * zc)));
+				n_lin++;
+				if (ix[0] >= 0 && ix[3] >= 0) {
+					double q = (st->intersect[d] == HORIZONTAL)
+								   ? fabs(Interp_2D(Qx, st, d) - SQ(xc))
+								   : fabs(Interp_2D(Qz, st, d) - SQ(zc));
+					err_quad = MAX(err_quad, q);
+					n_quad++;
+				}
+			}
+
+	/* --- Long characteristics: DOWN sweep below the top layer, UP
+		   sweep above the bottom one --                 -------------- */
+
+	for (int mu = 0; mu < Nrays; mu++)
+		for (int sweep = DOWN; sweep <= UP; sweep++)
+			for (int k = (sweep == DOWN) ? 1 : 0; k < ((sweep == DOWN) ? Nz : Nz - 1); k++) {
+				const LongChar *lc = &geo.longchar[mu][sweep * Nz + k];
+
+				for (int j = 0; j < lc->Nlc; j++) {
+					const Stencil *st = &lc->stencil[j];
+					const int     *ix = st->index[UPWIND];
+					const double   t  = st->fraction[UPWIND];
+
+					if (fabs(X[ix[2]] - X[ix[1]]) > 2.0) continue;
+					double xc = (1.0 - t) * X[ix[1]] + t * X[ix[2]],
+						   zc = (1.0 - t) * Z[ix[1]] + t * Z[ix[2]];
+
+					err_long = MAX(err_long, fabs(Interp_2D(L, st, UPWIND) -
+												  (3.0 + 2.0 * xc - 5.0 * zc)));
+					n_long++;
+				}
+			}
+
+	if (verbose)
+		printf("STENCILS short: %d linear %.1e, %d quadratic %.1e; long: %d linear %.1e\n",
+			   n_lin, err_lin, n_quad, err_quad, n_long, err_long);
+	CHECK(n_lin > 10000 && n_quad > 5000 && n_long > 100,
+		  "stencils: too few checked (%d short, %d quadratic, %d long)", n_lin, n_quad,
+		  n_long);
+	CHECK(err_lin <= 1.0e-12, "stencils: linear field, error %.3g", err_lin);
+	CHECK(err_quad <= 2.0e-12, "stencils: quadratic field, error %.3g", err_quad);
+	CHECK(err_long <= 1.0e-12, "long characteristics: linear field, error %.3g", err_long);
+	mesh_free(&geo);
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
 
 	/* --- fillMesh reports the number of long characteristics -- */
 
-	commandline.logfile = stdout;
-	commandline.quiet   = !verbose;
+	commandline.logfile  = stdout;
+	commandline.quiet    = !verbose;
+	input.interpolate_2D = BEZIER_2D;
 
 	for (int r = 0; r < NREFINE; r++)
 		for (int m = 0; m < NMESH; m++)
@@ -501,6 +785,9 @@ int main(int argc, char *argv[])
 
 	for (int n = 0; n < N_METHODS; n++) check_method(&methods[n], verbose);
 	check_psi_linear(1.0e-14, verbose); /* layers: 2.2e-16 */
+	check_interp(verbose);
+	check_stencils(verbose);
+	check_linear_interp(verbose);
 	check_stokes(verbose);
 
 	return check_summary("test_formal_2d");

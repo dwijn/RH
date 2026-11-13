@@ -26,6 +26,8 @@ enum S_interpol { S_LINEAR,
 				  S_BEZIER3 };
 enum S_interpol_stokes { DELO_BEZIER3 };
 
+enum order_2D { LINEAR_2D,
+				BEZIER_2D };
 enum order_3D { LINEAR_3D,
 				BICUBIC_3D };
 enum ne_solution { NONE,
@@ -100,6 +102,7 @@ typedef struct {
 	enum S_interpol        S_interpolation;
 	enum S_interpol_stokes S_interpolation_stokes;
 	enum PRDangle          PRD_angle_dep;
+	enum order_2D          interpolate_2D;
 	enum order_3D          interpolate_3D;
 	enum ne_solution       solve_ne;
 	enum solver_type       solver;
@@ -148,6 +151,7 @@ void        setAndersonCoefficients(char *value, void *pointer);
 void        setAndersonExtrapolate(char *value, void *pointer);
 const char *solverName(enum solver_type solver);
 
+void setInterpolate_2D(char *value, void *pointer);
 void setInterpolate_3D(char *value, void *pointer);
 void set_S_Interpolation(char *value, void *pointer);
 void set_S_interpolation_stokes(char *value, void *pointer);

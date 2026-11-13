@@ -42,6 +42,7 @@
 
 	   --                                              -------------- */
 
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 
@@ -58,12 +59,13 @@
 void setStencil(Geometry *geometry, Stencil *stencil,
 				enum direction direction, enum intersect intersect,
 				double ds, double fraction, int l, int k,
-				enum triplet triplet, enum SC_order order);
+				enum SC_order order, enum sweep sweep);
 
 void setVertStencil(Geometry *geometry, Stencil *stencil,
 					enum direction direction, double ds, int l, int k);
 
-void fillLongChar(Geometry *geometry, int mu, int k, enum sweep sweep);
+void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
+				  enum sweep sweep);
 
 /* --- Global variables --                             -------------- */
 
@@ -76,8 +78,7 @@ void fillMesh(Geometry *geometry)
 {
 	register int mu, k, l;
 
-	enum triplet  vtriplet, htriplet;
-	enum SC_order horder, vorder;
+	enum SC_order order;
 	enum boundary hboundary = geometry->hboundary;
 	int           Nx = geometry->Nx, Nz = geometry->Nz, Nrays = geometry->Nrays,
 		count, Nlongchar = 0, Nstart, Nend;
@@ -106,7 +107,7 @@ void fillMesh(Geometry *geometry)
 	} else
 		geometry->longchar = NULL;
 
-	horder = SC_QUADRATIC;
+	order = (input.interpolate_2D == LINEAR_2D) ? SC_LINEAR : SC_BEZIER;
 
 	/* --- For each direction ray go through the x-z grid and store the
 		   stencil of interpolation indices and coefficients in the
@@ -127,13 +128,8 @@ void fillMesh(Geometry *geometry)
 				   ones in the reverse (UP) sweep of the formal solution
 				   --                                        -------------- */
 
-			vtriplet = LOWER_TRIPLET;
 			for (k = 1; k < Nz; k++) {
 				dz = geometry->dz[k - 1];
-				if (k == 1)
-					vorder = SC_LINEAR;
-				else
-					vorder = SC_QUADRATIC;
 
 				count = 0;
 				if (hboundary == PERIODIC)
@@ -143,11 +139,7 @@ void fillMesh(Geometry *geometry)
 				for (l = 0; l < Nend; l++) {
 					st = &geometry->stencil[mu][k * Nx + l];
 
-					dx = geometry->dx[l];
-					if (hboundary == FIXED && l == Nx - 2)
-						htriplet = LOWER_TRIPLET;
-					else
-						htriplet = UPPER_TRIPLET;
+					dx       = geometry->dx[l];
 					fraction = mux * dz / (muz * dx);
 
 					/* --- Characteristic intersects horizontal grid line? -- - */
@@ -155,10 +147,10 @@ void fillMesh(Geometry *geometry)
 					if (fraction <= 1.0) {
 						count++;
 						setStencil(geometry, st, UPWIND, HORIZONTAL, dz / muz,
-								   fraction, l, k - 1, htriplet, horder);
+								   fraction, l, k - 1, order, DOWN);
 					} else {
 						setStencil(geometry, st, UPWIND, VERTICAL, dx / mux,
-								   1.0 - 1.0 / fraction, l + 1, k - 1, vtriplet, vorder);
+								   1.0 - 1.0 / fraction, l + 1, k - 1, order, DOWN);
 					}
 				}
 				/* --- If no horizontal intersection occurred use long
@@ -168,7 +160,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][DOWN * Nz + k];
 					if (count == 0) {
 						lc->lstart = Nx - 1;
-						fillLongChar(geometry, mu, k, DOWN);
+						fillLongChar(geometry, mu, k, order, DOWN);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -185,13 +177,8 @@ void fillMesh(Geometry *geometry)
 				   for the DOWN sweep. These will be the UPWIND ones in
 				   the reverse (UP) sweep. --                  ------------ */
 
-			vtriplet = UPPER_TRIPLET;
 			for (k = 0; k < Nz - 1; k++) {
 				dz = geometry->dz[k];
-				if (k == Nz - 2)
-					vorder = SC_LINEAR;
-				else
-					vorder = SC_QUADRATIC;
 
 				count = 0;
 				if (hboundary == PERIODIC)
@@ -201,16 +188,7 @@ void fillMesh(Geometry *geometry)
 				for (l = Nstart; l < Nx; l++) {
 					st = &geometry->stencil[mu][k * Nx + l];
 
-					if (hboundary == FIXED) {
-						dx = geometry->dx[l - 1];
-						if (l == 1)
-							htriplet = UPPER_TRIPLET;
-						else
-							htriplet = LOWER_TRIPLET;
-					} else {
-						dx       = geometry->dx[MODULO(l - 1, Nx)];
-						htriplet = LOWER_TRIPLET;
-					}
+					dx       = geometry->dx[MODULO(l - 1, Nx)];
 					fraction = mux * dz / (muz * dx);
 
 					/* --- Characteristic intersects horizontal grid line? -- - */
@@ -218,10 +196,10 @@ void fillMesh(Geometry *geometry)
 					if (fraction <= 1.0) {
 						count++;
 						setStencil(geometry, st, DOWNWIND, HORIZONTAL, dz / muz,
-								   1.0 - fraction, l - 1, k + 1, htriplet, horder);
+								   1.0 - fraction, l - 1, k + 1, order, UP);
 					} else {
 						setStencil(geometry, st, DOWNWIND, VERTICAL, dx / mux,
-								   1.0 / fraction, l - 1, k, vtriplet, vorder);
+								   1.0 / fraction, l - 1, k, order, UP);
 					}
 				}
 				/* --- If no horizontal intersection occurred use long
@@ -231,7 +209,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][UP * Nz + k];
 					if (count == 0) {
 						lc->lstart = 0;
-						fillLongChar(geometry, mu, k, UP);
+						fillLongChar(geometry, mu, k, order, UP);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -281,13 +259,8 @@ void fillMesh(Geometry *geometry)
 				   ones in the reverse (UP) sweep of the formal solution
 				   --                                        -------------- */
 
-			vtriplet = LOWER_TRIPLET;
 			for (k = 1; k < Nz; k++) {
 				dz = geometry->dz[k - 1];
-				if (k == 1)
-					vorder = SC_LINEAR;
-				else
-					vorder = SC_QUADRATIC;
 
 				count = 0;
 				if (hboundary == PERIODIC)
@@ -297,16 +270,7 @@ void fillMesh(Geometry *geometry)
 				for (l = Nstart; l < Nx; l++) {
 					st = &geometry->stencil[mu][k * Nx + l];
 
-					if (hboundary == FIXED) {
-						dx = geometry->dx[l - 1];
-						if (l == 1)
-							htriplet = UPPER_TRIPLET;
-						else
-							htriplet = LOWER_TRIPLET;
-					} else {
-						dx       = geometry->dx[MODULO(l - 1, Nx)];
-						htriplet = LOWER_TRIPLET;
-					}
+					dx       = geometry->dx[MODULO(l - 1, Nx)];
 					fraction = -mux * dz / (muz * dx);
 
 					/* --- Characteristic intersects horizontal grid line? -- - */
@@ -314,10 +278,10 @@ void fillMesh(Geometry *geometry)
 					if (fraction <= 1.0) {
 						count++;
 						setStencil(geometry, st, UPWIND, HORIZONTAL, dz / muz,
-								   1.0 - fraction, l - 1, k - 1, htriplet, horder);
+								   1.0 - fraction, l - 1, k - 1, order, DOWN);
 					} else {
 						setStencil(geometry, st, UPWIND, VERTICAL, -dx / mux,
-								   1.0 - 1.0 / fraction, l - 1, k - 1, vtriplet, vorder);
+								   1.0 - 1.0 / fraction, l - 1, k - 1, order, DOWN);
 					}
 				}
 				/* --- If no horizontal intersection occurred use long
@@ -327,7 +291,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][DOWN * Nz + k];
 					if (count == 0) {
 						lc->lstart = 0;
-						fillLongChar(geometry, mu, k, DOWN);
+						fillLongChar(geometry, mu, k, order, DOWN);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -344,13 +308,8 @@ void fillMesh(Geometry *geometry)
 				   for the DOWN sweep. These will be the UPWIND ones in
 				   the reverse (UP) sweep. --                  ------------ */
 
-			vtriplet = UPPER_TRIPLET;
 			for (k = 0; k < Nz - 1; k++) {
 				dz = geometry->dz[k];
-				if (k == Nz - 2)
-					vorder = SC_LINEAR;
-				else
-					vorder = SC_QUADRATIC;
 
 				count = 0;
 				if (hboundary == PERIODIC)
@@ -360,11 +319,7 @@ void fillMesh(Geometry *geometry)
 				for (l = 0; l < Nend; l++) {
 					st = &geometry->stencil[mu][k * Nx + l];
 
-					dx = geometry->dx[l];
-					if (hboundary == FIXED && l == Nx - 2)
-						htriplet = LOWER_TRIPLET;
-					else
-						htriplet = UPPER_TRIPLET;
+					dx       = geometry->dx[l];
 					fraction = -mux * dz / (muz * dx);
 
 					/* --- Characteristic intersects horizontal grid line? -- - */
@@ -372,10 +327,10 @@ void fillMesh(Geometry *geometry)
 					if (fraction <= 1.0) {
 						count++;
 						setStencil(geometry, st, DOWNWIND, HORIZONTAL, dz / muz,
-								   fraction, l, k + 1, htriplet, horder);
+								   fraction, l, k + 1, order, UP);
 					} else {
 						setStencil(geometry, st, DOWNWIND, VERTICAL, -dx / mux,
-								   1.0 / fraction, l + 1, k, vtriplet, vorder);
+								   1.0 / fraction, l + 1, k, order, UP);
 					}
 				}
 				/* --- If no horizontal intersection occurred use long
@@ -385,7 +340,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][UP * Nz + k];
 					if (count == 0) {
 						lc->lstart = Nx - 1;
-						fillLongChar(geometry, mu, k, UP);
+						fillLongChar(geometry, mu, k, order, UP);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -412,22 +367,20 @@ void fillMesh(Geometry *geometry)
 void setVertStencil(Geometry *geometry, Stencil *stencil,
 					enum direction direction, double ds, int l, int k)
 {
-	register int n;
-
 	int Nx = geometry->Nx;
+
+	/* --- Purely vertical ray: the up- or downwind point is grid
+		   point (l, k) itself --                         -------------- */
 
 	stencil->intersect[direction] = HORIZONTAL;
 	stencil->ds[direction]        = ds;
 	stencil->fraction[direction]  = 0.0;
 	stencil->order[direction]     = SC_LINEAR;
-	stencil->triplet[direction]   = LOWER_TRIPLET;
 
-	for (n = 0; n < 3; n++)
-		stencil->index[direction][n] = k * Nx + l;
-
-	stencil->coeff[direction][0] = 1.0;
-	stencil->coeff[direction][1] = 0.0;
-	stencil->coeff[direction][2] = 0.0;
+	for (int n = 0; n < 4; n++) stencil->index[direction][n] = k * Nx + l;
+	for (int n = 0; n < 3; n++) stencil->ih[direction][n] = 0.0;
+	stencil->a[direction][0] = stencil->a[direction][1] = 0.0;
+	stencil->hc[direction]                              = 0.0;
 }
 /* ------- end ---------------------------- setVertStencil.c -------- */
 
@@ -436,109 +389,112 @@ void setVertStencil(Geometry *geometry, Stencil *stencil,
 void setStencil(Geometry *geometry, Stencil *stencil,
 				enum direction direction, enum intersect intersect,
 				double ds, double fraction, int l, int k,
-				enum triplet triplet, enum SC_order order)
+				enum SC_order order, enum sweep sweep)
 {
-	const char   routineName[] = "setStencil";
-	register int n;
+	const char routineName[] = "setStencil";
 
-	int    Nx = geometry->Nx, index[3];
-	double d0, d1, d2, ds0, ds1, ds2;
+	const bool_t periodic = (geometry->hboundary == PERIODIC);
+	const int    Nx = geometry->Nx, Nz = geometry->Nz;
+	int          p[4];
+	double       h[3];
+
+	/* --- The characteristic crosses the grid line between points l
+		   and l + 1 of layer k (HORIZONTAL), or between layers k and
+		   k + 1 on column line l (VERTICAL), at fraction of the way
+		   from l or k. Points p[1] and p[2] bound that interval; the
+		   cubic Bezier interpolation also uses the neighbours p[0] and
+		   p[3], which are -1 beyond a non-periodic boundary (the top
+		   and bottom always, the sides with FIXED boundaries).
+
+		   The stencil interpolates I in the given sweep, which has
+		   computed layer k (or k + 1) completely before it reaches the
+		   points that use the stencil, but not the layers further down
+		   (DOWN) or up (UP). A vertical crossing therefore leaves out
+		   the neighbour on that side, as the quadratic interpolation
+		   did with its choice of triplet -- -------------- */
 
 	if (fraction < 0.0) {
 		Error(ERROR_LEVEL_2, routineName,
 			  "Fractional index for interpolation should be > 0.0\n");
 	}
-	switch (direction) {
-	case UPWIND: break;
-	case DOWNWIND: break;
-	default:
-		Error(ERROR_LEVEL_2, routineName,
-			  "Invalid direction index for Stencil");
-	}
+	if (direction != UPWIND && direction != DOWNWIND)
+		Error(ERROR_LEVEL_2, routineName, "Invalid direction index for Stencil");
+
 	stencil->intersect[direction] = intersect;
 	stencil->ds[direction]        = ds;
 	stencil->fraction[direction]  = fraction;
-	stencil->triplet[direction]   = triplet;
 	stencil->order[direction]     = order;
 
-	if (order == SC_LINEAR) {
-		if (intersect == HORIZONTAL) {
-			if (geometry->hboundary == PERIODIC) {
-				stencil->index[direction][0] = k * Nx + MODULO(l, Nx);
-				stencil->index[direction][1] = k * Nx + MODULO(l + 1, Nx);
-			} else {
-				stencil->index[direction][0] = k * Nx + l;
-				stencil->index[direction][1] = k * Nx + l + 1;
-			}
-		} else {
-			if (geometry->hboundary == PERIODIC) l = MODULO(l, Nx);
-			stencil->index[direction][0] = k * Nx + l;
-			stencil->index[direction][1] = (k + 1) * Nx + l;
+	if (intersect == HORIZONTAL) {
+		for (int n = 0; n < 4; n++) {
+			p[n] = l + n - 1;
+			if (periodic)
+				p[n] = MODULO(p[n], Nx);
+			else if (p[n] < 0 || p[n] >= Nx)
+				p[n] = -1;
+			stencil->index[direction][n] = (p[n] < 0) ? -1 : k * Nx + p[n];
 		}
-
-		stencil->coeff[direction][0] = (1.0 - fraction);
-		stencil->coeff[direction][1] = fraction;
+		for (int n = 0; n < 3; n++)
+			h[n] = (p[n] < 0 || p[n + 1] < 0) ? 0.0 : geometry->dx[p[n]];
 	} else {
-
-		if (triplet == LOWER_TRIPLET) {
-			if (intersect == HORIZONTAL)
-				l--;
-			else
-				k--;
+		if (periodic) l = MODULO(l, Nx);
+		for (int n = 0; n < 4; n++) {
+			p[n]                         = (k + n - 1 < 0 || k + n - 1 >= Nz) ? -1 : k + n - 1;
+			stencil->index[direction][n] = (p[n] < 0) ? -1 : p[n] * Nx + l;
 		}
-		if (intersect == HORIZONTAL) {
-			for (n = 0; n < 3; n++) {
-				if (geometry->hboundary == PERIODIC)
-					index[n] = MODULO(l + n, Nx);
-				else
-					index[n] = l + n;
-				stencil->index[direction][n] = k * Nx + index[n];
-			}
-			ds0 = geometry->dx[index[0]];
-			ds1 = geometry->dx[index[1]];
-		} else {
-			if (geometry->hboundary == PERIODIC) l = MODULO(l, Nx);
-			for (n = 0; n < 3; n++) {
-				index[n]                     = k + n;
-				stencil->index[direction][n] = index[n] * Nx + l;
-			}
-			ds0 = geometry->dz[index[0]];
-			ds1 = geometry->dz[index[1]];
-		}
-		ds2 = ds0 + ds1;
-
-		if (triplet == UPPER_TRIPLET) {
-			d0 = fraction * ds0;
-			d1 = ds0 - d0;
-		} else {
-			d1 = -fraction * ds1;
-			d0 = ds0 - d1;
-		}
-		d2 = d1 + ds1;
-
-		stencil->coeff[direction][0] = d1 * d2 / (ds0 * ds2);
-		stencil->coeff[direction][1] = d0 * d2 / (ds0 * ds1);
-		stencil->coeff[direction][2] = -d0 * d1 / (ds2 * ds1);
+		if (sweep == DOWN)
+			p[3] = stencil->index[direction][3] = -1;
+		else
+			p[0] = stencil->index[direction][0] = -1;
+		for (int n = 0; n < 3; n++)
+			h[n] = (p[n] < 0 || p[n + 1] < 0) ? 0.0 : geometry->dz[p[n]];
 	}
+	if (p[1] < 0 || p[2] < 0 || h[1] <= 0.0)
+		Error(ERROR_LEVEL_2, routineName, "Interpolation interval outside the grid");
+	setStencilWeights(stencil, direction, h);
 }
-/* ------- end ---------------------------- getcoeffs.c ------------- */
+/* ------- end ---------------------------- setStencil.c ------------ */
+
+/* ------- begin -------------------------- setStencilWeights.c ----- */
+
+void setStencilWeights(Stencil *stencil, enum direction direction,
+					   const double h[3])
+{
+	/* --- Spacings h[0..2] of the intervals index[0..3] (0 where a
+		   point is missing) to the weights Interp_2D uses, so that it
+		   needs no division --                           -------------- */
+
+	/* --- Where a point is missing (h = 0) Interp_2D does not read its
+		   1/h, which is then 1/DBL_MIN, finite. A guarded division,
+		   h[n] > 0.0 ? 1.0 / h[n] : 0.0, traps on 1/0 with the
+		   floating-point exceptions of SetFPEtraps: compilers (icx,
+		   clang) turn the guard into a select and compute the division
+		   for every n anyway, and they do the same with a guarded
+		   divisor. fmax is not a select -- ----------------------- */
+
+	for (int n = 0; n < 3; n++)
+		stencil->ih[direction][n] = 1.0 / fmax(h[n], DBL_MIN);
+	stencil->a[direction][0] = (h[0] > 0.0) ? h[1] / (h[0] + h[1]) : 0.0;
+	stencil->a[direction][1] = (h[2] > 0.0) ? h[2] / (h[1] + h[2]) : 0.0;
+	stencil->hc[direction]   = h[1] / 3.0;
+}
+/* ------- end ---------------------------- setStencilWeights.c ----- */
 
 /* ------- begin -------------------------- fillLongChar.c ---------- */
 
-void fillLongChar(Geometry *geometry, int mu, int k, enum sweep sweep)
+void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
+				  enum sweep sweep)
 {
 	register int l, n;
 
-	enum triplet  htriplet, vtriplet;
-	enum SC_order vorder;
-	int           Nx = geometry->Nx, Nz = geometry->Nz, dl, k_upwind, count,
+	int Nx = geometry->Nx, Nz = geometry->Nz, dl, k_upwind, count,
 		l_intersect;
 	double mux, muz, dx_total, dx_intersect, dz, dz_total, ds_total,
 		ds, fraction;
 	LongChar *lc;
 
 	/* --- Fills the appropriate LongChar structure of the interpolation
-		   mesh with indices and quadratic coefficients to solve along a
+		   mesh with interpolation stencils to solve along a
 		   long characteristic when, with periodic or even boundary
 		   conditions, no shortcharacteristic intersects a horizontal grid
 		   line for a given k. --                        -------------- */
@@ -549,34 +505,20 @@ void fillLongChar(Geometry *geometry, int mu, int k, enum sweep sweep)
 
 	l = lc->lstart;
 	if (sweep == DOWN) {
-		vtriplet = LOWER_TRIPLET;
-		if (k == 1)
-			vorder = SC_LINEAR;
-		else
-			vorder = SC_QUADRATIC;
 		k_upwind = k - 1;
 		dz       = geometry->dz[k_upwind];
 		if (mux >= 0.0) {
-			htriplet = UPPER_TRIPLET;
-			dl       = 1;
+			dl = 1;
 		} else {
-			htriplet = LOWER_TRIPLET;
-			dl       = -1;
+			dl = -1;
 		}
 	} else {
-		vtriplet = UPPER_TRIPLET;
-		if (k == Nz - 2)
-			vorder = SC_LINEAR;
-		else
-			vorder = SC_QUADRATIC;
 		k_upwind = k + 1;
 		dz       = geometry->dz[k];
 		if (mux >= 0.0) {
-			htriplet = LOWER_TRIPLET;
-			dl       = -1;
+			dl = -1;
 		} else {
-			htriplet = UPPER_TRIPLET;
-			dl       = 1;
+			dl = 1;
 		}
 	}
 	/* --- Find first intersection with horizontal grid line -- ------- */
@@ -603,11 +545,10 @@ void fillLongChar(Geometry *geometry, int mu, int k, enum sweep sweep)
 		   coefficients, and pathlength.
 
 	 Note: Interpolation data is stored in an array of Stencil structures
-		   so that the setStencil function can be used to determine the
-		   interpolation coefficients, and Quadr can be used to do the
-		   actual interpolation. Only the UPWIND half of each stencil is
-		   used because the long characteristic is solved only in one
-		   direction, towards the root. --               -------------- */
+		   so that setStencil can determine the indices and weights, and
+		   Interp_2D can do the actual interpolation. Only the UPWIND
+		   half of each stencil is used because the long characteristic
+		   is solved only in one direction, towards the root. -- ------ */
 
 	lc->Nlc     = count;
 	lc->stencil = (Stencil *) malloc(count * sizeof(Stencil));
@@ -622,7 +563,7 @@ void fillLongChar(Geometry *geometry, int mu, int k, enum sweep sweep)
 		ds       = (1.0 - fraction) * geometry->dx[l] / fabs(mux);
 	}
 	setStencil(geometry, &lc->stencil[0], UPWIND, HORIZONTAL, ds,
-			   fraction, l, k_upwind, htriplet, SC_QUADRATIC);
+			   fraction, l, k_upwind, order, sweep);
 
 	/* --- Then segment for segment the vertical crossings -- --------- */
 
@@ -640,11 +581,11 @@ void fillLongChar(Geometry *geometry, int mu, int k, enum sweep sweep)
 		if (sweep == DOWN) {
 			fraction = dz_total / dz;
 			setStencil(geometry, &lc->stencil[n], UPWIND, VERTICAL, ds,
-					   fraction, l_intersect, k_upwind, vtriplet, vorder);
+					   fraction, l_intersect, k_upwind, order, sweep);
 		} else {
 			fraction = 1.0 - dz_total / dz;
 			setStencil(geometry, &lc->stencil[n], UPWIND, VERTICAL, ds,
-					   fraction, l_intersect, k, vtriplet, vorder);
+					   fraction, l_intersect, k, order, sweep);
 		}
 	}
 }

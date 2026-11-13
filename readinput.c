@@ -210,6 +210,8 @@ void readInput()
 		{"S_INTERPOLATION_STOKES", "DELO_BEZIER3", FALSE, KEYWORD_DEFAULT,
 		 &input.S_interpolation_stokes, set_S_interpolation_stokes},
 
+		{"INTERPOLATE_2D", "BEZIER_2D", FALSE, KEYWORD_DEFAULT,
+		 &input.interpolate_2D, setInterpolate_2D},
 		{"INTERPOLATE_3D", "BICUBIC_3D", FALSE, KEYWORD_DEFAULT,
 		 &input.interpolate_3D, setInterpolate_3D},
 
