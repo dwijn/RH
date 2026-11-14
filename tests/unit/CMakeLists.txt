@@ -31,6 +31,7 @@ rh_unit_test(test_coupling test_coupling.c
   ${PROJECT_SOURCE_DIR}/rhf1d/project.c)
 rh_unit_test(test_interp test_interp.c)
 rh_unit_test(test_quadrature test_quadrature.c)
+rh_unit_test(test_stokes_step test_stokes_step.c)
 rh_unit_test(test_functions test_functions.c)
 rh_unit_test(test_prdfold test_prdfold.c)
 rh_unit_test(test_background test_background.c

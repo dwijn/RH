@@ -50,6 +50,14 @@ void Bezier3_coeffs(double dt, double *alpha, double *beta,
 
 void solveLinearFast(double A[4][4], double B[4]);
 
+/* --- One step by matrix exponentials, K' = K'_uw on the first half and
+	   K'_loc on the second, cubic S (B-55); I_uw and I_loc must not
+	   overlap --                                     -------------- */
+
+void Stokes_Exp_step(double dtau, double K_uw[4][4], double K_loc[4][4],
+					 double S_uw[4], double S_loc[4], double dS_uw[4],
+					 double dS_loc[4], double I_uw[4], double I_loc[4]);
+
 /* --- One step of the polarized DELO-Bezier solver (Q-25); I_uw and
 	   I_loc must not overlap --                       -------------- */
 
