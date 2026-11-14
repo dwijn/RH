@@ -188,7 +188,7 @@ void Piecewise_Hermite_2D(Geometry *geometry, int nspect, int mu,
 						  bool_t to_observer, double *chi, double *S,
 						  double *I, double *Psi);
 
-/* --- Prototype for parabolic DELO solver --          -------------- */
+/* --- Polarized long characteristics (N-41) --       -------------- */
 
 void SolveLongStokes(int nspect, LongChar *lc, int local, double *chi,
 					 double **S, double **I, double *I_uw);

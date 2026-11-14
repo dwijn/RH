@@ -485,38 +485,49 @@ static void check_stokes(bool_t verbose)
 		const char *mn   = mesh_name[mesh];
 		Slab       *slab = slabs[1][mesh];
 		double    **Sv = stokes_S[1][mesh], **I = stokes_I[1][mesh];
-		double      unpol = 0.0, quv = 0.0, lin_err = 0.0, lin_em = 0.0;
+		/* --- Both long-characteristic schemes (N-41): the K' = 0
+			   comparison is with the unpolarized solver using the same
+			   scheme --                                    -------------- */
 
-		/* --- K' = 0: the unpolarized solution, Q = U = V = 0 -- --- */
+		for (int lc = 0; lc < 2; lc++) {
+			const char *lcname = lc ? "BEZIER3" : "LINEAR";
 
-		stokes_set(slab, Sv, cub, 0.0);
-		for (int mu = 0; mu < NRAYS; mu++)
-			for (int to_obs = 0; to_obs <= 1; to_obs++) {
-				stokes_solve(slab, Sv, I, cub, mu, to_obs);
-				solve(Piecewise_Bezier3_2D, slab, cub, mu, to_obs, NULL);
-				for (int n = 0; n < NX * slab->Nz; n++) {
-					unpol = MAX(unpol, fabs(I[0][n] - slab->I[n]) / fabs(slab->I[n]));
-					for (int i = 1; i < 4; i++) quv = MAX(quv, fabs(I[i][n]));
+			input.S_interpolation_longchar = lc ? S_BEZIER3 : S_LINEAR;
+			double unpol = 0.0, quv = 0.0, lin_err = 0.0, lin_em = 0.0;
+
+			/* --- K' = 0: the unpolarized solution, Q = U = V = 0 -- --- */
+
+			stokes_set(slab, Sv, cub, 0.0);
+			for (int mu = 0; mu < NRAYS; mu++)
+				for (int to_obs = 0; to_obs <= 1; to_obs++) {
+					stokes_solve(slab, Sv, I, cub, mu, to_obs);
+					solve(Piecewise_Bezier3_2D, slab, cub, mu, to_obs, NULL);
+					for (int n = 0; n < NX * slab->Nz; n++) {
+						unpol = MAX(unpol, fabs(I[0][n] - slab->I[n]) / fabs(slab->I[n]));
+						for (int i = 1; i < 4; i++) quv = MAX(quv, fabs(I[i][n]));
+					}
 				}
+
+			/* --- Linear S: I+ exact --                     -------------- */
+
+			stokes_set(slab, Sv, lin, 1.0);
+			for (int mu = 0; mu < NRAYS; mu++) {
+				stokes_solve(slab, Sv, I, lin, mu, TRUE);
+				stokes_errors(slab, I, lin, mu, TRUE, &lin_err, &lin_em);
 			}
-
-		/* --- Linear S: I+ exact --                     -------------- */
-
-		stokes_set(slab, Sv, lin, 1.0);
-		for (int mu = 0; mu < NRAYS; mu++) {
-			stokes_solve(slab, Sv, I, lin, mu, TRUE);
-			stokes_errors(slab, I, lin, mu, TRUE, &lin_err, &lin_em);
+			if (verbose)
+				printf("STOKES   %-8s LC %-7s K' = 0 vs unpolarized %.2e (QUV %.1e); linear S up "
+					   "%.2e, emergent %.2e\n",
+					   mn, lcname, unpol, quv, lin_err, lin_em);
+			CHECK(unpol <= 1.0e-13 && quv == 0.0,
+				  "STOKES, %s, LC %s: K' = 0 differs from unpolarized by %.3g (QUV %.3g)", mn, lcname,
+				  unpol, quv);
+			CHECK(MAX(lin_err, lin_em) <= 1.0e-12, "STOKES, %s, LC %s: linear S, I+ error %.3g",
+				  mn, lcname, MAX(lin_err, lin_em));
 		}
-		if (verbose)
-			printf("STOKES   %-8s K' = 0 vs unpolarized %.2e (QUV %.1e); linear S up "
-				   "%.2e, emergent %.2e\n",
-				   mn, unpol, quv, lin_err, lin_em);
-		CHECK(unpol <= 1.0e-13 && quv == 0.0,
-			  "STOKES, %s: K' = 0 differs from unpolarized by %.3g (QUV %.3g)", mn,
-			  unpol, quv);
-		CHECK(MAX(lin_err, lin_em) <= 1.0e-12, "STOKES, %s: linear S, I+ error %.3g",
-			  mn, MAX(lin_err, lin_em));
 	}
+
+	input.S_interpolation_longchar = S_LINEAR;
 
 	/* --- Cubic S on "layers": emergent Stokes vector converges -- */
 

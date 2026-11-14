@@ -11,6 +11,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "rh.h"
 #include "atom.h"
@@ -103,89 +104,61 @@ void SolveLongStokes(Geometry *geometry, Longchar *lc,
 					 double *chi, double **S, double **I,
 					 double *I_uw)
 {
-	register int ls, n, j;
+	/* --- The polarized counterpart of SolveLong: the same points, and
+		   each section integrated with DELO-linear (LongChar_Stokes_Linear)
+		   or DELO-Bezier (LongChar_Stokes_Bezier3), as
+		   S_INTERPOLATION_LONGCHAR sets. The parabolic integration used
+		   before had the downwind weight of N-39, here of the local
+		   point (N-41). I_uw is returned at the upwind point -- ------ */
+
+	register int ls, n;
 
 	int    local;
-	double c1, c2, dtau_dw, dS_uw[4], dS_dw[4], w[3],
-		chi_loc, S_loc[4], dtau_uw, chi_uw, S_uw[4], chi_dw, S_dw[4],
-		P[4], Q[4][4], **R, K[4][4], K_uw[4][4];
-
-	R = matrix_double(4, 4);
-
-	/* --- The first point is the intersection with the horizontal
-		   grid line --                                  -------------- */
+	bool_t bezier = (input.S_interpolation_longchar == S_BEZIER3);
+	double chi_uw, chi_loc, chi_dw, ds_uw, ds_dw, S_uw[4], S_loc[4], S_dw[4],
+		I_loc[4], K_uw[4][4], K_loc[4][4], K_dw[4][4];
 
 	chi_uw = Interpolate_3D(chi, geometry, &lc->stencil[0], l, m);
 	StokesK_3D(nspect, geometry, &lc->stencil[0], l, m, chi_uw, K_uw);
-	for (n = 0; n < 4; n++) {
-		S_uw[n] = Interpolate_3D(S[n], geometry, &lc->stencil[0], l, m);
-		I_uw[n] = Interpolate_3D(I[n], geometry, &lc->stencil[0], l, m);
-	}
-
 	chi_loc = Interpolate_3D(chi, geometry, &lc->stencil[1], l, m);
-	dtau_uw = 0.5 * (chi_uw + chi_loc) * lc->stencil[0].ds;
-	StokesK_3D(nspect, geometry, &lc->stencil[1], l, m, chi_loc, K);
-	for (n = 0; n < 4; n++)
+	StokesK_3D(nspect, geometry, &lc->stencil[1], l, m, chi_loc, K_loc);
+	for (n = 0; n < 4; n++) {
+		S_uw[n]  = Interpolate_3D(S[n], geometry, &lc->stencil[0], l, m);
+		I_uw[n]  = Interpolate_3D(I[n], geometry, &lc->stencil[0], l, m);
 		S_loc[n] = Interpolate_3D(S[n], geometry, &lc->stencil[1], l, m);
-
-	/* --- As in SolveLong: the local point is the downwind end of the
-		   last section, I_uw is returned at the upwind point -- ------ */
+	}
+	ds_uw = lc->stencil[0].ds;
 
 	for (ls = 2; ls <= lc->Nst; ls++) {
 		if (ls == lc->Nst) {
 			local  = k * geometry->Nplane + m * geometry->Nx + l;
 			chi_dw = chi[local];
+			StokesK(nspect, local, chi_dw, K_dw);
 			for (n = 0; n < 4; n++) S_dw[n] = S[n][local];
 		} else {
 			chi_dw = Interpolate_3D(chi, geometry, &lc->stencil[ls], l, m);
+			StokesK_3D(nspect, geometry, &lc->stencil[ls], l, m, chi_dw, K_dw);
 			for (n = 0; n < 4; n++)
 				S_dw[n] = Interpolate_3D(S[n], geometry, &lc->stencil[ls], l, m);
 		}
-		dtau_dw = 0.5 * (chi_loc + chi_dw) * lc->stencil[ls - 1].ds;
-		w3(dtau_uw, w);
+		ds_dw = lc->stencil[ls - 1].ds;
 
-		for (n = 0; n < 4; n++) {
-			dS_uw[n] = (S_uw[n] - S_loc[n]) / dtau_uw;
-			dS_dw[n] = (S_loc[n] - S_dw[n]) / dtau_dw;
-			c1       = dS_uw[n] * dtau_dw + dS_dw[n] * dtau_uw;
-			c2       = dS_uw[n] - dS_dw[n];
-			P[n]     = w[0] * S_loc[n] + (w[1] * c1 + w[2] * c2) / (dtau_uw + dtau_dw);
-		}
-		for (n = 0; n < 4; n++) {
-			for (j = 0; j < 4; j++) {
-				Q[n][j] = -w[1] / dtau_uw * K_uw[n][j];
-				R[n][j] = (w[0] - w[1] / dtau_uw) * K[n][j];
-			}
-			Q[n][n] = 1.0 - w[0];
-			R[n][n] = 1.0;
-		}
-		for (n = 0; n < 4; n++) {
-			for (j = 0; j < 4; j++)
-				P[n] += Q[n][j] * I_uw[j];
-		}
-		/* --- Solve linear equations for I --             -------------- */
+		if (bezier)
+			LongChar_Stokes_Bezier3(ds_uw, ds_dw, chi_uw, chi_loc, chi_dw,
+									K_uw, K_loc, K_dw, S_uw, S_loc, S_dw,
+									I_uw, I_loc);
+		else
+			LongChar_Stokes_Linear(ds_uw, chi_uw, chi_loc, K_uw, K_loc,
+								   S_uw, S_loc, I_uw, I_loc);
 
-		SolveLinearEq(4, R, P, TRUE);
-
-		/* --- Store results for the upwind Stokes vector -- ------------ */
-
-		for (n = 0; n < 4; n++) I_uw[n] = P[n];
-
-		/* --- Reuse upwind quantities --                  -------------- */
-
-		if (ls < lc->Nst) {
-			chi_uw  = chi_loc;
-			chi_loc = chi_dw;
-			dtau_uw = dtau_dw;
-
-			for (n = 0; n < 4; n++) {
-				S_uw[n]  = S_loc[n];
-				S_loc[n] = S_dw[n];
-				for (j = 0; j < 4; j++) K_uw[n][j] = K[n][j];
-			}
-			StokesK_3D(nspect, geometry, &lc->stencil[ls], l, m, chi_dw, K);
-		}
+		memcpy(I_uw, I_loc, sizeof(I_loc));
+		memcpy(S_uw, S_loc, sizeof(S_loc));
+		memcpy(S_loc, S_dw, sizeof(S_dw));
+		memcpy(K_uw, K_loc, sizeof(K_loc));
+		memcpy(K_loc, K_dw, sizeof(K_dw));
+		chi_uw  = chi_loc;
+		chi_loc = chi_dw;
+		ds_uw   = ds_dw;
 	}
-	freeMatrix((void **) R);
 }
 /* ------- end ---------------------------- SolveLongStokes.c ------- */
