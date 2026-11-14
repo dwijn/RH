@@ -77,7 +77,11 @@ states what changed and by how much. CI also reports, without failing, the
 differences from upstream RH at c95bdf6 (built without Fortran by
 `tests/build_upstream.sh`): upstream is the reference we trust but check,
 so every difference there needs an explanation in the log, either a known
-numerical change or a fixed bug. `--exact` is for refactors, with a build of
+numerical change or a fixed bug. On a pull request this report runs
+only with the label `changes-results` or when the comparison with the base
+fails: otherwise the results match the base, and so does their drift.
+Pushes to `modernize` always report it. CI runs `2d/mem` on Linux only
+(`--skip 2d/mem` on macOS, whose peak RSS is noisier). `--exact` is for refactors, with a build of
 the branch's base (e.g. `modernize`) as the baseline. An upstream baseline
 is built with:
 
@@ -97,12 +101,14 @@ build directory, or as a source tree built in place with the old makefiles
 | `1d/crd` | no PRD lines |
 | `1d/twoactive` | two active atoms |
 | `2d/small`, `3d/small`, `sph/small` | the other geometries, from the shipped examples |
-| `2d/mem` | peak memory on a larger tiled grid (buffers must not scale with Nspect) |
+| `2d/mem` | peak memory on a tiled grid of 96 columns (buffers must not scale with Nspect) |
 | `1d/kurucz_blank` | Kurucz list with a leading blank line (currently crashes upstream) |
 
 Each case checks the candidate at 1 thread against the baseline, the candidate
-at other thread counts against its own 1-thread result, and (with `--asan`)
-that AddressSanitizer is clean. Outputs are compared per wavelength, relative
+at other thread counts (3 and 8 by default) against its own 1-thread result,
+and (with `--asan`) that AddressSanitizer is clean at 1 thread and the
+largest count (3-D at the largest count only: the code that runs only with
+one thread is shared by all geometries). Outputs are compared per wavelength, relative
 to the peak. The defaults are based on the noise of unmodified code against
 itself (about 1e-11 in 1-D/3-D/spherical, 2e-9 in the ill-conditioned 2-D
 example), since floating-point sums depend on thread count. Use `--exact`
