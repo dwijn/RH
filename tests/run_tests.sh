@@ -21,11 +21,13 @@
 #                    at different thread counts: 1e-9 (1-D, 3-D) and 1e-7 (2-D,
 #                    whose shipped example is ill-conditioned, ~2e-9 noise)
 #   --threads "A B"  thread counts to check against the candidate's own
-#                    1-thread result (default "2 3 8")
+#                    1-thread result (default "3 8": an uneven split of
+#                    the work and more threads than cores)
 #   --memtol X       candidate peak memory may be at most X times the
 #                    baseline's in the memory case (default 1.05)
 #   --only PATTERN   only run cases whose name contains PATTERN
-#   --work DIR       scratch directory (default tests/work)
+#   --skip PATTERN   skip cases whose name contains PATTERN
+#   --work DIR      scratch directory (default tests/work)
 #
 # What is checked, per case (1-D, 2-D, 3-D and spherical geometries, with and without
 # Stokes, CRD only, two active atoms, ...):
@@ -33,6 +35,7 @@
 #   * candidate at each thread count runs cleanly and matches its own
 #     1-thread result (up to floating-point summation order)
 #   * with --asan: no sanitizer reports at 1 thread and the largest count
+#     (3-D at the largest count only)
 # plus a memory-scaling case and a Kurucz line list with a leading blank line.
 #
 # The code reads atomic data through hard-coded ../../Atoms paths, so runs
@@ -40,8 +43,8 @@
 # candidate tree.
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-BASE=; CAND=; ASAN=; EXACT=0; TOL=; THREADS="2 3 8"; MEMTOL=1.05
-ONLY=; WORK="$HERE/work"
+BASE=; CAND=; ASAN=; EXACT=0; TOL=; THREADS="3 8"; MEMTOL=1.05
+ONLY=; SKIP=; WORK="$HERE/work"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -53,8 +56,9 @@ while [ $# -gt 0 ]; do
     --threads)   THREADS=$2; shift 2;;
     --memtol)    MEMTOL=$2; shift 2;;
     --only)      ONLY=$2; shift 2;;
+    --skip)      SKIP=$2; shift 2;;
     --work)      WORK=$2; shift 2;;
-    -h|--help)   sed -n '2,38p' "$0"; exit 0;;
+    -h|--help)   sed -n '2,43p' "$0"; exit 0;;
     *) echo "unknown option: $1"; exit 1;;
   esac
 done
@@ -229,7 +233,13 @@ run_case() {
   done
 
   [ -n "$ASAN" ] || return
-  for n in 1 $THREADS_MAX; do
+  # 3-D only at the largest count: the code that runs only with one thread
+  # (Gamma and the rates accumulated in place, the background without
+  # workers) is shared by all geometries and checked by the cheaper cases,
+  # and 3-D under the sanitizers at 1 thread took 105 s of CI's slowest job
+  local counts="1 $THREADS_MAX"
+  [ "$geom" = 3d ] && counts=$THREADS_MAX
+  for n in $counts; do
     prepare $geom $name asan $n "$mods"
     execute "$ASAN_BIN" $geom; rc=$?; why=$(log_problem)
     completed $rc && [ -z "$why" ] && record PASS "$id ASan N=$n" "clean" \
@@ -242,10 +252,12 @@ run_case() {
 # Both runs use SOLVER = NG with the Ng settings the shipped 2-D keyword file
 # had before S-11 made ANDERSON the 2-D default, so that a change of the
 # default solver does not count as growth and Ng's history is still measured.
+# 96 columns: about 115 MB, of which 8 MB do not grow with the grid; the old
+# caching would add about 85% to the part that does, at any grid size.
 run_mem_case() {
   [ -x /usr/bin/time ] || { record SKIP "2d/mem" "no /usr/bin/time"; return; }
   python3 -I "$HERE/make_tiled_2d_atmos.py" "$CAND/Atmos/FALC_03x82.atmos" \
-          "$WORK/tiled_2d.atmos" 192 >/dev/null || { record FAIL "2d/mem" "tiling failed"; return; }
+          "$WORK/tiled_2d.atmos" 96 >/dev/null || { record FAIL "2d/mem" "tiling failed"; return; }
   local mods="ATMOS_FILE=$WORK/tiled_2d.atmos;N_MAX_ITER=1;SOLVER=NG;NG_DELAY=6;NG_ORDER=2;NG_PERIOD=3;PRD_ITER_LIMIT=1.0E-2" rc why bm cm
   prepare 2d mem base 1 "$mods"; local B=$RUNDIR; execute "$BASE_BIN" 2d; rc=$?
   completed $rc || { record SKIP "2d/mem" "baseline failed (rc=$rc)"; return; }
@@ -277,7 +289,10 @@ run_kurucz_blank_case() {
                || record FAIL "1d/kurucz_blank" "$CMPOUT"
 }
 
-selected() { [ -z "$ONLY" ] || [[ "$1" == *"$ONLY"* ]]; }
+selected() {
+  { [ -z "$ONLY" ] || [[ "$1" == *"$ONLY"* ]]; } &&
+    { [ -z "$SKIP" ] || [[ "$1" != *"$SKIP"* ]]; }
+}
 
 echo "baseline : $BASE_BIN"
 echo "candidate: $CAND_BIN${ASAN:+   (ASan: $ASAN_BIN)}"
