@@ -18,6 +18,7 @@
 #include "spectrum.h"
 #include "geometry.h"
 #include "inputs.h"
+#include "bezier.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -29,76 +30,58 @@ extern InputData input;
 
 /* --- Solves transfer equation along a long characteristic specified in
 	   LongChar structure pointed to by lc. Used when, for periodic
-	   boundary conditions, no shortcharacteristic crosses a horizontal
-	   grid line in the upwind direction. --           -------------- */
+	   boundary conditions, no short characteristic crosses a horizontal
+	   grid line in the upwind direction.
+
+	   The characteristic starts on the horizontal grid line
+	   (stencil[0]), crosses vertical grid lines at stencil[1 .. Nlc - 1],
+	   the last of which is the upwind point of the local short
+	   characteristic, and ends at the local point. Section n runs from
+	   point n - 1 to point n over stencil[n - 1].ds[UPWIND]; the
+	   intensity is returned at the upwind point (B-24).
+
+	   Each section is integrated with S linear in tau or with the cubic
+	   Bezier step of the short characteristics, as
+	   S_INTERPOLATION_LONGCHAR sets. Both keep I between the extremes of
+	   the upwind intensity and the source function; the parabolic
+	   integration used before did not (N-39, see rhsc3d/solvelong.c)
+	   --                                              -------------- */
 
 double SolveLong(LongChar *lc, int local, double *chi, double *S, double *I)
 {
 	register int ls;
 
-	double c1, c2, dtau_dw, dS_uw, dS_dw, w[3], chi_loc, S_loc,
-		dtau_uw, chi_uw, S_uw, I_uwp, I_uw, chi_dw, S_dw;
+	double chi_uw, chi_loc, chi_dw, S_uw, S_loc, S_dw, I_uw, ds_uw, ds_dw;
 
-	/* --- The first point is the intersection with the horizontal
-		   grid line --                                  -------------- */
-
-	S_uw   = Interp_2D(S, &lc->stencil[0], UPWIND);
 	chi_uw = Interp_2D(chi, &lc->stencil[0], UPWIND);
-	I_uwp  = Interp_2D(I, &lc->stencil[0], UPWIND);
+	S_uw   = Interp_2D(S, &lc->stencil[0], UPWIND);
+	I_uw   = Interp_2D(I, &lc->stencil[0], UPWIND);
 
-	S_loc   = Interp_2D(S, &lc->stencil[1], UPWIND);
 	chi_loc = Interp_2D(chi, &lc->stencil[1], UPWIND);
-	dtau_uw = 0.5 * (chi_uw + chi_loc) * lc->stencil[0].ds[UPWIND];
-
-	I_uw = I_uwp;
-
-	/* --- Go through the long characteristic section by section. Its
-		   Nlc points are the crossings up to the upwind point of the
-		   local short characteristic (the last one, whose ds reaches the
-		   local point); the local point itself is the downwind end of
-		   the last section, so that I_uw is returned at the upwind
-		   point --                                       -------------- */
+	S_loc   = Interp_2D(S, &lc->stencil[1], UPWIND);
+	ds_uw   = lc->stencil[0].ds[UPWIND];
 
 	for (ls = 2; ls <= lc->Nlc; ls++) {
 		if (ls == lc->Nlc) {
-
-			/* --- The last point is the the endpoint for which the non-local
-				   contribution is needed. --                -------------- */
-
-			S_dw   = S[local];
 			chi_dw = chi[local];
+			S_dw   = S[local];
 		} else {
-			S_dw   = Interp_2D(S, &lc->stencil[ls], UPWIND);
 			chi_dw = Interp_2D(chi, &lc->stencil[ls], UPWIND);
+			S_dw   = Interp_2D(S, &lc->stencil[ls], UPWIND);
 		}
-		dtau_dw = 0.5 * (chi_loc + chi_dw) * lc->stencil[ls - 1].ds[UPWIND];
+		ds_dw = lc->stencil[ls - 1].ds[UPWIND];
 
-		/* --- Parabolic interpolation of source function -- ------------ */
+		if (input.S_interpolation_longchar == S_BEZIER3)
+			I_uw = LongChar_Bezier3(ds_uw, ds_dw, chi_uw, chi_loc, chi_dw,
+									S_uw, S_loc, S_dw, I_uw);
+		else
+			I_uw = LongChar_Linear(ds_uw, chi_uw, chi_loc, S_uw, S_loc, I_uw);
 
-		w3(dtau_uw, w);
-
-		dS_uw = (S_uw - S_loc) / dtau_uw;
-		dS_dw = (S_loc - S_dw) / dtau_dw;
-
-		c1   = dS_uw * dtau_dw + dS_dw * dtau_uw;
-		c2   = dS_uw - dS_dw;
-		I_uw = I_uwp * (1.0 - w[0]) + w[0] * S_loc +
-			   (w[1] * c1 + w[2] * c2) / (dtau_uw + dtau_dw);
-
-		/* --- Try piecewise linear if quadratic gives negative
-		   monochromatic intensity --                -------------- */
-
-		if (I_uw < 0.0) {
-			c1   = dS_uw;
-			I_uw = (1.0 - w[0]) * I_uwp + w[0] * S_loc + w[1] * c1;
-		}
-
-		I_uwp   = I_uw;
 		chi_uw  = chi_loc;
 		S_uw    = S_loc;
 		chi_loc = chi_dw;
 		S_loc   = S_dw;
-		dtau_uw = dtau_dw;
+		ds_uw   = ds_dw;
 	}
 
 	return I_uw;
