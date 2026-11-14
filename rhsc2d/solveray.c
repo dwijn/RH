@@ -41,6 +41,7 @@
 
 #define COMMENT_CHAR   "#"
 #define RAY_INPUT_FILE "ray.input"
+#define MU_SUMSQ_TOL   1.0E-9
 
 /* --- Function prototypes --                          -------------- */
 
@@ -66,7 +67,7 @@ int main(int argc, char *argv[])
 	bool_t result, exit_on_EOF, to_obs, crosscoupling, initialize,
 		analyze_output, equilibria_only;
 	int        Nspect, Nread, Nrequired, checkPoint, *wave_index = NULL;
-	double     mux, muz, *S = NULL, *chi = NULL, *J = NULL;
+	double     mux, muy, muz, sumsq, *S = NULL, *chi = NULL, *J = NULL;
 	ActiveSet *as;
 	FILE      *fp_out, *fp_ray;
 	XDR        xdrs;
@@ -107,6 +108,24 @@ int main(int argc, char *argv[])
 		Error(ERROR_LEVEL_2, argv[0], messageStr);
 	}
 
+	/* --- The third cosine follows from the first two. A sum of squares
+		   above one by rounding of the input (e.g. mux written to 10
+		   decimals, which exceeds 1 by up to 3e-10) is clamped, muy = 0
+		   (ray in the x-z plane) being a valid direction; a larger
+		   excess is an inconsistent input.
+		   A NaN here made all Stokes parameters at line wavelengths NaN
+		   (B-34). --                                    -------------- */
+
+	sumsq = SQ(mux) + SQ(muz);
+	if (sumsq > 1.0 + MU_SUMSQ_TOL) {
+		sprintf(messageStr,
+				"mux = %.12g and muz = %.12g are inconsistent: "
+				"mux^2 + muz^2 = %.12g exceeds 1\n",
+				mux, muz, sumsq);
+		Error(ERROR_LEVEL_2, argv[0], messageStr);
+	}
+	muy = sqrt(fmax(0.0, 1.0 - sumsq));
+
 	if ((atmos.Stokes && input.StokesMode == FIELD_FREE) ||
 		input.backgr_pol) {
 
@@ -119,7 +138,7 @@ int main(int argc, char *argv[])
 
 	atmos.Nrays = geometry.Nrays = 1;
 	geometry.mux[0]              = mux;
-	geometry.muy[0]              = sqrt(1.0 - (SQ(mux) + SQ(muz)));
+	geometry.muy[0]              = muy;
 	geometry.muz[0]              = muz;
 	geometry.wmu[0]              = 1.0;
 

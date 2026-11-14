@@ -58,7 +58,7 @@ void getAngleQuadr(Geometry *geometry)
 	const char   routineName[] = "getAngleQuadr";
 	register int mu, n, m;
 
-	double wnorm, *wmu, *xmu, alpha, singamma;
+	double wnorm, *wmu, *xmu, alpha, singamma, sumsq;
 
 	/* --- Set A2 --                                     -------------- */
 
@@ -261,11 +261,20 @@ void getAngleQuadr(Geometry *geometry)
 		geometry->wmu[geometry->Nrays / 2 + mu] = geometry->wmu[mu];
 	}
 
-	/* --- Since muz is always positive we can fill it here -- -------- */
+	/* --- Since muz is always positive we can fill it here. The built-in
+		   sets leave muz >= 8.8e-4 (SET_GL with 40 inclinations); a set
+		   with mux^2 + muy^2 >= 1 would give a NaN or zero muz (B-34). */
 
 	for (mu = 0; mu < geometry->Nrays; mu++) {
-		geometry->muz[mu] = sqrt(1.0 - (SQ(geometry->mux[mu]) +
-										SQ(geometry->muy[mu])));
+		sumsq = SQ(geometry->mux[mu]) + SQ(geometry->muy[mu]);
+		if (sumsq >= 1.0) {
+			sprintf(messageStr,
+					"Ray %d has no upward component: "
+					"mux^2 + muy^2 = %.12g is not below 1\n",
+					mu, sumsq);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
+		geometry->muz[mu] = sqrt(1.0 - sumsq);
 	}
 }
 /* ------- end ---------------------------- getAngleQuadr.c---------- */

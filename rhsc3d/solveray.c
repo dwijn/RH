@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 		to_obs, equilibria_only;
 	int Nspect, Nread, Nrequired, checkPoint,
 		*wave_index = NULL;
-	double     mux, muy, *S = NULL, *chi = NULL, *J = NULL;
+	double     mux, muy, muz, sumsq, *S = NULL, *chi = NULL, *J = NULL;
 	FILE      *fp_out, *fp_ray;
 	XDR        xdrs;
 	ActiveSet *as;
@@ -100,9 +100,25 @@ int main(int argc, char *argv[])
 	}
 	if (muy <= -1.0 || muy >= 1.0) {
 		sprintf(messageStr,
-				"Value of muy = %f does not lie in interval <0.0, 1.0>\n", muy);
+				"Value of muy = %f does not lie in interval <-1.0, 1.0>\n", muy);
 		Error(ERROR_LEVEL_2, argv[0], messageStr);
 	}
+
+	/* --- The third cosine follows from the first two. Rays point
+		   upward, and muz divides the grid spacing in the stencil
+		   distances (rz = muz/dz in geometry.c), so muz must be positive:
+		   no clamping to zero, a sum of squares at or above one (also by
+		   rounding of the input) is an error (B-34). --  -------------- */
+
+	sumsq = SQ(mux) + SQ(muy);
+	if (sumsq >= 1.0) {
+		sprintf(messageStr,
+				"mux = %.12g and muy = %.12g leave no upward component: "
+				"mux^2 + muy^2 = %.12g is not below 1\n",
+				mux, muy, sumsq);
+		Error(ERROR_LEVEL_2, argv[0], messageStr);
+	}
+	muz = sqrt(1.0 - sumsq);
 
 	if ((atmos.Stokes && input.StokesMode == FIELD_FREE) ||
 		input.backgr_pol) {
@@ -116,7 +132,7 @@ int main(int argc, char *argv[])
 	atmos.Nrays = geometry.Nrays = 1;
 	geometry.mux[0]              = mux;
 	geometry.muy[0]              = muy;
-	geometry.muz[0]              = sqrt(1.0 - (SQ(mux) + SQ(muy)));
+	geometry.muz[0]              = muz;
 	geometry.wmu[0]              = 1.0;
 
 	if (atmos.Stokes) Bproject();

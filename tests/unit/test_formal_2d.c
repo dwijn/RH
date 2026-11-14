@@ -117,7 +117,7 @@ static Slab *slab_new(int Nz, double DX, bool_t uneven)
 	for (int mu = 0; mu < NRAYS; mu++) {
 		geo->mux[mu] = ray_mux[mu];
 		geo->muz[mu] = ray_muz[mu];
-		geo->muy[mu] = sqrt(1.0 - SQ(ray_mux[mu]) - SQ(ray_muz[mu]));
+		geo->muy[mu] = sqrt(MAX(0.0, 1.0 - SQ(ray_mux[mu]) - SQ(ray_muz[mu])));
 		geo->wmu[mu] = 1.0 / NRAYS;
 	}
 	geo->Itop    = matrix_double(1, NX);
