@@ -624,9 +624,10 @@ void LongChar_Stokes_Linear(double ds_uw, double chi_uw, double chi_loc,
 							double I_uw[4], double I_loc[4])
 {
 	/* --- One section of a polarized long characteristic with the
-		   DELO-linear step (Rees, Durrant & Murphy 1989): along the
-		   section dI/dtau = S_eff - I with S_eff = S - K' I linear in
-		   tau, the trapezoidal optical path, as LongChar_Linear (N-41):
+		   DELO method (Rees, Murphy & Durrant 1989, ApJ 339, 1093):
+		   along the section dI/dtau = S_eff - I with S_eff = S - K' I,
+		   here linear in tau, and the trapezoidal optical path, as
+		   LongChar_Linear (N-41):
 
 			 (1 + (w0 - w1 / dtau) K'_loc) I_loc =
 			   ((1 - w0) - w1 / dtau K'_uw) I_uw + w0 S_loc
