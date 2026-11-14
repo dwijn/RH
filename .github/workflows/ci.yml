@@ -102,12 +102,41 @@ jobs:
         include:
           - { os: ubuntu-26.04, cc: gcc, sanitize: "address,undefined" }
           - { os: macos-26, cc: clang }
-    env:
-      CHANGES_RESULTS: ${{ contains(github.event.pull_request.labels.*.name, 'changes-results') }}
+    permissions:
+      contents: read
+      pull-requests: read   # labels of the merged pull request on push
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+      # The label "changes-results" on the pull request. A push to modernize
+      # carries no labels, so there it is looked up on the pull request that
+      # the pushed commit merged ("Merge pull request #N" in its message, else
+      # the pull request GitHub associates with the commit); without the
+      # lookup every merge of an intended change of results failed (Q-26).
+      - name: Label changes-results
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          case "${{ github.event_name }}" in
+            pull_request) labels=$(jq -r '.[]' <<< "$PR_LABELS") ;;
+            push)
+              pr=$(git log -1 --format=%s | sed -nE 's/^Merge pull request #([0-9]+) .*/\1/p')
+              if [ -z "$pr" ]; then
+                pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
+                       --jq ".[] | select(.merge_commit_sha == \"$GITHUB_SHA\") | .number" | head -1)
+              fi
+              labels=
+              if [ -n "$pr" ]; then
+                labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/labels" --jq '.[].name')
+                echo "Merged pull request: #$pr" >> "$GITHUB_STEP_SUMMARY"
+              fi ;;
+            *) labels= ;;
+          esac
+          if grep -qx changes-results <<< "$labels"; then v=true; else v=false; fi
+          echo "CHANGES_RESULTS=$v" >> "$GITHUB_ENV"
+          echo "changes-results: $v"
       - name: Base commit
         id: base
         run: |
