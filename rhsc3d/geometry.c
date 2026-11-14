@@ -290,7 +290,7 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 		st = &geometry->stencil_dw[mu][k];
 		dz = geometry->z[k] - geometry->z[k + 1];
 	}
-	muz = sqrt(1.0 - (SQ(geometry->mux[mu]) + SQ(geometry->muy[mu])));
+	muz = geometry->muz[mu];
 	rx  = geometry->mux[mu] / geometry->dx;
 	ry  = geometry->muy[mu] / geometry->dy;
 	rz  = muz / dz;
