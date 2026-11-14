@@ -56,6 +56,7 @@ typedef struct {
 
 typedef struct {
 	enum intersect plane;
+	int            index; /* the plane crossed, relative to the local point */
 	double         s, x, y, z;
 } Intersect;
 
