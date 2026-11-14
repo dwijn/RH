@@ -736,15 +736,13 @@ enum GuardResult { GUARD_OK,
 				   GUARD_NEGATIVE,
 				   GUARD_NRESULT };
 
-static const char *guardName[] = {"ok", "not finite", "negative"};
+static const char *guardName[GUARD_NRESULT] = {"ok", "not finite", "negative"};
 
 static enum GuardResult guardTrial(const double *xt, const double *gx,
 								   const double *xb)
 {
-	register long i;
-	register int  n;
-
-	long off;
+	long i;
+	int  n;
 
 	/* --- The extrapolated point must be finite and must not be
 		   negative where G's point is not (and with RELATIVE not zero
@@ -756,9 +754,9 @@ static enum GuardResult guardTrial(const double *xt, const double *gx,
 		   have inverted continua and lines (S-13), and a test on line
 		   inversions did not keep the total opacity from going
 		   negative, which is what breaks the formal solver (SOLVER.md
-		   trap 5); that is now detected where it happens, in the
-		   formal solution (N-40). The continuum test went in S-13, the
-		   line test in S-14.
+		   trap 5); that is detected where it happens, in the formal
+		   solution (N-40, merged with this change). The continuum
+		   test went in S-13, the line test in S-14.
 
 		   With a base point xb (Newton: the trial is xb + lambda d), a
 		   value only counts as new where neither G's point nor xb has
@@ -769,7 +767,8 @@ static enum GuardResult guardTrial(const double *xt, const double *gx,
 		if (!isfinite(xt[i])) return GUARD_NONFINITE;
 
 	for (n = 0; n < Nblocks; n++) {
-		off = blockStart[n];
+		long off = blockStart[n];
+
 		if (blocks[n].kind != BLOCK_J20) {
 			for (i = off; i < off + blocks[n].N; i++)
 				if ((xt[i] < 0.0 && !(gx[i] < 0.0) && !(xb && xb[i] < 0.0)) ||
