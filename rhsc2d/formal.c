@@ -21,6 +21,7 @@
 #include "error.h"
 #include "background.h"
 #include "inputs.h"
+#include "negtau.h"
 #include "constant.h"
 #include "statistics.h"
 #include "xdr.h"
@@ -47,10 +48,10 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	bool_t initialize, boundbound, polarized_as, polarized_c,
 		PRD_angle_dep, to_obs, solveStokes, angle_dep;
-	int      Nspace = atmos.Nspace, Nrays = atmos.Nrays;
+	int      Nspace = atmos.Nspace, Nrays = atmos.Nrays, muslant;
 	long int idx;
 	double  *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
-						 dJmax, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
+						 dJmax = 0.0, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
 						 *J, *J20 = NULL, *lambda, sign,
 						 lambda_gas, lambda_prv, lambda_nxt, fac, dl, frac;
 	ActiveSet *as;
@@ -166,6 +167,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 					chi[k] = as->chi[k] + as->chi_c[k];
 					S[k]   = as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k];
 				}
+				if (negTauColumns(nspect, mu, to_obs, geometry.Nz, geometry.Nx, chi, geometry.z,
+								  geometry.muz[mu]))
+					goto cleanup;
 				if (input.backgr_pol) {
 					for (k = 0; k < Nspace; k++) {
 						S[k] += threemu1 * as->sca_c[k] * J20dag[k];
@@ -358,12 +362,14 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		Opacity(nspect, 0, 0, initialize = TRUE);
 		if (eval_operator) addtoCoupling(nspect);
 
-		for (k = 0; k < Nspace; k++) {
-			chi[k] = as->chi[k] + as->chi_c[k];
-			S[k]   = (as->eta[k] +
-                    as->eta_c[k] + as->sca_c[k] * Jdag[k]) /
-				   chi[k];
-		}
+		for (k = 0; k < Nspace; k++) chi[k] = as->chi[k] + as->chi_c[k];
+		for (mu = 1, muslant = 0; mu < Nrays; mu++) /* the most slanted ray */
+			if (geometry.muz[mu] < geometry.muz[muslant]) muslant = mu;
+		if (negTauColumns(nspect, muslant, -1, geometry.Nz, geometry.Nx, chi, geometry.z,
+						  geometry.muz[muslant]))
+			goto cleanup;
+		for (k = 0; k < Nspace; k++)
+			S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k]) / chi[k];
 		if (input.Eddington) {
 			Feautrier_2D(nspect, chi, S, STANDARD, I, Psi);
 			if (eval_operator) {
@@ -438,7 +444,11 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		}
 	}
 
-	/* --- Clean up --                                 ---------------- */
+	/* --- Clean up; the formal solution of this wavelength stops here
+		   when the opacity is negative enough to overflow it (N-40;
+		   the caller stops the run or rejects the trial point) -- --- */
+
+cleanup:
 
 	free_as(nspect, eval_operator);
 	if (eval_operator) free(Psi);

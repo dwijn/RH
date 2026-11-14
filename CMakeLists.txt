@@ -163,7 +163,7 @@ add_library(rh STATIC
   fixedrate.c fpehandler.c gammafunc.c gaussleg.c getcpu.c getlambda.c
   getline.c giigen.c gth.c h2collisions.c hunt.c hydrogen.c
   initial_xdr.c initscatter.c iterate.c kurucz.c linear.c ltepops.c
-  ludcmp.c matrix.c maxchange.c metal.c molzeeman.c nemetals.c newton.c ohchbf.c
+  ludcmp.c matrix.c maxchange.c metal.c molzeeman.c negtau.c nemetals.c newton.c ohchbf.c
   opacity.c options.c order.c parallel.c parse.c paschen.c pchip.c planck.c
   pops_xdr.c profile.c radrate_xdr.c rayleigh.c readatom.c readb_xdr.c
   prdfold.c readinput.c readj.c readmolecule.c readvalue.c redistribute.c scatter.c
