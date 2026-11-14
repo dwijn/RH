@@ -22,6 +22,7 @@
 #include "statistics.h"
 #include "solver.h"
 #include "inputs.h"
+#include "negtau.h"
 
 typedef struct {
 	bool_t eval_operator, redistribute;
@@ -368,6 +369,7 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 		/* --- Else call the solution for wavelengths sequentially -- --- */
 
 		for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+			if (negTauFound()) break; /* the sweep is void (N-40) */
 			if (!redistribute ||
 				(redistribute && containsPRDline(&spectrum.as[nspect]))) {
 				dJ = Formal(nspect, eval_operator, redistribute);
@@ -385,6 +387,13 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 		   reads them --                                  -------------- */
 
 	mergeRates(redistribute);
+
+	/* --- A wavelength whose total opacity was negative enough to
+		   overflow the formal solution was skipped (N-40): stop with a
+		   message, unless a solver is evaluating a trial point, which it
+		   then rejects --                                -------------- */
+
+	negTauStop();
 
 	sprintf(messageStr, " Spectrum max delta J = %6.4E (lambda#: %d)\n",
 			dJmax, lambda_max);
@@ -412,6 +421,7 @@ void *Formal_pthread(void *argument)
 	ti->lambda_max = -1;
 
 	for (nspect = ti->nt; nspect < spectrum.Nspect; nspect += ti->Nthreads) {
+		if (negTauFound()) break; /* the sweep is void (N-40) */
 		if (!ti->redistribute ||
 			(ti->redistribute && containsPRDline(&spectrum.as[nspect]))) {
 			dJ = Formal(nspect, ti->eval_operator, ti->redistribute);

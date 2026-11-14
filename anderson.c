@@ -390,9 +390,7 @@ enum AndersonAction andersonStep(Anderson *a, const AndersonOptions *opt,
 
 	if (a->trial && opt->safeguard > 0.0 &&
 		!(fnorm <= opt->safeguard * a->fnorm_acc)) {
-		a->trial = 0;
-		a->Nrejected++;
-		andersonReset(a, 1);
+		andersonRejectTrial(a);
 		memcpy(u_next, a->g[a->newest], a->N * sizeof(double));
 		return ANDERSON_REJECTED;
 	}
@@ -411,6 +409,22 @@ enum AndersonAction andersonStep(Anderson *a, const AndersonOptions *opt,
 	return ANDERSON_PLAIN;
 }
 /* ------- end ---------------------------- andersonStep.c ---------- */
+
+/* ------- begin -------------------------- andersonRejectTrial.c --- */
+
+void andersonRejectTrial(Anderson *a)
+{
+	/* --- Reject the extrapolated point last returned: the history
+		   restarts from the newest accepted pair, whose image is the
+		   next point (the caller has it; andersonStep copies it into
+		   u_next). Also for a point whose G could not be evaluated
+		   (negative opacity, N-40) --                   -------------- */
+
+	a->trial = 0;
+	a->Nrejected++;
+	andersonReset(a, 1);
+}
+/* ------- end ---------------------------- andersonRejectTrial.c --- */
 
 /* ------- begin -------------------------- andersonDamp.c ---------- */
 

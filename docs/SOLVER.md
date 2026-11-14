@@ -1070,18 +1070,19 @@ part of G.
 
 **Safeguards.**
 
-- Before the evaluation (no G cost): the trial point must be finite,
-  positive (RELATIVE), and must not create line inversions that g_k does
-  not have: for every line, at every depth where n_l/g_l > n_u/g_u in
-  g_k, also in the trial point. Inversions that G itself makes are left
-  alone. Continua are not checked (S-13, below): the test on
-  n_i/n_i* > (n_j/n_j*)·exp(−hν₀/kT) that was here blocked steps towards
-  converged solutions that have inverted continua. On failure the extrapolation is damped
-  (u = g_k − θΔGγ, θ = ½, then ¼); if it still fails, the plain step is
-  taken and the history restarted. All actions are counted. (Trap 5:
-  H_20's Rydberg levels, negative opacity, overflow in Bezier3. The
-  inversion test stands in for the real condition, a negative total
-  opacity, and since S-13 covers lines only.)
+- Before the evaluation (no G cost): the trial point must be finite and
+  positive (RELATIVE; no new negative values where g_k has none). On
+  failure the extrapolation is damped (u = g_k − θΔGγ, θ = ½, then ¼); if
+  it still fails, the plain step is taken and the history restarted. All
+  actions are counted. Population inversions are not checked: the tests
+  on continua (S-13) and on lines (S-14) that were here stood in for a
+  negative total opacity (trap 5: H_20's Rydberg levels, overflow in
+  Bezier3), did not prevent it, and held steps back from converged
+  solutions that have inversions (S-13, below). A negative opacity deep
+  enough to overflow is detected in the formal solution itself (N-40,
+  #342, to be merged with this change): an Anderson trial point is
+  rejected, a Newton trial halves λ, and anywhere else the run stops
+  with a message.
 - After the evaluation: accept if ‖f_{k+1}‖_W ≤ c‖f_k‖_W with
   c = `ANDERSON_SAFEGUARD` (default 1; 0 turns it off). Otherwise take the
   plain step G(x_k), already computed, and restart the history from the
@@ -1211,8 +1212,9 @@ separate one.
 4. **Globalization.** Backtracking on ‖R‖_W: trial u + λδ for
    λ = 1, ½, ¼, ⅛, 1/16, accepted if
    ‖R(u + λδ)‖_W ≤ (1 − 10⁻⁴λ)‖R(u)‖_W. The S-3 guard (finite, no new
-   negatives, no new line inversions against G(x_k)) runs before
-   each trial and a failure halves λ without a G evaluation. If no λ is
+   negatives against G(x_k) and x_k; inversions are no longer tested,
+   S-13 and S-14) runs before each trial and a failure halves λ without
+   a G evaluation. If no λ is
    accepted, the plain step x ← G(x_k) is taken; it costs nothing, as
    G(x_k) is known. The G evaluation of an accepted trial is the base of
    the next Newton step, never paid twice.
@@ -1268,8 +1270,9 @@ these details fixed in the code:
   Anderson's extrapolations are, an inversion that x_k has and G(x_k)
   lacks blocked every λ: 155 of 243 plain steps on `1d_shock_h6`, all 16
   on `1d_falc_helarge`, and divergence by plain steps on
-  `1d_shock_h6crd_ne`. A negative value or inversion now counts as new
-  only where neither G(x_k) nor x_k has it.
+  `1d_shock_h6crd_ne`. A negative value or inversion then counted as new
+  only where neither G(x_k) nor x_k had it; the inversion tests went in
+  S-13 and S-14, the rule stays for negative values.
 - A trial with an entry above log(DBL_MAX) in `LOG` variables is a guard
   failure ("not finite") before exp() is called: Newton steps reach
   |d|_max ~10⁴ in J (`1d_falc_mgi66`), which trapped as SIGFPE.
@@ -1496,7 +1499,8 @@ Findings:
   plain steps), `falc_civi`, `t5750_h6` and `falc_mgi66`, from the first
   extrapolations on, while Anderson still wins clearly there. A small
   margin in the test (levels whose n/g are nearly equal) is to be looked
-  at. Done in S-13 (below): not a margin; the continuum test went.
+  at. Done in S-13 (below): not a margin; the continuum test went, and
+  the line test in S-14.
 - ne: on `falc_solvene` Anderson at m = 10 needs 4.3× less work than Ng
   on G, and 6× fewer G evaluations and `Background()` calls (40 against
   244). On `shock_h6crd_ne`, where
@@ -1528,7 +1532,8 @@ Findings:
   the expectation is in S-4.
 
 **Open:** the envelope safeguard on `shock_h6` (S-12); N-36 (the two ne
-formulations); multi-D (after N-33). The inversion guard is S-13 (below).
+formulations); multi-D (after N-33). The inversion guard is S-13 (below);
+it no longer tests inversions (S-14).
 
 ### Anderson as the default solver (design for the S-5 decision)
 
@@ -1749,7 +1754,8 @@ the change is mostly which entries Anderson's vectors hold.
   The convergence test is unchanged: `MaxChange` already looks only at
   populations.
 - The guard is unchanged. Carried blocks hold G's values, so they cannot
-  create new inversions or negative values.
+  create new negative values (or, while the guard tested them, new
+  inversions; S-13, S-14).
 - J is out of step with the populations. In plain iteration J and the
   populations of x_{k+1} come from the same G. Here the populations jump
   to the extrapolated point, while J stays G's J of the unextrapolated
@@ -1942,6 +1948,22 @@ In 2-D it is neutral on `2d_pert_h6_ca_mg` (the first iteration below
 10⁻³ and 10⁻⁴: 165 → 171 and 364 → 349; that case has a floor, N-37) and
 lets Anderson extrapolate on `2d_perf_many`, where the old test rejected
 every trial point.
+
+**Follow-up (S-14, N-40, decided by the user 2026-11-13).** Would a check
+on the total opacity itself do better than the inversion proxy? Counted
+on the S-5 cases where the guard acts (scratch build, `claude-tmp/s1/s13/chi`):
+the total opacity χ is ≤ 0 at G's own points (the ZERO_RADIATION starts
+of `falc_helarge`, 118 000 (wavelength, depth) points down to −44 χ_c;
+`falc_civi`; `falc_mgi66`) and at `falc_helarge`'s converged solution (504
+points, down to −6.6 χ_c, IR He I 4296 nm), so rejecting χ ≤ 0 would stop
+every solver there. What breaks the formal solver is `exp` overflowing,
+at a negative optical depth of about −709; the deepest run of negative
+slant optical depth was −0.094 (`falc_mgi66`, with the line test on;
+−0.026 without), −4.9×10⁻⁶ on `falc_helarge`. The line test does not
+prevent negative opacity, and no case needs it: it went too (S-14). In
+its place a detector in the formal solution (N-40) stops the run with a
+message, or rejects the trial point, where a run of negative optical
+depth goes below −50.
 
 ### S-6 — Analytic residual (Form B), conditional on S-5
 

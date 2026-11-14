@@ -19,6 +19,7 @@
 #include "geometry.h"
 #include "error.h"
 #include "inputs.h"
+#include "negtau.h"
 #include "background.h"
 #include "constant.h"
 #include "statistics.h"
@@ -44,7 +45,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	bool_t              initialize, boundbound, PRD_angle_dep, polarized;
 	enum FeautrierOrder F_order;
 	int                 Nspace = atmos.Nspace, Nrays = atmos.Nrays;
-	double             *I, *chi, *S, *Psi, *Jdag, dJ, dJmax, *J;
+	double             *I, *chi, *S, *Psi, *Jdag, dJ, dJmax = 0.0, *J;
 	ActiveSet          *as;
 	Ray                *ray;
 
@@ -102,12 +103,20 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		Opacity(nspect, 0, 0, initialize = TRUE);
 		if (eval_operator) addtoCoupling(nspect);
 
-		for (k = 0; k < Nspace; k++) {
-			chi[k] = as->chi[k] + as->chi_c[k];
-			S[k]   = (as->eta[k] +
-                    as->eta_c[k] + as->sca_c[k] * Jdag[k]) /
-				   chi[k];
-		}
+		for (k = 0; k < Nspace; k++) chi[k] = as->chi[k] + as->chi_c[k];
+
+		/* --- N-40: along each ray, through the radii 0 .. Ns - 1 at
+			   path positions s. The Feautrier solution has no
+			   exponential to overflow, but its difference equations lose
+			   their meaning just the same --          -------------- */
+
+		for (mu = 0; mu < Nrays; mu++)
+			if (negTauColumns(nspect, mu, -1, geometry.rays[mu].Ns, 1, chi,
+							  geometry.rays[mu].s, 1.0))
+				goto cleanup;
+		for (k = 0; k < Nspace; k++)
+			S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k]) / chi[k];
+
 		for (mu = 0; mu < Nrays; mu++) {
 			spectrum.I[nspect][mu] =
 				Feautrier(nspect, mu, chi, S, F_order = STANDARD, I, Psi);
@@ -140,7 +149,11 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		}
 		if (input.limit_memory) writeJlambda(nspect, J);
 	}
-	/* --- Clean up --                                 ---------------- */
+	/* --- Clean up; the formal solution of this wavelength stops here
+		   when the opacity is negative enough to break it (N-40; the
+		   caller stops the run or rejects the trial point) -- ------- */
+
+cleanup:
 
 	if (input.limit_memory) free(J);
 	free_as(nspect, eval_operator);

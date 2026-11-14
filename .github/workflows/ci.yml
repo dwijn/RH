@@ -1,6 +1,7 @@
 # Build RH on Linux and macOS with several compilers and run the unit tests.
 # The regression suite compares each change with a build of its base commit
-# (the target branch before the change), which must match unless the pull
+# (the target branch before the change, also for a pull request stacked on
+# another one), which must match unless the pull
 # request carries the label "changes-results" (an intended change of
 # results: then the differences are only reported). A second comparison with upstream RH
 # (c95bdf6) reports how far the results have drifted from it; it never
@@ -22,7 +23,8 @@ on:
     branches: [modernize]
     paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.sh', 'tests/analyze_run.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/se_residual.py', 'tests/make_references.sh', 'tests/atmos/**', 'Atoms/**', 'Atmos/**', 'Molecules/**']
   pull_request:
-    branches: [modernize]
+    # Any base branch: a pull request stacked on another one (based on its
+    # branch, not on modernize) is checked against its own base too (Q-23)
     types: [opened, synchronize, reopened, labeled, unlabeled]
     paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.sh', 'tests/analyze_run.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/se_residual.py', 'tests/make_references.sh', 'tests/atmos/**', 'Atoms/**', 'Atmos/**', 'Molecules/**']
   workflow_dispatch:
