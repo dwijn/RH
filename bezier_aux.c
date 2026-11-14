@@ -21,6 +21,7 @@
 #include <math.h>
 #include <string.h> // memcpy, memset
 
+#include "rh.h"
 #include "bezier.h"
 
 /* --- Global variables --                             -------------- */
@@ -401,3 +402,78 @@ void m4inv(double MI[4][4])
 	return;
 }
 /* ------- end ---------------------------- m4inv.c ----------------- */
+
+/* ------- begin -------------------------- LongChar_Bezier3.c ------ */
+
+double LongChar_Bezier3(double ds_uw, double ds_dw, double chi_uw,
+						double chi_loc, double chi_dw, double S_uw,
+						double S_loc, double S_dw, double I_uw)
+{
+	/* --- One section of a long characteristic in 2-D or 3-D (N-39):
+		   the intensity at the local (downwind) end of the section from
+		   the upwind point, given chi and S at the upwind, local and
+		   next downwind points along the characteristic and the
+		   lengths ds_uw (upwind to local) and ds_dw (local to downwind).
+
+		   The cubic Bezier step of the short characteristics
+		   (Piecewise_Bezier3_2D and _3D): Steffen-limited centred
+		   derivatives at the local point, the upwind slope of the
+		   quadratic Bezier curve through the upwind and local points
+		   (N-24), chi integrated with the same Bezier curve. The control
+		   points lie between the values at the two ends, so that I stays
+		   between the smallest and the largest of I_uw, S_uw, S_loc and
+		   S_dw, however thin or thick the sections are. S_dw enters only
+		   through the Steffen derivative at the local end, and I can
+		   decrease when it grows: in the last section S_dw is the local
+		   point, whose weight is then small and negative, down to about
+		   -3 where S_loc ~ S_dw and the downwind section is thin
+		   (test_longchar_3d). LongChar_Linear does not depend on S_dw
+		   --                                              -------------- */
+
+	double dchi_c, dchi_uw, dchi_dw, ds03, c1, c2, dtau_uw, dtau_dw, dS_c,
+		dS_uw, dt03, alpha = 0.0, beta = 0.0, gamma = 0.0, theta = 0.0,
+					 eps = 0.0;
+
+	dchi_c  = cent_deriv(ds_uw, ds_dw, chi_uw, chi_loc, chi_dw);
+	dchi_uw = 2.0 * (chi_loc - chi_uw) / ds_uw - dchi_c;
+	dchi_dw = (chi_dw - chi_loc) / ds_dw;
+
+	ds03    = ds_uw * 0.333333333333333333333333333;
+	c1      = chi_loc - ds03 * dchi_c;
+	c2      = chi_uw + ds03 * dchi_uw;
+	dtau_uw = ds_uw * (chi_loc + chi_uw + c1 + c2) * 0.25;
+
+	ds03    = ds_dw * 0.333333333333333333333333333;
+	c1      = chi_loc + ds03 * dchi_c;
+	c2      = chi_dw - ds03 * dchi_dw;
+	dtau_dw = ds_dw * (chi_loc + chi_dw + c1 + c2) * 0.25;
+
+	dS_c  = cent_deriv(dtau_uw, dtau_dw, S_uw, S_loc, S_dw);
+	dt03  = dtau_uw * 0.333333333333333333333333333;
+	dS_uw = 2.0 * (S_loc - S_uw) / dtau_uw - dS_c;
+	c1    = S_loc - dt03 * dS_c;
+	c2    = S_uw + dt03 * dS_uw;
+
+	Bezier3_coeffs(dtau_uw, &alpha, &beta, &gamma, &theta, &eps);
+
+	return I_uw * eps + beta * S_loc + alpha * S_uw + theta * c1 + gamma * c2;
+}
+/* ------- end ---------------------------- LongChar_Bezier3.c ------ */
+
+/* ------- begin -------------------------- LongChar_Linear.c ------- */
+
+double LongChar_Linear(double ds_uw, double chi_uw, double chi_loc,
+					   double S_uw, double S_loc, double I_uw)
+{
+	/* --- One section of a long characteristic with S linear in tau
+		   and the trapezoidal optical path, as Piecewise_Linear_2D and
+		   _3D (N-39) --                                  -------------- */
+
+	double dtau_uw, w[2];
+
+	dtau_uw = 0.5 * (chi_uw + chi_loc) * ds_uw;
+	w2(dtau_uw, w);
+
+	return (1.0 - w[0]) * I_uw + w[0] * S_loc + w[1] * (S_uw - S_loc) / dtau_uw;
+}
+/* ------- end ---------------------------- LongChar_Linear.c ------- */

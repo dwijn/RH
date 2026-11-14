@@ -197,6 +197,14 @@
 
   INTERPOLATE_3D = BICUBIC_3D
 
+# Interpolation of the source function along the long characteristics
+# (KEYWORD_DEFAULT): S_LINEAR (default) or S_BEZIER3 (monotonic cubic
+# Bezier). Long characteristics carry the intensity across several
+# columns and rows to the local point for rays too slanted for a short
+# characteristic to reach the next horizontal grid line (N-39).
+
+  S_INTERPOLATION_LONGCHAR = S_LINEAR
+
 ##  BACKGROUND_POLARIZATION = TRUE
 
 # LIMIT_MEMORY = TRUE keeps J on disk; it needs SOLVER = NG, since
