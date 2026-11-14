@@ -336,6 +336,134 @@ static void check_section(void)
 	}
 }
 
+/* --- One polarized section, LongChar_Stokes_Linear and
+	   LongChar_Stokes_Bezier3 directly (N-41), on the sections of
+	   check_section:
+	   -- with K' = 0 and an unpolarized S and I_uw they give the
+		  unpolarized steps for I, and Q = U = V = 0;
+	   -- with constant chi and K' (random, |eta| < 1, |rho| < 2) and S
+		  linear in tau, starting from the particular solution
+		  I_p = K^-1 S - K^-2 S' (K = 1 + K'), they end on it: S - K' I
+		  is then linear in tau, which both steps integrate exactly (to
+		  rounding: 1e-12, plus 1e-15 / dtau of the shorter section for
+		  the slopes of S, measured 3.4e-10 at dtau_uw = 30, dtau_dw =
+		  1e-6).
+	   The linear step takes no downwind point, so it cannot depend on
+	   it --                                           -------------- */
+
+static void solve4(double K[4][4], const double b[4], double x[4])
+{
+	double A[4][4];
+
+	memcpy(A, K, sizeof(A));
+	memcpy(x, b, 4 * sizeof(double));
+	solveLinearFast(A, x);
+}
+
+static double urand(unsigned *seed)
+{
+	*seed = *seed * 1103515245u + 12345u;
+	return ((*seed >> 8) & 0xffff) / 65535.0;
+}
+
+static void check_section_stokes(void)
+{
+	const double dtau[]   = {1.0e-6, 1.0e-3, 0.1, 1.0, 3.0, 30.0, 1.0e3};
+	const int    Nd       = sizeof(dtau) / sizeof(dtau[0]);
+	unsigned     seed     = 54321;
+	double       unpol[2] = {0.0, 0.0}, quv[2] = {0.0, 0.0}, lin[2] = {0.0, 0.0};
+
+	for (int iu = 0; iu < Nd; iu++)
+		for (int id = 0; id < Nd; id++)
+			for (int t = 0; t < 20; t++) {
+				double v[9], K0[4][4] = {{0.0}}, K[4][4], S[3][4], Iuw[4], Iloc[4],
+							 dS[4], want[4], tmp[4];
+
+				/* --- K' = 0, as check_section --          ---------- */
+
+				for (int j = 2; j < 5; j++) v[j] = pow(10.0, urand(&seed));
+				v[0] = dtau[iu] / v[3];
+				v[1] = dtau[id] / v[3];
+				for (int j = 5; j < 9; j++) v[j] = urand(&seed);
+				for (int p = 0; p < 3; p++) {
+					S[p][0] = v[5 + p];
+					S[p][1] = S[p][2] = S[p][3] = 0.0;
+				}
+				Iuw[0] = v[8];
+				Iuw[1] = Iuw[2] = Iuw[3] = 0.0;
+				for (int sc = 0; sc < 2; sc++) {
+					if (sc == S_BEZIER3)
+						LongChar_Stokes_Bezier3(v[0], v[1], v[2], v[3], v[4], K0, K0, K0,
+												S[0], S[1], S[2], Iuw, Iloc);
+					else
+						LongChar_Stokes_Linear(v[0], v[2], v[3], K0, K0, S[0], S[1], Iuw,
+											   Iloc);
+					unpol[sc] = MAX(unpol[sc], fabs(Iloc[0] - section(sc, v)));
+					for (int n = 1; n < 4; n++) quv[sc] = MAX(quv[sc], fabs(Iloc[n]));
+				}
+
+				/* --- Constant chi and K', linear S --     ---------- */
+
+				double eta[3], rho[3], c = v[3];
+				for (int n = 0; n < 3; n++) {
+					eta[n] = (2.0 * urand(&seed) - 1.0) / sqrt(3.0);
+					rho[n] = 2.0 * (2.0 * urand(&seed) - 1.0);
+				}
+				double Kp[4][4] = {{0.0, eta[0], eta[1], eta[2]},
+								   {eta[0], 0.0, rho[2], -rho[1]},
+								   {eta[1], -rho[2], 0.0, rho[0]},
+								   {eta[2], rho[1], -rho[0], 0.0}};
+				memcpy(K, Kp, sizeof(K));
+				for (int n = 0; n < 4; n++) K[n][n] += 1.0;
+
+				/* --- S(tau) = a + b tau along the section, tau = 0
+					   at the upwind point --              ---------- */
+
+				double a[4], b[4], tau[3] = {0.0, dtau[iu], dtau[iu] + dtau[id]};
+				for (int n = 0; n < 4; n++) {
+					a[n] = urand(&seed) - 0.5 * (n > 0);
+					b[n] = (urand(&seed) - 0.5) / MAX(1.0, tau[2]);
+				}
+				a[0] += 1.0;
+				for (int p = 0; p < 3; p++)
+					for (int n = 0; n < 4; n++) S[p][n] = a[n] + b[n] * tau[p];
+
+				/* --- I_p(tau) = K^-1 (S(tau) - K^-1 b) --  --------- */
+
+				/* --- Bound: rounding, plus that of the slopes of S
+					   over the shorter section, eps / dtau, which in a
+					   thick section has weight ~1 (I ~ S - S') -- ---- */
+
+				double tol = 1.0e-12 + 1.0e-15 / MIN(dtau[iu], dtau[id]);
+
+				solve4(K, b, dS);
+				for (int p = 0; p < 2; p++) {
+					for (int n = 0; n < 4; n++) tmp[n] = S[p][n] - dS[n];
+					solve4(K, tmp, p ? want : Iuw);
+				}
+				for (int sc = 0; sc < 2; sc++) {
+					if (sc == S_BEZIER3)
+						LongChar_Stokes_Bezier3(dtau[iu] / c, dtau[id] / c, c, c, c, Kp, Kp, Kp,
+												S[0], S[1], S[2], Iuw, Iloc);
+					else
+						LongChar_Stokes_Linear(dtau[iu] / c, c, c, Kp, Kp, S[0], S[1], Iuw, Iloc);
+					for (int n = 0; n < 4; n++)
+						lin[sc] = MAX(lin[sc], fabs(Iloc[n] - want[n]) / fabs(want[0]) / tol);
+				}
+			}
+	for (int sc = 0; sc < 2; sc++) {
+		const char *name = sc ? "LongChar_Stokes_Bezier3" : "LongChar_Stokes_Linear";
+
+		if (verbose_section)
+			printf("%s: K' = 0 vs unpolarized %.1e (QUV %.1e); linear S %.2f of the bound\n", name,
+				   unpol[sc], quv[sc], lin[sc]);
+		CHECK(unpol[sc] <= 1.0e-14 && quv[sc] == 0.0,
+			  "%s: K' = 0 differs from the unpolarized step by %.3g (QUV %.3g)", name,
+			  unpol[sc], quv[sc]);
+		CHECK(lin[sc] <= 1.0, "%s: linear S, error %.3g times the bound", name, lin[sc]);
+	}
+}
+
 static const Bounds bounds = {{3.0e-2, 1.0e-2},
 							  {0.1, 0.15},
 							  0.75,
@@ -420,6 +548,7 @@ int main(int argc, char *argv[])
 		}
 	verbose_section = verbose;
 	check_section();
+	check_section_stokes();
 	return check_summary("test_longchar_3d");
 }
 /* ------- end ---------------------------- test_longchar_3d.c ------ */

@@ -483,6 +483,37 @@ void m4inv(double MI[4][4])
 }
 /* ------- end ---------------------------- m4inv.c ----------------- */
 
+/* ------- begin -------------------------- longchar_dtau.c --------- */
+
+static void longchar_dtau(double ds_uw, double ds_dw, double chi_uw,
+						  double chi_loc, double chi_dw, double *dtau_uw,
+						  double *dtau_dw)
+{
+	/* --- Optical paths of the sections upwind and downwind of the local
+		   point of a long characteristic, chi integrated with the
+		   Bezier curve of the short characteristics: the Steffen-limited
+		   centred derivative at the local point, the slope of the
+		   quadratic Bezier curve (N-24) at the upwind point and the
+		   secant at the downwind point --              -------------- */
+
+	double dchi_c, dchi_uw, dchi_dw, ds03, c1, c2;
+
+	dchi_c  = cent_deriv(ds_uw, ds_dw, chi_uw, chi_loc, chi_dw);
+	dchi_uw = 2.0 * (chi_loc - chi_uw) / ds_uw - dchi_c;
+	dchi_dw = (chi_dw - chi_loc) / ds_dw;
+
+	ds03     = ds_uw * 0.333333333333333333333333333;
+	c1       = chi_loc - ds03 * dchi_c;
+	c2       = chi_uw + ds03 * dchi_uw;
+	*dtau_uw = ds_uw * (chi_loc + chi_uw + c1 + c2) * 0.25;
+
+	ds03     = ds_dw * 0.333333333333333333333333333;
+	c1       = chi_loc + ds03 * dchi_c;
+	c2       = chi_dw - ds03 * dchi_dw;
+	*dtau_dw = ds_dw * (chi_loc + chi_dw + c1 + c2) * 0.25;
+}
+/* ------- end ---------------------------- longchar_dtau.c --------- */
+
 /* ------- begin -------------------------- LongChar_Bezier3.c ------ */
 
 double LongChar_Bezier3(double ds_uw, double ds_dw, double chi_uw,
@@ -510,23 +541,10 @@ double LongChar_Bezier3(double ds_uw, double ds_dw, double chi_uw,
 		   (test_longchar_3d). LongChar_Linear does not depend on S_dw
 		   --                                              -------------- */
 
-	double dchi_c, dchi_uw, dchi_dw, ds03, c1, c2, dtau_uw, dtau_dw, dS_c,
-		dS_uw, dt03, alpha = 0.0, beta = 0.0, gamma = 0.0, theta = 0.0,
-					 eps = 0.0;
+	double c1, c2, dtau_uw, dtau_dw, dS_c, dS_uw, dt03;
+	double alpha = 0.0, beta = 0.0, gamma = 0.0, theta = 0.0, eps = 0.0;
 
-	dchi_c  = cent_deriv(ds_uw, ds_dw, chi_uw, chi_loc, chi_dw);
-	dchi_uw = 2.0 * (chi_loc - chi_uw) / ds_uw - dchi_c;
-	dchi_dw = (chi_dw - chi_loc) / ds_dw;
-
-	ds03    = ds_uw * 0.333333333333333333333333333;
-	c1      = chi_loc - ds03 * dchi_c;
-	c2      = chi_uw + ds03 * dchi_uw;
-	dtau_uw = ds_uw * (chi_loc + chi_uw + c1 + c2) * 0.25;
-
-	ds03    = ds_dw * 0.333333333333333333333333333;
-	c1      = chi_loc + ds03 * dchi_c;
-	c2      = chi_dw - ds03 * dchi_dw;
-	dtau_dw = ds_dw * (chi_loc + chi_dw + c1 + c2) * 0.25;
+	longchar_dtau(ds_uw, ds_dw, chi_uw, chi_loc, chi_dw, &dtau_uw, &dtau_dw);
 
 	dS_c  = cent_deriv(dtau_uw, dtau_dw, S_uw, S_loc, S_dw);
 	dt03  = dtau_uw * 0.333333333333333333333333333;
@@ -557,3 +575,82 @@ double LongChar_Linear(double ds_uw, double chi_uw, double chi_loc,
 	return (1.0 - w[0]) * I_uw + w[0] * S_loc + w[1] * (S_uw - S_loc) / dtau_uw;
 }
 /* ------- end ---------------------------- LongChar_Linear.c ------- */
+
+/* ------- begin -------------------------- LongChar_Stokes_Bezier3.c */
+
+void LongChar_Stokes_Bezier3(double ds_uw, double ds_dw, double chi_uw,
+							 double chi_loc, double chi_dw,
+							 double K_uw[4][4], double K_loc[4][4],
+							 double K_dw[4][4], double S_uw[4],
+							 double S_loc[4], double S_dw[4],
+							 double I_uw[4], double I_loc[4])
+{
+	/* --- One section of a polarized long characteristic in 2-D or 3-D
+		   (N-41): the Stokes vector I_loc at the local (downwind) end of
+		   the section from I_uw at the upwind point, given chi, the
+		   reduced propagation matrix K' (StokesK) and the source vector
+		   S at the upwind, local and next downwind points and the
+		   lengths ds_uw and ds_dw, as LongChar_Bezier3: the DELO-Bezier
+		   step of the short characteristics (Bezier3_Stokes_step) with
+		   the Steffen-limited centred derivatives at the local point and
+		   the slopes of the quadratic Bezier curves (N-24) at the
+		   upwind point. With K' = 0 it is LongChar_Bezier3 for I, and
+		   Q = U = V stay 0 for an unpolarized S. I_uw and I_loc must
+		   not overlap --                                 -------------- */
+
+	register int n, m;
+	double       dtau_uw, dtau_dw, dS_c[4], dS_uw[4], dK_c[4][4],
+		dK_uw[4][4];
+
+	longchar_dtau(ds_uw, ds_dw, chi_uw, chi_loc, chi_dw, &dtau_uw, &dtau_dw);
+
+	cent_deriv_vec(dS_c, dtau_uw, dtau_dw, S_uw, S_loc, S_dw);
+	cent_deriv_mat(dK_c, dtau_uw, dtau_dw, K_uw, K_loc, K_dw);
+	for (n = 0; n < 4; n++) {
+		dS_uw[n] = 2.0 * (S_loc[n] - S_uw[n]) / dtau_uw - dS_c[n];
+		for (m = 0; m < 4; m++)
+			dK_uw[n][m] = 2.0 * (K_loc[n][m] - K_uw[n][m]) / dtau_uw - dK_c[n][m];
+	}
+	Bezier3_Stokes_step(dtau_uw, K_uw, K_loc, dK_uw, dK_c, S_uw, S_loc,
+						dS_uw, dS_c, I_uw, I_loc);
+}
+/* ------- end ---------------------------- LongChar_Stokes_Bezier3.c */
+
+/* ------- begin -------------------------- LongChar_Stokes_Linear.c - */
+
+void LongChar_Stokes_Linear(double ds_uw, double chi_uw, double chi_loc,
+							double K_uw[4][4], double K_loc[4][4],
+							double S_uw[4], double S_loc[4],
+							double I_uw[4], double I_loc[4])
+{
+	/* --- One section of a polarized long characteristic with the
+		   DELO-linear step (Rees, Durrant & Murphy 1989): along the
+		   section dI/dtau = S_eff - I with S_eff = S - K' I linear in
+		   tau, the trapezoidal optical path, as LongChar_Linear (N-41):
+
+			 (1 + (w0 - w1 / dtau) K'_loc) I_loc =
+			   ((1 - w0) - w1 / dtau K'_uw) I_uw + w0 S_loc
+				 + w1 (S_uw - S_loc) / dtau.
+
+		   With K' = 0 it is LongChar_Linear for I. I_uw and I_loc must
+		   not overlap --                                 -------------- */
+
+	register int n, m;
+	double       dtau_uw, w[2], c_uw, M_loc[4][4];
+
+	dtau_uw = 0.5 * (chi_uw + chi_loc) * ds_uw;
+	w2(dtau_uw, w);
+	c_uw = w[1] / dtau_uw;
+
+	for (n = 0; n < 4; n++) {
+		I_loc[n] = w[0] * S_loc[n] + c_uw * (S_uw[n] - S_loc[n]);
+		for (m = 0; m < 4; m++) {
+			M_loc[n][m] = (w[0] - c_uw) * K_loc[n][m];
+			I_loc[n] -= c_uw * K_uw[n][m] * I_uw[m];
+		}
+		M_loc[n][n] += 1.0;
+		I_loc[n] += (1.0 - w[0]) * I_uw[n];
+	}
+	solveLinearFast(M_loc, I_loc);
+}
+/* ------- end ---------------------------- LongChar_Stokes_Linear.c - */

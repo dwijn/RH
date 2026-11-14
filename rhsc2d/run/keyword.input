@@ -190,7 +190,8 @@
 # (KEYWORD_DEFAULT): S_LINEAR (default) or S_BEZIER3 (monotonic cubic
 # Bezier). Long characteristics carry the intensity across several
 # columns to the local point for rays too slanted for a short
-# characteristic to reach the next horizontal grid line (N-39).
+# characteristic to reach the next horizontal grid line (N-39). With
+# polarization the same choice gives DELO-linear or DELO-Bezier (N-41).
 
  S_INTERPOLATION_LONGCHAR = S_LINEAR
 

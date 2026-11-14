@@ -301,8 +301,9 @@ static void set_boundary(Slab *slab, const double s[NPOLY], int mu)
 
 static void check_stokes(bool_t verbose)
 {
-	const double lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
-	int          Nplane = NX * NY;
+	const enum S_interpol lc_saved   = input.S_interpolation_longchar;
+	const double          lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
+	int                   Nplane = NX * NY;
 
 	spectrum.as                      = calloc(1, sizeof(ActiveSet));
 	atmos.backgrflags                = calloc(1, sizeof(flags));
@@ -318,48 +319,58 @@ static void check_stokes(bool_t verbose)
 			int      Nspace = Nplane * slab->Nz;
 			double **Sv = stokes_S[i][mesh] = matrix_double(4, Nspace),
 				   **I = stokes_I[i][mesh] = matrix_double(4, Nspace);
-			double unpol = 0.0, quv = 0.0, lin_err = 0.0;
-			Mat    K;
+			/* --- Both long-characteristic schemes (N-41): the K' = 0
+				   comparison is with the unpolarized solver using the
+				   same scheme --                          -------------- */
 
-			/* --- K' = 0: the unpolarized solution --     -------------- */
+			for (int lc = 0; lc < 2; lc++) {
+				const char *lcname = lc ? "BEZIER3" : "LINEAR";
 
-			stokes_set(slab, Sv, cub, 0.0);
-			for (int mu = 0; mu < NRAYS; mu++)
-				for (int to_obs = 0; to_obs <= 1; to_obs++) {
-					set_boundary(slab, cub, mu);
-					ShortChar_Stokes(&slab->geo, 0, mu, to_obs, slab->chi, Sv, I, NULL);
-					ShortChar(&slab->geo, 0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
-					for (int n = 0; n < Nspace; n++) {
-						unpol = MAX(unpol, fabs(I[0][n] - slab->I[n]) / fabs(slab->I[n]));
-						for (int j = 1; j < 4; j++) quv = MAX(quv, fabs(I[j][n]));
+				input.S_interpolation_longchar = lc ? S_BEZIER3 : S_LINEAR;
+				double unpol = 0.0, quv = 0.0, lin_err = 0.0;
+				Mat    K;
+
+				/* --- K' = 0: the unpolarized solution --     -------------- */
+
+				stokes_set(slab, Sv, cub, 0.0);
+				for (int mu = 0; mu < NRAYS; mu++)
+					for (int to_obs = 0; to_obs <= 1; to_obs++) {
+						set_boundary(slab, cub, mu);
+						ShortChar_Stokes(&slab->geo, 0, mu, to_obs, slab->chi, Sv, I, NULL);
+						ShortChar(&slab->geo, 0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
+						for (int n = 0; n < Nspace; n++) {
+							unpol = MAX(unpol, fabs(I[0][n] - slab->I[n]) / fabs(slab->I[n]));
+							for (int j = 1; j < 4; j++) quv = MAX(quv, fabs(I[j][n]));
+						}
+					}
+
+				/* --- Linear S: I+ exact --                   -------------- */
+
+				stokes_set(slab, Sv, lin, 1.0);
+				full_K(K_ELEMENTS, 1.0, K);
+				for (int mu = 0; mu < NRAYS; mu++) {
+					set_boundary(slab, lin, mu);
+					ShortChar_Stokes(&slab->geo, 0, mu, TRUE, slab->chi, Sv, I, NULL);
+					for (int k = 0; k < slab->Nz && slab->tau[k] <= 10.0; k++) {
+						Vec want;
+						I_exact_pol(lin, K, slab->tau[k], slab->tau[0], ray_mu[mu][2], TRUE, want);
+						for (int n = 0; n < Nplane; n++)
+							for (int j = 0; j < 4; j++)
+								lin_err = MAX(lin_err, fabs(I[j][k * Nplane + n] - want[j]) / want[0]);
 					}
 				}
-
-			/* --- Linear S: I+ exact --                   -------------- */
-
-			stokes_set(slab, Sv, lin, 1.0);
-			full_K(K_ELEMENTS, 1.0, K);
-			for (int mu = 0; mu < NRAYS; mu++) {
-				set_boundary(slab, lin, mu);
-				ShortChar_Stokes(&slab->geo, 0, mu, TRUE, slab->chi, Sv, I, NULL);
-				for (int k = 0; k < slab->Nz && slab->tau[k] <= 10.0; k++) {
-					Vec want;
-					I_exact_pol(lin, K, slab->tau[k], slab->tau[0], ray_mu[mu][2], TRUE, want);
-					for (int n = 0; n < Nplane; n++)
-						for (int j = 0; j < 4; j++)
-							lin_err = MAX(lin_err, fabs(I[j][k * Nplane + n] - want[j]) / want[0]);
-				}
+				if (verbose)
+					printf("STOKES %-7s %-8s LC %-7s K' = 0 vs unpolarized %.2e (QUV %.1e); linear S up %.2e\n",
+						   i ? "bicubic" : "linear", mesh_name[mesh], lcname, unpol, quv, lin_err);
+				CHECK(unpol <= 1.0e-13 && quv == 0.0,
+					  "STOKES, %s, LC %s: K' = 0 differs from unpolarized by %.3g (QUV %.3g)",
+					  mesh_name[mesh], lcname, unpol, quv);
+				CHECK(lin_err <= 1.0e-12, "STOKES, %s, LC %s: linear S, I+ error %.3g",
+					  mesh_name[mesh], lcname, lin_err);
 			}
-			if (verbose)
-				printf("STOKES %-7s %-8s K' = 0 vs unpolarized %.2e (QUV %.1e); linear S up %.2e\n",
-					   i ? "bicubic" : "linear", mesh_name[mesh], unpol, quv, lin_err);
-			CHECK(unpol <= 1.0e-13 && quv == 0.0,
-				  "STOKES, %s: K' = 0 differs from unpolarized by %.3g (QUV %.3g)",
-				  mesh_name[mesh], unpol, quv);
-			CHECK(lin_err <= 1.0e-12, "STOKES, %s: linear S, I+ error %.3g",
-				  mesh_name[mesh], lin_err);
 		}
 	}
+	input.S_interpolation_longchar = lc_saved;
 }
 
 /* --- Positions of the long-characteristic points (B-52, B-53): x, y and z

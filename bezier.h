@@ -68,6 +68,19 @@ double LongChar_Bezier3(double ds_uw, double ds_dw, double chi_uw,
 double LongChar_Linear(double ds_uw, double chi_uw, double chi_loc,
 					   double S_uw, double S_loc, double I_uw);
 
+/* --- The same for the Stokes vector (N-41) --        -------------- */
+
+void LongChar_Stokes_Bezier3(double ds_uw, double ds_dw, double chi_uw,
+							 double chi_loc, double chi_dw,
+							 double K_uw[4][4], double K_loc[4][4],
+							 double K_dw[4][4], double S_uw[4],
+							 double S_loc[4], double S_dw[4],
+							 double I_uw[4], double I_loc[4]);
+void LongChar_Stokes_Linear(double ds_uw, double chi_uw, double chi_loc,
+							double K_uw[4][4], double K_loc[4][4],
+							double S_uw[4], double S_loc[4],
+							double I_uw[4], double I_loc[4]);
+
 #endif /* !__BEZIER_H__ */
 
 /* ---------------------------------------- bezier.h ---------------- */
