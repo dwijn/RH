@@ -397,6 +397,44 @@ static bool_t use_exp_step(double dtau, double K_uw[4][4], double K_loc[4][4],
 	return TRUE;
 }
 
+/* ------- begin -------------------------- invert4.c --------------- */
+
+static void invert4(double A[4][4], double Ainv[4][4])
+{
+	/* --- Ainv = A^-1 by Gauss-Jordan elimination with partial
+		   pivoting; for the thick steps of exp_step_const, where A is
+		   well conditioned (its eigenvalues have real parts below -40)
+		   --                                              -------------- */
+
+	double M[4][8];
+
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++) {
+			M[i][j]     = A[i][j];
+			M[i][4 + j] = (i == j);
+		}
+	for (int c = 0; c < 4; c++) {
+		int p = c;
+		for (int i = c + 1; i < 4; i++)
+			if (fabs(M[i][c]) > fabs(M[p][c])) p = i;
+		if (p != c)
+			for (int j = 0; j < 8; j++) {
+				double t;
+				SWAP(M[c][j], M[p][j], t);
+			}
+		double piv = 1.0 / M[c][c];
+		for (int j = 0; j < 8; j++) M[c][j] *= piv;
+		for (int i = 0; i < 4; i++) {
+			if (i == c || M[i][c] == 0.0) continue;
+			double f = M[i][c];
+			for (int j = 0; j < 8; j++) M[i][j] -= f * M[c][j];
+		}
+	}
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++) Ainv[i][j] = M[i][4 + j];
+}
+/* ------- end ---------------------------- invert4.c --------------- */
+
 /* ------- begin -------------------------- exp_phi4.c -------------- */
 
 static void exp_phi4(double A[4][4], double E[4][4], double F[4][4][4])
@@ -529,13 +567,7 @@ static void exp_step_const(double dtau, double K[4][4], double S_uw[4],
 		double              Ainv[4][4], Pw[4][4][4];
 		static const double ifact[4] = {1.0, 1.0, 0.5, 1.0 / 6.0};
 
-		for (int j = 0; j < 4; j++) {
-			double col[4], M[4][4];
-			memcpy(M, A, sizeof(M));
-			for (int i = 0; i < 4; i++) col[i] = (i == j);
-			solveLinearFast(M, col);
-			for (int i = 0; i < 4; i++) Ainv[i][j] = col[i];
-		}
+		invert4(A, Ainv);
 		memcpy(Pw[0], Ainv, sizeof(Ainv)); /* Pw[p] = A^-(p+1) */
 		for (int q = 1; q < 4; q++)
 			for (int i = 0; i < 4; i++)
@@ -607,6 +639,14 @@ void Stokes_Exp_step(double dtau, double K_uw[4][4], double K_loc[4][4],
 		S_mid[n]  = 0.5 * (S_uw[n] + S_loc[n]) + 0.125 * dtau * (dS_uw[n] - dS_loc[n]);
 		dS_mid[n] = 1.5 * (S_loc[n] - S_uw[n]) / dtau - 0.25 * (dS_uw[n] + dS_loc[n]);
 	}
+	/* --- With the same K' at both ends one exponential step is the
+		   same thing --                                   -------------- */
+
+	if (!memcmp(K_uw, K_loc, 16 * sizeof(double))) {
+		exp_step_const(dtau, K_uw, S_uw, S_loc, dS_uw, dS_loc, I_uw, I_loc);
+		return;
+	}
+
 	/* --- Where the second half is thick (its e^A is dropped, the
 		   condition of exp_step_const), I_mid does not matter --  ---- */
 
@@ -678,14 +718,13 @@ double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
 		   dichroism (1.19 measured), and with it the first population
 		   update of the 2-D test case inverted Ca II 866 nm (B-55) -- */
 
+	Bezier3_coeffs(dtau_uw, &alpha, &beta, &gamma, &theta, &eps);
+
 	if (use_exp_step(dtau_uw, K_uw, K_loc, STOKES_XMAX_BEZIER3)) {
-		Bezier3_coeffs(dtau_uw, &alpha, &beta, &gamma, &theta, &eps);
 		Stokes_Exp_step(dtau_uw, K_uw, K_loc, S_uw, S_loc, dS_uw, dS_loc, I_uw,
 						I_loc);
 		return beta + theta;
 	}
-
-	Bezier3_coeffs(dtau_uw, &alpha, &beta, &gamma, &theta, &eps);
 
 	m4m(K_uw, K_uw, Ma);  // Ku # Ku
 	m4m(K_loc, K_loc, A); // K0 # K0

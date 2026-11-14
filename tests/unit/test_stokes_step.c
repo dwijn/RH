@@ -35,6 +35,12 @@
 #include "bezier.h"
 #include "check.h"
 
+/* --- One step against 64 substeps with K' changing by 5 % across a
+	   step of h = 1 .. 300 (rho up to 10): measured 1.6e-2, the
+	   first-order error of the two-half-step approximation, largest
+	   where the Faraday rotation rho h is large --         -------------- */
+#define VAR_BOUND 3.0e-2
+
 static unsigned seed = 2026;
 
 static double urand(void)
@@ -194,7 +200,72 @@ static void check_thick_limit(bool_t verbose)
 		for (int n = 1; n < 4; n++) worst = MAX(worst, fabs(Il[n]));
 	}
 	if (verbose) printf("thick step (dtau 1e4), line-only source: |I - S0 e0| <= %.2e\n", worst);
-	CHECK(worst <= 1.0e-3, "thick step: I differs from the local equilibrium by %.3g", worst);
+	CHECK(worst <= 1.0e-4, "thick step: I differs from the local equilibrium by %.3g", worst);
+}
+
+/* --- Every thickness (code review): one step against 64 substeps.
+	   With constant K' and cubic S the substeps (thin, series branch)
+	   are exact, so one step over h = 1 .. 300, which crosses into the
+	   thick branch, must agree to rounding. With K' changing linearly
+	   from K'_uw to K'_loc the 64 substeps (K' at their own ends) are
+	   the accurate reference for the two-half-step approximation;
+	   its error is first order in the change of K' (measured, printed
+	   with -v) --                                       -------------- */
+
+static void substeps(double h, double Ku[4][4], double Kl[4][4], double c[4][4],
+					 double I[4], int N)
+{
+	for (int s = 0; s < N; s++) {
+		double t0 = h * s / N, t1 = h * (s + 1) / N, K0[4][4], K1[4][4], S0[4], S1[4], d0[4],
+			   d1[4], In[4];
+
+		for (int i = 0; i < 4; i++)
+			for (int j = 0; j < 4; j++) {
+				K0[i][j] = Ku[i][j] + (Kl[i][j] - Ku[i][j]) * t0 / h;
+				K1[i][j] = Ku[i][j] + (Kl[i][j] - Ku[i][j]) * t1 / h;
+			}
+		for (int n = 0; n < 4; n++) {
+			S0[n] = c[n][0] + t0 * (c[n][1] + t0 * (c[n][2] + t0 * c[n][3]));
+			S1[n] = c[n][0] + t1 * (c[n][1] + t1 * (c[n][2] + t1 * c[n][3]));
+			d0[n] = c[n][1] + t0 * (2.0 * c[n][2] + 3.0 * t0 * c[n][3]);
+			d1[n] = c[n][1] + t1 * (2.0 * c[n][2] + 3.0 * t1 * c[n][3]);
+		}
+		Stokes_Exp_step(h / N, K0, K1, S0, S1, d0, d1, I, In);
+		memcpy(I, In, sizeof(In));
+	}
+}
+
+static void check_thickness_range(bool_t verbose)
+{
+	double worst_const = 0.0, worst_var = 0.0;
+
+	for (int t = 0; t < 400; t++) {
+		double h = pow(10.0, 2.48 * urand()), Ku[4][4], Kl[4][4], c[4][4], A[4] = {1, 0.1, -0.05, 0.02},
+			   B[4], C[4];
+
+		random_K(Ku, 0.8 * urand(), pow(10.0, 2.0 * urand() - 1.0));
+		for (int n = 0; n < 4; n++)
+			for (int k = 0; k < 4; k++) c[n][k] = ((n == 0) + 0.5 * (urand() - 0.5)) / pow(h, k);
+		memcpy(B, A, sizeof(A));
+		substeps(h, Ku, Ku, c, B, 1);
+		memcpy(C, A, sizeof(A));
+		substeps(h, Ku, Ku, c, C, 64);
+		for (int n = 0; n < 4; n++) worst_const = MAX(worst_const, fabs(B[n] - C[n]) / norm4(C));
+
+		random_K(Kl, 0.8 * urand(), pow(10.0, 2.0 * urand() - 1.0));
+		for (int i = 0; i < 4; i++)
+			for (int j = 0; j < 4; j++) Kl[i][j] = Ku[i][j] + 0.05 * (Kl[i][j] - Ku[i][j]);
+		memcpy(B, A, sizeof(A));
+		substeps(h, Ku, Kl, c, B, 1);
+		memcpy(C, A, sizeof(A));
+		substeps(h, Ku, Kl, c, C, 64);
+		for (int n = 0; n < 4; n++) worst_var = MAX(worst_var, fabs(B[n] - C[n]) / norm4(C));
+	}
+	if (verbose)
+		printf("h 1 .. 300, one step vs 64 substeps: constant K' %.2e, K' changing by 5 %% %.2e\n",
+			   worst_const, worst_var);
+	CHECK(worst_const <= 1.0e-12, "constant K': one step and 64 substeps differ by %.3g", worst_const);
+	CHECK(worst_var <= VAR_BOUND, "K' changing: one step and 64 substeps differ by %.3g", worst_var);
 }
 
 static void check_no_amplification(bool_t verbose)
@@ -251,6 +322,7 @@ int main(int argc, char *argv[])
 	check_closed_forms(verbose);
 	check_cubic_exact(verbose);
 	check_thick_limit(verbose);
+	check_thickness_range(verbose);
 	check_no_amplification(verbose);
 	return check_summary("test_stokes_step");
 }
