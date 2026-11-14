@@ -207,36 +207,53 @@ def cmd_issues(dry):
 
 
 def cmd_project(dry):
+    """Fill the Project. With dry, read the board and print every change
+    without making it; a missing project or field is assumed to be created
+    with the options in want."""
     projects = gh("project", "list", "--owner", OWNER, "--format", "json",
                   json_out=True)["projects"]
     proj = next((p for p in projects if p["title"] == PROJECT), None)
     if proj is None:
         print(f"create project {PROJECT}")
         if dry:
-            return
-        proj = gh("project", "create", "--owner", OWNER, "--title", PROJECT,
-                  "--format", "json", json_out=True)
-        gh("project", "link", str(proj["number"]), "--owner", OWNER, "--repo", REPO)
+            proj = {"number": None, "id": None}
+        else:
+            proj = gh("project", "create", "--owner", OWNER, "--title", PROJECT,
+                      "--format", "json", json_out=True)
+            gh("project", "link", str(proj["number"]), "--owner", OWNER, "--repo", REPO)
     num, pid = str(proj["number"]), proj["id"]
 
     want = {"Area": list(AREA.values()), "Severity": ["high", "medium", "low"],
             "Plan step": [str(i) for i in range(1, 8)] + ["Wishlist"]}
-    fields = {f["name"]: f for f in gh("project", "field-list", num, "--owner", OWNER,
-                                       "--format", "json", json_out=True)["fields"]}
+
+    def field_list():
+        if proj["number"] is None:
+            return {}
+        return {f["name"]: f for f in gh("project", "field-list", num, "--owner", OWNER,
+                                         "--format", "json", json_out=True)["fields"]}
+
+    fields = field_list()
     for name, opts in want.items():
         if name not in fields:
             print(f"field {name}")
             if not dry:
                 gh("project", "field-create", num, "--owner", OWNER, "--name", name,
                    "--data-type", "SINGLE_SELECT", "--single-select-options", ",".join(opts))
-    if dry:
-        return
-    fields = {f["name"]: f for f in gh("project", "field-list", num, "--owner", OWNER,
-                                       "--format", "json", json_out=True)["fields"]}
-    opt = {n: {o["name"]: o["id"] for o in fields[n]["options"]} for n in want}
+    if not dry:
+        fields = field_list()
+    # Option name -> id; in a dry run a field still to be created gets the
+    # options it would be created with
+    opt = {n: ({o["name"]: o["id"] for o in fields[n]["options"]} if n in fields
+               else dict.fromkeys(want[n])) for n in want}
 
-    items = gh("project", "item-list", num, "--owner", OWNER, "--limit", "1000",
-               "--format", "json", json_out=True)["items"]
+    def set_field(item_id, f, v):
+        if not dry:
+            gh("project", "item-edit", "--id", item_id, "--project-id", pid,
+               "--field-id", fields[f]["id"], "--single-select-option-id", opt[f][v])
+
+    items = [] if proj["number"] is None else gh(
+        "project", "item-list", num, "--owner", OWNER, "--limit", "1000",
+        "--format", "json", json_out=True)["items"]
     on_board = {it.get("content", {}).get("number") for it in items}
     rows = {r["ID"]: r for r in parse_rows()}
     # Items already on the board without a plan step get it once STEP has
@@ -251,28 +268,30 @@ def cmd_project(dry):
                       f"then rerun to set it on #{n} [{i}]")
                 continue
             print(f"plan step {STEP[i]} for #{n} [{i}]")
-            gh("project", "item-edit", "--id", it["id"], "--project-id", pid,
-               "--field-id", fields["Plan step"]["id"],
-               "--single-select-option-id", opt["Plan step"][str(STEP[i])])
-            gh("issue", "edit", str(n), "-R", REPO, "--add-label", step_label(STEP[i]))
-    for i, n in sorted(existing_issues().items(), key=lambda kv: kv[1]):
+            set_field(it["id"], "Plan step", str(STEP[i]))
+            if not dry:
+                gh("issue", "edit", str(n), "-R", REPO, "--add-label", step_label(STEP[i]))
+    for i, n in sorted(number_of.items(), key=lambda kv: kv[1]):
         if n in on_board:
             continue
-        print(f"add #{n} [{i}]")
-        item = gh("project", "item-add", num, "--owner", OWNER, "--url",
-                  f"https://github.com/{REPO}/issues/{n}", "--format", "json", json_out=True)
         sev = rows.get(i, {}).get("Sev", "").lower()
         values = {"Area": AREA[i[0]], "Severity": sev if sev in opt["Severity"] else None,
                   "Plan step": str(STEP[i]) if i in STEP else None}
+        print(f"add #{n} [{i}]  " + ", ".join(f"{f} {v}" for f, v in values.items() if v))
+        item = None if dry else gh(
+            "project", "item-add", num, "--owner", OWNER, "--url",
+            f"https://github.com/{REPO}/issues/{n}", "--format", "json", json_out=True)
         for f, v in values.items():
             if v and v not in opt[f]:
                 # gh cannot add options to an existing single-select field
                 print(f"  no option '{v}' in field {f}: add it in the web UI, "
                       f"then set it on #{n} by hand")
             elif v:
-                gh("project", "item-edit", "--id", item["id"], "--project-id", pid,
-                   "--field-id", fields[f]["id"], "--single-select-option-id", opt[f][v])
-    print(f"project {PROJECT}: https://github.com/users/{OWNER}/projects/{num}")
+                set_field(item and item["id"], f, v)
+    if dry:
+        print("dry run: nothing changed")
+    else:
+        print(f"project {PROJECT}: https://github.com/users/{OWNER}/projects/{num}")
 
 
 if __name__ == "__main__":
