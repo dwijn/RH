@@ -321,6 +321,17 @@ class input_atmos:
             up.done()
 
     def write(self, outfile=None, Bfile=None):
+        """Write the atmosphere to outfile (default: the file it was read
+        from, self.atmosfile) and, if Bfile is given, the magnetic field
+        (B, gamma, chi) to Bfile. Without Bfile no field file is written;
+        the file the field was read from (self.Bfile) is written only if
+        it is passed as Bfile. Raises ValueError, before anything is
+        written, if Bfile is given and the atmosphere has no field."""
+
+        if Bfile != None and not all(hasattr(self, a) \
+                                     for a in ("B", "gamma", "chi")):
+            raise ValueError("input_atmos.write: Bfile given but the "
+                             "atmosphere has no magnetic field")
 
         if self.type == "ONE_D_PLANE" or self.type == "SPHERICAL_SYMMETRIC":
 
@@ -449,7 +460,7 @@ class input_atmos:
             print("Not a valid input atmosphere type: {0}".format(self.type))
             return
 
-        if self.Bfile != None:
+        if Bfile != None:
 
             pck = xdr.Packer()
 
@@ -457,7 +468,7 @@ class input_atmos:
             write_farray(self.gamma, pck, "double")
             write_farray(self.chi, pck, "double")
 
-            f = open(self.Bfile, 'wb')
+            f = open(Bfile, 'wb')
             f.write(pck.get_buffer())
             f.close()
             pck.reset()
