@@ -109,7 +109,8 @@ void SolveLongStokes(Geometry *geometry, Longchar *lc,
 		   or DELO-Bezier (LongChar_Stokes_Bezier3), as
 		   S_INTERPOLATION_LONGCHAR sets. The parabolic integration used
 		   before had the downwind weight of N-39, here of the local
-		   point (N-41). I_uw is returned at the upwind point -- ------ */
+		   point (N-41). K' at the local point is needed only by the
+		   Bezier step. I_uw is returned at the upwind point -- ------ */
 
 	register int ls, n;
 
@@ -133,7 +134,7 @@ void SolveLongStokes(Geometry *geometry, Longchar *lc,
 		if (ls == lc->Nst) {
 			local  = k * geometry->Nplane + m * geometry->Nx + l;
 			chi_dw = chi[local];
-			StokesK(nspect, local, chi_dw, K_dw);
+			if (bezier) StokesK(nspect, local, chi_dw, K_dw);
 			for (n = 0; n < 4; n++) S_dw[n] = S[n][local];
 		} else {
 			chi_dw = Interpolate_3D(chi, geometry, &lc->stencil[ls], l, m);
@@ -152,6 +153,8 @@ void SolveLongStokes(Geometry *geometry, Longchar *lc,
 								   S_uw, S_loc, I_uw, I_loc);
 
 		memcpy(I_uw, I_loc, sizeof(I_loc));
+		if (ls == lc->Nst) break;
+
 		memcpy(S_uw, S_loc, sizeof(S_loc));
 		memcpy(S_loc, S_dw, sizeof(S_dw));
 		memcpy(K_uw, K_loc, sizeof(K_loc));
