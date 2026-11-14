@@ -21,7 +21,8 @@ class element:
 
 class molecule:
 
-    def __init__(self, geometry, up, rhdir):
+    def __init__(self, geometry, up, rhdir='.'):
+        self.rhdir = rhdir
         self.read(geometry, up)
 
     def read(self, geometry, up):
@@ -47,8 +48,14 @@ class molecule:
 
         self.n = read_farray(dim, up, "double")
 
+        # Level energies of an active molecule (Nv > 0), written after n
+        # as a C array [Nv][NJ]
         if self.Nv > 0 and self.NJ > 0:
-            popsfile = os.path.join(rhdir, "pops_mol.{0:s}.out".format(self.ID))
+            self.EvJ = np.ascontiguousarray(
+                read_farray([self.NJ, self.Nv], up, "double").T)
+
+            popsfile = os.path.join(self.rhdir,
+                                    "pops_mol.{0:s}.out".format(self.ID))
             self.read_populations(geometry, filename=popsfile)
         
         
@@ -58,7 +65,7 @@ class molecule:
             case "ONE_D_PLANE":
                 dim = [geometry.Ndep, self.Nv]
             case "SPHERICAL_SYMMETRIC":
-                dim = [geometry.Nradius, self.NV]
+                dim = [geometry.Nradius, self.Nv]
             case "TWO_D_PLANE":
                 dim = [geometry.Nx, geometry.Nz, self.Nv]
             case "THREE_D_PLANE":
@@ -71,9 +78,19 @@ class molecule:
         up = xdr.Unpacker(f.read())
         f.close()
         
-        self.EvJ    = read_farray([self.Nv, self.NJ], up, "double")
-        self.Nv     = read_farray(dim, up, "double")
-        self.Nvstar = read_farray(dim, up, "double")
+        # Same layout as the populations of atoms (xdr_populations in
+        # pops_xdr.c): atmosphere ID, Nlevel (= Nv) and Nspace, then the
+        # true and the LTE populations
+        atmosID = read_string(up)
+        Nlevel  = up.unpack_int()
+        Nspace  = up.unpack_int()
+        if Nlevel != self.Nv or Nspace != int(np.prod(dim[:-1])):
+            raise ValueError("{0:s}: Nv = {1:d}, Nspace = {2:d} do not match "
+                             "molecules.out and the geometry".format(
+                                 filename, Nlevel, Nspace))
+
+        self.nv     = read_farray(dim, up, "double")
+        self.nvstar = read_farray(dim, up, "double")
 
         up.done()
 
