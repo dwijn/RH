@@ -71,6 +71,10 @@ fi
 BASE=$(tree_src "$BASE"); CAND=$(tree_src "$CAND")
 mkdir -p "$WORK/runs"; WORK=$(cd "$WORK" && pwd)
 for d in Atoms Atmos Molecules; do ln -sfn "$CAND/$d" "$WORK/$d"; done
+# Magnetic fields for the 2-D and 3-D Stokes cases (make_field.py)
+python3 -I "$HERE/make_field.py" 2d "$CAND/Atmos/FALC_03x82.atmos" "$WORK/field_2d.B" >/dev/null &&
+python3 -I "$HERE/make_field.py" 3d "$CAND/Atmos/FALC_04x04x82.atmos" "$WORK/field_3d.B" >/dev/null ||
+  echo "make_field.py failed: the 2d/3d fieldfree cases will fail"
 THREADS_MAX=$(echo $THREADS | tr ' ' '\n' | sort -n | tail -1)
 
 for t in "$BASE_BIN" "$CAND_BIN" ${ASAN:+"$ASAN_BIN"}; do
@@ -190,8 +194,8 @@ CASES=(
   "1d:twoactive:STOKES_MODE=NO_STOKES;STOKES_INPUT=none;@H6_ACTIVE"
   "2d:small:"
   "3d:small:N_MAX_ITER=2"
-  "2d:fieldfree:STOKES_INPUT=../../Atmos/FALC_03x82.B;STOKES_MODE=FIELD_FREE"
-  "3d:fieldfree:STOKES_INPUT=../../Atmos/FALC_04x04x82.B;STOKES_MODE=FIELD_FREE;N_MAX_ITER=2"
+  "2d:fieldfree:STOKES_INPUT=$WORK/field_2d.B;STOKES_MODE=FIELD_FREE"
+  "3d:fieldfree:STOKES_INPUT=$WORK/field_3d.B;STOKES_MODE=FIELD_FREE;N_MAX_ITER=2"
   "sph:small:"
 )
 

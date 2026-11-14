@@ -379,12 +379,15 @@ double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
 		   S_eff(0) - dt/3 S_eff'(0) (weight theta); the terms in I(0) go
 		   to the left-hand side, M_loc.
 
-		   The callers differ only in the derivatives they pass: centred
-		   (Steffen-limited, cent_deriv_vec and cent_deriv_mat) at the
-		   local point, and at the upwind point the one carried from the
-		   previous point in 1-D, the slope of the quadratic Bezier curve
-		   (N-24) in 2-D and 3-D, where the upwind point is interpolated
-		   (Q-25) --                                      -------------- */
+		   The callers differ only in the derivatives they pass. At the
+		   local point: centred and Steffen-limited (cent_deriv_vec,
+		   cent_deriv_mat), or one-sided where the ray ends. At the
+		   upwind point: in 1-D the one of the previous point (one-sided
+		   in the first interval), in 2-D and 3-D, where the upwind point
+		   is interpolated, the slope of the quadratic Bezier curve
+		   (N-24). One function for all three since Q-25. I_uw and I_loc
+		   must not overlap: I_loc is built while I_uw is read
+		   --                                              -------------- */
 
 	static const double ident[4][4] =
 		{{1.0, 0.0, 0.0, 0.0},
