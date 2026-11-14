@@ -190,6 +190,8 @@ CASES=(
   "1d:twoactive:STOKES_MODE=NO_STOKES;STOKES_INPUT=none;@H6_ACTIVE"
   "2d:small:"
   "3d:small:N_MAX_ITER=2"
+  "2d:fieldfree:STOKES_INPUT=../../Atmos/FALC_03x82.B;STOKES_MODE=FIELD_FREE"
+  "3d:fieldfree:STOKES_INPUT=../../Atmos/FALC_04x04x82.B;STOKES_MODE=FIELD_FREE;N_MAX_ITER=2"
   "sph:small:"
 )
 

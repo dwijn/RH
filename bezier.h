@@ -50,6 +50,15 @@ void Bezier3_coeffs(double dt, double *alpha, double *beta,
 
 void solveLinearFast(double A[4][4], double B[4]);
 
+/* --- One step of the polarized DELO-Bezier solver (Q-25) -- ------- */
+
+double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
+						   double K_loc[4][4], double dK_uw[4][4],
+						   double dK_loc[4][4], double S_uw[4],
+						   double S_loc[4], double dS_uw[4],
+						   double dS_loc[4], double I_uw[4],
+						   double I_loc[4]);
+
 /* --- One section of a long characteristic (2-D, 3-D) -- ---------- */
 
 double LongChar_Bezier3(double ds_uw, double ds_dw, double chi_uw,

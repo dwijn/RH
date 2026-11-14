@@ -28,14 +28,6 @@
 #include "spectrum.h"
 #include "bezier.h"
 
-/* --- Identity matrix --                              -------------- */
-
-static const double ident[4][4] =
-	{{1.0, 0.0, 0.0, 0.0},
-	 {0.0, 1.0, 0.0, 0.0},
-	 {0.0, 0.0, 1.0, 0.0},
-	 {0.0, 0.0, 0.0, 1.0}};
-
 /* --- Global variables --                             -------------- */
 
 extern Geometry   geometry;
@@ -60,19 +52,17 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 	static const int  siz_mat       = 16 * sizeof(double),
 					 siz_vec        = 4 * sizeof(double);
 
-	register int k, n, m, i, j;
+	register int k, n, m, i;
 
 	int    Ndep = geometry.Ndep, k_start, k_end, dk, k_last;
 	double dtau_uw, dtau_dw = 0.0, c1, c2, dsdn2, dchi_dn = 0.0,
 					I_upw[4], Bnu[2];
-	double  dchi_up, dchi_c, dt03;
-	double  dsup, dsdn, dt, eps = 0, alpha = 0, beta = 0, gamma = 0, theta = 0;
+	double  dchi_up, dchi_c, psi, I_loc[4];
+	double  dsup, dsdn;
 	double  Ku[4][4], K0[4][4], Kd[4][4], dKu[4][4], dK0[4][4];
 	double  Su[4], S0[4], Sd[4], dSu[4], dS0[4];
-	double  A[4][4], Ma[4][4], Mb[4][4], Mc[4][4], V0[4];
 	double  imu = 1.0 / geometry.muz[mu];
 	double *z   = geometry.height;
-	double  Md[4][4];
 
 	if (to_obs) {
 		dk      = -1;
@@ -208,60 +198,11 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 			}
 		}
 
-		dt   = dtau_uw;
-		dt03 = dt * 0.333333333333333333333333333;
-
-		/* --- Bezier3 coeffs. --                      ------------------ */
-
-		Bezier3_coeffs(dt, &alpha, &beta, &gamma, &theta, &eps);
-
-		/* --- Diagonal operator --                    ------------------ */
-
-		if (Psi) Psi[k] = beta + theta;
-		;
-
-		/* --- DELO-Bezier: along the ray dI/dtau = S_eff - I, with
-			   S_eff = S - K' I, so S_eff' = S' - dK' I - K' S + (K'^2 + K') I.
-			   The control points are S_eff(u) + dt/3 S_eff'(u) (weight
-			   gamma) and S_eff(0) - dt/3 S_eff'(0) (weight theta); the
-			   terms in I(0) go to the left-hand side, Md --  ---------- */
-
-		m4m(Ku, Ku, Ma); // Ku # Ku
-		m4m(K0, K0, A);  // K0 # K0
-
-		for (j = 0; j < 4; j++) {
-			for (i = 0; i < 4; i++) {
-				Md[j][i] = ident[j][i] + beta * K0[j][i] + theta * (dt03 * (A[j][i] - dK0[j][i] + K0[j][i]) + K0[j][i]);
-
-				Ma[j][i] = eps * ident[j][i] - alpha * Ku[j][i] + gamma * (dt03 * (Ma[j][i] - dKu[j][i] + Ku[j][i]) - Ku[j][i]);
-
-				Mb[j][i] = alpha * ident[j][i] + gamma * (ident[j][i] -
-														  dt03 * Ku[j][i]);
-				Mc[j][i] = beta * ident[j][i] + theta * (ident[j][i] +
-														 dt03 * K0[j][i]);
-			}
-		}
-
-		/* --- Here I am doing Ma*stk + Mb * Su + Mc * S0 +
-			   (gamma * dSu - theta * dS0) * dtau / 3.0 to compute the
-			   right-hand term
-			   --                                      ------------------ */
-
-		memset(V0, 0, 4 * sizeof(double));
-
-		for (i = 0; i < 4; i++) {
-			for (j = 0; j < 4; j++) {
-				V0[i] += Ma[i][j] * I[j][k - dk] + Mb[i][j] * Su[j] +
-						 Mc[i][j] * S0[j];
-			}
-			V0[i] += dt03 * (gamma * dSu[i] - theta * dS0[i]);
-		}
-
-		/* --- Solve linear system to get the intensity -- -------------- */
-
-		solveLinearFast(Md, V0);
-
-		for (i = 0; i < 4; i++) I[i][k] = V0[i];
+		for (n = 0; n < 4; n++) I_upw[n] = I[n][k - dk];
+		psi = Bezier3_Stokes_step(dtau_uw, Ku, K0, dKu, dK0, Su, S0, dSu, dS0,
+								  I_upw, I_loc);
+		if (Psi) Psi[k] = psi;
+		for (i = 0; i < 4; i++) I[i][k] = I_loc[i];
 
 		/* --- Shift values for next depth --          ------------------ */
 

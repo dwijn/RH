@@ -356,6 +356,83 @@ inline void Bezier3_coeffs(double dt, double *alpha, double *beta,
 }
 /* ------- end ---------------------------- Bezier3_coeffs ---------- */
 
+/* ------- begin -------------------------- Bezier3_Stokes_step.c --- */
+
+double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
+						   double K_loc[4][4], double dK_uw[4][4],
+						   double dK_loc[4][4], double S_uw[4],
+						   double S_loc[4], double dS_uw[4],
+						   double dS_loc[4], double I_uw[4],
+						   double I_loc[4])
+{
+	/* --- One step of the cubic DELO-Bezier solver for polarized light
+		   (de la Cruz Rodriguez & Piskunov 2013), from the upwind to the
+		   local point over the optical path dtau_uw: the Stokes vector
+		   I_loc at the local point from I_uw at the upwind point, given
+		   the reduced propagation matrix K' (StokesK), the source vector
+		   S and their derivatives in tau at both points. Returns the
+		   diagonal of the approximate operator, beta + theta.
+
+		   Along the ray dI/dtau = S_eff - I, with S_eff = S - K' I, so
+		   S_eff' = S' - dK' I - K' S + (K'^2 + K') I. The control points
+		   are S_eff(u) + dt/3 S_eff'(u) (weight gamma) and
+		   S_eff(0) - dt/3 S_eff'(0) (weight theta); the terms in I(0) go
+		   to the left-hand side, M_loc.
+
+		   The callers differ only in the derivatives they pass: centred
+		   (Steffen-limited, cent_deriv_vec and cent_deriv_mat) at the
+		   local point, and at the upwind point the one carried from the
+		   previous point in 1-D, the slope of the quadratic Bezier curve
+		   (N-24) in 2-D and 3-D, where the upwind point is interpolated
+		   (Q-25) --                                      -------------- */
+
+	static const double ident[4][4] =
+		{{1.0, 0.0, 0.0, 0.0},
+		 {0.0, 1.0, 0.0, 0.0},
+		 {0.0, 0.0, 1.0, 0.0},
+		 {0.0, 0.0, 0.0, 1.0}};
+
+	register int i, j;
+	double       eps = 0.0, alpha = 0.0, beta = 0.0, gamma = 0.0, theta = 0.0,
+		   dt03;
+	double A[4][4], Ma[4][4], Mb[4][4], Mc[4][4], M_loc[4][4];
+
+	Bezier3_coeffs(dtau_uw, &alpha, &beta, &gamma, &theta, &eps);
+
+	m4m(K_uw, K_uw, Ma);  // Ku # Ku
+	m4m(K_loc, K_loc, A); // K0 # K0
+
+	dt03 = dtau_uw * 0.3333333333333333333333333;
+	for (j = 0; j < 4; j++) {
+		for (i = 0; i < 4; i++) {
+			M_loc[j][i] = ident[j][i] + beta * K_loc[j][i] + theta * (dt03 * (A[j][i] - dK_loc[j][i] + K_loc[j][i]) + K_loc[j][i]);
+
+			Ma[j][i] = eps * ident[j][i] - alpha * K_uw[j][i] + gamma * (dt03 * (Ma[j][i] - dK_uw[j][i] + K_uw[j][i]) - K_uw[j][i]);
+
+			Mb[j][i] = alpha * ident[j][i] + gamma * (ident[j][i] -
+													  dt03 * K_uw[j][i]);
+			Mc[j][i] = beta * ident[j][i] + theta * (ident[j][i] +
+													 dt03 * K_loc[j][i]);
+		}
+	}
+
+	/* --- Right-hand side Ma I_uw + Mb S_uw + Mc S_loc +
+		   (gamma dS_uw - theta dS_loc) dtau / 3 --       -------------- */
+
+	for (i = 0; i < 4; i++) {
+		I_loc[i] = 0.0;
+		for (j = 0; j < 4; j++) {
+			I_loc[i] += Ma[i][j] * I_uw[j] + Mb[i][j] * S_uw[j] +
+						Mc[i][j] * S_loc[j];
+		}
+		I_loc[i] += dt03 * (gamma * dS_uw[i] - theta * dS_loc[i]);
+	}
+	solveLinearFast(M_loc, I_loc);
+
+	return beta + theta;
+}
+/* ------- end ---------------------------- Bezier3_Stokes_step.c --- */
+
 /* ------- begin -------------------------- m4inv.c ----------------- */
 
 void m4inv(double MI[4][4])

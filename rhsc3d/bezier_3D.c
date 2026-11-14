@@ -28,14 +28,6 @@
 
 /* --- Function prototypes --                          -------------- */
 
-/* --- Identity matrix --                              -------------- */
-
-static const double ident[4][4] =
-	{{1.0, 0.0, 0.0, 0.0},
-	 {0.0, 1.0, 0.0, 0.0},
-	 {0.0, 0.0, 1.0, 0.0},
-	 {0.0, 0.0, 0.0, 1.0}};
-
 /* --- Global variables --                             -------------- */
 
 extern Atmosphere atmos;
@@ -59,16 +51,14 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 		   J. de la Cruz Rodriguez & N. Piskunov (2013)
 		   --                                        ------------------ */
 
-	register int n, p, i, j;
+	register int n, p;
 
 	int    local;
 	double chi_uw, chi_dw, S_uw[4], S_dw[4], dS_uw[4];
-	double eps = 0, alpha = 0, beta = 0, gamma = 0, theta = 0;
 	double dtau_uw, dtau_dw, S_loc[4], dS_c[4], dchi_uw, dchi_dw, dchi_c;
-	double K_loc[4][4], K_uw[4][4], K_dw[4][4], c1, c2, ds03, dt03;
+	double K_loc[4][4], K_uw[4][4], K_dw[4][4], c1, c2, ds03, psi;
 	double dK_uw[4][4], dK_c[4][4];
-	double A[4][4], Ma[4][4], Mb[4][4], Mc[4][4], V0[4];
-	double M_dw[4][4];
+	double I_loc[4];
 
 	local = k * geometry->Nplane + m * geometry->Nx + l;
 
@@ -149,51 +139,10 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 				dK_uw[n][p] = 2.0 * dK_uw[n][p] - dK_c[n][p];
 		}
 	}
-	m4m(K_uw, K_uw, Ma);  // Ku # Ku
-	m4m(K_loc, K_loc, A); // K0 # K0
-
-	/* --- Compute interpolation parameters --         ---------------- */
-
-	Bezier3_coeffs(dtau_uw, &alpha, &beta, &gamma, &theta, &eps);
-
-	/* --- Diagonal operator --                          -------------- */
-
-	if (Psi) Psi[local] = beta + theta;
-
-	dt03 = dtau_uw * 0.3333333333333333333333333;
-	for (j = 0; j < 4; j++) {
-		for (i = 0; i < 4; i++) {
-			M_dw[j][i] = ident[j][i] + beta * K_loc[j][i] + theta * (dt03 * (A[j][i] - dK_c[j][i] + K_loc[j][i]) + K_loc[j][i]);
-
-			Ma[j][i] = eps * ident[j][i] - alpha * K_uw[j][i] + gamma * (dt03 * (Ma[j][i] - dK_uw[j][i] + K_uw[j][i]) - K_uw[j][i]);
-
-			Mb[j][i] = alpha * ident[j][i] + gamma * (ident[j][i] -
-													  dt03 * K_uw[j][i]);
-			Mc[j][i] = beta * ident[j][i] + theta * (ident[j][i] +
-													 dt03 * K_loc[j][i]);
-		}
-	}
-
-	/* --- Here I am doing Ma*stk + Mb * Su + Mc * S0 +
-		   (gamma * dSu - theta * dS0) * dtau / 3.0 to compute the
-	   right-hand term
-			 --                                         --------------- */
-
-	memset(V0, 0, 4 * sizeof(double));
-	for (i = 0; i < 4; i++) {
-		for (j = 0; j < 4; j++) {
-			V0[i] += Ma[i][j] * I_uw[j] + Mb[i][j] * S_uw[j] +
-					 Mc[i][j] * S_loc[j];
-		}
-		V0[i] += dt03 * (gamma * dS_uw[i] - theta * dS_c[i]);
-	}
-	/* --- Solve linear system to get the intensity -- ---------------- */
-
-	solveLinearFast(M_dw, V0);
-
-	/* --- Finally, store intensities --           -------------------- */
-
-	for (n = 0; n < 4; n++) I[n][local] = V0[n];
+	psi = Bezier3_Stokes_step(dtau_uw, K_uw, K_loc, dK_uw, dK_c, S_uw,
+							  S_loc, dS_uw, dS_c, I_uw, I_loc);
+	if (Psi) Psi[local] = psi;
+	for (n = 0; n < 4; n++) I[n][local] = I_loc[n];
 }
 /* ------- end ---------------------------- Piece_Stokes_Bezier3_3D.c */
 
