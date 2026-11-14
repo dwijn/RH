@@ -414,6 +414,7 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 		count = 0;
 		for (l = 0; l < countYZ; l++) {
 			vis[count].plane = YZ;
+			vis[count].index = (geometry->mux[mu] > 0.0) ? l + 1 : -(l + 1);
 			vis[count].s     = ((l + 1) * geometry->dx) / fabs(geometry->mux[mu]);
 			vis[count].x     = geometry->mux[mu] * vis[count].s;
 			vis[count].y     = geometry->muy[mu] * vis[count].s;
@@ -422,6 +423,7 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 		}
 		for (m = 0; m < countXZ; m++) {
 			vis[count].plane = XZ;
+			vis[count].index = (geometry->muy[mu] > 0.0) ? m + 1 : -(m + 1);
 			vis[count].s     = ((m + 1) * geometry->dy) / fabs(geometry->muy[mu]);
 			vis[count].x     = geometry->mux[mu] * vis[count].s;
 			vis[count].y     = geometry->muy[mu] * vis[count].s;
@@ -513,13 +515,11 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 					lc->stencil[count].xkernel[0] = 1.0 - frac1;
 					lc->stencil[count].xkernel[1] = frac1;
 
-					lc->stencil[count].ybase[0] =
-						(int) lround(vis[n].y / geometry->dy);
+					lc->stencil[count].ybase[0] = vis[n].index;
 					break;
 
 				case YZ:
-					lc->stencil[count].xbase[0] =
-						(int) lround(vis[n].x / geometry->dx);
+					lc->stencil[count].xbase[0] = vis[n].index;
 
 					m0                            = floor(vis[n].y / geometry->dy);
 					lc->stencil[count].ybase[0]   = m0;
