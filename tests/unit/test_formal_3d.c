@@ -301,8 +301,9 @@ static void set_boundary(Slab *slab, const double s[NPOLY], int mu)
 
 static void check_stokes(bool_t verbose)
 {
-	const double lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
-	int          Nplane = NX * NY;
+	const enum S_interpol lc_saved   = input.S_interpolation_longchar;
+	const double          lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
+	int                   Nplane = NX * NY;
 
 	spectrum.as                      = calloc(1, sizeof(ActiveSet));
 	atmos.backgrflags                = calloc(1, sizeof(flags));
@@ -369,6 +370,7 @@ static void check_stokes(bool_t verbose)
 			}
 		}
 	}
+	input.S_interpolation_longchar = lc_saved;
 }
 
 /* --- Positions of the long-characteristic points (B-52, B-53): x, y and z

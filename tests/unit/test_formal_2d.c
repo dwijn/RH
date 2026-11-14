@@ -468,7 +468,8 @@ static void stokes_solve(Slab *slab, double **Sv, double **I, const double s[NPO
 
 static void check_stokes(bool_t verbose)
 {
-	const double lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
+	const enum S_interpol lc_saved   = input.S_interpolation_longchar;
+	const double          lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
 
 	spectrum.as                      = calloc(1, sizeof(ActiveSet));
 	atmos.backgrflags                = calloc(1, sizeof(flags));
@@ -527,7 +528,7 @@ static void check_stokes(bool_t verbose)
 		}
 	}
 
-	input.S_interpolation_longchar = S_LINEAR;
+	input.S_interpolation_longchar = lc_saved;
 
 	/* --- Cubic S on "layers": emergent Stokes vector converges -- */
 

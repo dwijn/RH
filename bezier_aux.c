@@ -538,8 +538,8 @@ double LongChar_Bezier3(double ds_uw, double ds_dw, double chi_uw,
 		   (test_longchar_3d). LongChar_Linear does not depend on S_dw
 		   --                                              -------------- */
 
-	double c1, c2, dtau_uw, dtau_dw, dS_c, dS_uw, dt03, alpha = 0.0,
-														beta = 0.0, gamma = 0.0, theta = 0.0, eps = 0.0;
+	double c1, c2, dtau_uw, dtau_dw, dS_c, dS_uw, dt03;
+	double alpha = 0.0, beta = 0.0, gamma = 0.0, theta = 0.0, eps = 0.0;
 
 	longchar_dtau(ds_uw, ds_dw, chi_uw, chi_loc, chi_dw, &dtau_uw, &dtau_dw);
 
@@ -632,12 +632,6 @@ void LongChar_Stokes_Linear(double ds_uw, double chi_uw, double chi_loc,
 		   With K' = 0 it is LongChar_Linear for I. I_uw and I_loc must
 		   not overlap --                                 -------------- */
 
-	static const double ident[4][4] =
-		{{1.0, 0.0, 0.0, 0.0},
-		 {0.0, 1.0, 0.0, 0.0},
-		 {0.0, 0.0, 1.0, 0.0},
-		 {0.0, 0.0, 0.0, 1.0}};
-
 	register int n, m;
 	double       dtau_uw, w[2], c_uw, M_loc[4][4];
 
@@ -648,9 +642,11 @@ void LongChar_Stokes_Linear(double ds_uw, double chi_uw, double chi_loc,
 	for (n = 0; n < 4; n++) {
 		I_loc[n] = w[0] * S_loc[n] + c_uw * (S_uw[n] - S_loc[n]);
 		for (m = 0; m < 4; m++) {
-			M_loc[n][m] = ident[n][m] + (w[0] - c_uw) * K_loc[n][m];
-			I_loc[n] += ((1.0 - w[0]) * ident[n][m] - c_uw * K_uw[n][m]) * I_uw[m];
+			M_loc[n][m] = (w[0] - c_uw) * K_loc[n][m];
+			I_loc[n] -= c_uw * K_uw[n][m] * I_uw[m];
 		}
+		M_loc[n][n] += 1.0;
+		I_loc[n] += (1.0 - w[0]) * I_uw[n];
 	}
 	solveLinearFast(M_loc, I_loc);
 }
