@@ -1531,8 +1531,9 @@ Findings:
   replaces Anderson as the recommendation only if it wins in wall time;
   the expectation is in S-4.
 
-**Open:** the envelope safeguard on `shock_h6` (S-12); N-36 (the two ne
-formulations); multi-D (after N-33). The inversion guard is S-13 (below);
+**Open:** N-36 (the two ne formulations). The envelope safeguard on
+`shock_h6` (S-12) moved to the wishlist in the step-4 triage of
+2026-11-14; multi-D is settled by S-11. The inversion guard is S-13 (below);
 it no longer tests inversions (S-14).
 
 ### Anderson as the default solver (design for the S-5 decision)
@@ -2120,10 +2121,10 @@ Constraints from S-2 and S-4 on steps 5 and 6, until F-4 changes them:
 - float is fine for data computed once that does not depend on x: profiles
   (while they are not recomputed from x), PRD weights, hybrid-PRD tables.
 
-Still needed whatever the solver (keep in step 4 under their IDs): N-7
-(rate-matrix scaling; the preconditioner needs it), N-9 (starting
-solutions), N-12, N-13, N-14 (depth resolution), N-15 (monotonic 3-D
-interpolation), N-16, and B-7; B-38 and B-39 are fixed in their own pull requests (#251,
+Still needed whatever the solver (step 4 under their IDs; the triage of
+2026-11-14 in MODERNIZATION.md §4 moved N-12 and N-14 to the wishlist):
+N-7 (rate-matrix scaling; the preconditioner needs it), N-9 (starting
+solutions), N-13, N-15 (monotonic 3-D interpolation), N-16, and B-7; B-38 and B-39 are fixed in their own pull requests (#251,
 #250), ahead of S-2. N-10 becomes a
 test case for the new solvers; its other candidate causes (3-D Ψ*,
 interpolation) remain. Inputs to the S track: N-21 (`SolveLinearEq`), N-28

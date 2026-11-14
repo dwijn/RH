@@ -20,18 +20,19 @@ upstream. Newest changes go at the top of the changelog.
 
 ## At a glance
 
-*Status on 2026-11-10.* The work is on the fork
+*Status on 2026-11-14.* The work is on the fork
 [dwijn/RH](https://github.com/dwijn/RH), integration branch `modernize`.
 Every change is a pull request, verified against upstream RH (`c95bdf6`)
-or against its base commit. 151 issues are logged; 75 are fixed and 2
+or against its base commit. 170 issues are logged; 92 are fixed and 2
 closed without a fix.
 Plan steps 1–3 (crash fixes, build and hygiene, tests) are done, and
-step 4 (the solver) is under way. Steps 5–7 follow: speed, memory and
-structure.
+step 4 (the solver) is nearly done: its research items moved to the
+wishlist in the triage of 2026-11-14 (§4). Next is the library track
+(errors that return, no globals; from step 7), then speed and memory.
 
 - **Wrong answers that looked right, also in upstream RH.**
-  - 52 of the bugs found also exist upstream (§3.9), and 42 of them are
-    fixed here.
+  - 64 of the problems found also exist upstream (§3.9), and 46 of them
+    are fixed here.
   - **Formal solvers:**
     - 2-D and 3-D long characteristics stopped one section short (B-24):
       7–11 % off on a slab with an exact solution, and up to 25 % in the
@@ -53,8 +54,8 @@ structure.
   - The unit tests check against problems with known answers (exact
     slabs, the analytic polarized solution, first-principles Zeeman
     patterns), which is how most of these were found.
-- **Convergence: a new solver, `ANDERSON`, the default in 1-D since
-  S-10.** RH's Ng is replaced by stabilized Anderson acceleration of an
+- **Convergence: a new solver, `ANDERSON`, the default in every
+  geometry (S-10, S-11).** RH's Ng is replaced by stabilized Anderson acceleration of an
   explicit, deterministic MALI map G (S-2, S-3; design and reasoning in
   [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)).
   - On the 1-D test set (§2.5) it converges every case. That includes
@@ -65,8 +66,7 @@ structure.
     `ITER_LIMIT` 10⁻⁵, `rhsphere` needs half as many.
   - Rate equations are solved by GTH elimination (N-31). He_large
     stalled at 2×10⁻³ because of rounding in the LU solve. Its plain
-    iteration now converges, and so does `ANDERSON`; with Ng it still
-    depends on the extrapolation (N-28).
+    iteration now converges, and so does `ANDERSON` (N-28).
   - Runs report whether they converged, also in the exit status (N-1).
   - Every keyword that is set is checked against the solver, and a
     conflict stops the run with a clear message.
@@ -94,8 +94,8 @@ structure.
     five.
   - Zero compiler warnings, enforced as errors in CI, and one code style
     (clang-format).
-  - CI on Linux and macOS with gcc and clang, also under sanitizers. 27
-    tests run in ctest: 17 unit, 6 end-to-end and 4 that start each
+  - CI on Linux and macOS with gcc and clang, also under sanitizers. 30
+    tests run in ctest: 20 unit, 6 end-to-end and 4 that start each
     program.
   - Every pull request is compared with its base commit, and drift from
     upstream is reported.
@@ -110,9 +110,12 @@ structure.
     instead of calling `exit()` (Q-7, high severity, first in plan
     step 7).
 - **Next:**
-  - Write up the S-11 measurements; settle the PRD sub-iteration
-    damping (N-38).
-  - The rest of step 4, then speed (step 5) and memory (step 6).
+  - Finish step 4: B-55 (2-D and 3-D `FULL_STOKES` diverges, also in
+    upstream's default configuration; cause found, fix to be decided),
+    the PRD sub-iteration damping (N-38), N-41, and the items left in
+    §4.
+  - Then the library track (Q-7 first), speed (step 5) and memory
+    (step 6).
   - Report the upstream bugs of §3.9 to upstream RH.
 
 Issue IDs: **B** bug or crash, **N** numerics/convergence, **P** speed,
@@ -766,19 +769,25 @@ Ordered so that every step can be verified against upstream: byte-identical
    tests and CI (Q-14) closed; the small findings of the unit tests fixed
    (B-18, B-19, B-21 to B-23, N-20, N-22); N-21 (`SolveLinearEq`) moved
    to the S track.
-4. **Solver redesign** (S track, §3.8, [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)) replaces
+4. **Solver redesign** (S track, §3.8, [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md)) replaced
    the earlier list of convergence patches (Ng safeguards, PRD
-   sub-iteration rework, ne preconditioning, positivity): S-1 and S-2,
-   then S-3 and S-4, then the S-5 decision gate; S-6 to S-9 depending on
-   its outcome. Independent of the solver and still part of this step:
-   rate-matrix scaling (N-7; the preconditioner needs it), starting
-   solutions (N-9), monotonic 3-D interpolation (N-15), a depth-resolution
-   test (N-14), N-12, N-13, N-16 and B-5 to B-7. N-10 becomes a test case
-   for the new solvers. G must not keep hidden state, and with ne in the
-   state it calls `Background()` once per evaluation, so B-38, B-39 and
-   the `Background()` part of B-11 are fixed first, each in its own pull
-   request (bug fixes never ride along with the solver work, so that
-   they survive if it is reverted).
+   sub-iteration rework, ne preconditioning, positivity): S-1 to S-4,
+   then the S-5 decision gate, which chose Anderson acceleration of G:
+   the default in 1-D (S-10) and in 2-D and 3-D (S-11), with the guards
+   of S-13 and S-14 and the stop on negative optical depth (N-40). B-38,
+   B-39 and the `Background()` part of B-11 were fixed first, each in
+   its own pull request.
+   *Triage of 2026-11-14:* S-5, N-2 and N-28 closed as settled. Moved to
+   the wishlist (not planned work): S-6 to S-9 (conditional on S-5
+   favouring Newton, which it did not), S-12 (Anderson meets the
+   criteria at its default depth), the depth-resolution study N-14, N-12
+   and N-30. B-41 moves to step 7, with Q-7. What remains here:
+   - bugs: B-55, N-38, N-41 (#359), B-7 (to confirm), B-54;
+   - bounded numerics: N-9, N-15 (with the 3-D part of N-26), N-16,
+     N-27, N-36, and the data items N-34, N-35;
+   - to re-measure on the current code: N-10 (3-D) and N-29;
+   - to rescope against the solver work, each partly superseded: N-3,
+     N-4, N-6, N-7, N-8 and N-13.
 5. **Speed** — *Started early, 2026-11-04:* the background opacity stage
    (P-13, T-5) blocks large-line-list UV syntheses and does not depend on
    the solver, so it goes first: shared state removed and per-point tables
