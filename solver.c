@@ -256,9 +256,10 @@ static double prdSubIterations(int Nsub)
 	AtomicLine *line;
 
 	/* --- Step 4: a fixed number of sub-iterations of rho with the
-		   populations fixed, no Ng, no early exit (N-4). Returns the
-		   largest relative change of rho in the last sub-iteration,
-		   for the log --                                -------------- */
+		   populations fixed, no Ng, no early exit (N-4), each update
+		   damped by PRD_DAMPING (N-38). Returns the largest residual of
+		   rho in the last sub-iteration, the undamped change (the step
+		   taken is PRD_DAMPING times it), for the log -- ---------- */
 
 	for (nsub = 1; nsub <= Nsub; nsub++) {
 		drhomax = 0.0;

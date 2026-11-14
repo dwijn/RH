@@ -145,7 +145,11 @@ void Redistribute(int NmaxIter, double iterLimit)
 					if (input.PRD_damping == 1.0)
 						drho = MaxChange(line->Ng_prd, messageStr, quiet = FALSE);
 					else {
-						drho = dres;
+						/* --- After an accepted Ng step, its jump counts
+							   too (code review) --          -------------- */
+
+						drho = accel ? MAX(dres, MaxChange(line->Ng_prd, messageStr, quiet = TRUE))
+									 : dres;
 						fprintf(commandline.logfile, "%s delta = %6.4E", messageStr, drho);
 					}
 					sprintf(messageStr, "%s", NgStatus(line->Ng_prd, accel));

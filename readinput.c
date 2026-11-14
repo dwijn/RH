@@ -477,6 +477,16 @@ void readInput()
 		   the solver would not honour stops the run here, before any
 		   work is done. A default is never a conflict. -- ------------- */
 
+	/* --- PRD_DAMPING defaults to 0.7, but to 1.0 (no damping) with
+		   SOLVER = NG, which damping slows by 1-29 % and whose results
+		   stay as they were (N-38) --                     -------------- */
+
+	if (input.solver == SOLVER_NG &&
+		!keywordSet(theKeywords, Nkeyword, "PRD_DAMPING")) {
+		input.PRD_damping = 1.0;
+		setKeywordValue(theKeywords, Nkeyword, "PRD_DAMPING", "1.0");
+	}
+
 	if (input.solver != SOLVER_NG) {
 		/* --- Keywords without an "off" value: an error when set.
 			   FIXED_POINT keeps Ng for the "Ng on G" control. (An
