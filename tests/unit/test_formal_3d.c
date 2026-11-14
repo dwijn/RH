@@ -364,78 +364,106 @@ static void check_stokes(bool_t verbose)
 
 /* --- Positions of the long-characteristic points (B-52, B-53): x, y and z
 	   interpolated with each stencil of fillMesh from coordinate
-	   arrays, against the ray. On a 64 x 64 mesh with dtau 0.25 every
-	   oblique ray here crosses vertical planes (up to 48 points); the
-	   local point is mid-mesh and no characteristic reaches the
-	   periodic wrap. UPWIND stencils (upwind of the downward sweep)
-	   lie along +(mux, muy, muz), DOWNWIND ones (upwind of the upward
-	   sweep) along -(mux, muy, muz) --               -------------- */
+	   arrays, against the ray, for both horizontal interpolations. On
+	   a 128 x 128 mesh with dx = 1/64 and layers 0.25 to 0.9 apart
+	   (uneven, so that the layer gaps above and below a point differ)
+	   every oblique ray crosses vertical planes before the next layer
+	   (12 to 80 points); the local point is mid-mesh and no
+	   characteristic reaches the periodic wrap, where interpolating
+	   the coordinates would mean nothing. UPWIND stencils (upwind of
+	   the downward sweep) lie along +(mux, muy, muz), DOWNWIND ones
+	   (upwind of the upward sweep, B-52) along -(mux, muy, muz); the
+	   uneven layers make the gaps above and below the local point,
+	   which the two use, differ. The meshes stay
+	   reachable to the end, as the slabs do --       -------------- */
+
+static Geometry *pos_mesh[NINTERP];
 
 static void check_longchar_positions(bool_t verbose)
 {
-	const int N = 64, Nz = 17, Nplane = N * N, Nspace = Nplane * Nz, k = 8,
-			  l = 32, m = 32;
-	const double dx = 1.0 / N, dtau = 0.25;
-	Geometry    *geo = calloc(1, sizeof(Geometry));
-	double      *xyz[3];
-
-	input.interpolate_3D = LINEAR_3D;
-	geo->x_boundary = geo->y_boundary = PERIODIC;
-	geo->Nx = geo->Ny = N;
-	geo->Nz           = Nz;
-	geo->Nplane       = Nplane;
-	geo->Nrays        = NRAYS;
-	geo->dx = geo->dy = dx;
-	geo->z            = malloc(Nz * sizeof(double));
-	for (int kk = 0; kk < Nz; kk++) geo->z[kk] = -kk * dtau;
-	geo->mux = malloc(NRAYS * sizeof(double));
-	geo->muy = malloc(NRAYS * sizeof(double));
-	geo->muz = malloc(NRAYS * sizeof(double));
-	geo->wmu = malloc(NRAYS * sizeof(double));
-	for (int mu = 0; mu < NRAYS; mu++) {
-		geo->mux[mu] = ray_mu[mu][0];
-		geo->muy[mu] = ray_mu[mu][1];
-		geo->muz[mu] = ray_mu[mu][2];
-		geo->wmu[mu] = 1.0 / NRAYS;
-	}
-	fillMesh(geo);
+	const int N = 128, Nz = 17, Nplane = N * N, Nspace = Nplane * Nz, k = 8,
+			  l = 64, m = 64;
+	const double  dx = 1.0 / 64, dtau = 0.25;
+	enum order_3D saved = input.interpolate_3D;
+	double       *xyz[3];
 
 	for (int c = 0; c < 3; c++) xyz[c] = malloc(Nspace * sizeof(double));
-	for (int kk = 0; kk < Nz; kk++)
-		for (int mm = 0; mm < N; mm++)
-			for (int ll = 0; ll < N; ll++) {
-				int n     = kk * Nplane + mm * N + ll;
-				xyz[0][n] = ll * dx;
-				xyz[1][n] = mm * dx;
-				xyz[2][n] = geo->z[kk];
-			}
 
-	for (int mu = 0; mu < NRAYS; mu++)
-		for (int wind = 0; wind < 2; wind++) {
-			Stencil  *st  = wind ? &geo->stencil_dw[mu][k] : &geo->stencil_uw[mu][k];
-			Longchar *lc  = st->longchar;
-			double    sgn = wind ? -1.0 : 1.0, err = 0.0,
-				   x0[3] = {l * dx, m * dx, geo->z[k]};
+	for (int i = 0; i < NINTERP; i++) {
+		Geometry   *geo = pos_mesh[i] = calloc(1, sizeof(Geometry));
+		const char *iname             = (i == 0) ? "linear" : "bicubic";
 
-			if (lc == NULL) continue;
-			for (int n = 0; n < lc->Nst; n++) {
-				double s = 0.0;
-
-				for (int j = n; j < lc->Nst; j++) s += lc->stencil[j].ds;
-				for (int c = 0; c < 3; c++) {
-					double got = Interpolate_3D(xyz[c], geo, &lc->stencil[n], l, m) - x0[c];
-
-					err = MAX(err, fabs(got - sgn * ray_mu[mu][c] * s));
-				}
-			}
-			if (verbose)
-				printf("LONGCHAR ray %d (%+.1f %+.1f) %-8s: %2d points, position error %.1e\n",
-					   mu, ray_mu[mu][0], ray_mu[mu][1], wind ? "DOWNWIND" : "UPWIND",
-					   lc->Nst, err);
-			CHECK(err <= 1.0e-12, "ray %d (%+.1f, %+.1f), %s long characteristic: points off by %.3g (dx = %.3g)",
-				  mu, ray_mu[mu][0], ray_mu[mu][1], wind ? "DOWNWIND" : "UPWIND", err, dx);
+		input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
+		geo->x_boundary = geo->y_boundary = PERIODIC;
+		geo->Nx = geo->Ny = N;
+		geo->Nz           = Nz;
+		geo->Nplane       = Nplane;
+		geo->Nrays        = NRAYS;
+		geo->dx = geo->dy = dx;
+		geo->z            = malloc(Nz * sizeof(double));
+		for (int kk = 0; kk < Nz; kk++) geo->z[kk] = -dtau * kk * (1.0 + 0.04 * kk);
+		geo->mux = malloc(NRAYS * sizeof(double));
+		geo->muy = malloc(NRAYS * sizeof(double));
+		geo->muz = malloc(NRAYS * sizeof(double));
+		geo->wmu = malloc(NRAYS * sizeof(double));
+		for (int mu = 0; mu < NRAYS; mu++) {
+			geo->mux[mu] = ray_mu[mu][0];
+			geo->muy[mu] = ray_mu[mu][1];
+			geo->muz[mu] = ray_mu[mu][2];
+			geo->wmu[mu] = 1.0 / NRAYS;
 		}
+		fillMesh(geo);
+
+		for (int kk = 0; kk < Nz; kk++)
+			for (int mm = 0; mm < N; mm++)
+				for (int ll = 0; ll < N; ll++) {
+					int n     = kk * Nplane + mm * N + ll;
+					xyz[0][n] = ll * dx;
+					xyz[1][n] = mm * dx;
+					xyz[2][n] = geo->z[kk];
+				}
+
+		for (int wind = 0; wind < 2; wind++) {
+			const char *wname = wind ? "DOWNWIND" : "UPWIND";
+			double      sgn   = wind ? -1.0 : 1.0;
+			int         Nlong = 0;
+
+			for (int mu = 0; mu < NRAYS; mu++) {
+				Stencil  *st  = wind ? &geo->stencil_dw[mu][k] : &geo->stencil_uw[mu][k];
+				Longchar *lc  = st->longchar;
+				double    err = 0.0, s = 0.0, x0[3] = {l * dx, m * dx, geo->z[k]};
+
+				if (lc == NULL) continue;
+				Nlong++;
+
+				/* --- s: path length from the local point, summed
+					   from the last stencil (whose ds reaches the local
+					   point) back --                       ---------- */
+
+				for (int n = lc->Nst - 1; n >= 0; n--) {
+					s += lc->stencil[n].ds;
+					for (int c = 0; c < 3; c++) {
+						double got = Interpolate_3D(xyz[c], geo, &lc->stencil[n], l, m) - x0[c];
+
+						err = MAX(err, fabs(got - sgn * ray_mu[mu][c] * s));
+					}
+				}
+				if (verbose)
+					printf("LONGCHAR %-7s ray %d (%+.1f %+.1f) %-8s: %2d points, position error %.1e\n",
+						   iname, mu, ray_mu[mu][0], ray_mu[mu][1], wname, lc->Nst, err);
+				CHECK(err <= 1.0e-12,
+					  "%s, ray %d (%+.1f, %+.1f), %s long characteristic: points off by %.3g (dx = %.3g)",
+					  iname, mu, ray_mu[mu][0], ray_mu[mu][1], wname, err, dx);
+			}
+
+			/* --- The four oblique rays must have been checked -- --- */
+
+			CHECK(Nlong == NRAYS - 1, "%s: %d of %d oblique rays have a %s long characteristic",
+				  iname, Nlong, NRAYS - 1, wname);
+		}
+	}
 	for (int c = 0; c < 3; c++) free(xyz[c]);
+	input.interpolate_3D = saved;
 }
 
 int main(int argc, char *argv[])

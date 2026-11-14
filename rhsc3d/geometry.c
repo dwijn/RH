@@ -271,7 +271,7 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 	int     l0, m0, k0, countXZ, countYZ, count, Nvalid;
 	bool_t *valid;
 	double  rx, ry, rz, frac1, frac2, muz, dz, longfracx, longfracy,
-		svalid, sgn;
+		svalid, sgn, ux, uy;
 	Stencil   *st;
 	Longchar  *lc;
 	Intersect *vis;
@@ -394,13 +394,20 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 		   structures --                                 -------------- */
 
 	if (st->plane == YZ || st->plane == XZ) {
-		if (wind == UPWIND) {
-			longfracx = rx / rz;
-			longfracy = ry / rz;
-		} else {
-			longfracx = -rx / rz;
-			longfracy = -ry / rz;
-		}
+
+		/* --- The upwind direction: +(mux, muy) for the UPWIND stencils
+			   (upwind of the downward sweep), -(mux, muy) for the
+			   DOWNWIND ones (upwind of the upward sweep). The one sign
+			   is used for the start on the horizontal plane, for the
+			   crossings and for their plane indices (B-52: the
+			   crossings had +(mux, muy) for both) --      -------------- */
+
+		sgn       = (wind == UPWIND) ? 1.0 : -1.0;
+		ux        = sgn * geometry->mux[mu];
+		uy        = sgn * geometry->muy[mu];
+		longfracx = sgn * rx / rz;
+		longfracy = sgn * ry / rz;
+
 		/* --- Determine number of crossings of YZ and XZ planes,
 			   respectively, before XY plane is crossed -- -------------- */
 
@@ -408,29 +415,26 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 		countXZ = (int) floor(fabs(longfracy));
 
 		/* --- Tabulate the vertical intersects, at distance s from the
-			   local point along the ray, upwind: +(mux, muy) s for the
-			   UPWIND stencils (upwind of the downward sweep), -(mux, muy) s
-			   for the DOWNWIND ones (upwind of the upward sweep), like
-			   longfracx, longfracy and the z fractions (B-52) -- ------ */
-
-		sgn = (wind == UPWIND) ? 1.0 : -1.0;
+			   local point along the upwind direction --  -------------- */
 
 		vis = (Intersect *) malloc((countYZ + countXZ) * sizeof(Intersect));
 
 		count = 0;
 		for (l = 0; l < countYZ; l++) {
 			vis[count].plane = YZ;
-			vis[count].s     = ((l + 1) * geometry->dx) / fabs(geometry->mux[mu]);
-			vis[count].x     = sgn * geometry->mux[mu] * vis[count].s;
-			vis[count].y     = sgn * geometry->muy[mu] * vis[count].s;
+			vis[count].index = (ux > 0.0) ? l + 1 : -(l + 1);
+			vis[count].s     = ((l + 1) * geometry->dx) / fabs(ux);
+			vis[count].x     = ux * vis[count].s;
+			vis[count].y     = uy * vis[count].s;
 			vis[count].z     = muz * vis[count].s;
 			count++;
 		}
 		for (m = 0; m < countXZ; m++) {
 			vis[count].plane = XZ;
-			vis[count].s     = ((m + 1) * geometry->dy) / fabs(geometry->muy[mu]);
-			vis[count].x     = sgn * geometry->mux[mu] * vis[count].s;
-			vis[count].y     = sgn * geometry->muy[mu] * vis[count].s;
+			vis[count].index = (uy > 0.0) ? m + 1 : -(m + 1);
+			vis[count].s     = ((m + 1) * geometry->dy) / fabs(uy);
+			vis[count].x     = ux * vis[count].s;
+			vis[count].y     = uy * vis[count].s;
 			vis[count].z     = muz * vis[count].s;
 			count++;
 		}
@@ -519,13 +523,11 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 					lc->stencil[count].xkernel[0] = 1.0 - frac1;
 					lc->stencil[count].xkernel[1] = frac1;
 
-					lc->stencil[count].ybase[0] =
-						(int) lround(vis[n].y / geometry->dy);
+					lc->stencil[count].ybase[0] = vis[n].index;
 					break;
 
 				case YZ:
-					lc->stencil[count].xbase[0] =
-						(int) lround(vis[n].x / geometry->dx);
+					lc->stencil[count].xbase[0] = vis[n].index;
 
 					m0                            = floor(vis[n].y / geometry->dy);
 					lc->stencil[count].ybase[0]   = m0;
