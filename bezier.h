@@ -50,7 +50,8 @@ void Bezier3_coeffs(double dt, double *alpha, double *beta,
 
 void solveLinearFast(double A[4][4], double B[4]);
 
-/* --- One step of the polarized DELO-Bezier solver (Q-25) -- ------- */
+/* --- One step of the polarized DELO-Bezier solver (Q-25); I_uw and
+	   I_loc must not overlap --                       -------------- */
 
 double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
 						   double K_loc[4][4], double dK_uw[4][4],

@@ -97,7 +97,7 @@ build directory, or as a source tree built in place with the old makefiles
 | `1d/crd` | no PRD lines |
 | `1d/twoactive` | two active atoms |
 | `2d/small`, `3d/small`, `sph/small` | the other geometries, from the shipped examples |
-| `2d/fieldfree`, `3d/fieldfree` | the polarized 2-D and 3-D formal solvers, with the long characteristics, on the `small` atmospheres with a field that varies across the columns (`Atmos/FALC_03x82.B`, `FALC_04x04x82.B`, written by `make_field.py`): field-free iterations, then polarized final solutions (`N_MAX_SCATTER`). FULL_STOKES diverges in 2-D and 3-D (B-55) |
+| `2d/fieldfree`, `3d/fieldfree` | the polarized 2-D and 3-D formal solvers, with the long characteristics, on the `small` atmospheres with a field that varies across the columns (written by `make_field.py` into the work directory): field-free iterations, then polarized final solutions (`N_MAX_SCATTER`). FULL_STOKES diverges in 2-D and 3-D (B-55) |
 | `2d/mem` | peak memory on a larger tiled grid (buffers must not scale with Nspect) |
 | `1d/kurucz_blank` | Kurucz list with a leading blank line (currently crashes upstream) |
 
