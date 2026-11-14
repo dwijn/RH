@@ -95,7 +95,7 @@ void readInput()
 		 setintValue},
 		{"PRD_ITER_LIMIT", "1.0E-2", FALSE, KEYWORD_OPTIONAL, &input.PRDiterLimit,
 		 setdoubleValue},
-		{"PRD_DAMPING", "1.0", FALSE, KEYWORD_OPTIONAL, &input.PRD_damping,
+		{"PRD_DAMPING", "0.7", FALSE, KEYWORD_OPTIONAL, &input.PRD_damping,
 		 setdoubleValue},
 		{"PRD_NG_DELAY", "0", FALSE, KEYWORD_OPTIONAL, &input.PRD_Ngdelay,
 		 setintValue},
