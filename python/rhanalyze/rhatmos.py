@@ -33,8 +33,10 @@ class molecule:
                 dim = [geometry.Nradius]
             case "TWO_D_PLANE":
                 dim = [geometry.Nx, geometry.Nz]
-            case "THREEE_D_PLANE":
+            case "THREE_D_PLANE":
                 dim = [geometry.Nx, geometry.Ny, geometry.Nz]
+            case _:
+                raise ValueError("unknown geometry type: " + repr(geometry.type))
 
         self.ID    = read_string(up)
         self.Nv    = up.unpack_int()
@@ -59,8 +61,10 @@ class molecule:
                 dim = [geometry.Nradius, self.NV]
             case "TWO_D_PLANE":
                 dim = [geometry.Nx, geometry.Nz, self.Nv]
-            case "THREEE_D_PLANE":
+            case "THREE_D_PLANE":
                 dim = [geometry.Nx, geometry.Ny, geometry.Nz, self.Nv]
+            case _:
+                raise ValueError("unknown geometry type: " + repr(geometry.type))
 
         
         f  = open(filename, 'rb')
@@ -169,8 +173,10 @@ class atmos:
                 dim = [geometry.Nradius]
             case "TWO_D_PLANE":
                 dim = [geometry.Nx, geometry.Nz]
-            case "THREEE_D_PLANE":
+            case "THREE_D_PLANE":
                 dim = [geometry.Nx, geometry.Ny, geometry.Nz]
+            case _:
+                raise ValueError("unknown geometry type: " + repr(geometry.type))
 
         self.Hminus = read_farray(dim, up, "double")   
 
