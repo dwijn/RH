@@ -17,17 +17,38 @@
 #include "atmos.h"
 #include "spectrum.h"
 #include "geometry.h"
+#include "inputs.h"
+#include "bezier.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
+
+extern InputData input;
 
 /* ------- begin -------------------------- SolveLong.c ------------- */
 
 /* --- Solves transfer equation along a long characteristic specified in
 	   LongChar structure pointed to by lc. Used when, for periodic
 	   boundary conditions, no short characteristic crosses a horizontal
-	   grid plane in the upwind direction. --           -------------- */
+	   grid plane in the upwind direction.
+
+	   The characteristic starts on the horizontal plane (stencil[0]),
+	   crosses vertical planes at stencil[1 .. Nst - 1], the last of
+	   which is the upwind point of the local short characteristic, and
+	   ends at the local point. Section n runs from point n - 1 to point
+	   n over stencil[n - 1].ds; the intensity is returned at the upwind
+	   point, after Nst - 1 sections (B-24).
+
+	   Each section is integrated with S linear in tau or with the cubic
+	   Bezier step of the short characteristics, as S_INTERPOLATION_LONGCHAR
+	   sets. Both keep I between the extremes of the upwind intensity and
+	   the source function. The parabolic integration used before (N-39)
+	   did not: the weight of the downwind S is negative for an optically
+	   thick upwind section and about -1/dtau_dw for a thin downwind one,
+	   and since B-24 the downwind point of the last section is the local
+	   point, so that J depended negatively on the local S and the
+	   Lambda iteration of background scattering diverged -- ------- */
 
 double SolveLong(Geometry *geometry, Longchar *lc,
 				 int k, int l, int m, double *chi, double *S, double *I)
@@ -35,28 +56,15 @@ double SolveLong(Geometry *geometry, Longchar *lc,
 	register int ls;
 
 	int    local;
-	double c1, c2, dtau_dw, dS_uw, dS_dw, w[3], chi_loc, S_loc,
-		dtau_uw, chi_uw, S_uw, I_uw, I_uwp, chi_dw, S_dw;
-
-	/* --- The first point is the intersection with the horizontal
-		   grid line --                                  -------------- */
+	double chi_uw, chi_loc, chi_dw, S_uw, S_loc, S_dw, I_uw, ds_uw, ds_dw;
 
 	chi_uw = Interpolate_3D(chi, geometry, &lc->stencil[0], l, m);
 	S_uw   = Interpolate_3D(S, geometry, &lc->stencil[0], l, m);
-	I_uwp  = Interpolate_3D(I, geometry, &lc->stencil[0], l, m);
-
-	I_uw = I_uwp;
+	I_uw   = Interpolate_3D(I, geometry, &lc->stencil[0], l, m);
 
 	chi_loc = Interpolate_3D(chi, geometry, &lc->stencil[1], l, m);
-	dtau_uw = 0.5 * (chi_uw + chi_loc) * lc->stencil[0].ds;
 	S_loc   = Interpolate_3D(S, geometry, &lc->stencil[1], l, m);
-
-	/* --- Go through the long characteristic section by section. Its
-		   Nst points are the crossings up to the upwind point of the
-		   local short characteristic (the last one, whose ds reaches the
-		   local point); the local point itself is the downwind end of
-		   the last section, so that I_uw is returned at the upwind
-		   point --                                       -------------- */
+	ds_uw   = lc->stencil[0].ds;
 
 	for (ls = 2; ls <= lc->Nst; ls++) {
 		if (ls == lc->Nst) {
@@ -67,33 +75,19 @@ double SolveLong(Geometry *geometry, Longchar *lc,
 			chi_dw = Interpolate_3D(chi, geometry, &lc->stencil[ls], l, m);
 			S_dw   = Interpolate_3D(S, geometry, &lc->stencil[ls], l, m);
 		}
-		dtau_dw = 0.5 * (chi_loc + chi_dw) * lc->stencil[ls - 1].ds;
-		dS_uw   = (S_uw - S_loc) / dtau_uw;
-		dS_dw   = (S_loc - S_dw) / dtau_dw;
+		ds_dw = lc->stencil[ls - 1].ds;
 
-		w3(dtau_uw, w);
-		c1   = dS_uw * dtau_dw + dS_dw * dtau_uw;
-		c2   = dS_uw - dS_dw;
-		I_uw = I_uwp * (1.0 - w[0]) + w[0] * S_loc +
-			   (w[1] * c1 + w[2] * c2) / (dtau_uw + dtau_dw);
+		if (input.S_interpolation_longchar == S_BEZIER3)
+			I_uw = LongChar_Bezier3(ds_uw, ds_dw, chi_uw, chi_loc, chi_dw,
+									S_uw, S_loc, S_dw, I_uw);
+		else
+			I_uw = LongChar_Linear(ds_uw, chi_uw, chi_loc, S_uw, S_loc, I_uw);
 
-		/* --- Try piecewise linear if quadratic gives negative
-			   monochromatic intensity --                  -------------- */
-
-		if (I_uw < 0.0) {
-			c1   = dS_uw;
-			I_uw = (1.0 - w[0]) * I_uwp + w[0] * S_loc + w[1] * c1;
-		}
-		/* --- Store the local quantities as upwind quantities and the
-			   downwind quantities as local ones for the
-			   next subsection of the long characteristic -- ------------ */
-
-		I_uwp   = I_uw;
 		chi_uw  = chi_loc;
 		S_uw    = S_loc;
 		chi_loc = chi_dw;
 		S_loc   = S_dw;
-		dtau_uw = dtau_dw;
+		ds_uw   = ds_dw;
 	}
 	/* --- Return the upwind intensity at the nearest plane for the
 		   pertinent short characteristic --             -------------- */

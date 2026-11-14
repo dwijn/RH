@@ -56,6 +56,14 @@ rh_unit_test(test_formal_3d GEOMETRY rhsc3d TOPOLOGY THREE_D_PLANE
   ${PROJECT_SOURCE_DIR}/rhsc3d/solvelong.c
   ${PROJECT_SOURCE_DIR}/rhsc3d/piecestokes_3D.c
   ${PROJECT_SOURCE_DIR}/rhsc3d/project.c)
+rh_unit_test(test_longchar_3d GEOMETRY rhsc3d TOPOLOGY THREE_D_PLANE
+  test_longchar_3d.c
+  ${PROJECT_SOURCE_DIR}/rhsc3d/piecewise_3D.c
+  ${PROJECT_SOURCE_DIR}/rhsc3d/bezier_3D.c
+  ${PROJECT_SOURCE_DIR}/rhsc3d/geometry.c
+  ${PROJECT_SOURCE_DIR}/rhsc3d/solvelong.c
+  ${PROJECT_SOURCE_DIR}/rhsc3d/piecestokes_3D.c
+  ${PROJECT_SOURCE_DIR}/rhsc3d/project.c)
 rh_unit_test(test_formal_sphere GEOMETRY rhsphere TOPOLOGY SPHERICAL_SYMMETRIC
   test_formal_sphere.c
   ${PROJECT_SOURCE_DIR}/rhsphere/feautrier.c

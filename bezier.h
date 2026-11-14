@@ -50,6 +50,14 @@ void Bezier3_coeffs(double dt, double *alpha, double *beta,
 
 void solveLinearFast(double A[4][4], double B[4]);
 
+/* --- One section of a long characteristic (2-D, 3-D) -- ---------- */
+
+double LongChar_Bezier3(double ds_uw, double ds_dw, double chi_uw,
+						double chi_loc, double chi_dw, double S_uw,
+						double S_loc, double S_dw, double I_uw);
+double LongChar_Linear(double ds_uw, double chi_uw, double chi_loc,
+					   double S_uw, double S_loc, double I_uw);
+
 #endif /* !__BEZIER_H__ */
 
 /* ---------------------------------------- bezier.h ---------------- */

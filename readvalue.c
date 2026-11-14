@@ -409,6 +409,34 @@ void set_S_Interpolation(char *value, void *pointer)
 }
 /* ------- end ---------------------------- set_S_Interpolation.c --- */
 
+/* ------- begin ------------------ set_S_interpolation_longchar.c --- */
+
+void set_S_interpolation_longchar(char *value, void *pointer)
+{
+	/* --- Integration of S along the long characteristics of the 2-D
+		   and 3-D unpolarized formal solution (N-39): S_LINEAR or
+		   S_BEZIER3 --                                  -------------- */
+
+	const char routineName[] = "set_S_interpolation_longchar";
+
+	enum S_interpol interpolation;
+
+	if (!strcmp(value, "S_LINEAR"))
+		interpolation = S_LINEAR;
+	else if (!strcmp(value, "S_BEZIER3"))
+		interpolation = S_BEZIER3;
+	else {
+		sprintf(messageStr,
+				"\n  Invalid value for keyword S_INTERPOLATION_LONGCHAR: %s"
+				" (S_LINEAR or S_BEZIER3)",
+				value);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+		return;
+	}
+	memcpy(pointer, &interpolation, sizeof(enum S_interpol));
+}
+/* ------- end -------------------- set_S_interpolation_longchar.c --- */
+
 /* ------- begin ------------------- set_S_interpolation_stokes.c --- */
 
 void set_S_interpolation_stokes(char *value, void *pointer)
