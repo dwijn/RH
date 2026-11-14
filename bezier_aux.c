@@ -420,10 +420,15 @@ double LongChar_Bezier3(double ds_uw, double ds_dw, double chi_uw,
 		   derivatives at the local point, the upwind slope of the
 		   quadratic Bezier curve through the upwind and local points
 		   (N-24), chi integrated with the same Bezier curve. The control
-		   points lie between the values at the two ends and all weights
-		   are non-negative, so that I stays between the smallest and the
-		   largest of I_uw, S_uw, S_loc and S_dw, however short or long
-		   the sections are --                          -------------- */
+		   points lie between the values at the two ends, so that I stays
+		   between the smallest and the largest of I_uw, S_uw, S_loc and
+		   S_dw, however thin or thick the sections are. S_dw enters only
+		   through the Steffen derivative at the local end, and I can
+		   decrease when it grows: in the last section S_dw is the local
+		   point, whose weight is then small and negative, down to about
+		   -3 where S_loc ~ S_dw and the downwind section is thin
+		   (test_longchar_3d). LongChar_Linear does not depend on S_dw
+		   --                                              -------------- */
 
 	double dchi_c, dchi_uw, dchi_dw, ds03, c1, c2, dtau_uw, dtau_dw, dS_c,
 		dS_uw, dt03, alpha = 0.0, beta = 0.0, gamma = 0.0, theta = 0.0,

@@ -47,6 +47,7 @@
 #include "spectrum.h"
 #include "inputs.h"
 #include "check.h"
+#include "bezier.h"
 #include "slab_exact.h"
 
 extern InputData   input;
@@ -133,6 +134,44 @@ static Mesh *mesh_new(int N, double chi0)
 	return ms;
 }
 
+static void mesh_free(Mesh *ms)
+{
+	/* --- fillMesh sets the stencil_uw of layers 1 .. Nz - 1 and the
+		   stencil_dw of layers 0 .. Nz - 2; the others are not
+		   initialized (code review) --                  -------------- */
+
+	Geometry *geo = &ms->geo;
+
+	for (int mu = 0; mu < NRAYS; mu++) {
+		for (int k = 0; k < ms->Nz; k++) {
+			Stencil *st[2] = {(k > 0) ? &geo->stencil_uw[mu][k] : NULL,
+							  (k < ms->Nz - 1) ? &geo->stencil_dw[mu][k] : NULL};
+
+			for (int w = 0; w < 2; w++)
+				if (st[w] && st[w]->longchar) {
+					free(st[w]->longchar->stencil);
+					free(st[w]->longchar);
+				}
+		}
+		free(geo->stencil_uw[mu]);
+		free(geo->stencil_dw[mu]);
+	}
+	free(geo->stencil_uw);
+	free(geo->stencil_dw);
+	freeMatrix((void **) geo->Itop);
+	freeMatrix((void **) geo->Ibottom);
+	free(geo->z);
+	free(geo->mux);
+	free(geo->muy);
+	free(geo->muz);
+	free(geo->wmu);
+	free(ms->tau);
+	free(ms->chi);
+	free(ms->S);
+	free(ms->I);
+	free(ms);
+}
+
 /* --- Horizontal part of the exact intensity, optical path L -- --- */
 
 static double I_horizontal(double phi, double kappa, double L)
@@ -152,8 +191,11 @@ typedef struct {
 	double up, emergent, down;
 } Errors;
 
-static Errors mesh_errors(Mesh *ms)
+static Errors mesh_errors(Mesh *ms, double *Isave)
 {
+	/* --- Isave, if not NULL, receives I of every ray and direction
+		   (2 NRAYS Nspace) --                            -------------- */
+
 	int    N = ms->N, Nz = ms->Nz, Nplane = N * N;
 	Errors e = {0.0, 0.0, 0.0};
 
@@ -170,6 +212,9 @@ static Errors mesh_errors(Mesh *ms)
 										I_horizontal(phi, kappa, INFINITY);
 			}
 			ShortChar(&ms->geo, 0, mu, to_obs, ms->chi, ms->S, ms->I, NULL);
+			if (Isave)
+				memcpy(Isave + (2 * mu + to_obs) * (size_t) (Nz * Nplane), ms->I,
+					   Nz * Nplane * sizeof(double));
 
 			for (int k = 0; k < Nz - 1; k++)
 				for (int n = 0; n < Nplane; n++) {
@@ -201,15 +246,100 @@ static Errors mesh_errors(Mesh *ms)
 	   tau ~ 1, which the linear interpolation of I between the two
 	   layers in the vertical planes cannot follow (6.7e-2 at chi = 1,
 	   8.2e-2 at chi = 30, N = 32), the same for both long-characteristic
-	   schemes. The two long-characteristic schemes agree to 1.3e-5 of
-	   S0 at chi = 1 (N = 8; 6.6e-7 at N = 32) and 2.3e-4 at chi = 30
-	   --                                              -------------- */
+	   schemes. The intensities of the two long-characteristic schemes
+	   differ, point by point, by at most 1.3e-2, 2.8e-3, 4.1e-4 of S0
+	   at chi = 1 (N = 8, 16, 32) and 5.3e-5, 4.7e-4, 6.4e-4 at
+	   chi = 30 --                                     -------------- */
 
 typedef struct {
-	double up_max[NCHI], down_max[NCHI], order_min, lc_agree[NCHI];
+	double up_max[NCHI], down_max[NCHI], order_min, lc_agree[NCHI][NREFINE];
 } Bounds;
 
-static const Bounds bounds = {{3.0e-2, 1.0e-2}, {0.1, 0.15}, 0.75, {5.0e-5, 5.0e-4}};
+/* --- One section, LongChar_Linear and LongChar_Bezier3 directly, on
+	   sections of very different optical thickness (code review): the
+	   intensity stays between the smallest and the largest of I_uw,
+	   S_uw, S_loc, S_dw, and does not decrease when S_loc grows. The
+	   weight of S_dw, which in the last section is the local point, is
+	   0 for the linear step and is checked. For the Bezier step it
+	   enters through the Steffen derivative at the local end and is
+	   not bounded here: small (-0.07 at worst for constant chi and
+	   S_dw away from S_loc) but down to about -3 where S_loc ~ S_dw
+	   and the downwind section is thin, where the limiter sets the
+	   derivative to twice the downwind slope. The parabolic step of
+	   N-39 had about -1/dtau_dw there for any S --     -------------- */
+
+static bool_t verbose_section = FALSE;
+
+static double section(int scheme, const double *v)
+{
+	/* --- v: ds_uw, ds_dw, chi_uw, chi_loc, chi_dw, S_uw, S_loc, S_dw,
+		   I_uw --                                       -------------- */
+
+	return (scheme == S_BEZIER3)
+			   ? LongChar_Bezier3(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8])
+			   : LongChar_Linear(v[0], v[2], v[3], v[5], v[6], v[8]);
+}
+
+static void check_section(void)
+{
+	const double dtau[]    = {1.0e-6, 1.0e-3, 0.1, 1.0, 3.0, 30.0, 1.0e3};
+	const int    Nd        = sizeof(dtau) / sizeof(dtau[0]);
+	unsigned     seed      = 12345;
+	int          nrange[2] = {0, 0}, nloc[2] = {0, 0}, ndw[2] = {0, 0}, ntot = 0;
+	double       wdw_min[2] = {0.0, 0.0};
+
+	for (int iu = 0; iu < Nd; iu++)
+		for (int id = 0; id < Nd; id++)
+			for (int t = 0; t < 40; t++) {
+				double v[9], lo, hi;
+
+				/* --- chi varies by up to 10 along the section; ds sets
+					   dtau to about the target --            ---------- */
+
+				for (int j = 2; j < 5; j++) {
+					seed = seed * 1103515245u + 12345u;
+					v[j] = pow(10.0, ((seed >> 8) & 0xffff) / 65535.0);
+				}
+				v[0] = dtau[iu] / v[3];
+				v[1] = dtau[id] / v[3];
+				for (int j = 5; j < 9; j++) {
+					seed = seed * 1103515245u + 12345u;
+					v[j] = ((seed >> 8) & 0xffff) / 65535.0;
+				}
+				lo = MIN(MIN(v[5], v[6]), MIN(v[7], v[8]));
+				hi = MAX(MAX(v[5], v[6]), MAX(v[7], v[8]));
+				ntot++;
+				for (int sc = 0; sc < 2; sc++) {
+					double I0 = section(sc, v), w[9], h = 1.0e-6, tol = 1.0e-12, wdw;
+
+					if (I0 < lo - tol || I0 > hi + tol) nrange[sc]++;
+					memcpy(w, v, sizeof(w));
+					w[6] += h;
+					if (section(sc, w) < I0 - tol) nloc[sc]++;
+					memcpy(w, v, sizeof(w));
+					w[7] += h;
+					wdw         = (section(sc, w) - I0) / h;
+					wdw_min[sc] = MIN(wdw_min[sc], wdw);
+					if (sc == S_LINEAR && wdw != 0.0) ndw[sc]++;
+				}
+			}
+	for (int sc = 0; sc < 2; sc++) {
+		const char *name = sc ? "LongChar_Bezier3" : "LongChar_Linear";
+
+		if (verbose_section)
+			printf("%s: smallest weight of S_dw %.3g\n", name, wdw_min[sc]);
+		CHECK(nrange[sc] == 0, "%s: %d of %d sections outside the range of I_uw and S", name,
+			  nrange[sc], ntot);
+		CHECK(nloc[sc] == 0, "%s: %d of %d sections decrease with S_loc", name, nloc[sc], ntot);
+		if (sc == S_LINEAR)
+			CHECK(ndw[sc] == 0, "%s: %d of %d sections depend on S_dw", name, ndw[sc], ntot);
+	}
+}
+
+static const Bounds bounds = {{3.0e-2, 1.0e-2},
+							  {0.1, 0.15},
+							  0.75,
+							  {{2.0e-2, 4.0e-3, 6.0e-4}, {1.0e-4, 7.0e-4, 1.0e-3}}};
 
 int main(int argc, char *argv[])
 {
@@ -230,13 +360,16 @@ int main(int argc, char *argv[])
 			for (int r = 0; r < NREFINE; r++) ms[r] = mesh_new(mesh_N[r], chi_value[c]);
 
 			for (int a = 0; a < 2; a++) {
-				Errors e[2][NREFINE];
+				Errors  e[2][NREFINE];
+				double *Is[2][NREFINE];
 
 				input.S_interpolation = sc[a];
 				for (int b = 0; b < 2; b++) {
 					input.S_interpolation_longchar = sc[b];
 					for (int r = 0; r < NREFINE; r++) {
-						e[b][r] = mesh_errors(ms[r]);
+						Is[b][r] = malloc(2 * NRAYS * (size_t) (ms[r]->Nz * ms[r]->N * ms[r]->N) *
+										  sizeof(double));
+						e[b][r]  = mesh_errors(ms[r], Is[b][r]);
 						if (verbose)
 							printf("  chi %4.1f %-7s SC %-7s LC %-7s N %2d  I+ %.3e  emergent %.3e  I- %.3e\n",
 								   chi_value[c], iname, sname[a], sname[b], mesh_N[r],
@@ -262,22 +395,31 @@ int main(int argc, char *argv[])
 					}
 				}
 
-				/* --- Linear and Bezier long characteristics agree -- --- */
+				/* --- Linear and Bezier long characteristics give nearly
+					   the same intensities, point by point, relative to
+					   S0 (code review: not only similar errors) -- ---- */
 
 				for (int r = 0; r < NREFINE; r++) {
-					double d = MAX(fabs(e[0][r].up - e[1][r].up),
-								   MAX(fabs(e[0][r].emergent - e[1][r].emergent),
-									   fabs(e[0][r].down - e[1][r].down)));
+					size_t n_all = 2 * NRAYS * (size_t) (ms[r]->Nz * ms[r]->N * ms[r]->N);
+					double d     = 0.0;
 
-					if (verbose && r == NREFINE - 1)
-						printf("chi %4.1f %-7s SC %-7s: LC LINEAR and BEZIER3 errors differ by %.1e\n",
-							   chi_value[c], iname, sname[a], d);
-					CHECK(d <= bounds.lc_agree[c],
+					for (size_t n = 0; n < n_all; n++)
+						d = MAX(d, fabs(Is[0][r][n] - Is[1][r][n]));
+					d /= s_lin[0];
+					if (verbose)
+						printf("chi %4.1f %-7s SC %-7s N %2d: LC LINEAR and BEZIER3 differ by %.1e\n",
+							   chi_value[c], iname, sname[a], mesh_N[r], d);
+					CHECK(d <= bounds.lc_agree[c][r],
 						  "chi %g, %s, SC %s, N %d: long-characteristic schemes differ by %.3g",
 						  chi_value[c], iname, sname[a], mesh_N[r], d);
+					free(Is[0][r]);
+					free(Is[1][r]);
 				}
 			}
+			for (int r = 0; r < NREFINE; r++) mesh_free(ms[r]);
 		}
+	verbose_section = verbose;
+	check_section();
 	return check_summary("test_longchar_3d");
 }
 /* ------- end ---------------------------- test_longchar_3d.c ------ */
