@@ -1079,8 +1079,10 @@ part of G.
   negative total opacity (trap 5: H_20's Rydberg levels, overflow in
   Bezier3), did not prevent it, and held steps back from converged
   solutions that have inversions (S-13, below). A negative opacity deep
-  enough to overflow is detected in the formal solution itself (N-40),
-  which rejects the trial point.
+  enough to overflow is detected in the formal solution itself (N-40,
+  #342, to be merged with this change): an Anderson trial point is
+  rejected, a Newton trial halves λ, and anywhere else the run stops
+  with a message.
 - After the evaluation: accept if ‖f_{k+1}‖_W ≤ c‖f_k‖_W with
   c = `ANDERSON_SAFEGUARD` (default 1; 0 turns it off). Otherwise take the
   plain step G(x_k), already computed, and restart the history from the
@@ -1210,8 +1212,9 @@ separate one.
 4. **Globalization.** Backtracking on ‖R‖_W: trial u + λδ for
    λ = 1, ½, ¼, ⅛, 1/16, accepted if
    ‖R(u + λδ)‖_W ≤ (1 − 10⁻⁴λ)‖R(u)‖_W. The S-3 guard (finite, no new
-   negatives, no new line inversions against G(x_k)) runs before
-   each trial and a failure halves λ without a G evaluation. If no λ is
+   negatives against G(x_k) and x_k; inversions are no longer tested,
+   S-13 and S-14) runs before each trial and a failure halves λ without
+   a G evaluation. If no λ is
    accepted, the plain step x ← G(x_k) is taken; it costs nothing, as
    G(x_k) is known. The G evaluation of an accepted trial is the base of
    the next Newton step, never paid twice.
@@ -1267,8 +1270,9 @@ these details fixed in the code:
   Anderson's extrapolations are, an inversion that x_k has and G(x_k)
   lacks blocked every λ: 155 of 243 plain steps on `1d_shock_h6`, all 16
   on `1d_falc_helarge`, and divergence by plain steps on
-  `1d_shock_h6crd_ne`. A negative value or inversion now counts as new
-  only where neither G(x_k) nor x_k has it.
+  `1d_shock_h6crd_ne`. A negative value or inversion then counted as new
+  only where neither G(x_k) nor x_k had it; the inversion tests went in
+  S-13 and S-14, the rule stays for negative values.
 - A trial with an entry above log(DBL_MAX) in `LOG` variables is a guard
   failure ("not finite") before exp() is called: Newton steps reach
   |d|_max ~10⁴ in J (`1d_falc_mgi66`), which trapped as SIGFPE.
@@ -1495,7 +1499,8 @@ Findings:
   plain steps), `falc_civi`, `t5750_h6` and `falc_mgi66`, from the first
   extrapolations on, while Anderson still wins clearly there. A small
   margin in the test (levels whose n/g are nearly equal) is to be looked
-  at. Done in S-13 (below): not a margin; the continuum test went.
+  at. Done in S-13 (below): not a margin; the continuum test went, and
+  the line test in S-14.
 - ne: on `falc_solvene` Anderson at m = 10 needs 4.3× less work than Ng
   on G, and 6× fewer G evaluations and `Background()` calls (40 against
   244). On `shock_h6crd_ne`, where
@@ -1527,7 +1532,8 @@ Findings:
   the expectation is in S-4.
 
 **Open:** the envelope safeguard on `shock_h6` (S-12); N-36 (the two ne
-formulations); multi-D (after N-33). The inversion guard is S-13 (below).
+formulations); multi-D (after N-33). The inversion guard is S-13 (below);
+it no longer tests inversions (S-14).
 
 ### Anderson as the default solver (design for the S-5 decision)
 
@@ -1748,7 +1754,8 @@ the change is mostly which entries Anderson's vectors hold.
   The convergence test is unchanged: `MaxChange` already looks only at
   populations.
 - The guard is unchanged. Carried blocks hold G's values, so they cannot
-  create new inversions or negative values.
+  create new negative values (or, while the guard tested them, new
+  inversions; S-13, S-14).
 - J is out of step with the populations. In plain iteration J and the
   populations of x_{k+1} come from the same G. Here the populations jump
   to the extrapolated point, while J stays G's J of the unextrapolated
