@@ -268,10 +268,9 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 	const char   routineName[] = "setStencil";
 	register int l, m, n;
 
-	int     l0, m0, k0, countXZ, countYZ, count, Nvalid;
-	bool_t *valid;
-	double  rx, ry, rz, frac1, frac2, muz, dz, longfracx, longfracy,
-		svalid, sgn, ux, uy;
+	int    l0, m0, k0, countXZ, countYZ, count, Nvalid;
+	double rx, ry, rz, frac1, frac2, muz, dz, longfracx, longfracy, smin,
+		sgn, ux, uy;
 	Stencil   *st;
 	Longchar  *lc;
 	Intersect *vis;
@@ -443,21 +442,20 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 
 		qsort(vis, count, sizeof(Intersect), sascend);
 
-		/* --- Determine if any of the intersections appear too close to
-			   one another, for instance when they occur on an intersection
-			   between YZ and XZ planes --                 -------------- */
+		/* --- Discard intersections that appear too close to the preceding
+			   one, for instance when they occur on an intersection between
+			   YZ and XZ planes. Each is compared with its predecessor in
+			   the sorted list, also when that one was itself discarded.
+			   The remaining intersections are compacted in vis[0..Nvalid-1],
+			   still sorted, so that the stencils follow by plain indexing
+			   (Q-29; the bookkeeping this replaces caused B-54). The
+			   compaction writes only to indices <= n, so vis[n - 1] is
+			   intact when it is read --                   -------------- */
 
-		Nvalid   = count;
-		valid    = (bool_t *) malloc(Nvalid * sizeof(bool_t));
-		valid[0] = TRUE;
-		for (n = 1; n < count; n++) {
-			if ((vis[n].s - vis[n - 1].s) <
-				MIN_FRAC * MIN(geometry->dx, geometry->dy)) {
-				valid[n] = FALSE;
-				Nvalid--;
-			} else
-				valid[n] = TRUE;
-		}
+		smin   = MIN_FRAC * MIN(geometry->dx, geometry->dy);
+		Nvalid = 1;
+		for (n = 1; n < count; n++)
+			if (!(vis[n].s - vis[n - 1].s < smin)) vis[Nvalid++] = vis[n];
 
 		st->longchar = (Longchar *) malloc(sizeof(Longchar));
 		lc           = st->longchar;
@@ -466,15 +464,10 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 
 		/* --- The first stencil to be stored is the intersection with
 			   the horizontal XY plane, ds is the distance to the first
-			   valid vertical intersection --              -------------- */
+			   valid vertical intersection (the last in vis[]) --  ----- */
 
 		lc->stencil[0].plane = XY;
-		n                    = count;
-		do {
-			n--;
-			lc->stencil[0].ds = dz / muz - vis[n].s;
-		} while (!valid[n]);
-		svalid = vis[n].s;
+		lc->stencil[0].ds    = dz / muz - vis[Nvalid - 1].s;
 
 		l0    = floor(longfracx);
 		frac1 = longfracx - l0;
@@ -504,67 +497,58 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 		lc->stencil[0].zbase[0] = (wind == UPWIND) ? k - 1 : k + 1;
 
 		count = 1;
-		for (n = (countXZ + countYZ) - 1; n >= 0; n--) {
-			if (valid[n]) {
-				lc->stencil[count].plane = vis[n].plane;
-				if (count == Nvalid)
-					lc->stencil[count].ds = svalid;
-				else {
-					/* --- The next valid intersection toward the local point:
-						   vis[n - 1] may have been discarded (B-54) --  --- */
-					m = n - 1;
-					while (!valid[m]) m--;
-					lc->stencil[count].ds = svalid - vis[m].s;
-					svalid                = vis[m].s;
-				}
+		for (n = Nvalid - 1; n >= 0; n--) {
+			lc->stencil[count].plane = vis[n].plane;
 
-				switch (vis[n].plane) {
-				case XZ:
-					l0                            = floor(vis[n].x / geometry->dx);
-					lc->stencil[count].xbase[0]   = l0;
-					lc->stencil[count].xbase[1]   = l0 + 1;
-					frac1                         = vis[n].x / geometry->dx - l0;
-					lc->stencil[count].xkernel[0] = 1.0 - frac1;
-					lc->stencil[count].xkernel[1] = frac1;
+			/* --- ds is the distance to the next intersection toward
+				   the local point, the origin for the last --  ------ */
+			lc->stencil[count].ds = vis[n].s - ((n > 0) ? vis[n - 1].s : 0.0);
 
-					lc->stencil[count].ybase[0] = vis[n].index;
-					break;
+			switch (vis[n].plane) {
+			case XZ:
+				l0                            = floor(vis[n].x / geometry->dx);
+				lc->stencil[count].xbase[0]   = l0;
+				lc->stencil[count].xbase[1]   = l0 + 1;
+				frac1                         = vis[n].x / geometry->dx - l0;
+				lc->stencil[count].xkernel[0] = 1.0 - frac1;
+				lc->stencil[count].xkernel[1] = frac1;
 
-				case YZ:
-					lc->stencil[count].xbase[0] = vis[n].index;
+				lc->stencil[count].ybase[0] = vis[n].index;
+				break;
 
-					m0                            = floor(vis[n].y / geometry->dy);
-					lc->stencil[count].ybase[0]   = m0;
-					lc->stencil[count].ybase[1]   = m0 + 1;
-					frac1                         = vis[n].y / geometry->dy - m0;
-					lc->stencil[count].ykernel[0] = 1.0 - frac1;
-					lc->stencil[count].ykernel[1] = frac1;
-					break;
+			case YZ:
+				lc->stencil[count].xbase[0] = vis[n].index;
 
-				case XY:
-					sprintf(messageStr, "Plane not implemented: %d", vis[n].plane);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
-				}
+				m0                            = floor(vis[n].y / geometry->dy);
+				lc->stencil[count].ybase[0]   = m0;
+				lc->stencil[count].ybase[1]   = m0 + 1;
+				frac1                         = vis[n].y / geometry->dy - m0;
+				lc->stencil[count].ykernel[0] = 1.0 - frac1;
+				lc->stencil[count].ykernel[1] = frac1;
+				break;
 
-				if (wind == UPWIND) {
-					lc->stencil[count].zbase[0] = k;
-					lc->stencil[count].zbase[1] = k - 1;
-					frac2                       = vis[n].z / dz;
-				} else {
-					lc->stencil[count].zbase[0] = k + 1;
-					lc->stencil[count].zbase[1] = k;
-					frac2                       = 1.0 - vis[n].z / dz;
-				}
-				lc->stencil[count].zkernel[0] = 1.0 - frac2;
-				lc->stencil[count].zkernel[1] = frac2;
-
-				count++;
+			case XY:
+				sprintf(messageStr, "Plane not implemented: %d", vis[n].plane);
+				Error(ERROR_LEVEL_2, routineName, messageStr);
 			}
+
+			if (wind == UPWIND) {
+				lc->stencil[count].zbase[0] = k;
+				lc->stencil[count].zbase[1] = k - 1;
+				frac2                       = vis[n].z / dz;
+			} else {
+				lc->stencil[count].zbase[0] = k + 1;
+				lc->stencil[count].zbase[1] = k;
+				frac2                       = 1.0 - vis[n].z / dz;
+			}
+			lc->stencil[count].zkernel[0] = 1.0 - frac2;
+			lc->stencil[count].zkernel[1] = frac2;
+
+			count++;
 		}
 		/* --- Free temporary arrays --                    -------------- */
 
 		free(vis);
-		free(valid);
 
 		/* --- Store total number of long characteristics to be used - -- */
 
