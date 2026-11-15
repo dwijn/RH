@@ -471,13 +471,14 @@ int atomnr(char *ID)
 /* ------- begin -------------------------- RateCheck.c ----------- */
 
 /* --- Rates given by formulas are checked at read time for what the
-	   coefficients alone can decide (finite, and the signs that the
-	   formula needs), and while they are evaluated for the sign of the
-	   result, which depends on T: a negative coefficient is set to zero
-	   and reported once per record and run (N-34), a coefficient that
-	   is not finite stops the run, as for the tabulated rates (N-32).
-	   A formula that is used outside the range of its fit (AR85-CHP and
-	   AR85-CHH, zero there) is reported the same way. -- ----------- */
+	   coefficients alone decide (finite, no value that makes the formula
+	   invalid), and while they are evaluated for the sign of the result,
+	   which depends on T. The result is the contribution to the
+	   collision matrix C (s^-1): a negative one is set to zero and
+	   reported once per record, atom and run (N-34), one that is not
+	   finite stops the run, as for the tabulated rates (N-32). A formula
+	   that is used outside the range of its fit (AR85-CHP and AR85-CHH,
+	   zero there) is reported the same way. -- ------------------- */
 
 typedef struct {
 	long   Nneg, Nout;
@@ -492,41 +493,76 @@ static void rateCheckInit(RateCheck *rc)
 	rc->Tout[0] = rc->Tout[1] = 0.0;
 }
 
-/* --- TRUE the first time that a record is reported in a run (the
-	   routine is called again when the electron density changes) -- */
+/* --- The records already reported for an atom, kept in the atom
+	   (CollisionRate reads the records again whenever the electron
+	   density changes, so the state cannot be in the record).
+	   Freed with the atom, or by freeRateReports to start again -- -- */
 
-#define N_REPORTED 256
+struct RateReports {
+	int    N, Nalloc;
+	char **key;
+};
 
-static bool_t firstReport(const char *ID, const char *keyword, int i1, int i2,
+void freeRateReports(Atom *atom)
+{
+	struct RateReports *rr = atom->rateReports;
+	int                 n;
+
+	if (rr == NULL) return;
+	for (n = 0; n < rr->N; n++) free(rr->key[n]);
+	free(rr->key);
+	free(rr);
+	atom->rateReports = NULL;
+}
+
+/* --- TRUE the first time that a record is reported for the atom -- */
+
+static bool_t firstReport(Atom *atom, const char *keyword, int i1, int i2,
 						  const char *what)
 {
-	static char reported[N_REPORTED][160];
-	static int  Nreported = 0;
-	char        key[160];
-	int         n;
+	struct RateReports *rr;
+	char                key[96];
+	int                 n;
 
-	snprintf(key, sizeof(key), "%s %.20s %d %d %.20s", ID, keyword, i1, i2, what);
-	for (n = 0; n < Nreported; n++)
-		if (!strcmp(reported[n], key)) return FALSE;
-	if (Nreported < N_REPORTED) strcpy(reported[Nreported++], key);
+	snprintf(key, sizeof(key), "%.20s %d %d %.20s", keyword, i1, i2, what);
+	if (atom->rateReports == NULL)
+		atom->rateReports = (struct RateReports *) calloc(1, sizeof(struct RateReports));
+	rr = atom->rateReports;
+	for (n = 0; n < rr->N; n++)
+		if (!strcmp(rr->key[n], key)) return FALSE;
+	if (rr->N == rr->Nalloc) {
+		rr->Nalloc = (rr->Nalloc == 0) ? 8 : 2 * rr->Nalloc;
+		rr->key    = (char **) realloc(rr->key, rr->Nalloc * sizeof(char *));
+	}
+	rr->key[rr->N++] = strdup(key);
 	return TRUE;
 }
 
-static void rateCheckFiniteCoeff(const Atom *atom, const char *keyword, int i1,
-								 int i2, const double *v, int n)
+/* --- Stop at the first value that is not finite, in a table
+	   (T is the grid of the values) or among the coefficients of a
+	   formula (T = NULL) -- --------------------------------------- */
+
+static void checkFiniteValues(const Atom *atom, const char *keyword, int i1,
+							  int i2, const double *v, int n, const double *T)
 {
 	int  m;
 	char msg[MAX_MESSAGE_LENGTH];
 
 	for (m = 0; m < n; m++) {
-		if (!isfinite(v[m])) {
+		if (isfinite(v[m])) continue;
+		if (T != NULL)
+			snprintf(msg, sizeof(msg),
+					 "Atom %s: collision record %.20s %d %d has a non-finite"
+					 " value (%g) at T = %g K.\n Fix or remove this record in"
+					 " the atom file",
+					 atom->ID, keyword, i1, i2, v[m], T[m]);
+		else
 			snprintf(msg, sizeof(msg),
 					 "Atom %s: collision record %.20s %d %d has a non-finite"
 					 " coefficient (%g, number %d).\n Fix or remove this record"
 					 " in the atom file",
 					 atom->ID, keyword, i1, i2, v[m], m + 1);
-			Error(ERROR_LEVEL_2, "CollisionRate", msg);
-		}
+		Error(ERROR_LEVEL_2, "CollisionRate", msg);
 	}
 }
 
@@ -542,8 +578,8 @@ static void rateCheckCoeffError(const Atom *atom, const char *keyword, int i1,
 	Error(ERROR_LEVEL_2, "CollisionRate", msg);
 }
 
-/* --- A rate coefficient x at temperature T: stops when it is not
-	   finite, returns zero for a negative value and counts it -- --- */
+/* --- A contribution x (s^-1) to C at temperature T: stops when it is
+	   not finite, returns zero for a negative value and counts it -- */
 
 static double rateChecked(double x, RateCheck *rc, const Atom *atom,
 						  const char *keyword, int i1, int i2, double T)
@@ -553,7 +589,7 @@ static double rateChecked(double x, RateCheck *rc, const Atom *atom,
 	if (!isfinite(x)) {
 		snprintf(msg, sizeof(msg),
 				 "Atom %s: collision record %.20s %d %d gives a rate that is not"
-				 " finite (%g) at T = %g K.\n Check its coefficients",
+				 " finite (%g s^-1) at T = %g K.\n Check its coefficients",
 				 atom->ID, keyword, i1, i2, x, T);
 		Error(ERROR_LEVEL_2, "CollisionRate", msg);
 	}
@@ -575,23 +611,23 @@ static void rateCheckOutside(RateCheck *rc, double T)
 	rc->Nout++;
 }
 
-static void rateCheckReport(const RateCheck *rc, const Atom *atom,
+static void rateCheckReport(const RateCheck *rc, Atom *atom,
 							const char *keyword, int i1, int i2, long Nspace,
 							double T1, double T2)
 {
 	char msg[MAX_MESSAGE_LENGTH];
 
-	if (rc->Nneg > 0 && firstReport(atom->ID, keyword, i1, i2, "negative")) {
+	if (rc->Nneg > 0 && firstReport(atom, keyword, i1, i2, "negative")) {
 		snprintf(msg, sizeof(msg),
-				 "Atom %s: collision record %.20s %d %d gives a negative rate at"
-				 " %ld of %ld locations (smallest %g at T = %g K, in the units"
-				 " of the formula); set to zero there.\n Check the coefficients"
-				 " of this record",
+				 "Atom %s: collision record %.20s %d %d gives a negative"
+				 " contribution to the collision rate C at %ld of %ld locations"
+				 " (smallest %g s^-1 at T = %g K); set to zero there.\n Check"
+				 " the coefficients of this record",
 				 atom->ID, keyword, i1, i2, rc->Nneg, Nspace, rc->minVal,
 				 rc->Tneg);
 		Error(WARNING, "CollisionRate", msg);
 	}
-	if (rc->Nout > 0 && firstReport(atom->ID, keyword, i1, i2, "range")) {
+	if (rc->Nout > 0 && firstReport(atom, keyword, i1, i2, "range")) {
 		snprintf(msg, sizeof(msg),
 				 "Atom %s: collision record %.20s %d %d is only defined for"
 				 " T = %g to %g K; its rate is zero at %ld of %ld locations"
@@ -759,6 +795,12 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			i2    = atoi(strtok(NULL, " "));
 			Ncoef = atoi(strtok(NULL, " "));
 
+			if (Ncoef < 1) {
+				sprintf(messageStr, "Atom %s: collision record BADNELL %d %d: the"
+									" number of coefficients must be positive (%d)",
+						atom->ID, i1, i2, Ncoef);
+				Error(ERROR_LEVEL_2, routineName, messageStr);
+			}
 			Nrow  = 2;
 			Nitem = Nrow * Ncoef;
 			badi  = matrix_double(Nrow, Ncoef);
@@ -794,12 +836,29 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			sumscl = atof(strtok(NULL, " "));
 			nitem  = 1;
 
+			/* --- The factor 0 <= f <= 1 of the density dependence keeps
+				   sumscl * summers + 1 - sumscl between 0 and 1 (N-34) -- */
+
+			if (!(sumscl >= 0.0 && sumscl <= 1.0)) {
+				sprintf(messageStr, "Atom %s: the scale factor of the density dependence"
+									" of the dielectronic recombination (SUMMERS) must be"
+									" between 0 and 1 (%g)",
+						atom->ID, sumscl);
+				Error(ERROR_LEVEL_2, routineName, messageStr);
+			}
+
 		} else if (!strcmp(keyword, "AR85-CDI")) {
 
 			i1   = atoi(strtok(NULL, " "));
 			i2   = atoi(strtok(NULL, " "));
 			Nrow = atoi(strtok(NULL, " "));
 
+			if (Nrow < 1) {
+				sprintf(messageStr, "Atom %s: collision record AR85-CDI %d %d: the"
+									" number of shells must be positive (%d)",
+						atom->ID, i1, i2, Nrow);
+				Error(ERROR_LEVEL_2, routineName, messageStr);
+			}
 			if (Nrow > MSHELL) {
 				sprintf(messageStr, "Nrow: %i greater than mshell %i",
 						Nrow, MSHELL);
@@ -842,50 +901,51 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			   the result may also depend on T, see rateChecked -- ----- */
 
 		if (!strcmp(keyword, "SHULL82")) {
-			rateCheckFiniteCoeff(atom, keyword, i1, i2, coeff, Nitem);
-			if (coeff[0] < 0.0 || coeff[2] < 0.0 || coeff[4] < 0.0)
+			checkFiniteValues(atom, keyword, i1, i2, coeff, Nitem, NULL);
+
+			/* --- Stop only where the formula is invalid: a negative A
+				   makes the collisional term negative at every T; the other
+				   signs and temperatures matter when their term is there
+				   (a negative arad or adi is left to the check of the
+				   sum) -- --------------------------------------- */
+
+			if (coeff[0] < 0.0)
 				rateCheckCoeffError(atom, keyword, i1, i2,
-									"the collisional (A), radiative (arad) and"
-									" dielectronic (adi) coefficients must not be negative",
-									MIN(coeff[0], MIN(coeff[2], coeff[4])));
-			if (coeff[1] < 0.0 || (coeff[1] == 0.0 && coeff[0] > 0.0))
+									"the collisional ionization coefficient A must not be negative",
+									coeff[0]);
+			if (coeff[4] != 0.0 && coeff[6] < 0.0)
 				rateCheckCoeffError(atom, keyword, i1, i2,
-									"the collisional ionization temperature T_col must be positive",
-									coeff[1]);
-			if (coeff[6] < 0.0 || coeff[7] < 0.0)
+									"the temperature T0 of the dielectronic term must not be negative",
+									coeff[6]);
+			if (coeff[4] != 0.0 && coeff[5] != 0.0 && coeff[7] < 0.0)
 				rateCheckCoeffError(atom, keyword, i1, i2,
-									"the temperatures T0 and T1 of the dielectronic term must not be negative",
-									MIN(coeff[6], coeff[7]));
+									"the temperature T1 of the dielectronic term must not be negative",
+									coeff[7]);
 		} else if (!strcmp(keyword, "BADNELL")) {
-			if (Ncoef < 1)
-				rateCheckCoeffError(atom, keyword, i1, i2,
-									"the number of coefficients must be positive", Ncoef);
-			rateCheckFiniteCoeff(atom, keyword, i1, i2, badi[0], Ncoef);
-			rateCheckFiniteCoeff(atom, keyword, i1, i2, badi[1], Ncoef);
+			checkFiniteValues(atom, keyword, i1, i2, badi[0], Ncoef, NULL);
+			checkFiniteValues(atom, keyword, i1, i2, badi[1], Ncoef, NULL);
 			for (n = 0; n < Ncoef; n++) {
-				if (badi[0][n] < 0.0)
+				if (badi[1][n] != 0.0 && badi[0][n] < 0.0)
 					rateCheckCoeffError(atom, keyword, i1, i2,
-										"the energies E_i (first row) must not be negative",
+										"an energy E_i (first row) with a coefficient must not be negative",
 										badi[0][n]);
 			}
 		} else if (!strcmp(keyword, "AR85-CDI")) {
 			for (m = 0; m < Nrow; m++) {
-				rateCheckFiniteCoeff(atom, keyword, i1, i2, cdi[m], MSHELL);
-				if (cdi[m][0] <= 0.0)
+				checkFiniteValues(atom, keyword, i1, i2, cdi[m], MSHELL, NULL);
+
+				/* --- A row of zeros (padding) is skipped in the
+					   evaluation -- ----------------------------- */
+
+				if (cdi[m][0] <= 0.0 && (cdi[m][1] != 0.0 || cdi[m][2] != 0.0 ||
+										 cdi[m][3] != 0.0 || cdi[m][4] != 0.0))
 					rateCheckCoeffError(atom, keyword, i1, i2,
 										"the ionization energy of a shell (first column) must be positive",
 										cdi[m][0]);
 			}
-		} else if (!strcmp(keyword, "AR85-CEA") || !strcmp(keyword, "BURGESS")) {
-			rateCheckFiniteCoeff(atom, keyword, i1, i2, coeff, Nitem);
-			if (coeff[0] < 0.0)
-				rateCheckCoeffError(atom, keyword, i1, i2,
-									"the scale factor must not be negative", coeff[0]);
-		} else if (!strcmp(keyword, "AR85-CHP") || !strcmp(keyword, "AR85-CHH")) {
-			rateCheckFiniteCoeff(atom, keyword, i1, i2, coeff, Nitem);
-			if (coeff[0] > coeff[1])
-				rateCheckCoeffError(atom, keyword, i1, i2,
-									"the fit range T1 to T2 is empty, T1 > T2", coeff[0]);
+		} else if (!strcmp(keyword, "AR85-CEA") || !strcmp(keyword, "BURGESS") ||
+				   !strcmp(keyword, "AR85-CHP") || !strcmp(keyword, "AR85-CHH")) {
+			checkFiniteValues(atom, keyword, i1, i2, coeff, Nitem, NULL);
 		}
 
 		/* --- End of the reading section. Now filling the collision matrix
@@ -907,16 +967,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 				   made) would otherwise crash the spline with no hint of
 				   where the problem is --                   -------------- */
 
-			for (n = 0; n < Nitem; n++) {
-				if (!isfinite(coeff[n])) {
-					sprintf(messageStr, "Atom %s: collision record %.20s %d %d has a"
-										" non-finite value (%g) at T = %g K.\n Fix or remove"
-										" this record in the atom file",
-							atom->ID, keyword,
-							i1, i2, coeff[n], T[n]);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
-				}
-			}
+			checkFiniteValues(atom, keyword, i1, i2, coeff, Nitem, T);
 			pchipTableInit(&ctable, Nitem, T, coeff, PCHIP_LOGLOG);
 			pchipTableEval(&ctable, Nspace, atmos.T, C);
 			pchipTableFree(&ctable);
@@ -1009,21 +1060,24 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 					  summrs * adish / tg / sqrt(tg) * exp(-t0sh / tg) *
 						  (1.0 + bdish * (exp(-t1sh / tg)));
 
-				/* --- A coefficient set with B < -1 makes the dielectronic
-					   term negative at high T (N-34) -- -------------- */
+				/* --- No collisional ionization without A or T_col (N-34;
+					   T_col = 0 divided by zero) -- ------------------- */
 
-				cdn = rateChecked(cdn, &rc, atom, keyword, i1, i2, tg);
-
-				cup = (acolsh > 0.0)
+				cup = (acolsh != 0.0 && tcolsh != 0.0)
 						  ? acolsh * sqrt(tg) * exp(-tcolsh / tg) /
 								(1.0 + 0.1 * tg / tcolsh)
 						  : 0.0;
-				cup = rateChecked(cup, &rc, atom, keyword, i1, i2, tg);
 
 				/* --- Convert coefficient from cm^3 s^-1 to m^3 s^-1 -- ---- */
 
 				cdn *= atmos.ne[k] * CUBE(CM_TO_M);
 				cup *= atmos.ne[k] * CUBE(CM_TO_M);
+
+				/* --- The sum can be negative: the dielectronic term is,
+					   for B < -1, at high T (N-34) -- ------------------ */
+
+				cdn = rateChecked(cdn, &rc, atom, keyword, i1, i2, tg);
+				cup = rateChecked(cup, &rc, atom, keyword, i1, i2, tg);
 
 				/* --- 3-body recombination (high density limit) -- -------- */
 
@@ -1053,11 +1107,11 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 					cdn += badi[1][ii] * exp(-badi[0][ii] / tg);
 				}
 				cdn *= pow(tg, -1.5);
-				cdn = rateChecked(cdn, &rc, atom, keyword, i1, i2, tg);
 
 				/* --- Convert coefficient from cm^3 s^-1 to m^3 s^-1 -- ---- */
 
 				cdn *= atmos.ne[k] * summrs * CUBE(CM_TO_M);
+				cdn = rateChecked(cdn, &rc, atom, keyword, i1, i2, tg);
 				cup = cdn * atom->nstar[j][k] / atom->nstar[i][k];
 
 				/* --- 3-body recombination (high density limit) -- --------- */
@@ -1081,6 +1135,8 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 
 				for (m = 0; m < Nrow; m++) {
 
+					if (cdi[m][0] <= 0.0) continue; /* padding, see the read check */
+
 					xj  = cdi[m][0] * EV / (KBOLTZMANN * tg);
 					fac = exp(-xj) * sqrt(xj);
 
@@ -1092,9 +1148,8 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 					fac = 6.69E-7 / pow(cdi[m][0], 1.5);
 					cup += fac * fxj * CUBE(CM_TO_M);
 				}
-				cup = rateChecked(cup, &rc, atom, keyword, i1, i2, tg);
-
 				cup *= atmos.ne[k];
+				cup = rateChecked(cup, &rc, atom, keyword, i1, i2, tg);
 				cdn = cup * atom->nstar[i][k] / atom->nstar[j][k];
 
 				atom->C[ij][k] += cdn;
@@ -1110,8 +1165,8 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			rateCheckInit(&rc);
 			for (k = 0; k < Nspace; k++) {
 				fac = ar85cea(i, j, k, atom);
-				fac = rateChecked(fac, &rc, atom, keyword, i1, i2, atmos.T[k]);
 				cup = coeff[0] * fac * atmos.ne[k];
+				cup = rateChecked(cup, &rc, atom, keyword, i1, i2, atmos.T[k]);
 				atom->C[ji][k] += cup;
 			}
 			rateCheckReport(&rc, atom, keyword, i1, i2, Nspace, 0.0, 0.0);
@@ -1127,20 +1182,13 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			ar85c  = coeff[4];
 			ar85d  = coeff[5];
 
-			/* --- The proton density is the continuum of the hydrogen
-				   model, the last level (as for CP and CH+); it was
-				   atmos.H->n[5], a bound level of a hydrogen atom with
-				   more than six levels and beyond the array for fewer
-				   (N-34) -- ------------------------------------ */
-
-			np = atmos.H->n[atmos.H->Nlevel - 1];
 			rateCheckInit(&rc);
 			for (k = 0; k < Nspace; k++) {
 				if (atmos.T[k] >= ar85t1 && atmos.T[k] <= ar85t2) {
 
 					t4  = atmos.T[k] / 1.0E4;
 					cup = ar85a * 1e-9 * pow(t4, ar85b) * exp(-ar85c * t4) *
-						  exp(-ar85d * EV / KBOLTZMANN / atmos.T[k]) * np[k] *
+						  exp(-ar85d * EV / KBOLTZMANN / atmos.T[k]) * atmos.H->n[5][k] *
 						  CUBE(CM_TO_M);
 					cup = rateChecked(cup, &rc, atom, keyword, i1, i2, atmos.T[k]);
 					atom->C[ji][k] += cup;

@@ -163,13 +163,14 @@ struct Atom {
 	long   offset_coll;
 	double abundance, weight, *g, *E, **C, *vbroad, **n, **nstar,
 		*ntotal, **Gamma;
-	AtomicLine      *line;
-	AtomicContinuum *continuum;
-	FixedTransition *ft;
-	struct Ng       *Ng_n;
-	rhthread        *rhth;
-	pthread_mutex_t  Gamma_lock;
-	FILE            *fp_input;
+	AtomicLine         *line;
+	AtomicContinuum    *continuum;
+	FixedTransition    *ft;
+	struct Ng          *Ng_n;
+	rhthread           *rhth;
+	pthread_mutex_t     Gamma_lock;
+	FILE               *fp_input;
+	struct RateReports *rateReports;
 };
 
 typedef struct {
@@ -243,6 +244,7 @@ void   CollisionRate(Atom *atom, FILE *atomFile);
 void   Damping(AtomicLine *line, double *adamp);
 void   FixedRate(Atom *atom);
 void   freeAtom(Atom *atom);
+void   freeRateReports(Atom *atom);
 void   freeAtomicLine(AtomicLine *line);
 void   freeAtomicContinuum(AtomicContinuum *continuum);
 void   getfjk(Element *element, double ne, int k, double *fjk, double *dfjk);

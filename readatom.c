@@ -664,6 +664,7 @@ void initAtom(Atom *atom)
 	atom->ft              = NULL;
 	atom->Ng_n            = NULL;
 	atom->fp_input        = NULL;
+	atom->rateReports     = NULL;
 }
 /* ------- end ---------------------------- initAtom.c -------------- */
 
@@ -782,6 +783,7 @@ void freeAtom(Atom *atom)
 	}
 
 	if (atom->Nfixed > 0) free(atom->ft);
+	freeRateReports(atom);
 }
 /* ------- end ---------------------------- freeAtom.c -------------- */
 

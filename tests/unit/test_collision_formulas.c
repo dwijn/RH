@@ -13,10 +13,11 @@
 		  are unchanged;
 	   -- coefficients that cannot be right (not finite, negative
 		  energy, T1 > T2, ...) stop the run when read;
-	   -- AR85-CHP takes the proton density from the last level of the
-		  hydrogen model, whatever its number of levels (it was level 5),
-		  and AR85-CHP and AR85-CHH report the locations outside their
-		  fit range.
+	   -- coefficients that are valid but unusual do not stop the run, and
+		  AR85-CHP and AR85-CHH report the locations outside their fit
+		  range;
+	   -- the messages are once per record, atom and run (freeRateReports
+		  starts a new run).
 	   --                                              -------------- */
 
 #include <math.h>
@@ -47,8 +48,10 @@ int __lsan_is_turned_off(void)
 	return in_child;
 }
 
-#define NLEVEL 9
-#define NT     61
+/* --- Proton density that AR85-CHP uses: n[5] of the hydrogen model (N-34 changes it to the last level) --- */
+#define CHP_PROTONS 4e10
+#define NLEVEL      9
+#define NT          61
 
 static Atom atom, hydrogen;
 static int  verbose = 0;
@@ -103,11 +106,13 @@ static const char *c_records =
 
 static void run(const char *records)
 {
-	FILE *fp = tmpfile();
+	char   buf[4096];
+	FILE  *fp;
+	size_t n;
 
-	fputs(records, fp);
-	fputs("END\n", fp);
-	rewind(fp);
+	n = (size_t) snprintf(buf, sizeof(buf), "%sEND\n", records);
+	CHECK(n < sizeof(buf), "records too long");
+	fp = fmemopen(buf, n, "r");
 	CollisionRate(&atom, fp);
 	fclose(fp);
 }
@@ -116,20 +121,17 @@ static char logText[8192];
 
 static void run_logged(const char *records)
 {
-	FILE *log = tmpfile();
-	FILE *old = commandline.logfile;
-	long  n;
+	char  *buf  = NULL;
+	size_t size = 0;
+	FILE  *log  = open_memstream(&buf, &size);
+	FILE  *old  = commandline.logfile;
 
 	commandline.logfile = log;
 	run(records);
 	commandline.logfile = old;
-	fflush(log);
-	n = ftell(log);
-	if (n >= (long) sizeof(logText)) n = sizeof(logText) - 1;
-	rewind(log);
-	n          = (long) fread(logText, 1, n, log);
-	logText[n] = '\0';
 	fclose(log);
+	snprintf(logText, sizeof(logText), "%s", buf);
+	free(buf);
 }
 
 static int count(const char *needle)
@@ -233,14 +235,18 @@ static void setup(void)
 	atmos.H = &hydrogen;
 }
 
-static void change_hydrogen(int Nlevel, double np)
+/* --- Hydrogen of Nlevel levels: level 5 (if there is one) has n5, the
+	   last level nlast, the others 1e10 + i -- ------------------- */
+
+static void change_hydrogen(int Nlevel, double n5, double nlast)
 {
 	freeMatrix((void **) hydrogen.n);
 	hydrogen.Nlevel = Nlevel;
 	hydrogen.n      = matrix_double(Nlevel, NT);
 	for (int i = 0; i < Nlevel; i++)
 		for (int k = 0; k < NT; k++)
-			hydrogen.n[i][k] = (i == Nlevel - 1) ? np : 1e10 + i;
+			hydrogen.n[i][k] = (i == Nlevel - 1) ? nlast : (i == 5) ? n5
+																	: 1e10 + i;
 }
 
 int main(int argc, char **argv)
@@ -260,15 +266,15 @@ int main(int argc, char **argv)
 	/* --- SHULL82 with B = -3 (negative from T1 / ln 3 = 1.05e5 K up);
 		   the dielectronic term dominates there: A_rad = 0 -- ----- */
 
-	strcpy(atom.ID, "N");
+	freeRateReports(&atom);
 	snprintf(rec, sizeof(rec), "SHULL82 0 3 0 1e5 0 0.5 1e-10 -3 1e4 1e5\n");
 	{
 		int nzero = 0;
 
 		set_temperatures(1e3, 1e6, NT);
 		run_logged(rec);
-		CHECK(count("negative rate") == 1, "SHULL82 B = -3: messages: %d\n%s", count("negative rate"), logText);
-		CHECK(strstr(logText, "SHULL82 0 3") != NULL, "SHULL82 message names the record");
+		CHECK(count("negative contribution") == 1, "SHULL82 B = -3: messages: %d\n%s", count("negative contribution"), logText);
+		CHECK(strstr(logText, "SHULL82 0 3") != NULL && strstr(logText, "s^-1"), "SHULL82 message names the record and the unit");
 		for (int k = 0; k < NT; k++) {
 			double T      = atmos.T[k];
 			double sm     = summers(0, 3, atmos.ne[k], &atom);
@@ -283,15 +289,21 @@ int main(int argc, char **argv)
 		/* --- Called again (electron density changed): no second message -- */
 
 		run_logged(rec);
-		CHECK(count("negative rate") == 0, "second call repeats the message: %s", logText);
+		CHECK(count("negative contribution") == 0, "second call repeats the message: %s", logText);
+
+		/* --- A new run (the atom's reports are freed): reported again -- */
+
+		freeRateReports(&atom);
+		run_logged(rec);
+		CHECK(count("negative contribution") == 1, "message of a new run: %s", logText);
 	}
 
 	/* --- BADNELL with a negative coefficient: sum of c_i exp(-E_i/T)
 		   negative at low T where the second term dominates -- ----- */
 
-	strcpy(atom.ID, "O");
+	freeRateReports(&atom);
 	run_logged("BADNELL 0 3 2\n0 1e4\n1e-8 -1e-6\n");
-	CHECK(count("negative rate") == 1 && strstr(logText, "BADNELL 0 3"), "BADNELL: %s", logText);
+	CHECK(count("negative contribution") == 1 && strstr(logText, "BADNELL 0 3"), "BADNELL: %s", logText);
 	for (int k = 0; k < NT; k++) {
 		double T    = atmos.T[k];
 		double s    = (1e-8 - 1e-6 * exp(-1e4 / T)) * pow(T, -1.5);
@@ -309,27 +321,27 @@ int main(int argc, char **argv)
 	/* --- AR85-CDI with a sum that is negative at all T: a single shell
 		   with a < 0 -- ----------------------------------------- */
 
-	strcpy(atom.ID, "NE");
+	freeRateReports(&atom);
 	run_logged("AR85-CDI 0 3 1\n 11.3 -1.0 0.0 0.0 0.0\n");
-	CHECK(count("negative rate") == 1 && strstr(logText, "AR85-CDI 0 3"), "AR85-CDI: %s", logText);
+	CHECK(count("negative contribution") == 1 && strstr(logText, "AR85-CDI 0 3"), "AR85-CDI: %s", logText);
 	for (int k = 0; k < NT; k++)
 		CHECK(atom.C[3 * NLEVEL + 0][k] == 0.0 && atom.C[0 * NLEVEL + 3][k] == 0.0, "AR85-CDI clipped at T = %g", atmos.T[k]);
 
 	/* --- AR85-CHH, fit range 2e3 to 2e5, c < -exp(-d t4) for
 		   t4 > 0.1 (d = 5 -> c = -3: 1 - 3 exp(5 t4) < 0 always) -- */
 
-	strcpy(atom.ID, "MG");
+	freeRateReports(&atom);
 	run_logged("AR85-CHH 0 3 2e3 2e5 1.0 0.5 -3.0 5.0\n");
-	CHECK(count("negative rate") == 1 && strstr(logText, "AR85-CHH 0 3"), "AR85-CHH negative: %s", logText);
+	CHECK(count("negative contribution") == 1 && strstr(logText, "AR85-CHH 0 3"), "AR85-CHH negative: %s", logText);
 	CHECK(count("only defined for") == 1, "AR85-CHH range: %s", logText);
 	for (int k = 0; k < NT; k++) CHECK(atom.C[0 * NLEVEL + 3][k] == 0.0, "AR85-CHH at T = %g", atmos.T[k]);
 
 	/* --- AR85-CHH positive: unchanged, zero outside the range, with a
 		   message for the range only -- ------------------------- */
 
-	strcpy(atom.ID, "SI");
+	freeRateReports(&atom);
 	run_logged("AR85-CHH 0 3 2e3 2e5 1.0 0.5 0.1 -1.0\n");
-	CHECK(count("negative rate") == 0 && count("only defined for") == 1, "AR85-CHH positive: %s", logText);
+	CHECK(count("negative contribution") == 0 && count("only defined for") == 1, "AR85-CHH positive: %s", logText);
 	for (int k = 0; k < NT; k++) {
 		double T = atmos.T[k], t4 = T / 1e4;
 		double want = (T >= 2e3 && T <= 2e5)
@@ -339,44 +351,63 @@ int main(int argc, char **argv)
 		CHECK_CLOSE(atom.C[0 * NLEVEL + 3][k], want, 1e-12, 0.0, "AR85-CHH at T = %g", T);
 	}
 
-	/* --- AR85-CHP: proton density is the last level of the hydrogen
-		   model (8 levels here: level 5 differs), and for a hydrogen of
-		   two levels the read is within the array -- ---------------- */
+	/* --- AR85-CHP: n[5] of the hydrogen model times the formula, zero
+		   outside the range, and the range reported -- ------------- */
 
-	strcpy(atom.ID, "S");
-	for (int nl = 8; nl >= 2; nl -= 6) {
-		change_hydrogen(nl, 4e10);
-		set_temperatures(1e3, 1e6, NT);
-		run_logged("AR85-CHP 0 3 5e3 5e5 2.0 0.3 0.2 0.1\n");
-		CHECK(count("negative rate") == 0, "AR85-CHP: %s", logText);
-		for (int k = 0; k < NT; k++) {
-			double T = atmos.T[k], t4 = T / 1e4;
-			double want = (T >= 5e3 && T <= 5e5)
-							  ? 2.0 * 1e-9 * pow(t4, 0.3) * exp(-0.2 * t4) * exp(-0.1 * EV / KBOLTZMANN / T) *
-									4e10 * 1e-6
-							  : 0.0;
+	change_hydrogen(8, 4e10, 9e10);
+	set_temperatures(1e3, 1e6, NT);
+	run_logged("AR85-CHP 0 3 5e3 5e5 2.0 0.3 0.2 0.1\n");
+	CHECK(count("negative contribution") == 0 && count("only defined for") == 1, "AR85-CHP: %s", logText);
+	for (int k = 0; k < NT; k++) {
+		double T = atmos.T[k], t4 = T / 1e4;
+		double want = (T >= 5e3 && T <= 5e5)
+						  ? 2.0 * 1e-9 * pow(t4, 0.3) * exp(-0.2 * t4) * exp(-0.1 * EV / KBOLTZMANN / T) *
+								CHP_PROTONS * 1e-6
+						  : 0.0;
 
-			CHECK_CLOSE(atom.C[3 * NLEVEL + 0][k], want, 1e-12, 0.0, "AR85-CHP, %d levels, at T = %g", nl, T);
-		}
-		strcpy(atom.ID, nl == 8 ? "CA" : "FE");
+		CHECK_CLOSE(atom.C[3 * NLEVEL + 0][k], want, 1e-12, 0.0, "AR85-CHP at T = %g", T);
 	}
+	freeRateReports(&atom);
 
-	/* --- Read-time stops -- ------------------------------------ */
+	/* --- T1 > T2: nothing is evaluated, the range message says so -- */
+
+	run_logged("AR85-CHP 0 3 5e5 5e3 2.0 0.3 0.2 0.1\n");
+	CHECK(count("only defined for") == 1 && strstr(logText, "zero at 61 of 61"), "AR85-CHP T1 > T2: %s", logText);
+	freeRateReports(&atom);
+
+	/* --- Read-time stops, and what is valid -- ------------------- */
 
 	CHECK(is_fatal("SHULL82 0 3 0 1e5 1e-13 0.5 1e-10 -3 1e4 1e5\n") == 0, "SHULL82 B = -3 is not a read-time error");
 	CHECK(is_fatal("SHULL82 0 3 0 1e5 1e-13 0.5 1e-10 nan 1e4 1e5\n") == 1, "SHULL82 NaN");
-	CHECK(is_fatal("SHULL82 0 3 0 1e5 -1e-13 0.5 1e-10 0 1e4 1e5\n") == 1, "SHULL82 negative arad");
-	CHECK(is_fatal("SHULL82 0 3 1e-9 0 1e-13 0.5 1e-10 0 1e4 1e5\n") == 1, "SHULL82 Tcol = 0 with A > 0");
-	CHECK(is_fatal("SHULL82 0 3 0 0 1e-13 0.5 1e-10 0 -1e4 1e5\n") == 1, "SHULL82 negative T0");
+	CHECK(is_fatal("SHULL82 0 3 -1e-9 1e5 1e-13 0.5 1e-10 0 1e4 1e5\n") == 1, "SHULL82 negative A");
+	CHECK(is_fatal("SHULL82 0 3 0 1e5 -1e-13 0.5 1e-10 0 1e4 1e5\n") == 0, "SHULL82 negative arad is left to the sum");
+	CHECK(is_fatal("SHULL82 0 3 0 0 1e-13 0.5 1e-10 0 -1e4 1e5\n") == 1, "SHULL82 negative T0 with adi");
+	CHECK(is_fatal("SHULL82 0 3 0 0 1e-13 0.5 0 0 -1e4 -1e5\n") == 0, "SHULL82 negative T0, T1 without adi");
+	CHECK(is_fatal("SHULL82 0 3 0 0 1e-13 0.5 1e-10 0 1e4 -1e5\n") == 0, "SHULL82 negative T1 with B = 0");
 	CHECK(is_fatal("BADNELL 0 3 2\n0 -1e4\n1e-8 1e-6\n") == 1, "BADNELL negative energy");
+	CHECK(is_fatal("BADNELL 0 3 2\n0 -1e4\n1e-8 0\n") == 0, "BADNELL negative energy, zero coefficient");
 	CHECK(is_fatal("BADNELL 0 3 2\n0 1e4\n1e-8 inf\n") == 1, "BADNELL infinite coefficient");
+	CHECK(is_fatal("BADNELL 0 3 0\n") == 1, "BADNELL no coefficients");
+	CHECK(is_fatal("BADNELL 0 3 -2\n") == 1, "BADNELL negative number of coefficients");
 	CHECK(is_fatal("AR85-CDI 0 3 1\n 0.0 1 1 1 1\n") == 1, "AR85-CDI zero shell energy");
+	CHECK(is_fatal("AR85-CDI 0 3 1\n 0.0 0 0 0 0\n") == 0, "AR85-CDI zero row");
 	CHECK(is_fatal("AR85-CDI 0 3 1\n 11.3 1 1 nan 1\n") == 1, "AR85-CDI NaN");
-	CHECK(is_fatal("AR85-CEA 0 3 -0.5\n") == 1, "AR85-CEA negative factor");
+	CHECK(is_fatal("AR85-CDI 0 3 0\n") == 1, "AR85-CDI no shells");
+	CHECK(is_fatal("AR85-CEA 0 3 -0.5\n") == 0, "AR85-CEA negative factor with a zero rate");
+	CHECK(is_fatal("AR85-CEA 0 3 nan\n") == 1, "AR85-CEA NaN");
 	CHECK(is_fatal("BURGESS 0 3 nan\n") == 1, "BURGESS NaN");
-	CHECK(is_fatal("AR85-CHP 0 3 5e5 5e3 2.0 0.3 0.2 0.1\n") == 1, "AR85-CHP T1 > T2");
+	CHECK(is_fatal("SUMMERS 1.5\n") == 1, "SUMMERS above 1");
+	CHECK(is_fatal("SUMMERS -0.1\n") == 1, "SUMMERS below 0");
+	CHECK(is_fatal("SUMMERS 0.5\n") == 0, "SUMMERS 0.5");
 	CHECK(is_fatal("AR85-CHH 0 3 5e3 5e5 2.0 0.3 inf 0.1\n") == 1, "AR85-CHH infinite");
 	CHECK(is_fatal("AR85-CHH 0 3 5e3 5e5 2.0 0.3 0.2 0.1\n") == 0, "AR85-CHH valid record is not fatal");
+
+	/* --- SHULL82 with T_col = 0 and A > 0: no collisional term, as before -- */
+
+	run_logged("SHULL82 0 3 1e-9 0 0 0.5 0 0 1e4 1e5\n");
+	for (int k = 0; k < NT; k++)
+		CHECK(atom.C[3 * NLEVEL + 0][k] == 0.0 && atom.C[0 * NLEVEL + 3][k] == 0.0, "SHULL82 T_col = 0 at T = %g", atmos.T[k]);
+	CHECK(strlen(logText) == 0, "SHULL82 T_col = 0: %s", logText);
 
 	freeMatrix((void **) hydrogen.n);
 	freeMatrix((void **) atom.nstar);
