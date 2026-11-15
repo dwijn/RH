@@ -39,9 +39,13 @@ typedef struct {
 	bool_t  vacuum_to_air, updateJ;
 	int     Nspect, *PRDindex, fd_J, fd_J20, fd_Imu;
 	double *lambda, **J, **I, **Stokes_Q, **Stokes_U, **Stokes_V, **J20,
-		**Jgas, **Ilast, **v_los;
-	ActiveSet       *as;
-	long            *nc; /* cumulative coefficient counts (B-32) */
+		**Jgas, **Jgas_fixed, **Ilast, **v_los;
+	ActiveSet *as;
+	int        NJgasFixed; /* number of rows of Jgas_fixed (N-27) */
+	int       *PRDrow;     /* N-27: -1 wavelength without PRD line, else the row of Jgas_fixed
+							  of a PRD wavelength a wavelength without PRD line can reach,
+							  -2 for one it cannot */
+	long            *nc;   /* cumulative coefficient counts (B-32) */
 	int             *iprdh;
 	double          *cprdh;
 	pthread_mutex_t *Jgas_lock; /* one per wavelength row of Jgas (T-4) */
@@ -86,7 +90,9 @@ void writeJlambda(int nspect, double *J);
 void readJ20lambda(int nspect, double *J20);
 void writeJ20lambda(int nspect, double *J20);
 void writeJgas(double **Jgas);
-void addJgas(int nspect, int k, double value);
+void initJgasRows(const char *isPRD);
+void beginJgas(bool_t redistribute);
+void endJgas(bool_t redistribute);
 void addJgasRow(int nspect, double wmu, double *I);
 void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I);
 long prdhIndex(int nspect, int mu, int to_obs, int k);

@@ -302,6 +302,20 @@ void initSolution(void)
 			}
 		}
 	}
+	if (input.PRD_angle_dep == PRD_ANGLE_APPROX && atmos.NPRDactive > 0) {
+
+		/* --- Which wavelengths the PRD sub-iterations re-solve, and the
+			   rows of Jgas_fixed (N-27) --                  -------------- */
+
+		char *isPRD = (char *) malloc(spectrum.Nspect);
+
+		if (isPRD == NULL) Error(ERROR_LEVEL_2, routineName, "Out of memory");
+
+		for (nspect = 0; nspect < spectrum.Nspect; nspect++)
+			isPRD[nspect] = containsPRDline(&spectrum.as[nspect]);
+		initJgasRows(isPRD);
+		free(isPRD);
+	}
 	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
 		atom = atmos.activeatoms[nact];
 

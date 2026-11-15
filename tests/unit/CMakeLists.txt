@@ -28,6 +28,7 @@ rh_unit_test(test_anderson test_anderson.c)
 rh_unit_test(test_negtau test_negtau.c)
 rh_unit_test(test_negpop test_negpop.c)
 rh_unit_test(test_prdh test_prdh.c)
+rh_unit_test(test_jgas_split test_jgas_split.c)
 rh_unit_test(test_newton test_newton.c)
 rh_unit_test(test_coupling test_coupling.c
   ${PROJECT_SOURCE_DIR}/rhf1d/project.c)
