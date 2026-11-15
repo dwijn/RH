@@ -63,6 +63,8 @@ void   backgroundCleanup(void);
 bool_t duplicateLevel(Atom *atom, char *label);
 bool_t duplicateLine(Atom *atom, char *labeli, char *labelj);
 void   readBackground(int nspect, int mu, bool_t top_to_bottom);
+void   mapBackground(void);
+void   unmapBackground(void);
 int    backgroundRecords(int nspect);
 int    writeBackground(int nspect, int mu, bool_t to_obs,
 					   double *chi_c, double *eta_c, double *sca_c,

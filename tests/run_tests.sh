@@ -181,6 +181,20 @@ compare() {       # A_DIR B_DIR GEOM [exact]  -> sets CMPOUT, returns status
   CMPOUT=$(python3 -I "$HERE/compare_spectra.py" "$1/spectrum.out" "$2/spectrum.out" $flags 2>&1)
 }
 
+# MB of the background file that the program in bin dir $1 maps read-only
+# (P-18, recognised by its warning text) in run dir $2: the pages it reads
+# count in the peak RSS but are clean, shared page cache, which pread used
+# to copy from, not memory the program allocates. 0 for a program that
+# reads the file with pread.
+mapped_mb() {
+  local bin="$1/$(geomdir 2d)/$(geomdir 2d)"
+  if grep -aq 'Cannot map the background file' "$bin" && [ -f "$2/background.dat" ]; then
+    awk -v s="$(wc -c < "$2/background.dat")" 'BEGIN{printf "%.0f", s/1048576}'
+  else
+    echo 0
+  fi
+}
+
 rss_mb() {
   if [ "$TIMEFLAG" = -l ]; then
     awk '/maximum resident set size/{printf "%.0f", $1/1048576}' "$1/time.txt"
@@ -255,6 +269,9 @@ run_case() {
 # default solver does not count as growth and Ng's history is still measured.
 # 96 columns: about 115 MB, of which 8 MB do not grow with the grid; the old
 # caching would add about 85% to the part that does, at any grid size.
+# A program that maps the background file (P-18) has its pages in its RSS
+# too (26 MB here); they are page cache, not allocations, and are not
+# counted for either program (mapped_mb).
 run_mem_case() {
   [ -x /usr/bin/time ] || { record SKIP "2d/mem" "no /usr/bin/time"; return; }
   python3 -I "$HERE/make_tiled_2d_atmos.py" "$CAND/Atmos/FALC_03x82.atmos" \
@@ -264,11 +281,15 @@ run_mem_case() {
   completed $rc || { record SKIP "2d/mem" "baseline failed (rc=$rc)"; return; }
   prepare 2d mem cand 1 "$mods"; local C=$RUNDIR; execute "$CAND_BIN" 2d; rc=$?; why=$(log_problem)
   completed $rc && [ -z "$why" ] || { record FAIL "2d/mem candidate" "rc=$rc $why"; return; }
-  bm=$(rss_mb "$B"); cm=$(rss_mb "$C")
+  # Peak RSS without the mapped background file of either program (P-18)
+  local bmap cmap
+  bmap=$(mapped_mb "$BASE_BIN" "$B"); cmap=$(mapped_mb "$CAND_BIN" "$C")
+  bm=$(( $(rss_mb "$B") - bmap )); cm=$(( $(rss_mb "$C") - cmap ))
+  local note="limit x$MEMTOL; mapped background file not counted: baseline ${bmap} MB, candidate ${cmap} MB"
   if awk -v c="$cm" -v b="$bm" -v t="$MEMTOL" 'BEGIN{exit !(c <= b*t)}'; then
-    record PASS "2d/mem peak memory" "candidate ${cm} MB vs baseline ${bm} MB (limit x$MEMTOL)"
+    record PASS "2d/mem peak memory" "candidate ${cm} MB vs baseline ${bm} MB ($note)"
   else
-    record FAIL "2d/mem peak memory" "candidate ${cm} MB vs baseline ${bm} MB (limit x$MEMTOL)"
+    record FAIL "2d/mem peak memory" "candidate ${cm} MB vs baseline ${bm} MB ($note)"
   fi
 }
 

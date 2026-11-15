@@ -617,6 +617,7 @@ static void backgroundOpacities(bool_t write_analyze_output);
 static void closeBackgroundFile(void)
 {
 	if (fd_open) {
+		unmapBackground();
 		close(atmos.fd_background);
 		fd_open = FALSE;
 	}
@@ -670,6 +671,7 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 		}
 		fd_open = TRUE;
 		readBRS();
+		mapBackground();
 		return;
 	}
 
@@ -934,6 +936,10 @@ static void backgroundOpacities(bool_t write_analyze_output)
 		atmos.Nrlk      = 0;
 		rlk_read        = FALSE;
 	}
+
+	/* --- The formal solutions read the file through a mapping (P-18) */
+
+	mapBackground();
 
 	getCPU(2, TIME_POLL, "Total Background");
 }

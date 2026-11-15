@@ -20,6 +20,8 @@
 #include <math.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 
 #include "rh.h"
@@ -251,6 +253,52 @@ void writeImu(int nspect, int mu, bool_t to_obs, double *I)
 }
 /* ------- end ---------------------------- writeImu.c -------------- */
 
+/* ------- begin -------------------------- mapBackground.c --------- */
+
+/* --- The background file read-only mapped into memory (P-18). The
+	   formal solution reads the background of every wavelength, and in
+	   a moving atmosphere of every ray and direction, in every sweep:
+	   with pread that is a system call and a copy into a buffer
+	   (allocated for each read) per record block, 6 % of the time of
+	   the formal solution on a 1-D Bifrost column. The mapping takes
+	   the pages from the page cache (or /dev/shm), which hold them
+	   anyway, so it needs no memory of its own. Reads fall back to
+	   pread if the file cannot be mapped --          -------------- */
+
+static const char *bg_map;
+static size_t      bg_maplen;
+
+void mapBackground(void)
+{
+	struct stat st;
+	void       *p;
+
+	unmapBackground();
+	if (fstat(atmos.fd_background, &st) != 0 || st.st_size <= 0) return;
+
+	p = mmap(NULL, (size_t) st.st_size, PROT_READ, MAP_SHARED, atmos.fd_background, 0);
+	if (p == MAP_FAILED) {
+		sprintf(messageStr, "Cannot map the background file (%s); reading it with pread",
+				strerror(errno));
+		Error(WARNING, "mapBackground", messageStr);
+		return;
+	}
+	bg_map    = (const char *) p;
+	bg_maplen = (size_t) st.st_size;
+}
+
+void unmapBackground(void)
+{
+	/* --- Before the file is written again or closed -- ------------ */
+
+	if (bg_map != NULL) {
+		munmap((void *) bg_map, bg_maplen);
+		bg_map    = NULL;
+		bg_maplen = 0;
+	}
+}
+/* ------- end ---------------------------- mapBackground.c --------- */
+
 /* ------- begin -------------------------- backgroundIO.c ---------- */
 
 static float *backgroundBuffer(void)
@@ -260,7 +308,7 @@ static float *backgroundBuffer(void)
 	/* --- Conversion buffer for backgroundIO: the largest part of a
 		   block is 4 records (the Stokes opacity or emissivity) -- -- */
 
-	if (atmos.backgrbytes == sizeof(float)) {
+	if (atmos.backgrbytes == sizeof(float) && bg_map == NULL) {
 		buffer = (float *) malloc(4 * (size_t) atmos.Nspace * sizeof(float));
 		if (buffer == NULL)
 			Error(ERROR_LEVEL_2, "backgroundBuffer", "Out of memory");
@@ -300,6 +348,22 @@ static bool_t backgroundIO(double *values, int Nrec, off_t recordno,
 
 	count  = Nvalues * atmos.backgrbytes;
 	offset = recordno * (off_t) atmos.Nspace * atmos.backgrbytes;
+
+	/* --- Read from the mapped file: the same conversion as below,
+		   without the copy into buffer --               -------------- */
+
+	if (!write_it && bg_map != NULL) {
+		if (offset < 0 || (size_t) offset + count > bg_maplen) return FALSE;
+		if (atmos.backgrbytes == sizeof(double) && scale == 1.0) {
+			memcpy(values, bg_map + offset, count);
+			return TRUE;
+		} else if (atmos.backgrbytes == sizeof(float)) {
+			const float *src = (const float *) (bg_map + offset);
+
+			for (n = 0; n < Nvalues; n++) values[n] = src[n] / scale;
+			return TRUE;
+		}
+	}
 
 	if (atmos.backgrbytes == sizeof(double) && scale == 1.0) {
 		if (write_it)
