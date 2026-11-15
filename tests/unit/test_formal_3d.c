@@ -388,40 +388,72 @@ static void check_stokes(bool_t verbose)
 	   which the two use, differ. The meshes stay
 	   reachable to the end, as the slabs do --       -------------- */
 
-static Geometry *pos_mesh[NINTERP];
+static Geometry *pos_mesh[2][NINTERP];
+
+/* --- B-54: rays whose crossings of the x and y planes come close to
+	   a cell corner. With ux = 0.6 and uy = 0.502 (and the same in the
+	   other octants, with the roles swapped) the 5th y plane (s =
+	   9.96 dx) and the 6th x plane (10 dx) lie 0.040 dx apart and the
+	   10th y plane (19.92 dx) and the 12th x plane (20 dx) 0.080 dx,
+	   less than MIN_FRAC * dx = 0.1 dx: the second of each pair is
+	   discarded, and the ds of the neighbouring stencils must still
+	   reach from point to point. (The 15th y and 18th x plane, 0.12 dx
+	   apart, are both kept.) The test requires that crossings are
+	   discarded (exactly 2 per corner ray, the pairs above; others may discard
+	   coincident ones), so that a change of mesh or of MIN_FRAC cannot
+	   silently remove the coverage. The other rays only pass a corner
+	   at the same s (both crossings at once) or not at all --
+	   -------------- */
+
+static const double corner_mu[3][3] = {{0.6, 0.502, 0.6228932492811269},
+									   {-0.6, 0.502, 0.6228932492811269},
+									   {0.502, -0.6, 0.6228932492811269}};
+
+static void check_longchar_positions_rays(bool_t verbose, int set,
+										  const double rays[][3], int Nrays);
 
 static void check_longchar_positions(bool_t verbose)
+{
+	check_longchar_positions_rays(verbose, 0, ray_mu, NRAYS);
+	check_longchar_positions_rays(verbose, 1, corner_mu, 3);
+}
+
+static void check_longchar_positions_rays(bool_t verbose, int set,
+										  const double rays[][3], int Nrays)
 {
 	const int N = 128, Nz = 17, Nplane = N * N, Nspace = Nplane * Nz, k = 8,
 			  l = 64, m = 64;
 	const double  dx = 1.0 / 64, dtau = 0.25;
 	enum order_3D saved = input.interpolate_3D;
 	double       *xyz[3];
+	int           Noblique = 0;
 
+	for (int mu = 0; mu < Nrays; mu++)
+		if (rays[mu][0] != 0.0 || rays[mu][1] != 0.0) Noblique++;
 	for (int c = 0; c < 3; c++) xyz[c] = malloc(Nspace * sizeof(double));
 
 	for (int i = 0; i < NINTERP; i++) {
-		Geometry   *geo = pos_mesh[i] = calloc(1, sizeof(Geometry));
-		const char *iname             = (i == 0) ? "linear" : "bicubic";
+		Geometry   *geo = pos_mesh[set][i] = calloc(1, sizeof(Geometry));
+		const char *iname                  = (i == 0) ? "linear" : "bicubic";
 
 		input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
 		geo->x_boundary = geo->y_boundary = PERIODIC;
 		geo->Nx = geo->Ny = N;
 		geo->Nz           = Nz;
 		geo->Nplane       = Nplane;
-		geo->Nrays        = NRAYS;
+		geo->Nrays        = Nrays;
 		geo->dx = geo->dy = dx;
 		geo->z            = malloc(Nz * sizeof(double));
 		for (int kk = 0; kk < Nz; kk++) geo->z[kk] = -dtau * kk * (1.0 + 0.04 * kk);
-		geo->mux = malloc(NRAYS * sizeof(double));
-		geo->muy = malloc(NRAYS * sizeof(double));
-		geo->muz = malloc(NRAYS * sizeof(double));
-		geo->wmu = malloc(NRAYS * sizeof(double));
-		for (int mu = 0; mu < NRAYS; mu++) {
-			geo->mux[mu] = ray_mu[mu][0];
-			geo->muy[mu] = ray_mu[mu][1];
-			geo->muz[mu] = ray_mu[mu][2];
-			geo->wmu[mu] = 1.0 / NRAYS;
+		geo->mux = malloc(Nrays * sizeof(double));
+		geo->muy = malloc(Nrays * sizeof(double));
+		geo->muz = malloc(Nrays * sizeof(double));
+		geo->wmu = malloc(Nrays * sizeof(double));
+		for (int mu = 0; mu < Nrays; mu++) {
+			geo->mux[mu] = rays[mu][0];
+			geo->muy[mu] = rays[mu][1];
+			geo->muz[mu] = rays[mu][2];
+			geo->wmu[mu] = 1.0 / Nrays;
 		}
 		fillMesh(geo);
 
@@ -439,7 +471,7 @@ static void check_longchar_positions(bool_t verbose)
 			double      sgn   = wind ? -1.0 : 1.0;
 			int         Nlong = 0;
 
-			for (int mu = 0; mu < NRAYS; mu++) {
+			for (int mu = 0; mu < Nrays; mu++) {
 				Stencil  *st  = wind ? &geo->stencil_dw[mu][k] : &geo->stencil_uw[mu][k];
 				Longchar *lc  = st->longchar;
 				double    err = 0.0, s = 0.0, x0[3] = {l * dx, m * dx, geo->z[k]};
@@ -456,21 +488,52 @@ static void check_longchar_positions(bool_t verbose)
 					for (int c = 0; c < 3; c++) {
 						double got = Interpolate_3D(xyz[c], geo, &lc->stencil[n], l, m) - x0[c];
 
-						err = MAX(err, fabs(got - sgn * ray_mu[mu][c] * s));
+						err = MAX(err, fabs(got - sgn * rays[mu][c] * s));
 					}
 				}
+
+				/* --- The ds add up to the path to the layer above
+					   (below): the 1-D distance over muz --  ---------- */
+
+				{
+					double dz    = wind ? geo->z[k] - geo->z[k + 1] : geo->z[k - 1] - geo->z[k],
+						   dpath = dz / rays[mu][2];
+
+					CHECK(fabs(s - dpath) <= 1.0e-12 * dpath,
+						  "%s, ray %d (%+.3f, %+.3f), %s long characteristic: ds add up to %.12g, path is %.12g",
+						  iname, mu, rays[mu][0], rays[mu][1], wname, s, dpath);
+				}
+
+				/* --- Crossings of the vertical planes before the next
+					   layer, and the number discarded: Nst counts the
+					   start on the layer and the valid crossings --  --- */
+
+				{
+					double dz    = wind ? geo->z[k] - geo->z[k + 1] : geo->z[k - 1] - geo->z[k],
+						   dpath = dz / rays[mu][2];
+					int ncross   = (int) floor(fabs(rays[mu][0]) * dpath / dx) + (int) floor(fabs(rays[mu][1]) * dpath / dx),
+						ndisc    = ncross + 1 - lc->Nst;
+
+					if (verbose)
+						printf("LONGCHAR %-7s ray %d (%+.3f %+.3f) %-8s: %d crossings, %d discarded\n",
+							   iname, mu, rays[mu][0], rays[mu][1], wname, ncross, ndisc);
+					CHECK(set ? ndisc == 2 : ndisc >= 0,
+						  "%s, ray %d (%+.3f, %+.3f), %s long characteristic: %d of %d crossings discarded",
+						  iname, mu, rays[mu][0], rays[mu][1], wname, ndisc, ncross);
+				}
 				if (verbose)
-					printf("LONGCHAR %-7s ray %d (%+.1f %+.1f) %-8s: %2d points, position error %.1e\n",
-						   iname, mu, ray_mu[mu][0], ray_mu[mu][1], wname, lc->Nst, err);
+					printf("LONGCHAR %-7s ray %d (%+.3f %+.3f) %-8s: %2d points, position error %.1e\n",
+						   iname, mu, rays[mu][0], rays[mu][1], wname, lc->Nst, err);
 				CHECK(err <= 1.0e-12,
-					  "%s, ray %d (%+.1f, %+.1f), %s long characteristic: points off by %.3g (dx = %.3g)",
-					  iname, mu, ray_mu[mu][0], ray_mu[mu][1], wname, err, dx);
+					  "%s, ray %d (%+.3f, %+.3f), %s long characteristic: points off by %.3g (dx = %.3g)",
+					  iname, mu, rays[mu][0], rays[mu][1], wname, err, dx);
 			}
 
-			/* --- The four oblique rays must have been checked -- --- */
+			/* --- Every oblique ray (mux or muy not zero) must have been
+				   checked --                                  -------------- */
 
-			CHECK(Nlong == NRAYS - 1, "%s: %d of %d oblique rays have a %s long characteristic",
-				  iname, Nlong, NRAYS - 1, wname);
+			CHECK(Nlong == Noblique, "%s: %d of %d oblique rays have a %s long characteristic",
+				  iname, Nlong, Noblique, wname);
 		}
 	}
 	for (int c = 0; c < 3; c++) free(xyz[c]);
