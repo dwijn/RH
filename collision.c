@@ -1182,13 +1182,20 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			ar85c  = coeff[4];
 			ar85d  = coeff[5];
 
+			/* --- The proton density is the continuum of the hydrogen
+				   model, its last level (as for CP and CH+); it was
+				   atmos.H->n[5], a bound level of a hydrogen atom with
+				   more than six levels and beyond the array for fewer
+				   (N-34) -- ------------------------------------ */
+
+			np = atmos.H->n[atmos.H->Nlevel - 1];
 			rateCheckInit(&rc);
 			for (k = 0; k < Nspace; k++) {
 				if (atmos.T[k] >= ar85t1 && atmos.T[k] <= ar85t2) {
 
 					t4  = atmos.T[k] / 1.0E4;
 					cup = ar85a * 1e-9 * pow(t4, ar85b) * exp(-ar85c * t4) *
-						  exp(-ar85d * EV / KBOLTZMANN / atmos.T[k]) * atmos.H->n[5][k] *
+						  exp(-ar85d * EV / KBOLTZMANN / atmos.T[k]) * np[k] *
 						  CUBE(CM_TO_M);
 					cup = rateChecked(cup, &rc, atom, keyword, i1, i2, atmos.T[k]);
 					atom->C[ji][k] += cup;
