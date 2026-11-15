@@ -356,6 +356,310 @@ inline void Bezier3_coeffs(double dt, double *alpha, double *beta,
 }
 /* ------- end ---------------------------- Bezier3_coeffs ---------- */
 
+/* --- Largest |K'| dtau below which a DELO step does not amplify the
+	   Stokes vector (B-55). With S = 0 the norm of I cannot grow for a
+	   physical K (|eta| <= 1); measured worst |I_loc| / |I_uw| over
+	   400 000 steps with random physical K' at each end (|rho| up to
+	   30, |eta| < 0.95) and dtau 1e-3 to 1e2, binned by
+	   x = max |K'| dtau: the Bezier step 0.986 for x <= 1, above 1 up
+	   to 1.4 for x <= 3 and 1.4e4 beyond; DELO-linear 0.998 for
+	   x <= 0.25, 1.002 at 0.3, 8 beyond; the exponential step never
+	   above 0.999 --                                  -------------- */
+
+#define STOKES_XMAX_BEZIER3 1.0
+#define STOKES_XMAX_LINEAR  0.2
+
+static double maxKdtau(double dtau, double K_uw[4][4], double K_loc[4][4])
+{
+	double m = 0.0;
+
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++) m = fmax(m, fmax(fabs(K_uw[i][j]), fabs(K_loc[i][j])));
+	return m * dtau;
+}
+
+/* --- Use the exponential step: where max |K'| dtau exceeds xmax and
+	   K' is physical at both ends, |eta| <= 1 (dichroism not larger
+	   than the absorption in I). Where |eta| > 1 a Zeeman component
+	   has negative opacity (population inversion): the transfer
+	   equation itself amplifies there, and the exponential step would
+	   reproduce that exactly, so the DELO step is kept, as before
+	   B-55 --                                          -------------- */
+
+static bool_t use_exp_step(double dtau, double K_uw[4][4], double K_loc[4][4],
+						   double xmax)
+{
+	if (maxKdtau(dtau, K_uw, K_loc) <= xmax) return FALSE;
+	for (int e = 0; e < 2; e++) {
+		double(*K)[4] = e ? K_loc : K_uw;
+		if (K[0][1] * K[0][1] + K[0][2] * K[0][2] + K[0][3] * K[0][3] > 1.0) return FALSE;
+	}
+	return TRUE;
+}
+
+/* ------- begin -------------------------- invert4.c --------------- */
+
+static void invert4(double A[4][4], double Ainv[4][4])
+{
+	/* --- Ainv = A^-1 by Gauss-Jordan elimination with partial
+		   pivoting; for the thick steps of exp_step_const, where A is
+		   well conditioned (its eigenvalues have real parts below -40)
+		   --                                              -------------- */
+
+	double M[4][8];
+
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++) {
+			M[i][j]     = A[i][j];
+			M[i][4 + j] = (i == j);
+		}
+	for (int c = 0; c < 4; c++) {
+		int p = c;
+		for (int i = c + 1; i < 4; i++)
+			if (fabs(M[i][c]) > fabs(M[p][c])) p = i;
+		if (p != c)
+			for (int j = 0; j < 8; j++) {
+				double t;
+				SWAP(M[c][j], M[p][j], t);
+			}
+		double piv = 1.0 / M[c][c];
+		for (int j = 0; j < 8; j++) M[c][j] *= piv;
+		for (int i = 0; i < 4; i++) {
+			if (i == c || M[i][c] == 0.0) continue;
+			double f = M[i][c];
+			for (int j = 0; j < 8; j++) M[i][j] -= f * M[c][j];
+		}
+	}
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++) Ainv[i][j] = M[i][4 + j];
+}
+/* ------- end ---------------------------- invert4.c --------------- */
+
+/* ------- begin -------------------------- exp_phi4.c -------------- */
+
+static void exp_phi4(double A[4][4], double E[4][4], double F[4][4][4])
+{
+	/* --- E = exp(A) and F[k-1] = phi_k(A), k = 1 .. 4, of a 4 x 4
+		   matrix, phi_k(A) = sum_n A^n / (n + k)!. With E(t) = exp(t A)
+		   and G_k(t) = t^k phi_k(t A) (the first block row of the
+		   exponential of the block matrix [[A, 1, 0, ..], [0, 0, 1, ..],
+		   ..] at time t):
+
+			 E(2t)   = E(t)^2,
+			 G_k(2t) = E(t) G_k(t) + sum_(j = 1 .. k) G_j(t) t^(k-j) / (k-j)!.
+
+		   Start from t = 2^-s with |t A| <= 1/2 (infinity norm), where 18
+		   Taylor terms give E and G_k to rounding, and double s times.
+		   Only 4 x 4 products: about 20 times cheaper than the 20 x 20
+		   block exponential --                            -------------- */
+
+	enum { NTERM = 18 };
+	double B[4][4], P[4][4], T[4][4], G[4][4][4], Gn[4][4][4], norm = 0.0, t;
+	int    s = 0;
+
+	for (int i = 0; i < 4; i++) {
+		double row = 0.0;
+		for (int j = 0; j < 4; j++) row += fabs(A[i][j]);
+		norm = fmax(norm, row);
+	}
+	if (norm > 0.5) s = (int) ceil(log2(norm / 0.5));
+	t = ldexp(1.0, -s);
+
+	/* --- Taylor series at t: E = sum B^n / n!, G_k = t^k sum B^n / (n + k)! */
+
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++) {
+			B[i][j] = t * A[i][j];
+			P[i][j] = (i == j) ? 1.0 : 0.0;
+			E[i][j] = P[i][j];
+			for (int k = 0; k < 4; k++) G[k][i][j] = 0.0;
+		}
+	{
+		double fact[NTERM + 5];
+
+		double tk[4] = {t, t * t, t * t * t, t * t * t * t};
+
+		fact[0] = 1.0;
+		for (int n = 1; n < NTERM + 5; n++) fact[n] = fact[n - 1] * n;
+		for (int n = 0; n <= NTERM; n++) {
+			if (n > 0) {
+				for (int i = 0; i < 4; i++)
+					for (int j = 0; j < 4; j++) {
+						double sum = 0.0;
+						for (int m = 0; m < 4; m++) sum += P[i][m] * B[m][j];
+						T[i][j] = sum;
+					}
+				memcpy(P, T, sizeof(P));
+				for (int i = 0; i < 4; i++)
+					for (int j = 0; j < 4; j++) E[i][j] += P[i][j] / fact[n];
+			}
+			for (int k = 0; k < 4; k++) {
+				double c = tk[k] / fact[n + k + 1];
+				for (int i = 0; i < 4; i++)
+					for (int j = 0; j < 4; j++) G[k][i][j] += c * P[i][j];
+			}
+		}
+	}
+
+	/* --- s doublings --                                -------------- */
+
+	for (int d = 0; d < s; d++, t *= 2.0) {
+		for (int k = 0; k < 4; k++)
+			for (int i = 0; i < 4; i++)
+				for (int j = 0; j < 4; j++) {
+					double sum = 0.0, c = 1.0;
+					for (int m = 0; m < 4; m++) sum += E[i][m] * G[k][m][j];
+					/* sum over j' = k .. 1 of G_j' t^(k-j') / (k-j')! */
+					for (int q = k; q >= 0; q--) {
+						sum += G[q][i][j] * c;
+						c *= t / (k - q + 1);
+					}
+					Gn[k][i][j] = sum;
+				}
+		for (int i = 0; i < 4; i++)
+			for (int j = 0; j < 4; j++) {
+				double sum = 0.0;
+				for (int m = 0; m < 4; m++) sum += E[i][m] * E[m][j];
+				T[i][j] = sum;
+			}
+		memcpy(E, T, sizeof(T));
+		memcpy(G, Gn, sizeof(G));
+	}
+	memcpy(F, G, sizeof(G));
+}
+/* ------- end ---------------------------- exp_phi4.c -------------- */
+
+/* ------- begin -------------------------- exp_step_const.c -------- */
+
+static void exp_step_const(double dtau, double K[4][4], double S_uw[4],
+						   double S_loc[4], double dS_uw[4],
+						   double dS_loc[4], double I_uw[4], double I_loc[4])
+{
+	/* --- dI/dtau = S - K I, K = 1 + K', over dtau with constant K'
+		   and S the cubic Hermite polynomial through S_uw, S_loc with
+		   the derivatives dS_uw, dS_loc (in tau). With A = -(1 + K') dtau,
+		   u = t / dtau and S = a0 + a1 u + a2 u^2 + a3 u^3,
+
+			 I_loc = e^A I_uw + dtau sum_m a_m m! phi_(m+1)(A),
+
+		   phi_k(A) = sum_n A^n / (n + k)! (exp_phi4), so that K need
+		   not be inverted. e^A is the exact propagator of a constant
+		   physical K and never increases the norm of the Stokes vector.
+		   Exact for constant K' and cubic S. I_uw and I_loc must not
+		   overlap --                                       -------------- */
+
+	double A[4][4], E[4][4], F[4][4][4], a[4][4];
+
+	double eta2 = 0.0;
+
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++)
+			A[i][j] = -dtau * (K[i][j] + (i == j));
+	for (int j = 1; j < 4; j++) eta2 += SQ(K[0][j]);
+
+	/* --- Thick step: the eigenvalues of A have real parts at most
+		   -dtau (1 - |eta|), so where that is below -40, e^A < 4e-18
+		   and phi_k(A) = A^-k (e^A - sum_(j<k) A^j / j!) is
+		   -sum_(j<k) A^(j-k) / j! to rounding: one inverse instead of
+		   the series and the squarings --              -------------- */
+
+	if (eta2 < 1.0 && dtau * (1.0 - sqrt(eta2)) > 40.0) {
+		double              Ainv[4][4], Pw[4][4][4];
+		static const double ifact[4] = {1.0, 1.0, 0.5, 1.0 / 6.0};
+
+		invert4(A, Ainv);
+		memcpy(Pw[0], Ainv, sizeof(Ainv)); /* Pw[p] = A^-(p+1) */
+		for (int q = 1; q < 4; q++)
+			for (int i = 0; i < 4; i++)
+				for (int j = 0; j < 4; j++) {
+					double sum = 0.0;
+					for (int m = 0; m < 4; m++) sum += Pw[q - 1][i][m] * Ainv[m][j];
+					Pw[q][i][j] = sum;
+				}
+		for (int k = 1; k <= 4; k++) /* phi_k = -sum_(j<k) A^(j-k) / j! */
+			for (int i = 0; i < 4; i++)
+				for (int j = 0; j < 4; j++) {
+					double sum = 0.0;
+					for (int jj = 0; jj < k; jj++) sum -= Pw[k - jj - 1][i][j] * ifact[jj];
+					F[k - 1][i][j] = sum;
+				}
+		memset(E, 0, sizeof(E));
+	} else
+		exp_phi4(A, E, F);
+
+	/* --- Monomial coefficients of the Hermite cubic, already times
+		   m! (0!, 1!, 2!, 3!) --                         -------------- */
+
+	for (int n = 0; n < 4; n++) {
+		double m0 = dtau * dS_uw[n], m1 = dtau * dS_loc[n];
+		a[0][n] = S_uw[n];
+		a[1][n] = m0;
+		a[2][n] = 2.0 * (3.0 * (S_loc[n] - S_uw[n]) - 2.0 * m0 - m1);
+		a[3][n] = 6.0 * (2.0 * (S_uw[n] - S_loc[n]) + m0 + m1);
+	}
+	for (int i = 0; i < 4; i++) {
+		I_loc[i] = 0.0;
+		for (int j = 0; j < 4; j++) {
+			I_loc[i] += E[i][j] * I_uw[j];
+			for (int m = 0; m < 4; m++) I_loc[i] += dtau * F[m][i][j] * a[m][j];
+		}
+	}
+}
+/* ------- end ---------------------------- exp_step_const.c -------- */
+
+/* ------- begin -------------------------- Stokes_Exp_step.c ------- */
+
+void Stokes_Exp_step(double dtau, double K_uw[4][4], double K_loc[4][4],
+					 double S_uw[4], double S_loc[4], double dS_uw[4],
+					 double dS_loc[4], double I_uw[4], double I_loc[4])
+{
+	/* --- One step of the polarized transfer equation dI/dtau = S - K I,
+		   K = 1 + K', from the upwind to the local point over dtau, for
+		   the DELO steps' fallback (B-55): two exact half steps
+		   (exp_step_const), K' = K'_uw on the first and K'_loc on the
+		   second, with S the cubic Hermite polynomial through S_uw,
+		   S_loc and the derivatives dS_uw, dS_loc, split at the
+		   midpoint (exactly). The propagators never increase the norm
+		   of the Stokes vector, however large the magneto-optical terms
+		   are, whereas the DELO steps amplify it where max |K'| dtau is
+		   large. For a thin step the product of the two propagators is
+		   e^(-(1 + K'_mean) dtau) to second order; in a thick step the
+		   second half gives the local equilibrium, I -> (1 + K'_loc)^-1
+		   S_loc. A single step with the mean K' does not: where the
+		   local dichroism exceeds the upwind one it leaves I several
+		   per cent below the local source (5 % at |eta| 0.46 vs 0.12),
+		   and the near-cancelled preconditioned rates of a thick line
+		   core turned negative (B-55, found by an independent analysis).
+		   Exact for constant K' and cubic S. I_uw and I_loc must not
+		   overlap --                                       -------------- */
+
+	double h = 0.5 * dtau, S_mid[4], dS_mid[4], I_mid[4];
+
+	for (int n = 0; n < 4; n++) {
+		S_mid[n]  = 0.5 * (S_uw[n] + S_loc[n]) + 0.125 * dtau * (dS_uw[n] - dS_loc[n]);
+		dS_mid[n] = 1.5 * (S_loc[n] - S_uw[n]) / dtau - 0.25 * (dS_uw[n] + dS_loc[n]);
+	}
+	/* --- With the same K' at both ends one exponential step is the
+		   same thing --                                   -------------- */
+
+	if (!memcmp(K_uw, K_loc, 16 * sizeof(double))) {
+		exp_step_const(dtau, K_uw, S_uw, S_loc, dS_uw, dS_loc, I_uw, I_loc);
+		return;
+	}
+
+	/* --- Where the second half is thick (its e^A is dropped, the
+		   condition of exp_step_const), I_mid does not matter --  ---- */
+
+	double eta2 = SQ(K_loc[0][1]) + SQ(K_loc[0][2]) + SQ(K_loc[0][3]);
+
+	if (eta2 < 1.0 && h * (1.0 - sqrt(eta2)) > 40.0)
+		memset(I_mid, 0, sizeof(I_mid));
+	else
+		exp_step_const(h, K_uw, S_uw, S_mid, dS_uw, dS_mid, I_uw, I_mid);
+	exp_step_const(h, K_loc, S_mid, S_loc, dS_mid, dS_loc, I_mid, I_loc);
+}
+/* ------- end ---------------------------- Stokes_Exp_step.c ------- */
+
 /* ------- begin -------------------------- Bezier3_Stokes_step.c --- */
 
 double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
@@ -385,7 +689,10 @@ double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
 		   upwind point: in 1-D the one of the previous point (one-sided
 		   in the first interval), in 2-D and 3-D, where the upwind point
 		   is interpolated, the slope of the quadratic Bezier curve
-		   (N-24). One function for all three since Q-25. I_uw and I_loc
+		   (N-24). One function for all three since Q-25. Where
+		   max |K'| dtau exceeds STOKES_XMAX_BEZIER3 and K' is physical
+		   the step is the exponential one (Stokes_Exp_step,
+		   use_exp_step, B-55). I_uw and I_loc
 		   must not overlap: I_loc is built while I_uw is read
 		   --                                              -------------- */
 
@@ -400,7 +707,24 @@ double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
 		   dt03;
 	double A[4][4], Ma[4][4], Mb[4][4], Mc[4][4], M_loc[4][4];
 
+	/* --- Where K' is large over the step the DELO-Bezier control
+		   points amplify the polarization (B-55): the exponential step
+		   instead --                                     -------------- */
+
+	/* --- The approximate operator stays the scalar beta + theta of the
+		   DELO-Bezier step, which ignores K', as everywhere else. The
+		   exponential step's own coefficient of S_loc in I is the
+		   polarized one, (K^-1)[0][0] in thick layers, above 1 with
+		   dichroism (1.19 measured), and with it the first population
+		   update of the 2-D test case inverted Ca II 866 nm (B-55) -- */
+
 	Bezier3_coeffs(dtau_uw, &alpha, &beta, &gamma, &theta, &eps);
+
+	if (use_exp_step(dtau_uw, K_uw, K_loc, STOKES_XMAX_BEZIER3)) {
+		Stokes_Exp_step(dtau_uw, K_uw, K_loc, S_uw, S_loc, dS_uw, dS_loc, I_uw,
+						I_loc);
+		return beta + theta;
+	}
 
 	m4m(K_uw, K_uw, Ma);  // Ku # Ku
 	m4m(K_loc, K_loc, A); // K0 # K0
@@ -624,21 +948,32 @@ void LongChar_Stokes_Linear(double ds_uw, double chi_uw, double chi_loc,
 							double I_uw[4], double I_loc[4])
 {
 	/* --- One section of a polarized long characteristic with the
-		   DELO-linear step (Rees, Durrant & Murphy 1989): along the
-		   section dI/dtau = S_eff - I with S_eff = S - K' I linear in
-		   tau, the trapezoidal optical path, as LongChar_Linear (N-41):
+		   DELO method (Rees, Murphy & Durrant 1989, ApJ 339, 1093):
+		   along the section dI/dtau = S_eff - I with S_eff = S - K' I,
+		   here linear in tau, and the trapezoidal optical path, as
+		   LongChar_Linear (N-41):
 
 			 (1 + (w0 - w1 / dtau) K'_loc) I_loc =
 			   ((1 - w0) - w1 / dtau K'_uw) I_uw + w0 S_loc
 				 + w1 (S_uw - S_loc) / dtau.
 
-		   With K' = 0 it is LongChar_Linear for I. I_uw and I_loc must
-		   not overlap --                                 -------------- */
+		   With K' = 0 it is LongChar_Linear for I. Where max |K'| dtau
+		   exceeds STOKES_XMAX_LINEAR and K' is physical the step is the
+		   exponential one instead (Stokes_Exp_step, use_exp_step,
+		   B-55). I_uw and I_loc must not
+		   overlap --                                     -------------- */
 
 	register int n, m;
 	double       dtau_uw, w[2], c_uw, M_loc[4][4];
 
 	dtau_uw = 0.5 * (chi_uw + chi_loc) * ds_uw;
+	if (use_exp_step(dtau_uw, K_uw, K_loc, STOKES_XMAX_LINEAR)) {
+		double sec[4];
+
+		for (n = 0; n < 4; n++) sec[n] = (S_loc[n] - S_uw[n]) / dtau_uw;
+		Stokes_Exp_step(dtau_uw, K_uw, K_loc, S_uw, S_loc, sec, sec, I_uw, I_loc);
+		return;
+	}
 	w2(dtau_uw, w);
 	c_uw = w[1] / dtau_uw;
 
