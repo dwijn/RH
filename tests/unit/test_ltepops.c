@@ -7,7 +7,7 @@
 	   10^+-4932) in linear space, which neither underflows nor
 	   overflows for these parameters.
 
-	   -- Element with 7 stages (C I-VII ionization potentials) and
+	   -- Element with 7 stages (C I-VII, the 6 ionization potentials of C I-VI) and
 		  one with 30 stages, T from 3000 K to 10^6 K, electron
 		  densities from 10^-10 to 10^24 m^-3 (the low ones only to
 		  stretch the chain): the populations are finite and
@@ -49,7 +49,8 @@ static bool_t table;
 
 static const double T_PF[NPF] = {1.0e3, 1.0e5, 1.0e7};
 
-/* --- Ionization potentials of C I-VI [eV] and 30 synthetic stages -- */
+/* --- Ionization potentials of C I-VI [eV] (7 stages; the last stage
+	   has none) -- ------------------------------------------- */
 
 static const double CHI_C[6] = {11.2603, 24.3833, 47.8878, 64.4939, 392.087, 489.993};
 
@@ -94,7 +95,7 @@ static Element make_element(int Nstage, const double *chi)
 	el.pf     = (double **) malloc(Nstage * sizeof(double *));
 	el.n      = (double **) malloc(Nstage * sizeof(double *));
 	for (int i = 0; i < Nstage; i++) {
-		el.ionpot[i] = chi[i] * EV;
+		el.ionpot[i] = (i < Nstage - 1) ? chi[i] * EV : 0.0;
 		el.pf[i]     = (double *) malloc(NPF * sizeof(double));
 		el.n[i]      = (double *) malloc(NSPACE * sizeof(double));
 		for (int j = 0; j < NPF; j++) el.pf[i][j] = lnU(i, T_PF[j]);
@@ -157,7 +158,7 @@ static void saha_old(const Element *el, int k, double *n)
 	   1e-3 of the total -- -------------------------------------- */
 
 static double compare_pops(const char *what, double **got, long double **ref, int Nlev,
-						   const double *total)
+						   const double *total, double dom_tol)
 {
 	double worst = 0.0;
 
@@ -177,7 +178,11 @@ static double compare_pops(const char *what, double **got, long double **ref, in
 				double rel = fabs(g - r) / r;
 				double tol = 1.0e-12 + 1.0e-14 * fabs(log(r / total[k]));
 
-				if (r > 1.0e-3 * total[k] && rel > worst) worst = rel;
+				if (r > 1.0e-3 * total[k]) {
+					if (rel > worst) worst = rel;
+					CHECK(rel <= dom_tol, "%s: dominant n[%d][%d] rel. diff %g (T = %g, ne = %g)", what, i, k, rel,
+						  atmos.T[k], atmos.ne[k]);
+				}
 				CHECK(rel <= tol, "%s: n[%d][%d] = %.17g, want %.17g (rel. diff %g, T = %g, ne = %g)", what,
 					  i, k, g, r, rel, atmos.T[k], atmos.ne[k]);
 			} else {
@@ -187,6 +192,7 @@ static double compare_pops(const char *what, double **got, long double **ref, in
 			}
 		}
 		CHECK_CLOSE(sum, total[k], 1.0e-12, 0.0, "%s: sum at k = %d", what, k);
+		if (total[k] == 0.0) CHECK(sum == 0.0, "%s: populations %g should be zero for a zero total (k = %d)", what, sum, k);
 	}
 	return worst;
 }
@@ -225,7 +231,7 @@ static void test_element(const char *what, int Nstage, const double *chi)
 			}
 		}
 	}
-	worst = compare_pops(what, el.n, ref, Nstage, total);
+	worst = compare_pops(what, el.n, ref, Nstage, total, Nstage > 10 ? 5.0e-13 : 1.0e-13);
 	if (table) printf("%s: largest relative difference of the dominant stages %.3g; old chain wrong at %d of %d points\n", what, worst, Nold,
 					  NSPACE);
 
@@ -275,7 +281,9 @@ static void test_atom(bool_t Debeye)
 		ref[i]        = (long double *) malloc(NSPACE * sizeof(long double));
 	}
 	for (int k = 0; k < NSPACE; k++) {
-		atom.ntotal[k] = 2.0e-5 * atmos.nHtot[k];
+		/* --- One depth without atoms: all populations must be zero -- */
+
+		atom.ntotal[k] = (k == 3 * NNE + 2) ? 0.0 : 2.0e-5 * atmos.nHtot[k];
 		total[k]       = atom.ntotal[k];
 	}
 	LTEpops(&atom, Debeye);
@@ -292,14 +300,14 @@ static void test_atom(bool_t Debeye)
 			}
 			for (int i = 0; i < NLEV; i++) ref[i][k] *= atom.ntotal[k] / sum;
 		}
-		worst = compare_pops("atom", atom.nstar, ref, NLEV, total);
+		worst = compare_pops("atom", atom.nstar, ref, NLEV, total, 1.0e-13);
 		if (table) printf("atom: largest relative difference %.3g\n", worst);
 	} else {
 		for (int k = 0; k < NSPACE; k++) {
 			double sum = 0.0;
 
 			for (int i = 0; i < NLEV; i++) {
-				CHECK(isfinite(atom.nstar[i][k]) && atom.nstar[i][k] > 0.0, "Debeye: n*[%d][%d] = %g", i, k,
+				CHECK(isfinite(atom.nstar[i][k]) && atom.nstar[i][k] >= 0.0, "Debeye: n*[%d][%d] = %g", i, k,
 					  atom.nstar[i][k]);
 				sum += atom.nstar[i][k];
 			}
