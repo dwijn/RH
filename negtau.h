@@ -17,8 +17,11 @@
 	   rejects the point.
 
 	   The same mechanism invalidates a trial point for other reasons
-	   (negTauInvalid): negative populations out of the LU fallback of
-	   statEquil (N-8). The caller outside a trial stops the run itself.
+	   (negTauInvalid, only inside a trial): negative or non-finite
+	   populations out of the LU fallback of statEquil (N-8). The caller
+	   outside a trial stops the run itself. negTauFound therefore means
+	   "the trial point is invalid, for any reason", and negTauMessage
+	   says which.
 	   --                                              -------------- */
 
 #ifndef NEGTAU_H

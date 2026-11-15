@@ -66,6 +66,11 @@ static void set_rates(double a, double b)
 	}
 }
 
+static void run_invalid_outside(void)
+{
+	negTauInvalid("x");
+}
+
 static void run_stop(void)
 {
 	statEquil(&atom, -1);
@@ -93,7 +98,7 @@ static bool_t is_fatal(void (*f)(void))
 }
 
 static void check_case(const char *name, double a, double b, bool_t bad,
-					   const char *level)
+					   const char *level, const char *tail)
 {
 	char msg[512];
 
@@ -112,7 +117,7 @@ static void check_case(const char *name, double a, double b, bool_t bad,
 		negTauMessage(msg, sizeof(msg));
 		CHECK(strstr(msg, "XX") && strstr(msg, level) &&
 				  strstr(msg, "location 1") &&
-				  strstr(msg, "negative preconditioned rates"),
+				  strstr(msg, "of 3 locations solved") && strstr(msg, tail),
 			  "%s: message: %s", name, msg);
 		negTauReset();
 		CHECK(!negTauFound(), "%s: still invalid after negTauReset", name);
@@ -137,12 +142,13 @@ int main(void)
 
 	/* --- n_1 = a / (a + b) N: -1 for a = -0.5, b = 1 -- ------------ */
 
-	check_case("negative rate, negative population", -0.5, 1.0, TRUE, "level 1 (second)");
-	check_case("NaN rate", NAN, 1.0, TRUE, "non-finite population");
+	check_case("negative rate, negative population", -0.5, 1.0, TRUE, "level 1 (second)", "negative rates");
+	check_case("NaN rate", NAN, 1.0, TRUE, "non-finite population", "non-finite rate");
 
 	/* --- Plain non-negative rates: GTH, nothing to report -- ------ */
 
-	check_case("non-negative rates", 0.5, 1.0, FALSE, "");
+	CHECK(is_fatal(run_invalid_outside), "negTauInvalid outside a trial does not stop");
+	check_case("non-negative rates", 0.5, 1.0, FALSE, "", "");
 
 	free(atom.label[0]);
 	free(atom.label[1]);

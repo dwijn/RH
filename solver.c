@@ -307,8 +307,9 @@ bool_t G_eval(const double *x_in, double *x_out)
 		   opacity negative enough to overflow (N-40). That can only
 		   happen at a trial point (negTauTrial(TRUE)): anywhere else
 		   solveSpectrum stops the run. Also FALSE, in the same way,
-		   when statEquil found negative populations out of its LU
-		   fallback (N-8) --                            -------------- */
+		   when statEquil found negative or non-finite populations out
+		   of its LU fallback (N-8); the state is then that of x_in
+		   again --                            -------------- */
 
 	stateScatter(x_in);
 
@@ -343,11 +344,16 @@ bool_t G_eval(const double *x_in, double *x_out)
 
 	/* --- 3. Statistical equilibrium, no acceleration -- ------------ */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++)
+	for (nact = 0; nact < atmos.Nactiveatom && !negTauFound(); nact++)
 		statEquil(atmos.activeatoms[nact], input.isum);
-	for (nact = 0; nact < atmos.Nactivemol; nact++)
+	for (nact = 0; nact < atmos.Nactivemol && !negTauFound(); nact++)
 		statEquilMolecule(atmos.activemols[nact], 0);
-	if (negTauFound()) { /* negative LU populations (N-8) */
+	if (negTauFound()) { /* bad LU populations (N-8) */
+
+		/* --- statEquil has overwritten the populations: put the state
+			   of x_in back, as it is when the formal solution gives up -- */
+
+		stateScatter(x_in);
 		Gcount++;
 		return FALSE;
 	}
@@ -874,7 +880,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	char   what[256];
 	int    m = input.Anderson_depth, Nsolve, delay, t;
 	long   i, Ndamped = 0, Nguardplain = 0, Ncarried = 0, Ncarried_ok = 0,
-			Nnegtau = 0;
+			Nbadtrial = 0;
 	double             *x, *gx, *gacc, *u, *gu, *un, *w, *gamma, dpopsmax = 0.0, theta;
 	unsigned char      *valid, *validg;
 	enum AndersonAction action;
@@ -989,7 +995,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 					" point rejected; plain step from the last accepted point\n",
 					niter, what);
 			Error(MESSAGE, NULL, messageStr);
-			Nnegtau++;
+			Nbadtrial++;
 			negTauReset();
 			andersonRejectTrial(a);
 			memcpy(x, gacc, Nstate * sizeof(double));
@@ -1093,11 +1099,11 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
 			a->Ndropped);
 	Error(MESSAGE, routineName, messageStr);
-	if (Nnegtau > 0) {
+	if (Nbadtrial > 0) {
 		sprintf(messageStr,
 				" -- Anderson: %ld of the rejected points were invalid trial points"
 				" (negative total opacity or negative populations, N-40, N-8)\n",
-				Nnegtau);
+				Nbadtrial);
 		Error(MESSAGE, routineName, messageStr);
 	}
 	if (Ncarry > 0) {
@@ -1143,7 +1149,7 @@ typedef struct {
 	const unsigned char *mask;          /* entries in the step */
 	double              *up, *xp, *gp, *gup, h;
 	unsigned char       *validp;
-	long                 Nprobe, Ninvalid, Nnegtau;
+	long                 Nprobe, Ninvalid, Nbadtrial;
 } FDContext;
 
 static void fdProduct(void *vctx, const double *v, double *y)
@@ -1176,7 +1182,7 @@ static void fdProduct(void *vctx, const double *v, double *y)
 		negTauTrial(FALSE);
 		negTauReset();
 		c->Nprobe++;
-		c->Nnegtau++;
+		c->Nbadtrial++;
 		for (i = 0; i < Nstate; i++) y[i] = 0.0;
 		return;
 	}
@@ -1226,7 +1232,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 
 	bool_t converged = FALSE, stopped = FALSE, accepted, Gok;
 	int    k = input.Newton_krylov_max, kmax, nback, Nhalve, n, ninf,
-		Nreason[GUARD_NRESULT], Nnegtau = 0;
+		Nreason[GUARD_NRESULT], Nbadtrial = 0;
 	long i, Neval = 0, Nbase = 0, Nkrylov = 0, Nline = 0, Nplain = 0,
 			Nguard = 0, Nsteps = 0, Nlost = 0, Nrestore = 0;
 	double *x, *gx, *u, *gu, *r, *d, *xt, *gt, *ut, *gut, *rt, *w;
@@ -1260,20 +1266,20 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	/* --- The probes of fdProduct use the trial buffers: they are
 		   never alive at the same time --              -------------- */
 
-	ctx.u        = u;
-	ctx.r        = r;
-	ctx.x        = x;
-	ctx.w        = w;
-	ctx.mask     = valid;
-	ctx.up       = ut;
-	ctx.xp       = xt;
-	ctx.gp       = gt;
-	ctx.gup      = gut;
-	ctx.validp   = validgt;
-	ctx.h        = h;
-	ctx.Nprobe   = 0;
-	ctx.Ninvalid = 0;
-	ctx.Nnegtau  = 0;
+	ctx.u         = u;
+	ctx.r         = r;
+	ctx.x         = x;
+	ctx.w         = w;
+	ctx.mask      = valid;
+	ctx.up        = ut;
+	ctx.xp        = xt;
+	ctx.gp        = gt;
+	ctx.gup       = gut;
+	ctx.validp    = validgt;
+	ctx.h         = h;
+	ctx.Nprobe    = 0;
+	ctx.Ninvalid  = 0;
+	ctx.Nbadtrial = 0;
 
 	sprintf(messageStr,
 			"\n -- SOLVER = NEWTON_KRYLOV: %ld unknowns in %d blocks; PRD"
@@ -1334,9 +1340,9 @@ void iterateNewton(int NmaxIter, double iterLimit)
 		/* --- Backtracking on ||R||_W, the guard before every trial,
 			   the plain step if no lambda is accepted -- ---------- */
 
-		accepted = FALSE;
-		Nhalve   = 0;
-		Nnegtau  = 0;
+		accepted  = FALSE;
+		Nhalve    = 0;
+		Nbadtrial = 0;
 		memset(Nreason, 0, sizeof(Nreason));
 		dinf = 0.0;
 		ninf = 0;
@@ -1377,7 +1383,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 				if (!Gok) { /* negative opacity (N-40): halve */
 					Nhalve++;
 					Nguard++;
-					Nnegtau++;
+					Nbadtrial++;
 					negTauReset();
 					continue;
 				}
@@ -1409,7 +1415,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
 					(gres.breakdown) ? " (invariant space)" : "", dinf,
 					blocks[ninf].name, lambda, Nhalve, Nreason[GUARD_NONFINITE],
-					Nreason[GUARD_NEGATIVE], Nnegtau, rtnorm, Neval);
+					Nreason[GUARD_NEGATIVE], Nbadtrial, rtnorm, Neval);
 			Error(MESSAGE, NULL, messageStr);
 			memcpy(x, xt, Nstate * sizeof(double));
 			memcpy(gx, gt, Nstate * sizeof(double));
@@ -1422,7 +1428,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
 					(gres.breakdown) ? " (invariant space)" : "", dinf,
 					blocks[ninf].name, Nhalve, Nreason[GUARD_NONFINITE],
-					Nreason[GUARD_NEGATIVE], Nnegtau, Neval);
+					Nreason[GUARD_NEGATIVE], Nbadtrial, Neval);
 			Error(MESSAGE, NULL, messageStr);
 			Nplain++;
 			if (Neval >= NmaxIter) {
@@ -1480,11 +1486,11 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			Neval, Nsteps, Nbase, Nkrylov, Nline, Nlost, Nplain, Nguard,
 			ctx.Ninvalid, Nrestore);
 	Error(MESSAGE, routineName, messageStr);
-	if (ctx.Nnegtau > 0) {
+	if (ctx.Nbadtrial > 0) {
 		sprintf(messageStr,
 				" -- Newton: %ld Jacobian probes were invalid trial points (negative"
 				" total opacity or populations, N-40, N-8) and gave a zero product\n",
-				ctx.Nnegtau);
+				ctx.Nbadtrial);
 		Error(MESSAGE, routineName, messageStr);
 	}
 

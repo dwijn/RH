@@ -192,9 +192,14 @@ void negTauInvalid(const char *message)
 	/* --- Marks the trial point invalid, like a detection: negTauFound
 		   is TRUE until the next negTauReset and negTauMessage gives
 		   this message (the first one, unless an opacity detection
-		   came first). Call it only during a trial, from the main
-		   thread --                                     -------------- */
+		   came first). Only during a trial, from the main thread;
+		   anywhere else it is a programming error and stops -- ----                                      -------------- */
 
+	if (!trial) {
+		Error(ERROR_LEVEL_2, "negTauInvalid",
+			  "called outside a trial evaluation of G (programming error)");
+		return;
+	}
 	pthread_mutex_lock(&lock);
 	if (!invalid) {
 		invalid = TRUE;
