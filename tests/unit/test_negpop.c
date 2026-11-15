@@ -79,7 +79,7 @@ static void run_stop(void)
 /* --- Run f in a child with its output discarded; TRUE if it ended
 	   with RH's fatal exit status --                   -------------- */
 
-static bool_t is_fatal(void (*f)(void))
+static int is_fatal(void (*f)(void))
 {
 	pid_t pid;
 	int   status;
@@ -93,7 +93,7 @@ static bool_t is_fatal(void (*f)(void))
 		f();
 		_exit(0);
 	}
-	if (pid < 0 || waitpid(pid, &status, 0) != pid) return FALSE;
+	if (pid < 0 || waitpid(pid, &status, 0) != pid) return -1; /* fork failed: not "not fatal" */
 	return WIFEXITED(status) && WEXITSTATUS(status) == RH_EXIT_FATAL;
 }
 
@@ -103,8 +103,11 @@ static void check_case(const char *name, double a, double b, bool_t bad,
 	char msg[512];
 
 	set_rates(a, b);
-	CHECK(is_fatal(run_stop) == bad, "%s: outside a trial, stops: %d, expected %d",
-		  name, !bad, bad);
+	{
+		int fatal = is_fatal(run_stop);
+		CHECK(fatal == bad, "%s: outside a trial, stops: %d (-1: fork failed), expected %d",
+			  name, fatal, bad);
+	}
 
 	set_rates(a, b);
 	negTauReset();
@@ -147,7 +150,8 @@ int main(void)
 
 	/* --- Plain non-negative rates: GTH, nothing to report -- ------ */
 
-	CHECK(is_fatal(run_invalid_outside), "negTauInvalid outside a trial does not stop");
+	CHECK(is_fatal(run_invalid_outside) == 1,
+		  "negTauInvalid outside a trial does not stop (or fork failed)");
 	check_case("non-negative rates", 0.5, 1.0, FALSE, "", "");
 
 	free(atom.label[0]);
