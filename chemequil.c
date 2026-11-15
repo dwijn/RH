@@ -256,7 +256,16 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 				/* --- Atomic model has been read for this nucleus -- ------- */
 
 				fn0[i] = 0.0;
-				if (ofState && atom->active) {
+				if (atom->active) {
+
+					/* --- N-36: the neutral fraction of an active atom comes
+						   from its populations, in the map G and in the legacy
+						   iteration alike, normalized by their sum. It used to
+						   come from the LTE nstar in a fresh legacy run, so the
+						   legacy and the G fixed points of SOLVE_NE = ITERATION
+						   differed (H2, H-, ne by 1e-6) and a restart changed
+						   the result -- ----------------------------- */
+
 					sum = 0.0;
 					for (j = 0; j < atom->Nlevel; j++) {
 						if (atom->stage[j] == 0) fn0[i] += atom->n[j][k];
@@ -266,11 +275,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 				} else {
 					for (j = 0; j < atom->Nlevel; j++) {
 						if (atom->stage[j] > 0) break;
-						if (atom->active &&
-							atom->initial_solution != OLD_POPULATIONS)
-							fn0[i] += atom->nstar[j][k];
-						else
-							fn0[i] += atom->n[j][k];
+						fn0[i] += atom->n[j][k];
 					}
 					fn0[i] /= atom->ntotal[k];
 				}
