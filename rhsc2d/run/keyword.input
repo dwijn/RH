@@ -74,6 +74,16 @@
 
   PRD_N_MAX_ITER = 3
 
+# PRD_DAMPING is the fraction of the change of the PRD emission profile
+# ratio rho applied in each PRD sub-iteration, in (0, 1]
+# (KEYWORD_OPTIONAL; default 0.7, but 1.0 with SOLVER = NG; N-38).
+# Damping removes a period-2 cycle of the plain iteration with PRD; with
+# ANDERSON it saves up to 11 % of the work (and costs 1.5 % in the 3-D
+# test). It would slow SOLVER = NG (12 % in 1-D, 1-4 % in 2-D, 29 % in
+# 3-D), hence the default of 1.0 there.
+
+#  PRD_DAMPING = 0.7
+
 # With SOLVER = NG: PRD_ITER_LIMIT is the convergence limit of the PRD
 # iterations in each main iteration (default 1.0E-2); if negative, the
 # dpopsmax of the current main iteration is taken. PRD_NG_?? are the Ng

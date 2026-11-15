@@ -95,6 +95,8 @@ void readInput()
 		 setintValue},
 		{"PRD_ITER_LIMIT", "1.0E-2", FALSE, KEYWORD_OPTIONAL, &input.PRDiterLimit,
 		 setdoubleValue},
+		{"PRD_DAMPING", "0.7", FALSE, KEYWORD_OPTIONAL, &input.PRD_damping,
+		 setdoubleValue},
 		{"PRD_NG_DELAY", "0", FALSE, KEYWORD_OPTIONAL, &input.PRD_Ngdelay,
 		 setintValue},
 		{"PRD_NG_ORDER", "0", FALSE, KEYWORD_OPTIONAL, &input.PRD_Ngorder,
@@ -345,6 +347,15 @@ void readInput()
 		Error(ERROR_LEVEL_2, routineName,
 			  "Value of PRD_NG_PERIOD should be at least 1 when PRD_NG_ORDER > 0");
 
+	/* --- The PRD sub-iterations update rho by the fraction
+		   PRD_DAMPING of the change (N-38); 0 would freeze rho -- ---- */
+
+	if (!(input.PRD_damping > 0.0 && input.PRD_damping <= 1.0)) {
+		sprintf(messageStr, "Value of PRD_DAMPING should be in (0, 1], not %g",
+				input.PRD_damping);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+
 	/* --- Lambda_ref should be positive since it is used for the conversion
 		   of depth scales in routine convertScales --    ------------- */
 
@@ -465,6 +476,16 @@ void readInput()
 		   (SOLVER.md, Anderson as the default solver, item 2): a setting
 		   the solver would not honour stops the run here, before any
 		   work is done. A default is never a conflict. -- ------------- */
+
+	/* --- PRD_DAMPING defaults to 0.7, but to 1.0 (no damping) with
+		   SOLVER = NG, which damping slows by 1-29 % and whose results
+		   stay as they were (N-38) --                     -------------- */
+
+	if (input.solver == SOLVER_NG &&
+		!keywordSet(theKeywords, Nkeyword, "PRD_DAMPING")) {
+		input.PRD_damping = 1.0;
+		setKeywordValue(theKeywords, Nkeyword, "PRD_DAMPING", "1.0");
+	}
 
 	if (input.solver != SOLVER_NG) {
 		/* --- Keywords without an "off" value: an error when set.
