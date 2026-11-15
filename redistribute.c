@@ -93,9 +93,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 		for (kr = 0; kr < atom->Nline; kr++) {
 			line = &atom->line[kr];
 			if (line->PRD && line->Ng_prd == NULL) {
-				NlamuL = (input.PRD_angle_dep == PRD_ANGLE_DEP)
-							 ? 2L * atmos.Nrays * line->Nlambda * atmos.Nspace
-							 : (long) line->Nlambda * atmos.Nspace;
+				NlamuL = PRDRhoSize(line);
 				if (NlamuL > INT_MAX) {
 					sprintf(messageStr,
 							"PRD line %d -> %d: %ld values of rho, too many for"
@@ -140,6 +138,14 @@ void Redistribute(int NmaxIter, double iterLimit)
 						   test use the residual (N-38) --  -------------- */
 
 					accel = Accelerate(line->Ng_prd, line->rho_prd[0]);
+
+					/* --- Stops the run if rho <= 0 or not finite (N-4).
+						   SOLVER = NG has no trial evaluations, so a
+						   FALSE return would be a bug -- ------------- */
+
+					if (!PRDRhoCheck(atom, kr))
+						Error(ERROR_LEVEL_2, routineName,
+							  "rho of a PRD line is invalid in a trial evaluation");
 					sprintf(messageStr, "  PRD: iter #%d, atom %s, line %d,",
 							line->Ng_prd->count - 1, atom->ID, kr);
 					if (input.PRD_damping == 1.0)

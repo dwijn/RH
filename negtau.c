@@ -33,6 +33,12 @@ static struct {
 	double tau;
 } detected = {FALSE, -1, -1, -1, -1, -1, -1, 0.0};
 
+/* --- A trial point invalid for another reason (negTauInvalid), with
+	   the message of the first one since the last reset -- -------- */
+
+static bool_t invalid = FALSE;
+static char   invalidMessage[512];
+
 static pthread_mutex_t lock  = PTHREAD_MUTEX_INITIALIZER;
 static bool_t          trial = FALSE;
 
@@ -171,6 +177,38 @@ void negTauTrial(bool_t is_trial)
 }
 /* ------- end ---------------------------- negTauTrial.c ----------- */
 
+/* ------- begin -------------------------- negTauInTrial.c --------- */
+
+bool_t negTauInTrial(void)
+{
+	return trial;
+}
+/* ------- end ---------------------------- negTauInTrial.c --------- */
+
+/* ------- begin -------------------------- negTauInvalid.c --------- */
+
+void negTauInvalid(const char *message)
+{
+	/* --- Marks the trial point invalid, like a detection: negTauFound
+		   is TRUE until the next negTauReset and negTauMessage gives
+		   this message (the first one, unless an opacity detection
+		   came first). Only during a trial, from the main thread;
+		   anywhere else it is a programming error and stops -- ----                                      -------------- */
+
+	if (!trial) {
+		Error(ERROR_LEVEL_2, "negTauInvalid",
+			  "called outside a trial evaluation of G (programming error)");
+		return;
+	}
+	pthread_mutex_lock(&lock);
+	if (!invalid) {
+		invalid = TRUE;
+		snprintf(invalidMessage, sizeof(invalidMessage), "%s", message);
+	}
+	pthread_mutex_unlock(&lock);
+}
+/* ------- end ---------------------------- negTauInvalid.c --------- */
+
 /* ------- begin -------------------------- negTauFound.c ----------- */
 
 bool_t negTauFound(void)
@@ -181,7 +219,7 @@ bool_t negTauFound(void)
 		   wavelengths left once one has been found --   -------------- */
 
 	pthread_mutex_lock(&lock);
-	found = detected.found;
+	found = detected.found || invalid;
 	pthread_mutex_unlock(&lock);
 
 	return found;
@@ -194,6 +232,7 @@ void negTauReset(void)
 {
 	detected.found = FALSE;
 	detected.tau   = 0.0;
+	invalid        = FALSE;
 }
 /* ------- end ---------------------------- negTauReset.c ----------- */
 
@@ -203,6 +242,10 @@ void negTauMessage(char *message, size_t size)
 {
 	char where[64];
 
+	if (!detected.found && invalid) {
+		snprintf(message, size, "%s", invalidMessage);
+		return;
+	}
 	if (detected.column >= 0)
 		snprintf(where, sizeof(where), ", column %ld", detected.column);
 	else
@@ -230,7 +273,7 @@ void negTauStop(void)
 	/* --- Called by solveSpectrum after its threads have joined: stops
 		   the run unless a solver is evaluating a trial point -- ---- */
 
-	if (!detected.found || trial) return;
+	if (!detected.found || trial) return; /* (invalid only in a trial) */
 
 	negTauMessage(what, sizeof(what));
 	sprintf(messageStr,
