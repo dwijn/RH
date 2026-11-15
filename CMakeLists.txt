@@ -236,44 +236,39 @@ add_subdirectory(tests/unit)
 
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
-  add_test(NAME e2e_stokes_1d
-           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/stokes_1d.py
-                   --rhf1d $<TARGET_FILE:rhf1d> --src ${PROJECT_SOURCE_DIR})
-  set_tests_properties(e2e_stokes_1d PROPERTIES LABELS e2e)
-  add_test(NAME e2e_prd_hybrid
-           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/prd_hybrid.py
-                   --rhf1d $<TARGET_FILE:rhf1d> --rhsc2d $<TARGET_FILE:rhsc2d>
-                   --rhsc3d $<TARGET_FILE:rhsc3d> --src ${PROJECT_SOURCE_DIR})
-  set_tests_properties(e2e_prd_hybrid PROPERTIES LABELS e2e TIMEOUT 900)
-  add_test(NAME e2e_solver_g
-           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/solver_g.py
-                   --rhf1d $<TARGET_FILE:rhf1d> --gcheck1d $<TARGET_FILE:rhf1d_gcheck>
-                   --gcheck2d $<TARGET_FILE:rhsc2d_gcheck> --src ${PROJECT_SOURCE_DIR})
-  set_tests_properties(e2e_solver_g PROPERTIES LABELS e2e TIMEOUT 900)
-  add_test(NAME e2e_solver_anderson
-           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/solver_anderson.py
-                   --rhf1d $<TARGET_FILE:rhf1d> --src ${PROJECT_SOURCE_DIR})
-  set_tests_properties(e2e_solver_anderson PROPERTIES LABELS e2e TIMEOUT 900)
-  add_test(NAME e2e_convergence_report
-           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/convergence_report.py
-                   --rhf1d $<TARGET_FILE:rhf1d> --src ${PROJECT_SOURCE_DIR})
-  set_tests_properties(e2e_convergence_report PROPERTIES LABELS e2e TIMEOUT 900)
-  add_test(NAME e2e_solver_default
-           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/solver_default.py
-                   --rhf1d $<TARGET_FILE:rhf1d> --rhsphere $<TARGET_FILE:rhsphere>
-                   --rhsc2d $<TARGET_FILE:rhsc2d> --rhsc3d $<TARGET_FILE:rhsc3d>
-                   --src ${PROJECT_SOURCE_DIR})
-  set_tests_properties(e2e_solver_default PROPERTIES LABELS e2e TIMEOUT 900)
-  add_test(NAME e2e_solveray_cosines
-           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/solveray_cosines.py
-                   --rhsc2d $<TARGET_FILE:rhsc2d> --solveray2d $<TARGET_FILE:rhsc2d_solveray>
-                   --solveray3d $<TARGET_FILE:rhsc3d_solveray>
-                   --src ${PROJECT_SOURCE_DIR})
-  set_tests_properties(e2e_solveray_cosines PROPERTIES LABELS e2e TIMEOUT 900)
-  add_test(NAME e2e_solver_newton
-           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/solver_newton.py
-                   --rhf1d $<TARGET_FILE:rhf1d> --src ${PROJECT_SOURCE_DIR})
-  set_tests_properties(e2e_solver_newton PROPERTIES LABELS e2e TIMEOUT 900)
+  # Every e2e test goes through this function: label, timeout, and TMPDIR in
+  # the build tree. The scripts keep their runs in a temporary directory,
+  # removed when the test passes, and /tmp can be a small filesystem.
+  file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/e2e-tmp)
+  function(rh_add_e2e name script)
+    add_test(NAME e2e_${name}
+             COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/e2e/${script}.py
+                     ${ARGN} --src ${PROJECT_SOURCE_DIR})
+    set_tests_properties(e2e_${name} PROPERTIES
+      LABELS e2e TIMEOUT 900
+      ENVIRONMENT TMPDIR=${CMAKE_CURRENT_BINARY_DIR}/e2e-tmp)
+  endfunction()
+  rh_add_e2e(stokes_1d stokes_1d
+      --rhf1d $<TARGET_FILE:rhf1d>)
+  rh_add_e2e(prd_hybrid prd_hybrid
+      --rhf1d $<TARGET_FILE:rhf1d> --rhsc2d $<TARGET_FILE:rhsc2d>
+      --rhsc3d $<TARGET_FILE:rhsc3d>)
+  rh_add_e2e(solver_g solver_g
+      --rhf1d $<TARGET_FILE:rhf1d> --gcheck1d $<TARGET_FILE:rhf1d_gcheck>
+      --gcheck2d $<TARGET_FILE:rhsc2d_gcheck>)
+  rh_add_e2e(solver_anderson solver_anderson
+      --rhf1d $<TARGET_FILE:rhf1d>)
+  rh_add_e2e(convergence_report convergence_report
+      --rhf1d $<TARGET_FILE:rhf1d>)
+  rh_add_e2e(solver_default solver_default
+      --rhf1d $<TARGET_FILE:rhf1d> --rhsphere $<TARGET_FILE:rhsphere>
+      --rhsc2d $<TARGET_FILE:rhsc2d> --rhsc3d $<TARGET_FILE:rhsc3d>)
+  rh_add_e2e(solveray_cosines solveray_cosines
+      --rhsc2d $<TARGET_FILE:rhsc2d>
+      --solveray2d $<TARGET_FILE:rhsc2d_solveray>
+      --solveray3d $<TARGET_FILE:rhsc3d_solveray>)
+  rh_add_e2e(solver_newton solver_newton
+      --rhf1d $<TARGET_FILE:rhf1d>)
 endif()
 
 message(STATUS "RH ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, "

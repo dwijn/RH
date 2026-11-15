@@ -27,10 +27,20 @@ p = argparse.ArgumentParser()
 p.add_argument("--rhf1d", required=True)
 p.add_argument("--src", default=os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))
-p.add_argument("--work", help="keep the runs here (default: a temporary dir)")
+p.add_argument("--work", help="run directory, kept (default: a temporary dir under "
+                               "$TMPDIR, removed when the test passes, kept and named "
+                               "on failure)")
 a = p.parse_args()
 src = os.path.abspath(a.src)
 work = os.path.abspath(a.work) if a.work else tempfile.mkdtemp(prefix="rh_e2e_")
+
+
+def _name_work(*exc):                  # an uncaught exception keeps the runs: say where
+    sys.__excepthook__(*exc)
+    print(f"runs kept in {work}", file=sys.stderr)
+
+
+sys.excepthook = _name_work
 os.makedirs(os.path.join(work, "runs"), exist_ok=True)
 for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels down
     link = os.path.join(work, d)
