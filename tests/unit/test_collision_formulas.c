@@ -13,6 +13,9 @@
 		  are unchanged;
 	   -- coefficients that cannot be right (not finite, negative
 		  energy, T1 > T2, ...) stop the run when read;
+	   -- AR85-CHP takes the proton density from the last level of the
+		  hydrogen model, whatever its number of levels (it was level 5,
+		  a bound level of H_20 and beyond the array for fewer levels);
 	   -- coefficients that are valid but unusual do not stop the run, and
 		  AR85-CHP and AR85-CHH report the locations outside their fit
 		  range;
@@ -48,8 +51,8 @@ int __lsan_is_turned_off(void)
 	return in_child;
 }
 
-/* --- Proton density that AR85-CHP uses: n[5] of the hydrogen model (N-34 changes it to the last level) --- */
-#define CHP_PROTONS 4e10
+/* --- Proton density that AR85-CHP uses: the last level of the hydrogen model --- */
+#define CHP_PROTONS 9e10
 #define NLEVEL      9
 #define NT          61
 
@@ -351,7 +354,7 @@ int main(int argc, char **argv)
 		CHECK_CLOSE(atom.C[0 * NLEVEL + 3][k], want, 1e-12, 0.0, "AR85-CHH at T = %g", T);
 	}
 
-	/* --- AR85-CHP: n[5] of the hydrogen model times the formula, zero
+	/* --- AR85-CHP: the proton density (last level of the hydrogen model; with 8 levels here, n[5] is a bound level) times the formula, zero
 		   outside the range, and the range reported -- ------------- */
 
 	change_hydrogen(8, 4e10, 9e10);
@@ -366,6 +369,21 @@ int main(int argc, char **argv)
 						  : 0.0;
 
 		CHECK_CLOSE(atom.C[3 * NLEVEL + 0][k], want, 1e-12, 0.0, "AR85-CHP at T = %g", T);
+	}
+	freeRateReports(&atom);
+
+	/* --- A hydrogen model of two levels (n[5] would be beyond the array) -- */
+
+	change_hydrogen(2, 4e10, CHP_PROTONS);
+	run_logged("AR85-CHP 0 3 5e3 5e5 2.0 0.3 0.2 0.1\n");
+	for (int k = 0; k < NT; k++) {
+		double T = atmos.T[k], t4 = T / 1e4;
+		double want = (T >= 5e3 && T <= 5e5)
+						  ? 2.0 * 1e-9 * pow(t4, 0.3) * exp(-0.2 * t4) * exp(-0.1 * EV / KBOLTZMANN / T) *
+								CHP_PROTONS * 1e-6
+						  : 0.0;
+
+		CHECK_CLOSE(atom.C[3 * NLEVEL + 0][k], want, 1e-12, 0.0, "AR85-CHP, 2 levels, at T = %g", T);
 	}
 	freeRateReports(&atom);
 

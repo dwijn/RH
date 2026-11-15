@@ -1,0 +1,9 @@
+ids: N-34
+date: 2026-11-15
+title: AR85-CHP takes the proton density from the last level of the hydrogen model
+
+The `AR85-CHP` record (charge transfer with protons, `collision.c`) took the proton density from `atmos.H->n[5]`, which is the continuum only of a hydrogen model of six levels (`H_6`, whose levels are 1S, 2P, 3D, 4F, 5G and the continuum). With `H_20` (and the other models with more than six levels) it is a bound level, with fewer than six levels (`H_3`, `H_4`) it reads beyond the array of populations. `CP` and `CH+`, the other records that need the proton density, already use the last level, `atmos.H->n[atmos.H->Nlevel - 1]`, whether hydrogen is active or passive (LTE populations); `AR85-CHP` now does the same.
+
+Which results change: none of the shipped atom files uses `AR85-CHP` (only `C_I+II_9.atom` has formula records, `SHULL82`, `BADNELL`, `AR85-CDI`, `AR85-CEA`), and no case of `run_tests.sh` or the stress suite does, so `run_tests.sh --exact` is byte-identical against the layer below (N-34, `docs/changes/N-34.md`). A model with an `AR85-CHP` record changes with every hydrogen model that does not have six levels: with `H_6` nothing, with `H_20` the rate is multiplied by the ratio of the proton density to the population of level 5, a bound level against the continuum, a different population by a factor that depends on the atmosphere (not measured), and with fewer than six levels the rate was taken from memory beyond the array. Measured with a synthetic atom file in `test_collision_formulas`: a hydrogen model of 8 levels with level 5 at 4e10 m^-3 and the last level at 9e10 m^-3 gives the rate of the formula with 9e10 (relative 1e-12) and a model of two levels, where level 5 does not exist, gives the same, with no read beyond the array.
+
+Test. `test_collision_formulas` (N-34): the `AR85-CHP` checks use the last level for hydrogen models of 8 and 2 levels; before this change it fails (level 5 is used).
