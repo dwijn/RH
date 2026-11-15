@@ -41,9 +41,18 @@ extern Spectrum   spectrum;
 extern InputData  input;
 extern char       messageStr[];
 
-static void iterateNg(int NmaxIter, double iterLimit);
+static void   iterateNg(int NmaxIter, double iterLimit);
+static bool_t moreIterations(int niter, int NmaxIter);
 
 /* ------- begin -------------------------- Iterate.c --------------- */
+
+/* --- Whether the loop of iterateNg runs iteration niter: up to
+	   N_MAX_ITER, and up to CR_Nstep if that is larger -- ------------ */
+
+static bool_t moreIterations(int niter, int NmaxIter)
+{
+	return (niter <= NmaxIter || (input.CR_Nstep > 0 && niter <= input.CR_Nstep));
+}
 
 void Iterate(int NmaxIter, double iterLimit)
 {
@@ -122,8 +131,7 @@ static void iterateNg(int NmaxIter, double iterLimit)
 	/* --- Start of the main iteration loop --             ------------ */
 
 	niter = 1;
-	while (niter <= NmaxIter ||
-		   (input.CR_Nstep > 0 && niter <= input.CR_Nstep)) {
+	while (moreIterations(niter, NmaxIter)) {
 
 		if (StopRequested()) {
 			stopped = TRUE;
@@ -220,8 +228,7 @@ static void iterateNg(int NmaxIter, double iterLimit)
 				   active atoms would be off by the last HSE change in the
 				   output (N-16). A converged run never gets here --  ---- */
 
-			if (niter <= NmaxIter ||
-				(input.CR_Nstep > 0 && niter <= input.CR_Nstep))
+			if (moreIterations(niter, NmaxIter))
 				Hydrostatic(N_MAX_HSE_ITER, HSE_ITER_LIMIT);
 		}
 	}

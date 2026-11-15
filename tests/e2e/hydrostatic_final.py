@@ -133,19 +133,35 @@ def run(name, keywords):
     return d, r.stdout, r.returncode
 
 
+def read_h2_range(path):
+    """(Tmin, Tmax) of the first molecule of molecules.out, which must be H2
+    (the one the hydrostatic step uses). Header: Nmolecule; counted ID (xdr
+    short, xdr string: 4-byte length, bytes padded to 4); Nv, NJ; Ediss,
+    Tmin, Tmax."""
+    b = open(path, "rb").read()
+    nmol, short, m = struct.unpack(">3i", b[:12])
+    ident = b[12:12 + m].decode().strip() if nmol > 0 and short == m else None
+    if ident != "H2":
+        sys.exit(f"first molecule of {path} is {ident!r}, not H2\n runs in {work}")
+    off = 12 + 4 * ((m + 3) // 4) + 8              # skip Nv, NJ
+    tmin, tmax = struct.unpack(">2d", b[off + 8:off + 24])
+    return tmin, tmax
+
+
 def inconsistency(d):
     """max over the depth points without H2 of |sum_i n_CaII,i / (abund_Ca nHtot) - 1|.
     nHtot is the sum of the H populations of atmos.out only where no H2 is
     present: the depth points with T outside [Tmin, Tmax] of H2.molecule, the
-    condition of the hydrostatic step (molecules.out: Nmolecule, counted ID of
-    the first molecule, Nv, NJ, Ediss, Tmin, Tmax)."""
+    condition of the hydrostatic step (molecules.out)."""
     nl, ns, n = read_pops(os.path.join(d, "pops.CA.out"))
     nh, ab = read_atmos(os.path.join(d, "atmos.out"), ns)
-    mol = open(os.path.join(d, "molecules.out"), "rb").read()
-    tmin, tmax = struct.unpack(">2d", mol[32:48])
+    tmin, tmax = read_h2_range(os.path.join(d, "molecules.out"))
     atm = open(os.path.join(d, "atmos.out"), "rb").read()
     T = struct.unpack(f">{ns}d", atm[12:12 + 8 * ns])
     ks = [k for k in range(ns) if not tmin <= T[k] <= tmax]
+    if len(ks) < 5:
+        sys.exit(f"only {len(ks)} depth points outside the H2 range [{tmin}, {tmax}] K:"
+                 f" the test cannot see the problem\n runs in {work}")
     return max(abs(sum(n[i * ns + k] for i in range(nl)) / (ab["CA"] * nh[k]) - 1.0)
                for k in ks)
 
