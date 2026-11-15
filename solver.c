@@ -245,8 +245,12 @@ static double relChange(const double *old, const double *new, long N)
 /* ------- begin -------------------------- residualHistory.c ------- */
 
 /* --- The residuals of the iterations (largest relChange of the
-	   populations) of one run, the last RES_HIST_MAX of them, for the
-	   estimate of the contraction at the end of the run (N-3) -- --- */
+	   populations) of one run of SOLVER = FIXED_POINT, the last
+	   RES_HIST_MAX of them, for the estimate of the contraction at the
+	   end of the run (N-3). Only there the residuals follow the
+	   contraction of G: for ANDERSON and NEWTON_KRYLOV the same estimate
+	   was measured to understate the error by up to 20 times, and is
+	   not made -- ----------------------------------------------- */
 
 #define RES_HIST_MAX 11
 
@@ -267,22 +271,16 @@ static void resHistAdd(double r)
 	resHist[NresHist++] = r;
 }
 
-static void resHistDropLast(void)
-{
-	if (NresHist > 0) NresHist--;
-}
-
 static void printContraction(const char *routineName)
 {
 	int    m;
 	double lambda, rlast;
 
 	/* --- The geometric mean of the ratio of successive residuals
-		   over the last m (at most 10) iterations. Residuals of the
-		   accelerated solvers are not monotone, hence the mean over
-		   the window. Without the evidence (fewer than three
-		   iterations, no decrease) say so. The residual bounds the
-		   error through the contraction: error ~ r / (1 - lambda) --- */
+		   over the last m (at most 10) iterations. Without the
+		   evidence (fewer than three iterations, no decrease) say so.
+		   The residual bounds the error through the contraction:
+		   error ~ r / (1 - lambda) --                   -------------- */
 
 	m = NresHist - 1;
 	if (m < 2 || !(resHist[0] > 0.0) || !(resHist[NresHist - 1] >= 0.0) ||
@@ -952,7 +950,6 @@ static double printChange(const char *routineName, int niter, const double *x,
 		Error(MESSAGE, NULL, messageStr);
 	}
 	printRhoNe(x, gx);
-	resHistAdd(dpopsmax);
 	return dpopsmax;
 }
 /* ------- end ---------------------------- printChange.c ----------- */
@@ -994,7 +991,6 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	Anderson           *a;
 
 	stateInit();
-	resHistReset();
 	/* --- x, G(x) and G of the last accepted point are full states;
 		   the variables and the history cover the extrapolated blocks
 		   only (ANDERSON_EXTRAPOLATE, S-11) --         -------------- */
@@ -1134,7 +1130,6 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 					andersonNorm(Npacked, u, gu, valid, w), opt.safeguard,
 					a->fnorm_acc);
 			Error(MESSAGE, NULL, messageStr);
-			resHistDropLast(); /* not an accepted iteration */
 			memcpy(x, gacc, Nstate * sizeof(double));
 			break;
 
@@ -1199,7 +1194,6 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		Error(WARNING, routineName, messageStr);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	}
-	printContraction(routineName);
 	sprintf(messageStr,
 			" -- G evaluations: %ld\n -- Anderson: extrapolated %ld, plain %ld,"
 			" rejected %ld; guard: damped %ld, plain %ld; columns dropped %ld\n",
@@ -1352,7 +1346,6 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	Gmres           *gm;
 
 	stateInit();
-	resHistReset();
 	x       = (double *) malloc(Nstate * sizeof(double));
 	gx      = (double *) malloc(Nstate * sizeof(double));
 	u       = (double *) malloc(Nstate * sizeof(double));
@@ -1587,7 +1580,6 @@ void iterateNewton(int NmaxIter, double iterLimit)
 		Error(WARNING, routineName, messageStr);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	}
-	printContraction(routineName);
 	sprintf(messageStr,
 			" -- G evaluations: %ld\n -- Newton: steps %ld, G evaluations base %ld,"
 			" Krylov %ld, line search %ld (lost an entry %ld); plain steps %ld;"

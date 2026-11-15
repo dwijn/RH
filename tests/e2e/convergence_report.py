@@ -8,18 +8,15 @@ solver_anderson.py:
  1. The per-iteration lines carry the residual of the rho blocks (" rho
     CA: delta = ...") and, with SOLVE_NE = ITERATION, that of ne, with
     all three G solvers.
- 2. Each G solver ends with " -- Estimated contraction ..." after the
-    convergence message, which keeps its format; with SOLVER = NG there is
-    no such line; with fewer than three iterations the line says "no
-    estimate".
- 3. The error estimate (residual / (1 - contraction)) at ITER_LIMIT = 1e-4
-    is of the size of the actual difference to a run of the same case at
-    ITER_LIMIT = 1e-9 of ANDERSON (the reference). For FIXED_POINT without
-    Ng the estimate is within a factor 3 of the difference: the contraction
-    is that of G. For ANDERSON and NEWTON_KRYLOV it is an underestimate by
-    up to an order of magnitude (the rate of the accelerated iteration is
-    not that of G, and the residuals are not monotone), so only a loose
-    check is made (factor 30). The numbers are printed.
+ 2. SOLVER = FIXED_POINT ends with " -- Estimated contraction ..." after
+    the convergence message, which keeps its format; with fewer than three
+    iterations the line says "no estimate". ANDERSON, NEWTON_KRYLOV and NG
+    print no such line (the estimate understates their error by up to 20
+    times, docs/changes/N-3.md).
+ 3. The FIXED_POINT error estimate (residual / (1 - contraction)) at
+    ITER_LIMIT = 1e-4 is within a factor 3 of the actual difference to an
+    ANDERSON run at ITER_LIMIT = 1e-7 (the reference). The numbers are
+    printed.
 That the reporting leaves the results alone is checked by run_tests.sh
 --exact against a build without it.
 """
@@ -120,9 +117,12 @@ for name, kws in SOLVERS.items():
     conv = re.search(r"\n -- Converged (in \d+ iterations|at base point \d+): max change "
                      r"[0-9.E+-]+ < ITER_LIMIT = [0-9.E+-]+\n(.*\n)", out)
     est = EST.match(conv.group(2)) if conv else None
-    ok = n_it > 3 and n_rho == n_it and n_ne == n_it and est is not None
+    want_est = name == "FIXED_POINT"
+    ok = (n_it > 3 and n_rho == n_it and n_ne == n_it and conv is not None and
+          (est is not None) == want_est and
+          ("Estimated contraction" in out) == want_est)
     print(f"{name}: {n_it} iterations, {n_rho} rho and {n_ne} ne lines; "
-          f"{est.group(0).strip() if est else 'NO estimate line after the Converged line'}")
+          f"{est.group(0).strip() if est else 'no estimate line'}")
     if not ok:
         failed.append(f"report lines ({name})")
 
@@ -149,25 +149,21 @@ def err(d1, d2):
     return float(np.max(np.abs((n1 - n2)[nz] / n2[nz])))
 
 
-ref, out_ref = run("ref_ANDERSON_1e-9", MAP + SOLVERS["ANDERSON"] +
-                   [("N_MAX_ITER", "400"), ("ITER_LIMIT", "1e-9")])
-if not re.search(r" -- Converged (in|at)", out_ref):
-    sys.exit(f"the reference run did not converge ({ref})")
-for name, kws, factor in (("FIXED_POINT", SOLVERS["FIXED_POINT"], 3.0),
-                          ("ANDERSON", SOLVERS["ANDERSON"], 30.0),
-                          ("NEWTON_KRYLOV", SOLVERS["NEWTON_KRYLOV"], 30.0)):
-    d4, out4 = run(f"{name}_1e-4", MAP + kws + [("N_MAX_ITER", "400"),
-                                                 ("ITER_LIMIT", "1e-4")])
-    est = EST.search(out4)
-    if not re.search(r" -- Converged (in|at)", out4) or est is None:
-        failed.append(f"{name} 1e-4 run")
-        continue
+ref, out_ref = run("ref_ANDERSON_1e-7", MAP + SOLVERS["ANDERSON"] +
+                   [("N_MAX_ITER", "400"), ("ITER_LIMIT", "1e-7")])
+d4, out4 = run("FIXED_POINT_1e-4", MAP + SOLVERS["FIXED_POINT"] +
+               [("N_MAX_ITER", "400"), ("ITER_LIMIT", "1e-4")])
+est = EST.search(out4)
+if not re.search(r" -- Converged (in|at)", out_ref) or est is None or \
+        not re.search(r" -- Converged (in|at)", out4):
+    failed.append("FIXED_POINT 1e-4 or reference run")
+else:
     lam, e_est, e_act = float(est.group(1)), float(est.group(3)), err(d4, ref)
     r = e_est / e_act if e_act > 0 else float("inf")
-    print(f"{name}: contraction {lam:.3f}, estimated error {e_est:.2E}, "
-          f"actual |x(1e-4) - x(1e-9)| {e_act:.2E}, ratio {r:.2f}")
-    if not (1.0 / factor < r < factor):
-        failed.append(f"{name} estimate {e_est:.2E} vs actual {e_act:.2E}")
+    print(f"FIXED_POINT: contraction {lam:.3f}, estimated error {e_est:.2E}, "
+          f"actual |x(1e-4) - x(ref)| {e_act:.2E}, ratio {r:.2f}")
+    if not (1.0 / 3.0 < r < 3.0):
+        failed.append(f"FIXED_POINT estimate {e_est:.2E} vs actual {e_act:.2E}")
 
 if failed:
     sys.exit("FAILED: " + "; ".join(failed) + f"\n runs in {work}")
