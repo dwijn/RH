@@ -55,7 +55,9 @@ p.add_argument("--rhsc3d", help="also test rhsc3d (B-7)")
 p.add_argument("--src", default=os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))),
     help="RH source tree (Atoms/, Atmos/, Molecules/, rhf1d/run/)")
-p.add_argument("--work", help="keep the runs here (default: a temporary dir)")
+p.add_argument("--work", help="run directory, kept (default: a temporary dir under "
+                               "$TMPDIR, removed when the test passes, kept and named "
+                               "on failure)")
 p.add_argument("-v", "--verbose", action="store_true")
 a = p.parse_args()
 rhf1d = os.path.abspath(a.rhf1d)
@@ -64,6 +66,14 @@ rhsc3d = os.path.abspath(a.rhsc3d) if a.rhsc3d else None
 src = os.path.abspath(a.src)
 
 work = os.path.abspath(a.work) if a.work else tempfile.mkdtemp(prefix="rh_e2e_")
+
+
+def _name_work(*exc):                  # an uncaught exception keeps the runs: say where
+    sys.__excepthook__(*exc)
+    print(f"runs kept in {work}", file=sys.stderr)
+
+
+sys.excepthook = _name_work
 os.makedirs(os.path.join(work, "runs"), exist_ok=True)
 for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels down
     link = os.path.join(work, d)
@@ -199,6 +209,8 @@ if a.verbose or not same:
           f"to the bit (J {maxrel(J_tab, J_mem):.2e}, Jgas {maxrel(Jgas_tab, Jgas_mem):.2e})")
 
 print(f"prd_hybrid: {nchecks} checks, {failed} failed")
-if not a.work:
+if failed:
+    print(f"runs kept in {work}")
+elif not a.work:
     shutil.rmtree(work)
 sys.exit(1 if failed else 0)

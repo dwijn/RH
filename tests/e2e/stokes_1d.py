@@ -57,13 +57,23 @@ p = argparse.ArgumentParser()
 p.add_argument("--rhf1d", required=True)
 p.add_argument("--src", default=os.path.dirname(os.path.dirname(HERE)),
                help="RH source tree (Atoms/, Atmos/, Molecules/, rhf1d/run/)")
-p.add_argument("--work", help="keep the runs here (default: a temporary dir)")
+p.add_argument("--work", help="run directory, kept (default: a temporary dir under "
+                               "$TMPDIR, removed when the test passes, kept and named "
+                               "on failure)")
 p.add_argument("-v", "--verbose", action="store_true")
 a = p.parse_args()
 rhf1d = os.path.abspath(a.rhf1d)
 src = os.path.abspath(a.src)
 
 work = os.path.abspath(a.work) if a.work else tempfile.mkdtemp(prefix="rh_e2e_")
+
+
+def _name_work(*exc):                  # an uncaught exception keeps the runs: say where
+    sys.__excepthook__(*exc)
+    print(f"runs kept in {work}", file=sys.stderr)
+
+
+sys.excepthook = _name_work
 os.makedirs(os.path.join(work, "runs"), exist_ok=True)
 for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels down
     link = os.path.join(work, d)
@@ -352,7 +362,9 @@ for n, r in zip((40, 80, 160, 320), rots):
 for n, e0, e1 in zip((80, 160, 320), errs, errs[1:]):
     check(f"weak field, error ratio N = {n // 2} -> {n}", e0 / e1, 8.0, at_least=True)
 
-if not a.work:
+if failures:
+    print(f"runs kept in {work}")
+elif not a.work:
     shutil.rmtree(work)
 print(f"{'FAILED: ' + ', '.join(failures) if failures else 'all passed'}")
 sys.exit(1 if failures else 0)
