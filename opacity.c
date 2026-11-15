@@ -169,7 +169,14 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 	as = &spectrum.as[nspect];
 	nt = nspect % input.Nthreads;
 
-	if (input.PRD_angle_dep == PRD_ANGLE_APPROX)
+	/* --- Scratch for rho at one depth, only used to interpolate rho
+		   on the fly when the hybrid PRD tables are not kept
+		   (PRDH_LIMIT_MEM). Allocating it on every call regardless (about
+		   1 MB for 118k wavelengths, per wavelength, ray and direction in a
+		   moving atmosphere) cost about 10% of the formal solution in
+		   madvise and page faults --                       -------------- */
+
+	if (input.PRD_angle_dep == PRD_ANGLE_APPROX && input.prdh_limit_mem)
 		rho_tmp = (double *) calloc(spectrum.Nspect, sizeof(double));
 
 	/* --- If polarized transition is present and we solve for polarized
@@ -501,8 +508,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 		}
 	}
 
-	if (input.PRD_angle_dep == PRD_ANGLE_APPROX)
-		free(rho_tmp);
+	free(rho_tmp);
 }
 /* ------- end ---------------------------- Opacity.c --------------- */
 
