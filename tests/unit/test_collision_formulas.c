@@ -321,14 +321,26 @@ int main(int argc, char **argv)
 			  atom.C[0 * NLEVEL + 3][k]);
 	}
 
-	/* --- AR85-CDI with a sum that is negative at all T: a single shell
-		   with a < 0 -- ----------------------------------------- */
+	/* --- AR85-CDI with a single shell with a < 0: f = a + (-x a) fone(x)
+		   = -1 + x fone(x), negative for x = 11.3 eV / kT <= 50, where
+		   fone = e^x E1(x) < 1/x. Above 50 fone is the asymptote 1/x (Arnaud
+		   & Rothenflug), f is zero to one rounding of either sign (the sign
+		   differs between compilers and libm), and the rate carries
+		   e^-x < 2e-22: there only C >= 0 and negligible -- ------ */
 
 	freeRateReports(&atom);
 	run_logged("AR85-CDI 0 3 1\n 11.3 -1.0 0.0 0.0 0.0\n");
 	CHECK(count("negative contribution") == 1 && strstr(logText, "AR85-CDI 0 3"), "AR85-CDI: %s", logText);
-	for (int k = 0; k < NT; k++)
-		CHECK(atom.C[3 * NLEVEL + 0][k] == 0.0 && atom.C[0 * NLEVEL + 3][k] == 0.0, "AR85-CDI clipped at T = %g", atmos.T[k]);
+	for (int k = 0; k < NT; k++) {
+		double x = 11.3 * EV / (KBOLTZMANN * atmos.T[k]), up = atom.C[3 * NLEVEL + 0][k],
+			   dn = atom.C[0 * NLEVEL + 3][k];
+
+		if (x <= 50.0)
+			CHECK(up == 0.0 && dn == 0.0, "AR85-CDI clipped at T = %g", atmos.T[k]);
+		else
+			CHECK(up >= 0.0 && dn >= 0.0 && up < 1e-30 && dn < 1e-30,
+				  "AR85-CDI at T = %g (x = %g > 50): %g %g", atmos.T[k], x, up, dn);
+	}
 
 	/* --- AR85-CHH, fit range 2e3 to 2e5, c < -exp(-d t4) for
 		   t4 > 0.1 (d = 5 -> c = -3: 1 - 3 exp(5 t4) < 0 always) -- */
