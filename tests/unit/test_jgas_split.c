@@ -207,5 +207,6 @@ int main(void)
 	}
 
 	freeJgasBuffer();
+	freeMatrix((void **) ref);
 	return check_summary("test_jgas_split");
 }
