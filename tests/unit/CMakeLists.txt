@@ -37,6 +37,7 @@ rh_unit_test(test_stokes_step test_stokes_step.c)
 rh_unit_test(test_functions test_functions.c)
 rh_unit_test(test_prdfold test_prdfold.c)
 rh_unit_test(test_prdrho test_prdrho.c)
+rh_unit_test(test_collision_formulas test_collision_formulas.c)
 rh_unit_test(test_background test_background.c
   ${PROJECT_SOURCE_DIR}/rhf1d/project.c)
 rh_unit_test(test_formal_1d test_formal_1d.c
