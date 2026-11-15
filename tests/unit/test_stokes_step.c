@@ -315,11 +315,166 @@ static void check_no_amplification(bool_t verbose)
 	}
 }
 
+/* --- The closed form of the constant-K' step against the Taylor
+	   series and squarings (Stokes_Exp_const_closed and
+	   Stokes_Exp_const_taylor). B = -dtau K' has eigenvalues +-a,
+	   +-i b; with eta parallel to rho, a = dtau |eta| and
+	   b = dtau |rho|. Cases: a grid of a from 1e-6 to 1e2 and b from
+	   1e-6 to 1e4; dtau around 3, where exp_pair changes from the power
+	   series to the recurrence, with small a and b; random K'; K' with
+	   |eta| = |rho| at an angle whose cosine is the degeneracy ratio
+	   (a^2 + b^2) / (dtau^2 (eta^2 + rho^2)), just above and below
+	   the cut of 0.1. The closed form must be taken wherever the ratio
+	   is above the cut and not below it, and agree with the Taylor
+	   path within a bound times max(10, b), since both are limited by
+	   the rounding of the phase b where b is large. Measured (gcc,
+	   x86-64), bounds 3 to 5 times above: grid 4.2e-15, dtau ~ 3 2e-16
+	   (2.4e-16 with the series of exp_pair also for k = 0, which
+	   lost 1e2 ulp in e^z cosh r near z = -3: too little in a whole
+	   step to be told from the Taylor path's own error), near the cut
+	   3e-15, random 1.4e-14. The random K' include strongly dichroic steps with
+	   dtau of order 50 to 70 (|eta| 0.8), where e^-dtau(1 - a/dtau)
+	   and the polynomial terms of phi_k nearly cancel: there both
+	   paths are 1e-13 off long double (closed 1.2e-13, Taylor
+	   1.5e-13), a limit of the problem, not of either method -- --- */
+
+#define CLOSED_BOUND_GRID   1.5e-14
+#define CLOSED_BOUND_DTAU3  1.0e-15
+#define CLOSED_BOUND_CUT    1.0e-14
+#define CLOSED_BOUND_RANDOM 5.0e-14
+
+static int const_step_diff(double dtau, double K[4][4], double *diff)
+{
+	double S0[4], S1[4], d0[4], d1[4], I0[4], Ic[4], It[4], scale = 0.0, err = 0.0;
+
+	for (int i = 0; i < 4; i++) {
+		double w = (i == 0) ? 1.0 : 0.3, o = (i == 0) ? 1.5 : 0.0;
+
+		S0[i] = o + w * (2.0 * urand() - 1.0);
+		S1[i] = o + w * (2.0 * urand() - 1.0);
+		d0[i] = w * (2.0 * urand() - 1.0);
+		d1[i] = w * (2.0 * urand() - 1.0);
+		I0[i] = o + w * (2.0 * urand() - 1.0);
+	}
+	if (!Stokes_Exp_const_closed(dtau, K, S0, S1, d0, d1, I0, Ic)) return 0;
+	Stokes_Exp_const_taylor(dtau, K, S0, S1, d0, d1, I0, It);
+	for (int i = 0; i < 4; i++) {
+		scale = fmax(scale, fmax(fabs(It[i]), fmax(fabs(I0[i]), fabs(S1[i]))));
+		err   = fmax(err, fabs(Ic[i] - It[i]));
+	}
+	*diff = err / scale;
+	return 1;
+}
+
+/* --- K' with eta = ue |eta|, rho = ur |rho| (unit vectors) --  ---- */
+
+static void make_K(double K[4][4], const double ue[3], double eta, const double ur[3],
+				   double rho)
+{
+	double e[3]    = {ue[0] * eta, ue[1] * eta, ue[2] * eta};
+	double q[3]    = {ur[0] * rho, ur[1] * rho, ur[2] * rho};
+	double k[4][4] = {{0.0, e[0], e[1], e[2]},
+					  {e[0], 0.0, q[2], -q[1]},
+					  {e[1], -q[2], 0.0, q[0]},
+					  {e[2], q[1], -q[0], 0.0}};
+
+	memcpy(K, k, sizeof(k));
+}
+
+static void random_unit(double u[3])
+{
+	double th = acos(2.0 * urand() - 1.0), ph = 2.0 * M_PI * urand();
+
+	u[0] = sin(th) * cos(ph);
+	u[1] = sin(th) * sin(ph);
+	u[2] = cos(th);
+}
+
+static void check_closed_form(bool_t verbose)
+{
+	double worst[4] = {0.0}, d, K[4][4], u[3], w[3];
+	int    nmiss[4] = {0}, nwrong_cut = 0;
+
+	/* --- 0: (a, b) grid, 1: dtau around 3 --         -------------- */
+
+	for (int la = -6; la <= 2; la++)
+		for (int lb = -6; lb <= 4; lb++) {
+			double a = pow(10.0, la), b = pow(10.0, lb), dtau = fmax(1.0, a / 0.9);
+
+			random_unit(u);
+			make_K(K, u, a / dtau, u, b / dtau);
+			if (const_step_diff(dtau, K, &d))
+				worst[0] = fmax(worst[0], d / fmax(10.0, b));
+			else
+				nmiss[0]++;
+		}
+	static const double dt3[] = {2.0, 2.5, 2.9, 2.999, 3.0, 3.001, 3.1, 4.0};
+	static const double ab3[] = {1.0e-4, 1.0e-2, 0.3, 0.9};
+
+	for (int t = 0; t < 8; t++)
+		for (int ia = 0; ia < 4; ia++)
+			for (int ib = 0; ib < 4; ib++) {
+				double dtau = dt3[t];
+
+				random_unit(u);
+				make_K(K, u, ab3[ia] / dtau, u, ab3[ib] / dtau);
+				if (const_step_diff(dtau, K, &d))
+					worst[1] = fmax(worst[1], d / 10.0);
+				else
+					nmiss[1]++;
+			}
+
+	/* --- 2: random K' --                              -------------- */
+
+	for (int n = 0; n < 20000; n++) {
+		double rho = pow(10.0, -3.0 + 6.0 * urand()), dtau = pow(10.0, -3.0 + 5.0 * urand());
+
+		random_K(K, 0.95 * urand(), rho);
+		if (const_step_diff(dtau, K, &d))
+			worst[2] = fmax(worst[2], d / fmax(10.0, 2.0 * rho * dtau));
+		else
+			nmiss[2]++;
+	}
+
+	/* --- 3: |eta| = |rho| at an angle with cosine = the ratio, just
+		   above (closed form) and below (Taylor) the cut 0.1 --    -- */
+
+	for (int n = 0; n < 2000; n++) {
+		double m = 0.05 + 0.9 * urand(), dtau = pow(10.0, -1.0 + 2.0 * urand());
+		double cosang = (n % 2) ? 0.1 * (1.0 + 1.0e-3 + urand()) : 0.1 * (1.0 - 1.0e-3) * urand();
+		double t[3], sn = sqrt(1.0 - cosang * cosang);
+
+		random_unit(u);
+		random_unit(t); /* w = cosang u + sn (unit vector _|_ u) */
+		double dot = t[0] * u[0] + t[1] * u[1] + t[2] * u[2];
+		for (int i = 0; i < 3; i++) t[i] -= dot * u[i];
+		double tn = sqrt(t[0] * t[0] + t[1] * t[1] + t[2] * t[2]);
+		for (int i = 0; i < 3; i++) w[i] = cosang * u[i] + sn * t[i] / tn;
+		make_K(K, u, m, w, m);
+		int closed = const_step_diff(dtau, K, &d);
+
+		if (closed != (n % 2)) nwrong_cut++;
+		if (closed) worst[3] = fmax(worst[3], d / fmax(10.0, m * dtau));
+	}
+	if (verbose)
+		printf("closed form vs Taylor, / max(10, b): grid %.3g, dtau ~ 3 %.3g, random %.3g,"
+			   " near the cut %.3g; not taken %d, %d, %d; wrong side of the cut %d\n",
+			   worst[0], worst[1], worst[2], worst[3], nmiss[0], nmiss[1], nmiss[2], nwrong_cut);
+	CHECK(nmiss[0] == 0 && nmiss[1] == 0, "closed form not taken at %d grid points, %d near dtau 3",
+		  nmiss[0], nmiss[1]);
+	CHECK(nwrong_cut == 0, "closed form on the wrong side of the degeneracy cut %d times", nwrong_cut);
+	CHECK(worst[0] <= CLOSED_BOUND_GRID, "closed form, (a, b) grid: %.3g max(10, b)", worst[0]);
+	CHECK(worst[1] <= CLOSED_BOUND_DTAU3, "closed form, dtau ~ 3: %.3g max(10, b)", worst[1]);
+	CHECK(worst[2] <= CLOSED_BOUND_RANDOM, "closed form, random K': %.3g max(10, b)", worst[2]);
+	CHECK(worst[3] <= CLOSED_BOUND_CUT, "closed form, near the cut: %.3g max(10, b)", worst[3]);
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && !strcmp(argv[1], "-v"));
 
 	check_closed_forms(verbose);
+	check_closed_form(verbose);
 	check_cubic_exact(verbose);
 	check_thick_limit(verbose);
 	check_thickness_range(verbose);

@@ -58,6 +58,18 @@ void Stokes_Exp_step(double dtau, double K_uw[4][4], double K_loc[4][4],
 					 double S_uw[4], double S_loc[4], double dS_uw[4],
 					 double dS_loc[4], double I_uw[4], double I_loc[4]);
 
+/* --- One step with constant K' and cubic S (the half steps of
+	   Stokes_Exp_step) by the closed form only (FALSE where it does
+	   not apply) or by the Taylor series and squarings only: for the
+	   unit test --                                     -------------- */
+
+bool_t Stokes_Exp_const_closed(double dtau, double K[4][4], double S_uw[4],
+							   double S_loc[4], double dS_uw[4], double dS_loc[4],
+							   double I_uw[4], double I_loc[4]);
+void   Stokes_Exp_const_taylor(double dtau, double K[4][4], double S_uw[4],
+							   double S_loc[4], double dS_uw[4], double dS_loc[4],
+							   double I_uw[4], double I_loc[4]);
+
 /* --- One step of the polarized DELO-Bezier solver (Q-25); I_uw and
 	   I_loc must not overlap --                       -------------- */
 
