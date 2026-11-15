@@ -608,10 +608,10 @@ size_t pwrite_rh(int fd, const void *buffer, size_t count, off_t offset)
 
 #define JGAS_MAXROWS 64 /* widest band that is buffered */
 
-static __thread double *jgas_buf;
-static __thread char   *jgas_used;
-static __thread int     jgas_bufrows;
-static __thread PRDhBracket *jgas_br;  /* brackets of one ray, PRDH_LIMIT_MEM */
+static __thread double      *jgas_buf;
+static __thread char        *jgas_used;
+static __thread int          jgas_bufrows;
+static __thread PRDhBracket *jgas_br; /* brackets of one ray, PRDH_LIMIT_MEM */
 static __thread int          jgas_brN;
 
 void initJgasLocks(void)

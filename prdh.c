@@ -153,11 +153,11 @@ void initPRDhTables(void)
 		   With PRDH_LIMIT_MEM nothing is tabulated and the weights are
 		   computed when needed --                        -------------- */
 
-	const char routineName[] = "initPRDhTables";
-	int        nact, kr, la, mu, to_obs, k, Nlamu, lamu;
-	long       lamuk, Nlamuk, lc, idx, Ncoef;
-	double     fac;
-	Atom      *atom;
+	const char  routineName[] = "initPRDhTables";
+	int         nact, kr, la, mu, to_obs, k, Nlamu, lamu;
+	long        lamuk, Nlamuk, lc, idx, Ncoef;
+	double      fac;
+	Atom       *atom;
 	AtomicLine *line;
 	PRDhBracket b;
 

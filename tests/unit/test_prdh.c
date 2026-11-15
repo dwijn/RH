@@ -35,7 +35,10 @@ extern Atmosphere atmos;
 extern Spectrum   spectrum;
 extern InputData  input;
 
-static double urand(void) { return rand() / (RAND_MAX + 1.0); }
+static double urand(void)
+{
+	return rand() / (RAND_MAX + 1.0);
+}
 
 /* --- Sorted grid without duplicates: uneven steps, dense clusters
 	   (like the lines of a wavelength table) and a few wide gaps -- */
@@ -50,7 +53,8 @@ static void makeGrid(int N)
 	for (n = 0; n < N; n++) {
 		double u = urand(), step;
 
-		step = (u < 0.6) ? 1e-4 * (0.5 + urand()) : (u < 0.95) ? 2e-3 * urand() + 1e-6 : 0.05;
+		step = (u < 0.6) ? 1e-4 * (0.5 + urand()) : (u < 0.95) ? 2e-3 * urand() + 1e-6
+															   : 0.05;
 		l += step;
 		spectrum.lambda[n] = l;
 	}
@@ -76,13 +80,13 @@ static void check_brackets(void)
 
 			for (idx = 0; idx < N; idx++) {
 				const double *lambda = spectrum.lambda;
-				double prv = b.prv, gas = b.gas, nxt = b.nxt;
-				int    in1 = (prv != gas) ? (lambda[idx] > prv && lambda[idx] <= gas)
-										  : (lambda[idx] <= gas);
-				int    in2 = (gas != nxt) ? (lambda[idx] > gas && lambda[idx] < nxt)
-										  : (lambda[idx] > gas);
-				int    got1 = (idx >= b.r[0] && idx < b.r[1]);
-				int    got2 = (idx >= b.r[1] && idx < b.r[2]);
+				double        prv = b.prv, gas = b.gas, nxt = b.nxt;
+				int           in1  = (prv != gas) ? (lambda[idx] > prv && lambda[idx] <= gas)
+												  : (lambda[idx] <= gas);
+				int           in2  = (gas != nxt) ? (lambda[idx] > gas && lambda[idx] < nxt)
+												  : (lambda[idx] > gas);
+				int           got1 = (idx >= b.r[0] && idx < b.r[1]);
+				int           got2 = (idx >= b.r[1] && idx < b.r[2]);
 
 				CHECK(got1 == in1 && got2 == in2,
 					  "fac %.9f la %d idx %d: ranges [%ld %ld %ld], scans %d %d", fac, la, idx,

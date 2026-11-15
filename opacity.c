@@ -481,7 +481,6 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 				as->eta[k] += molecule->rhth[nt].eta[k];
 		}
 	}
-
 }
 /* ------- end ---------------------------- Opacity.c --------------- */
 

@@ -61,10 +61,10 @@ void initSolution(void)
 	const char   routineName[] = "initSolution";
 	register int k, i, ij, nspect, n, nact, mu;
 
-	char   permission[3];
-	bool_t openJfile;
-	int    la, j, Nsr, Nplane, index, status, oflag;
-	double gijk, wla, twohnu3_c2, hc_k, twoc, fourPI, *J, *J20;
+	char             permission[3];
+	bool_t           openJfile;
+	int              la, j, Nsr, Nplane, index, status, oflag;
+	double           gijk, wla, twohnu3_c2, hc_k, twoc, fourPI, *J, *J20;
 	Atom            *atom;
 	Molecule        *molecule;
 	ActiveSet       *as;
