@@ -3,9 +3,10 @@
 	   LTE populations in logarithms (ltepops.c, N-7): LTEpops_elem
 	   (Saha chain of an element) and LTEpops (Saha-Boltzmann
 	   populations of the levels of an atom) against a reference
-	   computed in long double (64-bit mantissa, exponent range
-	   10^+-4932) in linear space, which neither underflows nor
-	   overflows for these parameters.
+	   computed in linear space: for the element with the running
+	   product's binary exponent kept separately (frexpl), so that it
+	   works where long double is no wider than double; for the atom in
+	   long double, whose terms stay in range here.
 
 	   -- Element with 7 stages (C I-VII, the 6 ionization potentials of C I-VI) and
 		  one with 30 stages, T from 3000 K to 10^6 K, electron
@@ -28,6 +29,7 @@
 	   --                                              -------------- */
 
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -114,25 +116,38 @@ static void free_element(Element *el)
 	free(el->ionpot);
 }
 
-/* --- Reference Saha chain in long double, linear space -- -------- */
+/* --- Reference Saha chain in linear space: the running product is
+	   kept as a mantissa and a separate binary exponent (frexpl), so
+	   that it neither overflows nor underflows even where long double
+	   has no more range than double (Apple silicon, where the first
+	   version of this test failed in CI) --              -------------- */
+
+#define SAHA_MAXSTAGE 64
 
 static void saha_reference(const Element *el, int k, long double *n)
 {
 	long double C1 = ((long double) HPLANCK / (2.0L * (long double) PI * (long double) M_ELECTRON)) *
 					 ((long double) HPLANCK / (long double) KBOLTZMANN);
-	long double T = atmos.T[k], sum = 1.0L;
+	long double T = atmos.T[k], m[SAHA_MAXSTAGE], sum = 0.0L;
+	int         e[SAHA_MAXSTAGE], emax;
 
-	n[0] = 1.0L;
+	m[0] = 0.5L;
+	e[0] = 1; /* 1 = 0.5 * 2^1 */
+	emax = e[0];
 	for (int i = 1; i < el->Nstage; i++) {
 		long double CT_ne = 2.0L * powl(C1 / T, -1.5L) / (long double) atmos.ne[k];
+		long double f     = CT_ne *
+						expl((long double) (lnU(i, atmos.T[k]) - lnU(i - 1, atmos.T[k])) -
+							 (long double) el->ionpot[i - 1] / ((long double) KBOLTZMANN * T));
+		int de;
 
-		n[i] = n[i - 1] * CT_ne *
-			   expl((long double) (lnU(i, atmos.T[k]) - lnU(i - 1, atmos.T[k])) -
-					(long double) el->ionpot[i - 1] / ((long double) KBOLTZMANN * T));
-		sum += n[i];
+		m[i] = frexpl(m[i - 1] * f, &de);
+		e[i] = (m[i] == 0.0L) ? INT_MIN / 2 : e[i - 1] + de;
+		emax = (e[i] > emax) ? e[i] : emax;
 	}
+	for (int i = 0; i < el->Nstage; i++) sum += ldexpl(m[i], e[i] - emax);
 	for (int i = 0; i < el->Nstage; i++)
-		n[i] *= (long double) el->abund * (long double) atmos.nHtot[k] / sum;
+		n[i] = ldexpl(m[i], e[i] - emax) / sum * (long double) el->abund * (long double) atmos.nHtot[k];
 }
 
 /* --- The chain as it was before N-7: linear, double -- ----------- */
