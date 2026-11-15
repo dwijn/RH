@@ -20,11 +20,19 @@
 	   once per call. The number of such locations is also counted for
 	   the work summary (work.c).
 
+	   The LU populations are not guaranteed non-negative, and a
+	   negative or non-finite one (N-8) is not allowed to go on: during
+	   a trial evaluation of G the trial is invalidated (negTauInvalid,
+	   as for a negative total opacity), otherwise the run stops. A
+	   population is negative below -SE_NEG_TOL times the total, which
+	   leaves the rounding of the LU solution of a nearly empty level.
+
 	   isum is the reference level: GTH eliminates it last, and LU
 	   replaces its equation by particle conservation. If set to -1 then
 	   at each spatial location the level with the largest population
 	   from the previous iteration is used. -- -------- */
 
+#include <math.h>
 #include <stdlib.h>
 
 #include "rh.h"
@@ -34,6 +42,7 @@
 #include "accelerate.h"
 #include "statistics.h"
 #include "error.h"
+#include "negtau.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -46,11 +55,20 @@ extern char       messageStr[];
 /* --- The first location of a call where GTH could not be used, for
 	   the message --                                  -------------- */
 
+#define SE_NEG_TOL 1e-10
+
+/* --- The first negative or non-finite LU population of a call
+	   (N-8) is kept too --                            -------------- */
+
 typedef struct {
 	int            Nlu, k, i, j;
 	enum GTHStatus status;
 	double         rate;
+	int            Nbad, kbad, ibad;
+	double         nbad;
 } SEFallback;
+
+#define SE_FALLBACK_INIT {0, -1, -1, -1, GTH_OK, 0.0, 0, -1, -1, 0.0}
 
 /* ------- begin -------------------------- solveRates.c ------------ */
 
@@ -110,6 +128,16 @@ static void solveRates(int N, double **Gamma, int k, int isum,
 	for (j = 0; j < N; j++) A[root][j] = 1.0;
 
 	SolveLinearEq(N, A, n, TRUE);
+
+	for (i = 0; i < N; i++) {
+		if (isfinite(n[i]) && n[i] >= -SE_NEG_TOL * ntotal) continue;
+		if (fb->Nbad++ == 0) {
+			fb->kbad = k;
+			fb->ibad = i;
+			fb->nbad = n[i];
+		}
+		break;
+	}
 }
 /* ------- end ---------------------------- solveRates.c ------------ */
 
@@ -145,6 +173,45 @@ static void reportFallback(const char *ID, const SEFallback *fb,
 }
 /* ------- end ---------------------------- reportFallback.c -------- */
 
+/* ------- begin -------------------------- badPopulations.c ------- */
+
+static void badPopulations(const char *ID, const char *level, long Nsolved,
+						   const SEFallback *fb)
+{
+	const char routineName[] = "badPopulations";
+	char       what[440];
+
+	/* --- Only reached when LU produced a population that is negative
+		   or not finite (N-8): invalidates a trial point, else stops
+		   the run --                                   -------------- */
+
+	/* --- A negative population comes from a negative rate (the MALI
+		   preconditioning in a thick line core, or bad atomic data), a
+		   non-finite one from a non-finite rate or an overflow. The
+		   initial solution (initial_xdr.c) can also be the source; it
+		   is never a trial, so it stops with this message -- -------- */
+
+	snprintf(what, sizeof(what),
+			 "%s: the LU solution of the rate equations has a %s population"
+			 " (%.4E) of level %d%s at location %d (%ld of %ld locations"
+			 " solved have one); %s",
+			 ID, isfinite(fb->nbad) ? "negative" : "non-finite", fb->nbad,
+			 fb->ibad, level, fb->kbad, (long) fb->Nbad, Nsolved,
+			 isfinite(fb->nbad)
+				 ? "negative populations come from negative rates (the MALI"
+				   " preconditioning in thick line cores, or bad atomic data)"
+				 : "a non-finite population comes from a non-finite rate (bad"
+				   " atomic data, overflow)");
+
+	if (negTauInTrial()) {
+		negTauInvalid(what);
+		return;
+	}
+	snprintf(messageStr, MAX_MESSAGE_LENGTH, "\n  %s", what);
+	Error(ERROR_LEVEL_2, routineName, messageStr);
+}
+/* ------- end ---------------------------- badPopulations.c ------- */
+
 /* ------- begin -------------------------- statEquil.c ------------- */
 
 void statEquil(Atom *atom, int isum)
@@ -153,7 +220,7 @@ void statEquil(Atom *atom, int isum)
 
 	int        Nlevel;
 	double    *n_k, **R, **A;
-	SEFallback fb = {0, -1, -1, -1, GTH_OK, 0.0};
+	SEFallback fb = SE_FALLBACK_INIT;
 
 	getCPU(3, TIME_START, NULL);
 
@@ -176,6 +243,12 @@ void statEquil(Atom *atom, int isum)
 	}
 	workRates(atmos.Nspace, fb.Nlu);
 	if (fb.Nlu) reportFallback(atom->ID, &fb, atom->C, Nlevel);
+	if (fb.Nbad) {
+		char level[ATOM_LABEL_WIDTH + 8];
+
+		sprintf(level, " (%s)", atom->label[fb.ibad]);
+		badPopulations(atom->ID, level, atmos.Nspace, &fb);
+	}
 
 	free(n_k);
 	freeMatrix((void **) R);
@@ -193,7 +266,7 @@ void statEquilMolecule(struct Molecule *molecule, int isum)
 
 	int        Nlevel, Nsolved = 0;
 	double    *n_k, **R, **A;
-	SEFallback fb = {0, -1, -1, -1, GTH_OK, 0.0};
+	SEFallback fb = SE_FALLBACK_INIT;
 
 	getCPU(3, TIME_START, NULL);
 
@@ -216,6 +289,7 @@ void statEquilMolecule(struct Molecule *molecule, int isum)
 	}
 	workRates(Nsolved, fb.Nlu);
 	if (fb.Nlu) reportFallback(molecule->ID, &fb, NULL, Nlevel);
+	if (fb.Nbad) badPopulations(molecule->ID, "", Nsolved, &fb);
 
 	free(n_k);
 	freeMatrix((void **) R);
