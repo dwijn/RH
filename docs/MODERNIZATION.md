@@ -606,6 +606,7 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | [Q-22](https://github.com/dwijn/RH/issues/272) | medium | `tests/analyze_run.py compare` groups the emergent intensities by the wrong axis. RH stores I with the wavelength as the slowest index (`I[Nspect][rays…]`, `initial_xdr.c`), as `compare_spectra.py` reads it, but `compare` reshapes it to (rays, Nspect), so each of its "wavelengths" mixes Nrays intensities from wavelengths spread over the whole spectrum. Its `spec_wl` normalizes by the peak of such a group, and `spec_line` looks up a line's window in these groups, so both are wrong for every run, and `worst_line` names the wrong line. Affected: the spectrum columns of the S-1 table in SOLVER.md and the spectrum effects measured with it since S-1 | fixed |
 | [Q-23](https://github.com/dwijn/RH/issues/348) | low | CI's `pull_request` trigger takes only pull requests into `modernize` (`branches: [modernize]` in `ci.yml`), so a pull request stacked on another one (based on that one's branch) gets no checks until it is retargeted or CI is started by hand (#342, #344). The regression job already compares with the pull request's base commit, so dropping the filter is enough | fixed |
 | [Q-25](https://github.com/dwijn/RH/issues/354) | low | The DELO-Bézier step of the polarized formal solvers (the matrices of the control points, the right-hand side and the 4 × 4 solve, about 45 lines) is written out three times, in `Piece_Stokes_Bezier3_1D`, `_2D` and `_3D`, which differ only in how they get the derivatives at the upwind point (carried from the previous point in 1-D, the quadratic Bézier slope of N-24 in 2-D and 3-D). Extract it into one function in `bezier_aux.c`, results unchanged to the bit, so that the polarized long characteristics (N-41) can use it too | fixed (#358) |
+| [Q-30](https://github.com/dwijn/RH/issues/391) | high | No license, here or upstream, and the RH paper (2001ApJ...557..389U) and manual name no terms of use, so all rights are reserved and the code may strictly not be redistributed or modified; this also blocks moving the repository to the NCAR organization. A license needs the consent of the copyright holders (Han Uitenbroek, the upstream contributors). Some files cannot be relicensed at all: `idl/surf_track.pro` (Research Systems Inc., all rights reserved: remove), `idl/isarray.pro` (JHU/APL, non-commercial with notice: replace or keep as an exception), and code that follows Numerical Recipes, whose license forbids redistribution (`ludcmp.c`, `tools/bessel.c`; to check: `hunt.c`, `expint.c`, `paschen.c`, `scatter.c`, `prdfold.c`); `python/rhanalyze/fts_disk_center.idlsave` needs a source and terms | open |
 
 Output formats are a contract: the Python (`python/rhanalyze`) and IDL readers
 unpack the XDR files field by field, and `rhopacity.py` seeks into raw
@@ -815,6 +816,8 @@ Ordered so that every step can be verified against upstream: byte-identical
    project.
    The manual is revised and rewritten with its source in the repository
    once the code has settled (Q-19).
+   A license (Q-30) does not depend on the other steps and is listed here
+   only so it has a place; it comes first if the repository moves to NCAR.
 
 ---
 
