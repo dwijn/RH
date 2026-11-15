@@ -213,7 +213,16 @@ static void iterateNg(int NmaxIter, double iterLimit)
 									" for hydrogen active");
 				Error(ERROR_LEVEL_2, routineName, messageStr);
 			}
-			Hydrostatic(N_MAX_HSE_ITER, HSE_ITER_LIMIT);
+
+			/* --- After the last iteration of a run that did not converge
+				   (N_MAX_ITER reached) skip the hydrostatic step. It
+				   rescales only hydrogen to the new nHtot, so the other
+				   active atoms would be off by the last HSE change in the
+				   output (N-16). A converged run never gets here --  ---- */
+
+			if (niter <= NmaxIter ||
+				(input.CR_Nstep > 0 && niter <= input.CR_Nstep))
+				Hydrostatic(N_MAX_HSE_ITER, HSE_ITER_LIMIT);
 		}
 	}
 
