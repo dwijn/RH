@@ -53,6 +53,55 @@ extern char        messageStr[];
 
 extern enum Topology topology;
 
+/* ------- begin -------------------------- prdhRanges.c ------------ */
+
+/* --- First index of the ascending array lambda[0..N-1] with
+	   lambda[idx] > x (above = TRUE) or lambda[idx] >= x (above =
+	   FALSE), N if there is none --                  -------------- */
+
+static long firstIndex(const double *lambda, long N, double x, bool_t above)
+{
+	long lo = 0, hi = N, mid;
+
+	while (lo < hi) {
+		mid = lo + (hi - lo) / 2;
+		if (above ? (lambda[mid] > x) : (lambda[mid] >= x))
+			hi = mid;
+		else
+			lo = mid + 1;
+	}
+	return lo;
+}
+
+/* --- Wavelength indices that the gas-frame wavelength lambda_gas
+	   (between its shifted neighbours lambda_prv and lambda_nxt)
+	   contributes to in the hybrid PRD interpolation of Jgas: the
+	   points of the ascending grid in (lambda_prv, lambda_gas] are
+	   r[0] <= idx < r[1], those in (lambda_gas, lambda_nxt) are
+	   r[2] <= idx < r[3]. At the ends of the grid, where the shifted
+	   neighbour equals lambda_gas, all points below (or above) are
+	   taken. The ranges are the same index sets, in the same order, as
+	   the linear scans over the whole grid that this replaces, which
+	   made the setup O(Nspect^2 Nrays Nspace): about 5 h before the
+	   first iteration for 118k wavelengths and 77 depth points --- */
+
+static void prdhRanges(const double *lambda, long N, double lambda_prv,
+					   double lambda_gas, double lambda_nxt, long r[4])
+{
+	r[0] = (lambda_prv != lambda_gas) ? firstIndex(lambda, N, lambda_prv, TRUE) : 0;
+	r[1] = firstIndex(lambda, N, lambda_gas, TRUE);
+	if (lambda_gas != lambda_nxt) {
+		r[2] = r[1];
+		r[3] = firstIndex(lambda, N, lambda_nxt, FALSE);
+	} else {
+		r[2] = firstIndex(lambda, N, lambda_gas, FALSE);
+		r[3] = N;
+	}
+	if (r[1] < r[0]) r[1] = r[0];
+	if (r[3] < r[2]) r[3] = r[2];
+}
+/* ------- end ---------------------------- prdhRanges.c ------------ */
+
 /* ------- begin -------------------------- initSolution.c ---------- */
 
 void initSolution(void)
@@ -67,7 +116,7 @@ void initSolution(void)
 	double gijk, wla, twohnu3_c2, hc_k, twoc, fourPI, *J, *J20,
 		*lambda, fac, lambda_prv, lambda_gas, lambda_nxt, dl,
 		lag;
-	long int         idx, lc, lamuk, Nlamuk;
+	long int         idx, lc, lamuk, Nlamuk, r[4];
 	Atom            *atom;
 	Molecule        *molecule;
 	ActiveSet       *as;
@@ -213,40 +262,13 @@ void initSolution(void)
 							lambda_gas = lambda[la] * fac;
 							lambda_nxt = lambda[MIN(la + 1, spectrum.Nspect - 1)] * fac;
 
-							/* --- Do lambda_prv and lambda_gas bracket
-							   lambda points? --                 -------------- */
+							/* --- Grid points bracketed by lambda_prv and
+							   lambda_gas, and by lambda_gas and lambda_nxt -- */
 
-							if (lambda_prv != lambda_gas) {
-								dl = lambda_gas - lambda_prv;
-								for (idx = 0; idx < spectrum.Nspect; idx++) {
-									if (lambda[idx] > lambda_prv &&
-										lambda[idx] <= lambda_gas) ncoef = ncoef + 1;
-								}
-							} else {
-								/* --- edge case, use constant extrapolation for
-									   lambda[idx]<lambda gas --       -------------- */
+							prdhRanges(lambda, spectrum.Nspect, lambda_prv,
+									   lambda_gas, lambda_nxt, r);
+							ncoef = (int) ((r[1] - r[0]) + (r[3] - r[2]));
 
-								for (idx = 0; idx < spectrum.Nspect; idx++) {
-									if (lambda[idx] <= lambda_gas) ncoef = ncoef + 1;
-								}
-							}
-							/* --- Do lambda_gas and lambda_nxt bracket
-							   lambda points? --                 -------------- */
-
-							if (lambda_gas != lambda_nxt) {
-								dl = lambda_nxt - lambda_gas;
-								for (idx = 0; idx < spectrum.Nspect; idx++) {
-									if (lambda[idx] > lambda_gas &&
-										lambda[idx] < lambda_nxt) ncoef = ncoef + 1;
-								}
-							} else {
-								/* --- Edge case, use constant extrapolation for
-									   lambda[idx]>lambda gas --       -------------- */
-
-								for (idx = 0; idx < spectrum.Nspect; idx++) {
-									if (lambda[idx] >= lambda_gas) ncoef = ncoef + 1;
-								}
-							}
 							/* --- number of point this lambda contributes to is
 							   computed as a difference --       -------------- */
 
@@ -300,62 +322,33 @@ void initSolution(void)
 							lambda_gas = lambda[la] * fac;
 							lambda_nxt = lambda[MIN(la + 1, spectrum.Nspect - 1)] * fac;
 
-							/* --- Do lambda_prv and lambda_gas bracket
-							   lambda points? --                --------------- */
+							prdhRanges(lambda, spectrum.Nspect, lambda_prv,
+									   lambda_gas, lambda_nxt, r);
 
-							if (lambda_prv != lambda_gas) {
-								dl = lambda_gas - lambda_prv;
-								for (idx = 0; idx < spectrum.Nspect; idx++) {
-									if (lambda[idx] > lambda_prv &&
-										lambda[idx] <= lambda_gas) {
+							/* --- Points bracketed by lambda_prv and lambda_gas,
+							   or below lambda_gas at the start of the grid
+							   (constant extrapolation) --       -------------- */
 
-										/* --- Bracketed point found --   --------------- */
-
-										spectrum.iprdh[lc] = idx;
-										spectrum.cprdh[lc] = (lambda[idx] - lambda_prv) / dl;
-										lc++;
-									}
-								}
-							} else {
-								/* --- Edge case, use constant extrapolation for
-									   lambda[idx]<lambda gas --      --------------- */
-
-								for (idx = 0; idx < spectrum.Nspect; idx++) {
-									if (lambda[idx] <= lambda_gas) {
-										spectrum.iprdh[lc] = idx;
-										spectrum.cprdh[lc] = 1.0;
-										lc++;
-									}
-								}
+							dl = lambda_gas - lambda_prv;
+							for (idx = r[0]; idx < r[1]; idx++) {
+								spectrum.iprdh[lc] = idx;
+								spectrum.cprdh[lc] = (lambda_prv != lambda_gas)
+														 ? (lambda[idx] - lambda_prv) / dl
+														 : 1.0;
+								lc++;
 							}
-							/* --- Do lambda_gas and lambda_nxt bracket
-							   lambda points? --                 -------------- */
 
-							if (lambda_gas != lambda_nxt) {
-								dl = lambda_nxt - lambda_gas;
-								for (idx = 0; idx < spectrum.Nspect; idx++) {
-									if (lambda[idx] > lambda_gas &&
-										lambda[idx] < lambda_nxt) {
+							/* --- Points bracketed by lambda_gas and lambda_nxt,
+							   or above lambda_gas at the end of the grid
+							   (constant extrapolation) --       -------------- */
 
-										/* --- Bracketed point found --    -------------- */
-
-										spectrum.iprdh[lc] = idx;
-										spectrum.cprdh[lc] = 1.0 -
-															 (lambda[idx] - lambda_gas) / dl;
-										lc++;
-									}
-								}
-							} else {
-								/* --- Edge case, use constant extrapolation for
-									   lambda[idx]>lambda gas --       -------------- */
-
-								for (idx = 0; idx < spectrum.Nspect; idx++) {
-									if (lambda[idx] >= lambda_gas) {
-										spectrum.iprdh[lc] = idx;
-										spectrum.cprdh[lc] = 1.0;
-										lc++;
-									}
-								}
+							dl = lambda_nxt - lambda_gas;
+							for (idx = r[2]; idx < r[3]; idx++) {
+								spectrum.iprdh[lc] = idx;
+								spectrum.cprdh[lc] = (lambda_gas != lambda_nxt)
+														 ? 1.0 - (lambda[idx] - lambda_gas) / dl
+														 : 1.0;
+								lc++;
 							}
 						}
 					}
