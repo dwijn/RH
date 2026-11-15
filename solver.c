@@ -306,7 +306,9 @@ bool_t G_eval(const double *x_in, double *x_out)
 		   x_out left as it was, when a formal solution met a total
 		   opacity negative enough to overflow (N-40). That can only
 		   happen at a trial point (negTauTrial(TRUE)): anywhere else
-		   solveSpectrum stops the run --               -------------- */
+		   solveSpectrum stops the run. Also FALSE, in the same way,
+		   when statEquil found negative populations out of its LU
+		   fallback (N-8) --                            -------------- */
 
 	stateScatter(x_in);
 
@@ -345,6 +347,10 @@ bool_t G_eval(const double *x_in, double *x_out)
 		statEquil(atmos.activeatoms[nact], input.isum);
 	for (nact = 0; nact < atmos.Nactivemol; nact++)
 		statEquilMolecule(atmos.activemols[nact], 0);
+	if (negTauFound()) { /* negative LU populations (N-8) */
+		Gcount++;
+		return FALSE;
+	}
 
 	/* --- 4. PRD sub-iterations --                     -------------- */
 
@@ -1089,8 +1095,8 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	Error(MESSAGE, routineName, messageStr);
 	if (Nnegtau > 0) {
 		sprintf(messageStr,
-				" -- Anderson: %ld of the rejected points had a negative total"
-				" opacity (N-40)\n",
+				" -- Anderson: %ld of the rejected points were invalid trial points"
+				" (negative total opacity or negative populations, N-40, N-8)\n",
 				Nnegtau);
 		Error(MESSAGE, routineName, messageStr);
 	}
@@ -1398,7 +1404,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			sprintf(messageStr,
 					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
 					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); lambda %g"
-					" (guard halvings %d: %d not finite, %d negative, %d negative opacity),"
+					" (guard halvings %d: %d not finite, %d negative, %d invalid trial),"
 					" |R(trial)|_W %.3E; G evaluations %ld\n",
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
 					(gres.breakdown) ? " (invariant space)" : "", dinf,
@@ -1411,7 +1417,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			sprintf(messageStr,
 					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
 					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); no lambda accepted"
-					" (guard halvings %d: %d not finite, %d negative, %d negative opacity):"
+					" (guard halvings %d: %d not finite, %d negative, %d invalid trial):"
 					" plain step; G evaluations %ld\n",
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
 					(gres.breakdown) ? " (invariant space)" : "", dinf,
@@ -1476,8 +1482,8 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	Error(MESSAGE, routineName, messageStr);
 	if (ctx.Nnegtau > 0) {
 		sprintf(messageStr,
-				" -- Newton: %ld Jacobian probes had a negative total opacity"
-				" (N-40) and gave a zero product\n",
+				" -- Newton: %ld Jacobian probes were invalid trial points (negative"
+				" total opacity or populations, N-40, N-8) and gave a zero product\n",
 				ctx.Nnegtau);
 		Error(MESSAGE, routineName, messageStr);
 	}

@@ -15,6 +15,10 @@
 	   solver evaluates G at a trial point (negTauTrial(TRUE)), the
 	   detection is only recorded: G_eval returns FALSE and the solver
 	   rejects the point.
+
+	   The same mechanism invalidates a trial point for other reasons
+	   (negTauInvalid): negative populations out of the LU fallback of
+	   statEquil (N-8). The caller outside a trial stops the run itself.
 	   --                                              -------------- */
 
 #ifndef NEGTAU_H
@@ -36,6 +40,8 @@ bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
 					 const double *chi, const double *z, double muz);
 
 void   negTauTrial(bool_t trial);
+bool_t negTauInTrial(void);
+void   negTauInvalid(const char *message);
 bool_t negTauFound(void);
 void   negTauReset(void);
 void   negTauMessage(char *message, size_t size);
