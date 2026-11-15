@@ -34,11 +34,17 @@ void LTEpops(Atom *atom, bool_t Debeye)
 
 	char   labelStr[MAX_LINE_SIZE];
 	int    Z, dZ, *nDebeye = NULL, Nspace = atmos.Nspace;
-	double cNe_T, dE_kT, dEion, dE, gi0, c1, sum, c2;
+	double lcNe_T, dE_kT, dEion, dE, lgi0, c1, sum, c2, lmax;
 
 	/* --- Computes LTE populations of a given atom.
 		   Takes account of Debeye shielding and lowering of the ionization
-		   potential when Debeye is set to TRUE:
+		   potential when Debeye is set to TRUE.
+
+		   The populations are computed in logarithms, relative to the
+		   largest term, so that they do not underflow or overflow in a
+		   many-stage atom when the stages differ by many orders of
+		   magnitude: the dominant level is then exact and a minor one
+		   underflows only on its own account.
 
 			 dE_ion = -Z * (e^2/4PI*EPSILON_0) / D           [J]
 				  D = sqrt(EPSILON_0/(2e^2)) * sqrt(kT/ne)   [m]
@@ -71,27 +77,38 @@ void LTEpops(Atom *atom, bool_t Debeye)
 
 	for (k = 0; k < Nspace; k++) {
 		if (Debeye) dEion = c2 * sqrt(atmos.ne[k] / atmos.T[k]);
-		cNe_T = 0.5 * atmos.ne[k] * pow(c1 / atmos.T[k], 1.5);
-		sum   = 1.0;
+		lcNe_T = log(0.5 * atmos.ne[k]) + 1.5 * log(c1 / atmos.T[k]);
 
+		/* --- Logarithm of nstar[i] / nstar[0] in nstar[i], the largest
+			   of them (level 0 is zero) in lmax --     -------------- */
+
+		atom->nstar[0][k] = 0.0;
+		lmax              = 0.0;
 		for (i = 1; i < atom->Nlevel; i++) {
-			dE  = atom->E[i] - atom->E[0];
-			gi0 = atom->g[i] / atom->g[0];
-			dZ  = atom->stage[i] - atom->stage[0];
+			dE   = atom->E[i] - atom->E[0];
+			lgi0 = log(atom->g[i] / atom->g[0]);
+			dZ   = atom->stage[i] - atom->stage[0];
 
 			if (Debeye)
 				dE_kT = (dE - nDebeye[i] * dEion) / (KBOLTZMANN * atmos.T[k]);
 			else
 				dE_kT = dE / (KBOLTZMANN * atmos.T[k]);
 
-			atom->nstar[i][k] = gi0 * exp(-dE_kT);
-			for (m = 1; m <= dZ; m++) atom->nstar[i][k] /= cNe_T;
+			atom->nstar[i][k] = lgi0 - dE_kT - dZ * lcNe_T;
+			lmax              = MAX(lmax, atom->nstar[i][k]);
+		}
+		sum = 0.0;
+		for (i = 0; i < atom->Nlevel; i++) {
+			atom->nstar[i][k] = exp(atom->nstar[i][k] - lmax);
 			sum += atom->nstar[i][k];
 		}
-		atom->nstar[0][k] = atom->ntotal[k] / sum;
+		/* --- The clip is only a guard against exact zeros (a level
+			   that underflows even relative to the dominant one), which
+			   would give 0/0 or division by zero in the ratios of nstar
+			   of the collision rates and detailed balance --  --------- */
 
-		for (i = 1; i < atom->Nlevel; i++) {
-			atom->nstar[i][k] *= atom->nstar[0][k];
+		for (i = 0; i < atom->Nlevel; i++) {
+			atom->nstar[i][k] *= atom->ntotal[k] / sum;
 			atom->nstar[i][k] = MAX(atom->nstar[i][k], DBL_MIN);
 		}
 	}
@@ -110,21 +127,23 @@ void LTEpops_elem(Element *element)
 	register int k, i;
 
 	bool_t  hunt;
-	double *Uk, *Ukp1, C1, *sum, *CT_ne;
+	double *Uk, *Ukp1, C1, *sum, *lCT_ne, Lmax;
 
 	getCPU(4, TIME_START, NULL);
 
 	C1 = (HPLANCK / (2.0 * PI * M_ELECTRON)) * (HPLANCK / KBOLTZMANN);
 
-	sum   = (double *) malloc(atmos.Nspace * sizeof(double));
-	CT_ne = (double *) malloc(atmos.Nspace * sizeof(double));
-	Uk    = (double *) malloc(atmos.Nspace * sizeof(double));
-	Ukp1  = (double *) malloc(atmos.Nspace * sizeof(double));
+	sum    = (double *) malloc(atmos.Nspace * sizeof(double));
+	lCT_ne = (double *) malloc(atmos.Nspace * sizeof(double));
+	Uk     = (double *) malloc(atmos.Nspace * sizeof(double));
+	Ukp1   = (double *) malloc(atmos.Nspace * sizeof(double));
 
 	for (k = 0; k < atmos.Nspace; k++) {
-		CT_ne[k]         = 2.0 * pow(C1 / atmos.T[k], -1.5) / atmos.ne[k];
-		sum[k]           = 1.0;
-		element->n[0][k] = 1.0;
+		/* --- ln(CT_ne) of the Saha equation; n[i] holds ln(n_i/n_0) -- */
+
+		lCT_ne[k]        = log(2.0) - 1.5 * log(C1 / atmos.T[k]) - log(atmos.ne[k]);
+		sum[k]           = 0.0;
+		element->n[0][k] = 0.0;
 	}
 
 	Linear(atmos.Npf, atmos.Tpf, element->pf[0],
@@ -135,23 +154,31 @@ void LTEpops_elem(Element *element)
 			   atmos.Nspace, atmos.T, Ukp1, hunt = TRUE);
 
 		for (k = 0; k < atmos.Nspace; k++) {
-			element->n[i][k] = element->n[i - 1][k] * CT_ne[k] *
-							   exp(Ukp1[k] - Uk[k] -
-								   element->ionpot[i - 1] / (KBOLTZMANN * atmos.T[k]));
-			sum[k] += element->n[i][k];
+			element->n[i][k] = element->n[i - 1][k] + lCT_ne[k] + Ukp1[k] - Uk[k] -
+							   element->ionpot[i - 1] / (KBOLTZMANN * atmos.T[k]);
 		}
 		SWAPPOINTER(Uk, Ukp1);
 	}
 
-	for (k = 0; k < atmos.Nspace; k++)
-		element->n[0][k] = element->abund * atmos.nHtot[k] / sum[k];
-	for (i = 1; i < element->Nstage; i++) {
-		for (k = 0; k < atmos.Nspace; k++)
-			element->n[i][k] *= element->n[0][k];
+	/* --- Normalize relative to the most populated stage, so that
+		   neither the products of many Saha factors nor their sum can
+		   underflow or overflow: the dominant stages are exact, the
+		   minor ones underflow only on their own -- -------------- */
+
+	for (k = 0; k < atmos.Nspace; k++) {
+		Lmax = element->n[0][k];
+		for (i = 1; i < element->Nstage; i++) Lmax = MAX(Lmax, element->n[i][k]);
+		sum[k] = 0.0;
+		for (i = 0; i < element->Nstage; i++) {
+			element->n[i][k] = exp(element->n[i][k] - Lmax);
+			sum[k] += element->n[i][k];
+		}
+		for (i = 0; i < element->Nstage; i++)
+			element->n[i][k] *= element->abund * atmos.nHtot[k] / sum[k];
 	}
 
 	free(sum);
-	free(CT_ne);
+	free(lCT_ne);
 	free(Uk);
 	free(Ukp1);
 }
