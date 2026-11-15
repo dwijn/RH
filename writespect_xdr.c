@@ -163,6 +163,8 @@ void freeSpectrum(Spectrum *spectrum)
 	if (atmos.NPRDactive > 0 && input.PRD_angle_dep == PRD_ANGLE_DEP)
 		free(spectrum->PRDindex);
 
+	free(spectrum->PRDrow);
+	if (spectrum->Jgas_fixed != NULL) freeMatrix((void **) spectrum->Jgas_fixed);
 	freeMatrix((void **) spectrum->I);
 	freeMatrix((void **) spectrum->J);
 

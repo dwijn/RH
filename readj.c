@@ -29,6 +29,7 @@
 #include "atmos.h"
 #include "spectrum.h"
 #include "background.h"
+#include "constant.h"
 #include "inputs.h"
 #include "error.h"
 #include "prdh.h"
@@ -705,19 +706,141 @@ void freeJgasBuffer(void)
 	jgas_brN     = 0;
 }
 
-void addJgas(int nspect, int k, double value)
+/* --- A PRD sub-iteration re-solves only the wavelengths with a PRD
+	   line, but Jgas of those wavelengths also holds the contributions of
+	   their neighbours without one (N-27). In a moving atmosphere the
+	   contributions of the wavelengths without PRD line to the rows of
+	   wavelengths with PRD line therefore go into their own array,
+	   Jgas_fixed, which the sub-iterations leave alone: Jgas of a PRD
+	   wavelength = Jgas_fixed + the contributions of the wavelengths with
+	   PRD line. Jgas_fixed has a row only for the PRD wavelengths that a
+	   wavelength without PRD line can reach (spectrum.PRDrow, see
+	   initJgasRows). Everything else, and everything without
+	   spectrum.Jgas_fixed, goes into Jgas. --            -------------- */
+
+void initJgasRows(const char *isPRD)
+{
+	int         nspect, mu, k, Nrows = 0, moving = FALSE;
+	long        n;
+	double      vmax = 0.0, shift_lo, shift_hi;
+	char       *reach;
+	PRDhBracket lo, hi;
+
+	/* --- PRDrow: -1 without PRD line; a row for a PRD wavelength that a
+		   wavelength without PRD line can reach, -2 for one it cannot.
+		   The shift of a ray at a location is 1 +- v_los / c; the points
+		   a wavelength gives to run from r[0] to r[2] of its bracket, and
+		   both ends do not decrease with the shift, so the range at the
+		   smallest shift to the one at the largest holds all of them.
+		   v_los is fixed in a run. --                   -------------- */
+
+	free(spectrum.PRDrow);
+	if (spectrum.Jgas_fixed != NULL) freeMatrix((void **) spectrum.Jgas_fixed);
+	spectrum.Jgas_fixed = NULL;
+	spectrum.NJgasFixed = 0;
+	spectrum.PRDrow     = (int *) malloc(spectrum.Nspect * sizeof(int));
+	if (spectrum.PRDrow == NULL) Error(ERROR_LEVEL_2, "initJgasRows", "Out of memory");
+	for (mu = 0; mu < atmos.Nrays; mu++)
+		for (k = 0; k < atmos.Nspace; k++)
+			vmax = MAX(vmax, fabs(spectrum.v_los[mu][k]));
+	moving   = (vmax != 0.0);
+	shift_lo = 1.0 - vmax / CLIGHT;
+	shift_hi = 1.0 + vmax / CLIGHT;
+
+	reach = (char *) calloc(spectrum.Nspect, 1);
+	if (reach == NULL) Error(ERROR_LEVEL_2, "initJgasRows", "Out of memory");
+	if (moving) {
+		for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+			if (isPRD[nspect]) continue;
+			prdhBracket(nspect, shift_lo, &lo);
+			prdhBracket(nspect, shift_hi, &hi);
+			for (n = lo.r[0]; n < hi.r[2]; n++) reach[n] = TRUE;
+		}
+	}
+	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+		if (!isPRD[nspect])
+			spectrum.PRDrow[nspect] = -1;
+		else
+			spectrum.PRDrow[nspect] = reach[nspect] ? Nrows++ : -2;
+	}
+	free(reach);
+	if (Nrows > 0) spectrum.Jgas_fixed = matrix_double(Nrows, atmos.Nspace);
+	spectrum.NJgasFixed = Nrows;
+}
+
+static double *jgasRow(int src, int row)
+{
+	if (spectrum.Jgas_fixed != NULL && spectrum.PRDrow[src] == -1 && spectrum.PRDrow[row] != -1) {
+		if (spectrum.PRDrow[row] == -2) {
+
+			/* --- Called by worker threads, never with a lock held; the
+				   message goes in a buffer of its own, not the shared
+				   messageStr --                         -------------- */
+
+			char msg[256];
+
+			snprintf(msg, sizeof(msg),
+					 "Wavelength %d (%g nm) without PRD line gives to wavelength %d (%g nm) "
+					 "with PRD line, which the reach computed at the start excludes",
+					 src, spectrum.lambda[src], row, spectrum.lambda[row]);
+			Error(ERROR_LEVEL_2, "jgasRow", msg);
+		}
+		return spectrum.Jgas_fixed[spectrum.PRDrow[row]];
+	}
+	return spectrum.Jgas[row];
+}
+
+void beginJgas(bool_t redistribute)
+{
+	int    nspect;
+	size_t n = (size_t) spectrum.Nspect * atmos.Nspace;
+
+	/* --- Before a formal solution of all wavelengths (redistribute ==
+		   FALSE) Jgas and Jgas_fixed start at zero; before one of the PRD
+		   wavelengths only, the rows of Jgas of the PRD wavelengths that
+		   have one in Jgas_fixed start from it --       -------------- */
+
+	memset(spectrum.Jgas[0], 0, n * sizeof(double));
+	if (spectrum.Jgas_fixed == NULL) return;
+	if (!redistribute) {
+		memset(spectrum.Jgas_fixed[0], 0, (size_t) spectrum.NJgasFixed * atmos.Nspace * sizeof(double));
+		return;
+	}
+	for (nspect = 0; nspect < spectrum.Nspect; nspect++)
+		if (spectrum.PRDrow[nspect] >= 0)
+			memcpy(spectrum.Jgas[nspect], spectrum.Jgas_fixed[spectrum.PRDrow[nspect]],
+				   atmos.Nspace * sizeof(double));
+}
+
+void endJgas(bool_t redistribute)
+{
+	int nspect, k;
+
+	/* --- After a full solution add the part of the wavelengths without
+		   PRD line to the rows of the PRD wavelengths --  -------------- */
+
+	if (spectrum.Jgas_fixed == NULL || redistribute) return;
+	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+		if (spectrum.PRDrow[nspect] < 0) continue;
+		for (k = 0; k < atmos.Nspace; k++)
+			spectrum.Jgas[nspect][k] += spectrum.Jgas_fixed[spectrum.PRDrow[nspect]][k];
+	}
+}
+
+static void addJgas(double *row, int nspect, int k, double value)
 {
 	pthread_mutex_lock(&spectrum.Jgas_lock[nspect]);
-	spectrum.Jgas[nspect][k] += value;
+	row[k] += value;
 	pthread_mutex_unlock(&spectrum.Jgas_lock[nspect]);
 }
 
 void addJgasRow(int nspect, double wmu, double *I)
 {
-	int k;
+	int     k;
+	double *row = jgasRow(nspect, nspect);
 
 	pthread_mutex_lock(&spectrum.Jgas_lock[nspect]);
-	for (k = 0; k < atmos.Nspace; k++) spectrum.Jgas[nspect][k] += wmu * I[k];
+	for (k = 0; k < atmos.Nspace; k++) row[k] += wmu * I[k];
 	pthread_mutex_unlock(&spectrum.Jgas_lock[nspect]);
 }
 /* ------- end ---------------------------- addJgas.c --------------- */
@@ -774,7 +897,7 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 
 	int      Nspace = atmos.Nspace, k, row, imin, imax, Nrow, idx;
 	long int lamuk0 = 0, n, n0, n1;
-	double  *buf, w;
+	double  *buf, *jrow, w;
 
 	if (input.prdh_limit_mem) {
 		if (jgas_brN < Nspace) {
@@ -807,13 +930,21 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 		   point, to bound the buffer --                 -------------- */
 
 	if (Nrow > JGAS_MAXROWS) {
+
+		/* --- The target row of each index is resolved on first use -- */
+
+		double **rowp = (double **) calloc(Nrow, sizeof(double *));
+
+		if (rowp == NULL) Error(ERROR_LEVEL_2, "addJgasRay", "Out of memory");
 		for (k = 0; k < Nspace; k++) {
 			n1 = jgasLast(lamuk0, k);
 			for (n = jgasFirst(lamuk0, k); n < n1; n++) {
 				jgasPoint(k, n, &idx, &w);
-				addJgas(idx, k, wmu * w * I[k]);
+				if (rowp[idx - imin] == NULL) rowp[idx - imin] = jgasRow(nspect, idx);
+				addJgas(rowp[idx - imin], idx, k, wmu * w * I[k]);
 			}
 		}
+		free(rowp);
 		return;
 	}
 
@@ -847,8 +978,9 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 		if (!jgas_used[row]) continue;
 		buf = jgas_buf + (size_t) row * Nspace;
 
+		jrow = jgasRow(nspect, imin + row);
 		pthread_mutex_lock(&spectrum.Jgas_lock[imin + row]);
-		for (k = 0; k < Nspace; k++) spectrum.Jgas[imin + row][k] += buf[k];
+		for (k = 0; k < Nspace; k++) jrow[k] += buf[k];
 		pthread_mutex_unlock(&spectrum.Jgas_lock[imin + row]);
 	}
 }

@@ -308,13 +308,14 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 		Nsolved = spectrum.Nspect;
 	workSweep(eval_operator, redistribute, Nsolved);
 
-	/* --- Zero out J in gas parcel's frame --           -------------- */
+	/* --- Zero out J in gas parcel's frame. The PRD sub-iterations
+		   re-solve only the wavelengths with a PRD line and keep the
+		   contributions of the other wavelengths (N-27) -- ---------- */
 
 	if (spectrum.updateJ &&
 		input.PRD_angle_dep == PRD_ANGLE_APPROX &&
 		atmos.NPRDactive > 0) {
-		memset(spectrum.Jgas[0], 0,
-			   (size_t) spectrum.Nspect * atmos.Nspace * sizeof(double));
+		beginJgas(redistribute);
 	}
 
 	if (input.Nthreads > 1) {
@@ -387,6 +388,11 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 		   reads them --                                  -------------- */
 
 	mergeRates(redistribute);
+
+	if (spectrum.updateJ &&
+		input.PRD_angle_dep == PRD_ANGLE_APPROX &&
+		atmos.NPRDactive > 0)
+		endJgas(redistribute);
 
 	/* --- A wavelength whose total opacity was negative enough to
 		   overflow the formal solution was skipped (N-40): stop with a
