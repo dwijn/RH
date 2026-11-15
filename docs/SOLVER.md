@@ -318,6 +318,25 @@ by 1.4 %. (Since #230 its Ng trajectory crashes at 1 thread; N-28.)
 Newton-type methods stop on the residual of the equations, which is the
 quantity that matters.
 
+What `ITER_LIMIT` guarantees (N-3). With the G solvers (ANDERSON, the
+default, FIXED_POINT, NEWTON_KRYLOV) the test is the largest over the active
+atoms and molecules of max |G(x) − x| / |x| (`printChange`), the relative
+fixed-point residual of the populations, not their error; with `SOLVER = NG`
+it is the change between Ng iterates (`MaxChange`). The error is about
+r/(1 − λ) with λ the contraction of G near the solution, so a residual of
+10⁻³ at λ = 0.99 is an error of 10⁻¹. The PRD ρ blocks and ne (with
+`SOLVE_NE = ITERATION`) are part of the state but not of the test; the
+G solvers print their residuals (same measure) per iteration (`rho ID: delta`,
+`ne: delta`). At the end of a G-solver run the log has a line `Estimated
+contraction λ per iteration (last m iterations); the error of the populations
+may be up to about r/(1 − λ)`, with λ = (r_n/r_{n−m})^{1/m} from the last
+m ≤ 10 accepted iterations, or "no estimate" (fewer than three iterations, or
+no decrease). It is an indication, not a bound: the residuals of the
+accelerated solvers are not monotone, and their rate is that of the accelerated
+iteration, which can be faster than the λ of G that sets the error (see
+`docs/changes/N-3.md` for the numbers). A library caller needing a defined
+accuracy should compare with a run at a smaller `ITER_LIMIT`.
+
 ---
 
 ## 3. Target architecture

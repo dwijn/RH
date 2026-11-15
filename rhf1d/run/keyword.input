@@ -45,6 +45,20 @@
   N_MAX_ITER = 25
   ITER_LIMIT = 1.0E-2
 
+# ITER_LIMIT is not an error bound. With SOLVER = ANDERSON, FIXED_POINT or
+# NEWTON_KRYLOV the run stops when the largest relative residual
+# |G(x) - x| / |x| of the populations of the active atoms and molecules
+# (one application of the iteration map G) is below ITER_LIMIT; with
+# SOLVER = NG, when the largest relative change between iterates is.
+# The PRD rho and ne (SOLVE_NE = ITERATION) are reported with each
+# iteration but are not part of the test. The error of the populations is
+# about residual / (1 - c) with c the contraction of the iteration, which
+# is close to 1 when it converges slowly: at c = 0.99 a residual of 1E-3
+# leaves an error of 1E-1. The log ends with an estimate of c from the
+# last residuals and of the error ("Estimated contraction"); for results
+# that matter, check against a run with a smaller ITER_LIMIT. See
+# docs/SOLVER.md section 2.4.
+
 # Iteration scheme (KEYWORD_DEFAULT): ANDERSON, the default in 1-D and
 # spherical geometry (and in 2-D and 3-D); NG (MALI with Ng
 # acceleration, the default before S-10); FIXED_POINT; or NEWTON_KRYLOV.
