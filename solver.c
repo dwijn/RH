@@ -1109,7 +1109,8 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	if (Nbadtrial > 0) {
 		sprintf(messageStr,
 				" -- Anderson: %ld of the rejected points were invalid trial points"
-				" (negative total opacity or negative populations, N-40, N-8)\n",
+				" (negative total opacity, negative populations or non-positive PRD rho;"
+				" N-40, N-8, N-4)\n",
 				Nbadtrial);
 		Error(MESSAGE, routineName, messageStr);
 	}
@@ -1496,7 +1497,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	if (ctx.Nbadtrial > 0) {
 		sprintf(messageStr,
 				" -- Newton: %ld Jacobian probes were invalid trial points (negative"
-				" total opacity or populations, N-40, N-8) and gave a zero product\n",
+				" total opacity, populations or PRD rho, N-40, N-8, N-4) and gave a zero product\n",
 				ctx.Nbadtrial);
 		Error(MESSAGE, routineName, messageStr);
 	}
