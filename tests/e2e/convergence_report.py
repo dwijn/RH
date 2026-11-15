@@ -25,7 +25,7 @@ import os
 import re
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rhtest.check import Checker
 from rhtest.cli import parse
@@ -106,6 +106,8 @@ ck.report(ok, f"two iterations: {'no estimate' if ok else 'WRONG'}",
 def err(d1, d2):
     n1, n2 = read_pops(os.path.join(d1, "pops.CA.out")), \
         read_pops(os.path.join(d2, "pops.CA.out"))
+    if len(n1) != len(n2):
+        raise ValueError(f"pops.CA.out of {d1} and {d2} differ in size")
     return max(abs((x - y) / y) for x, y in zip(n1, n2) if y != 0)
 
 
@@ -114,15 +116,18 @@ ref, out_ref = run("ref_ANDERSON_1e-7", MAP + SOLVERS["ANDERSON"] +
 d4, out4 = run("FIXED_POINT_1e-4", MAP + SOLVERS["FIXED_POINT"] +
                [("N_MAX_ITER", "400"), ("ITER_LIMIT", "1e-4")])
 est = EST.search(out4)
-if not re.search(r" -- Converged (in|at)", out_ref) or est is None or \
-        not re.search(r" -- Converged (in|at)", out4):
-    ck.fail("FIXED_POINT 1e-4 or reference run")
-else:
+converged = re.search(r" -- Converged (in|at)", out_ref) and est is not None and \
+    re.search(r" -- Converged (in|at)", out4)
+ck.check(converged, "FIXED_POINT 1e-4 and reference run converged, estimate line present")
+if converged:
     lam, e_est, e_act = float(est.group(1)), float(est.group(3)), err(d4, ref)
     r = e_est / e_act if e_act > 0 else float("inf")
     ck.report(1.0 / 3.0 < r < 3.0,
               f"FIXED_POINT: contraction {lam:.3f}, estimated error {e_est:.2E}, "
               f"actual |x(1e-4) - x(ref)| {e_act:.2E}, ratio {r:.2f}",
               f"FIXED_POINT estimate {e_est:.2E} vs actual {e_act:.2E}")
+else:
+    ck.check(False, "FIXED_POINT estimate within a factor 3 of the actual error",
+             "(not compared)")
 
 ck.finish("convergence_report", work)

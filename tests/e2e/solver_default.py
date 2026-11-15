@@ -23,7 +23,7 @@ Exit status 0 = pass.
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rhtest.check import Checker
 from rhtest.cli import parse
@@ -44,7 +44,7 @@ def run(name, program, rundir, keywords):
     return execute(program, d)
 
 
-def check(label, ok, r):
+def report_run(label, ok, r):
     ck.report(ok, f"{label}: {'ok' if ok else 'FAILED'} (status {r.returncode})", label)
 
 
@@ -55,20 +55,20 @@ for name, program, rundir, want in (
         ("rhsc2d", a.rhsc2d, "rhsc2d", "POPULATIONS_RHO"),
         ("rhsc3d", a.rhsc3d, "rhsc3d", "POPULATIONS_RHO")):
     r = run(f"default_{name}", program, rundir, [("N_MAX_ITER", "2")])
-    ok = r.returncode in (0, 1) and " -- SOLVER = ANDERSON (the default)\n" in r.stdout \
+    ok = r.ran and " -- SOLVER = ANDERSON (the default)\n" in r.stdout \
         and "-- Anderson: extrapolated" in r.stdout \
         and f"ANDERSON_EXTRAPOLATE = {want} (the default):" in r.stdout
-    check(f"{name} without SOLVER iterates with ANDERSON, {want} (the default)", ok, r)
+    report_run(f"{name} without SOLVER iterates with ANDERSON, {want} (the default)", ok, r)
 
 # --- Without PRD lines: the 2-D default is silent, an explicit setting warns
 WARN = "ANDERSON_EXTRAPOLATE = POPULATIONS_RHO, but there are no PRD"
 for label, extra, warn in (("default", [], False),
                            ("explicit", [("ANDERSON_EXTRAPOLATE", "POPULATIONS_RHO")], True)):
     r = run(f"noprd_{label}", a.rhsc2d, "rhsc2d", [("N_MAX_ITER", "2"), ("PRD_N_MAX_ITER", "0")] + extra)
-    ok = r.returncode in (0, 1) and (WARN in r.stdout) == warn \
+    ok = r.ran and (WARN in r.stdout) == warn \
         and "ANDERSON_EXTRAPOLATE = POPULATIONS_RHO" in r.stdout
-    check(f"rhsc2d without PRD lines, POPULATIONS_RHO {label}: "
-          f"{'warns' if warn else 'no warning'}", ok, r)
+    report_run(f"rhsc2d without PRD lines, POPULATIONS_RHO {label}: "
+               f"{'warns' if warn else 'no warning'}", ok, r)
 
 # --- 2. A keyword file written for the old default
 OLD = [("NG_ORDER", "2"), ("NG_DELAY", "10"), ("NG_PERIOD", "3"),
@@ -76,9 +76,9 @@ OLD = [("NG_ORDER", "2"), ("NG_DELAY", "10"), ("NG_PERIOD", "3"),
 r = run("old_file", a.rhf1d, "rhf1d", OLD)
 ok = r.returncode == EXIT_FATAL and "SOLVER = ANDERSON (the default)" in r.stdout and \
     "Set SOLVER = NG" in r.stdout and "4 keyword settings conflict" in r.stdout
-check("rhf1d, old keyword file without SOLVER stops at input", ok, r)
+report_run("rhf1d, old keyword file without SOLVER stops at input", ok, r)
 r = run("old_file_ng", a.rhf1d, "rhf1d", OLD + [("SOLVER", "NG"), ("N_MAX_ITER", "2")])
-ok = r.returncode in (0, 1) and " -- SOLVER = NG\n" in r.stdout
-check("rhf1d, old keyword file with SOLVER = NG runs with NG", ok, r)
+ok = r.ran and " -- SOLVER = NG\n" in r.stdout
+report_run("rhf1d, old keyword file with SOLVER = NG runs with NG", ok, r)
 
 ck.finish("solver_default", work)

@@ -40,7 +40,7 @@ Exit status 0 = pass.
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rhtest.check import Checker, maxrel, same_file
 from rhtest.cli import parse
@@ -60,8 +60,8 @@ ck = Checker(a.verbose)
 
 def run(name, prog, angles, mode, extra=(), iters=3):
     """prog: (program, run dir in the source tree, atmosphere); angles:
-    keyword and value; extra: more keywords. Returns J and, for the
-    hybrid mode, Jgas."""
+    keyword and value; extra: more keywords. Returns the run directory,
+    J and, for the hybrid mode, Jgas."""
     program, rundir, atmos = prog
     d = prepare(work, name, rundir,
                 [("ATMOS_FILE", atmos),
@@ -75,7 +75,7 @@ def run(name, prog, angles, mode, extra=(), iters=3):
     execute(program, d).require(bad_text="ERROR")
     J = read_doubles(os.path.join(d, "J.dat"))
     Jgas = read_doubles(os.path.join(d, "Jgas.dat")) if mode == "PRD_ANGLE_APPROX" else None
-    return J, Jgas
+    return d, J, Jgas
 
 
 cases = [("1d", (rhf1d, "rhf1d", "../../Atmos/FALC_82.atmos"), "1 ray", ("NRAYS", "1")),
@@ -90,8 +90,8 @@ if rhsc3d:
 for geo, prog, label, angles, *rest in cases:
     iters = rest[0] if rest else 3
     tag = f"{geo}_{label.replace(' ', '')}"
-    J_av, _ = run(f"aver_{tag}", prog, angles, "PRD_ANGLE_AVER", iters=iters)
-    J_hy, Jgas = run(f"hyb_{tag}", prog, angles, "PRD_ANGLE_APPROX", iters=iters)
+    _, J_av, _ = run(f"aver_{tag}", prog, angles, "PRD_ANGLE_AVER", iters=iters)
+    _, J_hy, Jgas = run(f"hyb_{tag}", prog, angles, "PRD_ANGLE_APPROX", iters=iters)
     checks = [(f"{geo}, {label}: hybrid Jgas vs J", maxrel(Jgas, J_hy), TOL_JGAS),
               (f"{geo}, {label}: hybrid J vs angle-averaged J", maxrel(J_hy, J_av), TOL_RUNS)]
     for what, err, tol in checks:
@@ -108,11 +108,9 @@ for l in open(moving):
 rest = [k for k, x in enumerate(v) if x == 0.0]
 Nspace = len(v)
 prog1 = (rhf1d, "rhf1d", moving)
-J_tab, Jgas_tab = run("hyb_1d_v10_table", prog1, ("NRAYS", "3"), "PRD_ANGLE_APPROX")
-J_mem, Jgas_mem = run("hyb_1d_v10_limitmem", prog1, ("NRAYS", "3"), "PRD_ANGLE_APPROX",
+d_tab, J_tab, Jgas_tab = run("hyb_1d_v10_table", prog1, ("NRAYS", "3"), "PRD_ANGLE_APPROX")
+d_mem, J_mem, Jgas_mem = run("hyb_1d_v10_limitmem", prog1, ("NRAYS", "3"), "PRD_ANGLE_APPROX",
                       [("PRDH_LIMIT_MEM", "TRUE")])
-d_tab = work.join("runs", "hyb_1d_v10_table")
-d_mem = work.join("runs", "hyb_1d_v10_limitmem")
 for label, J, Jgas in (("table", J_tab, Jgas_tab), ("PRDH_LIMIT_MEM", J_mem, Jgas_mem)):
     Nspect = len(J) // Nspace
     err, where = 0.0, None

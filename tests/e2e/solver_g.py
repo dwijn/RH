@@ -29,12 +29,12 @@ Exit status 0 = pass.
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rhtest.check import Checker, same_file
 from rhtest.cli import parse
 from rhtest.keywords import H6_CAII
-from rhtest.run import EXIT_FATAL, execute, prepare
+from rhtest.run import EXIT_FATAL, EXIT_OK, execute, prepare
 from rhtest.workdir import WorkDir
 
 a = parse(required=("rhf1d", "gcheck1d"), optional=("gcheck2d",))
@@ -89,7 +89,7 @@ for name, geom, program, threads in checks:
     r = execute(program, d, ["--steps", "3", "--lag", "1"])
     lines = [l for l in r.stdout.splitlines() if l.startswith("gcheck: twice")
              or l.startswith("gcheck: history")]
-    r.require(ok=(0,), tail=30)
+    r.require(ok=(EXIT_OK,), tail=30)
     if len(lines) != 2:
         sys.exit(f"{os.path.basename(program)} failed in {d}: expected 2 gcheck lines, "
                  f"end of out.log:\n{r.tail(30)}")

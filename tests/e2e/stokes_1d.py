@@ -49,19 +49,18 @@ import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.append(os.path.dirname(HERE))
 
 from rhtest.check import Checker, maxabs, maxdiff
 from rhtest.cli import parse
 from rhtest.output import read_stokes_spectrum
-from rhtest.run import execute, fresh_dir, setup_dir
+from rhtest.run import EXIT_OK, execute, fresh_dir, setup_dir
 from rhtest.workdir import WorkDir
 
 a = parse(required=("rhf1d",), verbose=True)
 rhf1d, src = a.rhf1d, a.src
 work = WorkDir(src, a.work)
 ck = Checker(a.verbose)
-check = ck.value
 
 # --- Physical input ---------------------------------------------------------
 
@@ -172,8 +171,8 @@ def run(name, atmos_text, ndep, field, vertical=False, solve_ne=False, mo="TRUE"
     setup_dir(d, src, "rhf1d", pairs,
               [("../../Atoms/H_6.atom", "PASSIVE", "LTE_POPULATIONS"),
                ("TI_fict.atom", "ACTIVE", "LTE_POPULATIONS", "pops.TI.out")],
-              copy=("molecules.input",))
-    execute(rhf1d, d, timeout=None).require(ok=(0,), bad_text="ERROR")
+              copy=(), required=("molecules.input",))
+    execute(rhf1d, d, timeout=None).require(ok=(EXIT_OK,), bad_text="ERROR")
     return read_stokes_spectrum(os.path.join(d, "spectrum.out"), 1 if vertical else NRAYS)
 
 
@@ -202,7 +201,7 @@ atm = falc_v(0.0)
 
 lam, free = run("free", atm, ndep, None)
 for i, s in enumerate("QUV"):
-    check(f"no field: max|{s}| / max I", maxabs(free[i + 1]) / maxabs(free[0]), 0.0)
+    ck.value(f"no field: max|{s}| / max I", maxabs(free[i + 1]) / maxabs(free[0]), 0.0)
 
 for mo in ("TRUE", "FALSE"):
     _, base = run(f"base_mo{mo}", atm, ndep, (B0, G0, C0), mo=mo)
@@ -212,14 +211,14 @@ for mo in ("TRUE", "FALSE"):
     _, mir = run(f"mirror_mo{mo}", atm, ndep,
                  (B0, [math.pi - g for g in G0], [math.pi - c for c in C0]), mo=mo)
     for i, s in enumerate("IQUV"):
-        check(f"mirror y -> -y, MO {mo}: {s}",
-              maxdiff(mir[i], base[i], -1.0 if s in "UV" else 1.0) / scale[i], 1e-12)
+        ck.value(f"mirror y -> -y, MO {mo}: {s}",
+                  maxdiff(mir[i], base[i], -1.0 if s in "UV" else 1.0) / scale[i], 1e-12)
     if mo == "FALSE":
         _, neg = run("minusB", atm, ndep,
                      (B0, [math.pi - g for g in G0], [c + math.pi for c in C0]), mo=mo)
         for i, s in enumerate("IQUV"):
-            check(f"B -> -B, no MO: {s}",
-                  maxdiff(neg[i], base[i], -1.0 if s == "V" else 1.0) / scale[i], 1e-12)
+            ck.value(f"B -> -B, no MO: {s}",
+                      maxdiff(neg[i], base[i], -1.0 if s == "V" else 1.0) / scale[i], 1e-12)
 
 # --- 4 on FAL-C: vertical ray, field azimuth turned by 35 deg ----------------
 
@@ -234,10 +233,10 @@ ROT_TOL = 5e-7
 _, vb = run("rot_falc", atm, ndep, (B0, G0, C0), vertical=True)
 _, vt = run("rot_falc_turned", atm, ndep, (B0, G0, [c + turn for c in C0]), vertical=True)
 Qr, Ur = rotate(vb, turn)
-check("frame rotation, FAL-C: I", maxdiff(vt[0], vb[0]) / maxabs(vb[0]), ROT_TOL)
-check("frame rotation, FAL-C: V", maxdiff(vt[3], vb[3]) / maxabs(vb[3]), ROT_TOL)
-check("frame rotation, FAL-C: Q, U",
-      max(maxdiff(vt[1], Qr), maxdiff(vt[2], Ur)) / max(maxabs(vb[1]), maxabs(vb[2])), ROT_TOL)
+ck.value("frame rotation, FAL-C: I", maxdiff(vt[0], vb[0]) / maxabs(vb[0]), ROT_TOL)
+ck.value("frame rotation, FAL-C: V", maxdiff(vt[3], vb[3]) / maxabs(vb[3]), ROT_TOL)
+ck.value("frame rotation, FAL-C: Q, U",
+          max(maxdiff(vt[1], Qr), maxdiff(vt[2], Ur)) / max(maxabs(vb[1]), maxabs(vb[2])), ROT_TOL)
 
 # --- 4, 5: frame rotation and weak field on smooth grey atmospheres ---------
 
@@ -282,10 +281,10 @@ for n in (40, 80, 160, 320):
                       f"max|V - V_wf| / max|V| = {e:.2e}")
     errs.append(err)
 
-check("weak field, N = 320: max|V - V_wf| / max|V|", errs[-1], 1e-5)
+ck.value("weak field, N = 320: max|V - V_wf| / max|V|", errs[-1], 1e-5)
 for n, r in zip((40, 80, 160, 320), rots):
-    check(f"frame rotation, N = {n}: largest deviation", r, ROT_TOL)
+    ck.value(f"frame rotation, N = {n}: largest deviation", r, ROT_TOL)
 for n, e0, e1 in zip((80, 160, 320), errs, errs[1:]):
-    check(f"weak field, error ratio N = {n // 2} -> {n}", e0 / e1, 8.0, at_least=True)
+    ck.value(f"weak field, error ratio N = {n // 2} -> {n}", e0 / e1, 8.0, at_least=True)
 
 ck.finish("stokes_1d", work)

@@ -32,7 +32,7 @@ import os
 import re
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rhtest.check import Checker, same_file
 from rhtest.cli import parse
@@ -145,15 +145,13 @@ for setting, want in (("POPULATIONS", (492, 1)), ("POPULATIONS_RHO", (None, 3)))
     print(f"{setting}: banner {'ok' if ok_banner else 'WRONG'}"
           f" ({m.group(0) if m else 'missing'}); {n_rej} rejected; carried "
           f"{(c.group(1) + ' of ' + c.group(2)) if c else 'no check line'}")
-    if not ok_banner:
-        ck.fail(f"{setting} banner")
-    if n_rej == 0 or not ok_carry:
-        ck.fail(f"{setting} carried blocks (rejections {n_rej})")
+    ck.check(ok_banner, f"{setting} banner")
+    ck.check(n_rej > 0 and ok_carry, f"{setting} carried blocks (rejections {n_rej})")
 
 d, r = run("rho_no_prd", MAP + [("SOLVER", "ANDERSON"),
                                ("ANDERSON_EXTRAPOLATE", "POPULATIONS_RHO"),
                                ("PRD_N_MAX_ITER", "0")] + SHORT + [("N_MAX_ITER", "4")])
-ok = (r.returncode in (0, 1) and "no PRD lines" in r.stdout
+ok = (r.ran and "no PRD lines" in r.stdout
       and "the same as POPULATIONS" in r.stdout
       and re.search(r"POPULATIONS_RHO: 492 unknowns in 1 blocks", r.stdout) is not None)
 ck.report(ok, f"POPULATIONS_RHO without PRD lines: {'warns and runs' if ok else 'WRONG'}"

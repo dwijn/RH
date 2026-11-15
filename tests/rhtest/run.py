@@ -6,18 +6,15 @@ import sys
 
 from . import keywords
 
-# Exit statuses of the RH programs (error.h): bits 0-5 are flags of a run
-# that completed (bit 0, RH_EXIT_NOT_CONVERGED = 1: not converged, which is
-# expected when a test stops after a few iterations), 70 = RH_EXIT_FATAL
-# (a fatal error, after its message), above 128 a signal. Sanitizer builds
-# are not run by the e2e tests, so there is no other status.
+# Exit statuses of the RH programs (error.h): 0, RH_EXIT_NOT_CONVERGED = 1
+# (the run ended but not converged, expected when a test stops after a few
+# iterations), RH_EXIT_FATAL = 70 (a fatal error, after its message), above
+# 128 a signal. run_tests.sh accepts every flag combination 0-63; the e2e
+# tests have only these two and say so.
+EXIT_OK = 0
 EXIT_NOT_CONVERGED = 1
 EXIT_FATAL = 70
-
-
-def completed(status):
-    """The program ran to its end (run_tests.sh completed())."""
-    return 0 <= status <= 63
+RAN = (EXIT_OK, EXIT_NOT_CONVERGED)     # the run went to its end
 
 
 def template(src, geom):
@@ -25,20 +22,28 @@ def template(src, geom):
     return os.path.join(src, geom, "run")
 
 
+def _remove(d):
+    """Remove the directory d if it exists; a failed removal raises."""
+    if os.path.lexists(d):
+        shutil.rmtree(d)
+
+
 def fresh_dir(work, name, create=True):
     """<work>/runs/<name>, removed if it exists and (create) made again."""
     d = work.join("runs", name)
-    shutil.rmtree(d, ignore_errors=True)
+    _remove(d)
     if create:
         os.makedirs(d)
     return d
 
 
-def setup_dir(d, src, geom, pairs, atoms=None, copy=("molecules.input", "ray.input")):
+def setup_dir(d, src, geom, pairs, atoms=None, copy=("molecules.input", "ray.input"),
+              required=()):
     """Fill the run directory d from the template of the geometry geom
     (rhf1d, rhsc2d, ...): keyword.input with pairs applied (keywords.apply),
-    atoms.input from atoms (keywords.atoms_input) if given, and the files of
-    copy that the template has."""
+    atoms.input from atoms (keywords.atoms_input) if given, the files of
+    copy that the template has, and the files of required, which it must
+    have (else FileNotFoundError)."""
     t = template(src, geom)
     with open(os.path.join(t, "keyword.input")) as f:
         text = f.read()
@@ -49,12 +54,15 @@ def setup_dir(d, src, geom, pairs, atoms=None, copy=("molecules.input", "ray.inp
     for f in copy:
         if os.path.exists(os.path.join(t, f)):
             shutil.copy(os.path.join(t, f), d)
+    for f in required:
+        shutil.copy(os.path.join(t, f), d)
     return d
 
 
-def prepare(work, name, geom, pairs, atoms=None, copy=("molecules.input", "ray.input")):
+def prepare(work, name, geom, pairs, atoms=None, copy=("molecules.input", "ray.input"),
+            required=()):
     """fresh_dir + setup_dir: a run directory of the template of geom."""
-    return setup_dir(fresh_dir(work, name), work.src, geom, pairs, atoms, copy)
+    return setup_dir(fresh_dir(work, name), work.src, geom, pairs, atoms, copy, required)
 
 
 def copy_dir(work, name, source):
@@ -72,10 +80,15 @@ class Result:
         self.program, self.dir = program, d
         self.returncode, self.stdout = returncode, stdout
 
+    @property
+    def ran(self):
+        """The status is one of RAN."""
+        return self.returncode in RAN
+
     def tail(self, n=40):
         return "\n".join(self.stdout.splitlines()[-n:])
 
-    def require(self, ok=(0, EXIT_NOT_CONVERGED), bad_text=None, tail=40):
+    def require(self, ok=RAN, bad_text=None, tail=40):
         """Exit the test (status 1, message with the end of out.log, which
         carries the backtrace of a trapped floating-point exception, B-33)
         unless the status is in ok and bad_text (e.g. "ERROR") is not in the

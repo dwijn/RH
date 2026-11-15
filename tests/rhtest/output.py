@@ -1,7 +1,5 @@
 """Readers of RH's binary outputs (struct only). The formats live here."""
-import os
 import struct
-import sys
 
 
 def read_bytes(path):
@@ -24,7 +22,8 @@ def read_pops(path):
         nl, ns = struct.unpack(">2i", b[off:off + 8])
         if 0 < nl < 100000 and 0 < ns and off + 8 + 16 * nl * ns == len(b):
             return struct.unpack(f">{nl * ns}d", b[off + 8:off + 8 + 8 * nl * ns])
-    raise ValueError(f"cannot parse {path}")
+    raise ValueError(f"{path}: cannot parse as a pops file (no layout with Nlevel, Nspace "
+                     f"and 2 x Nlevel x Nspace doubles fits the size {len(b)})")
 
 
 def read_stokes_spectrum(path, nrays):
@@ -41,7 +40,8 @@ def read_stokes_spectrum(path, nrays):
     QUV = [struct.unpack(f">{size}d", raw[pos + 8 * size * i:pos + 8 * size * (i + 1)])
            for i in range(3)]
     if pos + 24 * size != len(raw):
-        sys.exit(f"{path}: unexpected size")
+        raise ValueError(f"{path}: unexpected size {len(raw)} for Nspect = {ns}, "
+                         f"{nrays} rays (expected {pos + 24 * size})")
     return lam, [[q[l * nrays:(l + 1) * nrays] for l in range(ns)] for q in [I] + QUV]
 
 
@@ -50,7 +50,9 @@ def read_solveray(path):
     the int Nspect = 0 of ray.input, then Q, U, V, all big-endian XDR."""
     b = read_bytes(path)
     M = (len(b) - 20) // 32
-    assert 32 * M + 20 == len(b), "unexpected solveray output layout"
+    if 32 * M + 20 != len(b):
+        raise ValueError(f"{path}: size {len(b)} does not fit the solveray output layout "
+                         f"(32 M + 20 bytes)")
     off = 16 + 8 * M + 4
     return [struct.unpack(f">{M}d", b[o:o + 8 * M])
             for o in (16, off, off + 8 * M, off + 16 * M)]

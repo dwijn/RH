@@ -29,7 +29,7 @@ import os
 import subprocess
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rhtest.check import Checker, maxabs, maxdiff
 from rhtest.cli import parse
@@ -42,7 +42,6 @@ a = parse(required=("rhsc2d", "solveray2d", "solveray3d"), verbose=True,
 src = a.src
 work = WorkDir(src, a.work)
 ck = Checker(a.verbose)
-check = ck.check
 
 
 def main_run(geo, rhsc):
@@ -81,24 +80,24 @@ def ray_diff(u, v):
 
 d2 = main_run("2d", a.rhsc2d)
 rc, out, f_up = solveray(a.solveray2d, d2, "ray2d_up", "0.8541662602", "0.52")
-check(rc == 0 and f_up and finite(read_solveray(f_up)),
-      "2-D: sum of squares 1 + 6e-11 gives finite I, Q, U, V", f"(status {rc})")
+ck.check(rc == 0 and f_up and finite(read_solveray(f_up)),
+         "2-D: sum of squares 1 + 6e-11 gives finite I, Q, U, V", f"(status {rc})")
 rc, out, f_dn = solveray(a.solveray2d, d2, "ray2d_dn", "0.8541662601", "0.52")
 if f_up and f_dn:
     err = ray_diff(read_solveray(f_up), read_solveray(f_dn))
-    check(err < 2e-4, "2-D: clamped ray equals the ray with the cosine rounded down",
-          f"({err:.1e})")
+    ck.check(err < 2e-4, "2-D: clamped ray equals the ray with the cosine rounded down",
+             f"({err:.1e})")
 rc, out, f = solveray(a.solveray2d, d2, "ray2d_bad", "0.9", "0.9")
-check(rc != 0 and "mux^2 + muz^2 = 1.62" in out and f is None,
-      "2-D: mux = muz = 0.9 is an error naming the sum", f"(status {rc})")
+ck.check(rc != 0 and "mux^2 + muz^2 = 1.62" in out and f is None,
+         "2-D: mux = muz = 0.9 is an error naming the sum", f"(status {rc})")
 rc, out, f = solveray(a.solveray2d, d2, "ray2d_ok", "0.5", "0.5")
-check(rc == 0 and f and finite(read_solveray(f)), "2-D: valid ray is finite", f"(status {rc})")
+ck.check(rc == 0 and f and finite(read_solveray(f)), "2-D: valid ray is finite", f"(status {rc})")
 
 d3 = copy_dir(work, "3d", template(src, "rhsc3d"))
 for name, c1, c2 in (("up", "0.8660254038", "0.5"), ("flat", "0.6", "0.8"),
                      ("bad", "0.9", "0.9")):
     rc, out, f = solveray(a.solveray3d, d3, "ray3d_" + name, c1, c2)
-    check(rc != 0 and "no upward component" in out and f is None,
-          f"3-D: mux = {c1}, muy = {c2} is an error (muz must be positive)", f"(status {rc})")
+    ck.check(rc != 0 and "no upward component" in out and f is None,
+             f"3-D: mux = {c1}, muy = {c2} is an error (muz must be positive)", f"(status {rc})")
 
 ck.finish("solveray_cosines", work)
