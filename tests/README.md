@@ -52,6 +52,22 @@ ctest --test-dir build -L e2e --output-on-failure
 tests/e2e/stokes_1d.py --rhf1d build/rhf1d/rhf1d --work DIR -v   # keep the runs, print the errors
 ```
 
+The scripts share a standard-library-only package, `tests/rhtest/` (no numpy:
+the CI build jobs have none), which a script finds with a two-line
+`sys.path` insertion of `tests/`, so that it also runs by hand:
+
+| Module | What it holds |
+|---|---|
+| `cli.py` | `parse()`: `--PROGRAM` paths, `--src` (default: this source tree), `--work`, `-v` |
+| `workdir.py` | `WorkDir`: the work directory with the Atoms/Atmos/Molecules links; `--work` is kept, a temporary directory under `$TMPDIR` is removed when the test passes and kept and named on a failure, `sys.exit` or an uncaught exception |
+| `keywords.py` | `setkw()` (value `None` comments the key out), `apply()`, `edit_file()`, `atoms_input()`, the `H6_CAII` atom set |
+| `run.py` | `prepare()` a run directory from `<geom>/run`, `copy_dir()`, `execute()` with a timeout and `out.log`, `Result.require()` (exit status and error text; 1 = not converged is expected after a few iterations), `completed()`, `EXIT_*` |
+| `output.py` | readers of `pops.*.out`, `J.dat`, the polarized `spectrum.out` and the solveray output (the binary formats live here) |
+| `check.py` | `Checker` (record, summary, exit status), `maxabs`, `maxdiff`, `maxrel`, `same_file` |
+
+A new e2e script: `cli.parse`, `WorkDir`, `Checker`, then `prepare` and
+`execute(...).require()` for each run, and `ck.finish(name, work)` last.
+
 | Test | What it covers |
 |---|---|
 | `stokes_1d.py` | `rhf1d` with a fictional atom (`TI_fict.atom`: two lines with anomalous Zeeman patterns, g_eff 4/3 and 7/6) in LTE, one formal solution with J = 0 in the background scattering, so every run solves the same linear problem: no field gives Q = U = V = 0; parity (mirror in the plane of the rays) gives (I, Q, -U, -V) to 1e-12, with and without magneto-optical effects; without them B -> -B gives (I, Q, U, -V); turning the field azimuth for a vertical ray turns (Q, U), up to a discretization error from the polarized solver's componentwise limiter that must vanish at third order; the weak-field V against the derivative of I with respect to a uniform velocity (no wavelength derivative), which must converge at fourth order on a grey atmosphere. Python 3 standard library only, about 10 s |

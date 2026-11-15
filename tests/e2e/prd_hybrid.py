@@ -37,67 +37,25 @@ PRDH_LIMIT_MEM = TRUE, which computes the same weights when needed:
 
 Exit status 0 = pass.
 """
-import argparse
 import os
-import shutil
-import struct
-import subprocess
 import sys
-import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from rhtest.check import Checker, maxrel, same_file
+from rhtest.cli import parse
+from rhtest.keywords import H6_CAII
+from rhtest.output import read_doubles
+from rhtest.run import execute, prepare
+from rhtest.workdir import WorkDir
 
 TOL_JGAS = 1e-12   # Jgas vs J of the same run
 TOL_RUNS = 1e-9    # J of the hybrid run vs J of the angle-averaged run
 
-p = argparse.ArgumentParser()
-p.add_argument("--rhf1d", required=True)
-p.add_argument("--rhsc2d", help="also test rhsc2d")
-p.add_argument("--rhsc3d", help="also test rhsc3d (B-7)")
-p.add_argument("--src", default=os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))),
-    help="RH source tree (Atoms/, Atmos/, Molecules/, rhf1d/run/)")
-p.add_argument("--work", help="run directory, kept (default: a temporary dir under "
-                               "$TMPDIR, removed when the test passes, kept and named "
-                               "on failure)")
-p.add_argument("-v", "--verbose", action="store_true")
-a = p.parse_args()
-rhf1d = os.path.abspath(a.rhf1d)
-rhsc2d = os.path.abspath(a.rhsc2d) if a.rhsc2d else None
-rhsc3d = os.path.abspath(a.rhsc3d) if a.rhsc3d else None
-src = os.path.abspath(a.src)
-
-work = os.path.abspath(a.work) if a.work else tempfile.mkdtemp(prefix="rh_e2e_")
-
-
-def _name_work(*exc):                  # an uncaught exception keeps the runs: say where
-    sys.__excepthook__(*exc)
-    print(f"runs kept in {work}", file=sys.stderr)
-
-
-sys.excepthook = _name_work
-os.makedirs(os.path.join(work, "runs"), exist_ok=True)
-for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels down
-    link = os.path.join(work, d)
-    if not os.path.lexists(link):
-        os.symlink(os.path.join(src, d), link)
-
-
-def setkw(text, key, value):
-    out, done = [], False
-    for l in text.splitlines():
-        s = l.strip()
-        if not s.startswith("#") and "=" in s and s.split("=")[0].strip() == key:
-            out.append(f"  {key} = {value}")
-            done = True
-        else:
-            out.append(l)
-    if not done:
-        out.append(f"  {key} = {value}")
-    return "\n".join(out) + "\n"
-
-
-def read_doubles(path):
-    raw = open(path, "rb").read()
-    return struct.unpack(f"={len(raw) // 8}d", raw)
+a = parse(required=("rhf1d",), optional=("rhsc2d", "rhsc3d"), verbose=True)
+rhf1d, rhsc2d, rhsc3d, src = a.rhf1d, a.rhsc2d, a.rhsc3d, a.src
+work = WorkDir(src, a.work)
+ck = Checker(a.verbose)
 
 
 def run(name, prog, angles, mode, extra=(), iters=3):
@@ -105,43 +63,19 @@ def run(name, prog, angles, mode, extra=(), iters=3):
     keyword and value; extra: more keywords. Returns J and, for the
     hybrid mode, Jgas."""
     program, rundir, atmos = prog
-    d = os.path.join(work, "runs", name)
-    if os.path.isdir(d):
-        shutil.rmtree(d)
-    os.makedirs(d)
-    kw = open(os.path.join(src, rundir, "run", "keyword.input")).read()
-    for k, v in [("ATMOS_FILE", atmos),
+    d = prepare(work, name, rundir,
+                [("ATMOS_FILE", atmos),
                  ("STOKES_MODE", "NO_STOKES"), ("STOKES_INPUT", "none"),
                  angles, ("N_MAX_ITER", str(iters)),
                  ("PRD_N_MAX_ITER", "2"), ("PRD_ANGLE_DEP", mode),
                  ("N_THREADS", "1"), ("PRINT_CPU", "FALSE"),
                  ("STARTING_J", "NEW_J"), ("KURUCZ_DATA", "none"),
-                 ("SOLVE_NE", "NONE")] + list(extra):
-        kw = setkw(kw, k, v)
-    open(os.path.join(d, "keyword.input"), "w").write(kw)
-    open(os.path.join(d, "atoms.input"), "w").write(
-        "2\n  ../../Atoms/H_6.atom  PASSIVE  LTE_POPULATIONS\n"
-        "  ../../Atoms/CaII.atom  ACTIVE  ZERO_RADIATION  pops.CA.out\n")
-    for f in ("molecules.input", "ray.input"):
-        if os.path.exists(os.path.join(src, rundir, "run", f)):
-            shutil.copy(os.path.join(src, rundir, "run", f), d)
-    try:
-        r = subprocess.run([program], cwd=d, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, text=True, timeout=600)
-    except subprocess.TimeoutExpired:
-        sys.exit(f"{program} timed out in {d}")
-    open(os.path.join(d, "out.log"), "w").write(r.stdout)
-    # --- Three iterations (or one) do not converge: exit status 1 is expected
-    if r.returncode not in (0, 1) or "ERROR" in r.stdout:
-        tail = "\n".join(r.stdout.splitlines()[-40:])   # FP trap backtrace (B-33)
-        sys.exit(f"{program} failed in {d} (status {r.returncode}); end of out.log:\n{tail}")
+                 ("SOLVE_NE", "NONE")] + list(extra), H6_CAII)
+    # Three iterations (or one) do not converge: exit status 1 is expected
+    execute(program, d).require(bad_text="ERROR")
     J = read_doubles(os.path.join(d, "J.dat"))
     Jgas = read_doubles(os.path.join(d, "Jgas.dat")) if mode == "PRD_ANGLE_APPROX" else None
     return J, Jgas
-
-
-def maxrel(x, y):
-    return max(abs(u - v) / max(abs(u), abs(v), 1e-300) for u, v in zip(x, y))
 
 
 cases = [("1d", (rhf1d, "rhf1d", "../../Atmos/FALC_82.atmos"), "1 ray", ("NRAYS", "1")),
@@ -153,7 +87,6 @@ if rhsc2d:
 if rhsc3d:
     prog3 = (rhsc3d, "rhsc3d", "../../Atmos/FALC_04x04x82.atmos")
     cases += [("3d", prog3, "4 rays", ("ANGLE_SET", "SET_GL_1X1"), 1)]
-failed = nchecks = 0
 for geo, prog, label, angles, *rest in cases:
     iters = rest[0] if rest else 3
     tag = f"{geo}_{label.replace(' ', '')}"
@@ -163,10 +96,7 @@ for geo, prog, label, angles, *rest in cases:
               (f"{geo}, {label}: hybrid J vs angle-averaged J", maxrel(J_hy, J_av), TOL_RUNS)]
     for what, err, tol in checks:
         ok = len(J_hy) == len(J_av) == len(Jgas) and err <= tol
-        failed += not ok
-        nchecks += 1
-        if a.verbose or not ok:
-            print(f"{'PASS' if ok else 'FAIL'}  {what}: {err:.2e} (tol {tol:g})")
+        ck.check(ok, what, f"{err:.2e} (tol {tol:g})")
 
 # --- Moving atmosphere: Jgas = J at rest, PRDH_LIMIT_MEM equals the table
 moving = os.path.join(src, "tests", "atmos", "FALC_v10.atmos")
@@ -181,8 +111,8 @@ prog1 = (rhf1d, "rhf1d", moving)
 J_tab, Jgas_tab = run("hyb_1d_v10_table", prog1, ("NRAYS", "3"), "PRD_ANGLE_APPROX")
 J_mem, Jgas_mem = run("hyb_1d_v10_limitmem", prog1, ("NRAYS", "3"), "PRD_ANGLE_APPROX",
                       [("PRDH_LIMIT_MEM", "TRUE")])
-d_tab = os.path.join(work, "runs", "hyb_1d_v10_table")
-d_mem = os.path.join(work, "runs", "hyb_1d_v10_limitmem")
+d_tab = work.join("runs", "hyb_1d_v10_table")
+d_mem = work.join("runs", "hyb_1d_v10_limitmem")
 for label, J, Jgas in (("table", J_tab, Jgas_tab), ("PRDH_LIMIT_MEM", J_mem, Jgas_mem)):
     Nspect = len(J) // Nspace
     err, where = 0.0, None
@@ -193,24 +123,10 @@ for label, J, Jgas in (("table", J_tab, Jgas_tab), ("PRDH_LIMIT_MEM", J_mem, Jga
             if e > err:
                 err, where = e, (la, k)
     ok = len(rest) > 0 and len(J) == Nspect * Nspace and err <= TOL_JGAS
-    failed += not ok
-    nchecks += 1
-    if a.verbose or not ok:
-        print(f"{'PASS' if ok else 'FAIL'}  1d moving, {label}: Jgas vs J at the {len(rest)} "
-              f"depths at rest: {err:.2e} (tol {TOL_JGAS:g}), worst at wavelength, depth {where} "
-              f"of {Nspect}")
-same = (J_tab == J_mem and Jgas_tab == Jgas_mem and
-        open(os.path.join(d_tab, "pops.CA.out"), "rb").read() ==
-        open(os.path.join(d_mem, "pops.CA.out"), "rb").read())
-failed += not same
-nchecks += 1
-if a.verbose or not same:
-    print(f"{'PASS' if same else 'FAIL'}  1d moving: PRDH_LIMIT_MEM run equals the table run "
-          f"to the bit (J {maxrel(J_tab, J_mem):.2e}, Jgas {maxrel(Jgas_tab, Jgas_mem):.2e})")
+    ck.check(ok, f"1d moving, {label}: Jgas vs J at the {len(rest)} depths at rest",
+             f"{err:.2e} (tol {TOL_JGAS:g}), worst at wavelength, depth {where} of {Nspect}")
+same = J_tab == J_mem and Jgas_tab == Jgas_mem and same_file(d_tab, d_mem, "pops.CA.out")
+ck.check(same, "1d moving: PRDH_LIMIT_MEM run equals the table run to the bit",
+         f"(J {maxrel(J_tab, J_mem):.2e}, Jgas {maxrel(Jgas_tab, Jgas_mem):.2e})")
 
-print(f"prd_hybrid: {nchecks} checks, {failed} failed")
-if failed:
-    print(f"runs kept in {work}")
-elif not a.work:
-    shutil.rmtree(work)
-sys.exit(1 if failed else 0)
+ck.finish("prd_hybrid", work)
