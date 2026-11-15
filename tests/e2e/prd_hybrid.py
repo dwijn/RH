@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """End-to-end test of hybrid PRD (PRD_ANGLE_APPROX), B-31.
 
-usage: prd_hybrid.py --rhf1d PATH [--rhsc2d PATH] [--src DIR] [--work DIR] [-v]
+usage: prd_hybrid.py --rhf1d PATH [--rhsc2d PATH] [--rhsc3d PATH] [--src DIR] [--work DIR] [-v]
 
 In a static atmosphere the gas frame is the observer's frame, so the
 gas-frame mean intensity Jgas of the hybrid approximation equals J, and
 hybrid PRD gives the same answer as angle-averaged PRD. Ca II with PRD,
-three iterations, rhf1d on FAL-C with one ray and with three rays, and
-(with --rhsc2d) rhsc2d on three FAL-C columns with one ray and with six:
+three iterations, rhf1d on FAL-C with one ray and with three rays,
+(with --rhsc2d) rhsc2d on three FAL-C columns with one ray and with six,
+and (with --rhsc3d) rhsc3d on 4x4 FAL-C columns with one ray and with six:
 
  1. Hybrid run: Jgas = J at every wavelength and depth.
  2. J of the hybrid run equals J of the angle-averaged run.
@@ -49,6 +50,7 @@ TOL_RUNS = 1e-9    # J of the hybrid run vs J of the angle-averaged run
 p = argparse.ArgumentParser()
 p.add_argument("--rhf1d", required=True)
 p.add_argument("--rhsc2d", help="also test rhsc2d")
+p.add_argument("--rhsc3d", help="also test rhsc3d (B-7)")
 p.add_argument("--src", default=os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))),
     help="RH source tree (Atoms/, Atmos/, Molecules/, rhf1d/run/)")
@@ -57,6 +59,7 @@ p.add_argument("-v", "--verbose", action="store_true")
 a = p.parse_args()
 rhf1d = os.path.abspath(a.rhf1d)
 rhsc2d = os.path.abspath(a.rhsc2d) if a.rhsc2d else None
+rhsc3d = os.path.abspath(a.rhsc3d) if a.rhsc3d else None
 src = os.path.abspath(a.src)
 
 work = os.path.abspath(a.work) if a.work else tempfile.mkdtemp(prefix="rh_e2e_")
@@ -136,6 +139,10 @@ if rhsc2d:
     prog2 = (rhsc2d, "rhsc2d", "../../Atmos/FALC_03x82.atmos")
     cases += [("2d", prog2, "1 ray", ("ANGLE_SET", "SET_VERTICAL")),
               ("2d", prog2, "6 rays", ("ANGLE_SET", "SET_GL_3X2"))]
+if rhsc3d:
+    prog3 = (rhsc3d, "rhsc3d", "../../Atmos/FALC_04x04x82.atmos")
+    cases += [("3d", prog3, "1 ray", ("ANGLE_SET", "SET_VERTICAL")),
+              ("3d", prog3, "6 rays", ("ANGLE_SET", "SET_GL_3X2"))]
 failed = nchecks = 0
 for geo, prog, label, angles in cases:
     tag = f"{geo}_{label.replace(' ', '')}"
