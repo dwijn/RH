@@ -248,7 +248,7 @@ static double prdSubIterations(int Nsub)
 {
 	register int nact, kr;
 
-	bool_t      eval_operator, redistribute;
+	bool_t      eval_operator, redistribute, bad = FALSE;
 	int         nsub;
 	long        N;
 	double     *old = NULL, drho, drhomax = 0.0;
@@ -283,8 +283,14 @@ static double prdSubIterations(int Nsub)
 						nsub, atom->ID, kr, drho);
 				Error(MESSAGE, NULL, messageStr);
 				drhomax = MAX(drho, drhomax);
+
+				/* --- rho <= 0 or not finite: stops the run, or at a
+					   trial point invalidates it (N-4) --  -------------- */
+
+				if (!PRDRhoCheck(atom, kr)) bad = TRUE;
 			}
 		}
+		if (bad) break; /* G_eval gives up (N-4) */
 		solveSpectrum(eval_operator = FALSE, redistribute = TRUE);
 		if (negTauFound()) break; /* G_eval gives up (N-40) */
 	}
@@ -308,8 +314,9 @@ bool_t G_eval(const double *x_in, double *x_out)
 		   happen at a trial point (negTauTrial(TRUE)): anywhere else
 		   solveSpectrum stops the run. Also FALSE, in the same way,
 		   when statEquil found negative or non-finite populations out
-		   of its LU fallback (N-8); the state is then that of x_in
-		   again --                            -------------- */
+		   of its LU fallback (N-8; the state is then that of x_in
+		   again), or a PRD sub-iteration gave rho <= 0 or not finite
+		   (N-4) --                                     -------------- */
 
 	stateScatter(x_in);
 

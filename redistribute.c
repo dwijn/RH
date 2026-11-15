@@ -140,6 +140,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 						   test use the residual (N-38) --  -------------- */
 
 					accel = Accelerate(line->Ng_prd, line->rho_prd[0]);
+					PRDRhoCheck(atom, kr); /* stops the run if rho <= 0 (N-4) */
 					sprintf(messageStr, "  PRD: iter #%d, atom %s, line %d,",
 							line->Ng_prd->count - 1, atom->ID, kr);
 					if (input.PRD_damping == 1.0)
