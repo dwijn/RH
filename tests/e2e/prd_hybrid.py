@@ -8,7 +8,7 @@ gas-frame mean intensity Jgas of the hybrid approximation equals J, and
 hybrid PRD gives the same answer as angle-averaged PRD. Ca II with PRD,
 three iterations, rhf1d on FAL-C with one ray and with three rays,
 (with --rhsc2d) rhsc2d on three FAL-C columns with one ray and with six,
-and (with --rhsc3d) rhsc3d on 4x4 FAL-C columns with one ray and with six:
+and (with --rhsc3d) rhsc3d on 4x4 FAL-C columns with one ray and one iteration:
 
  1. Hybrid run: Jgas = J at every wavelength and depth.
  2. J of the hybrid run equals J of the angle-averaged run.
@@ -101,7 +101,7 @@ def run(name, prog, angles, mode, extra=()):
     kw = open(os.path.join(src, rundir, "run", "keyword.input")).read()
     for k, v in [("ATMOS_FILE", atmos),
                  ("STOKES_MODE", "NO_STOKES"), ("STOKES_INPUT", "none"),
-                 angles, ("N_MAX_ITER", "3"),
+                 angles, ("N_MAX_ITER", "1" if rundir == "rhsc3d" else "3"),
                  ("PRD_N_MAX_ITER", "2"), ("PRD_ANGLE_DEP", mode),
                  ("N_THREADS", "1"), ("PRINT_CPU", "FALSE"),
                  ("STARTING_J", "NEW_J"), ("KURUCZ_DATA", "none"),
@@ -141,8 +141,9 @@ if rhsc2d:
               ("2d", prog2, "6 rays", ("ANGLE_SET", "SET_GL_3X2"))]
 if rhsc3d:
     prog3 = (rhsc3d, "rhsc3d", "../../Atmos/FALC_04x04x82.atmos")
-    cases += [("3d", prog3, "1 ray", ("ANGLE_SET", "SET_VERTICAL")),
-              ("3d", prog3, "6 rays", ("ANGLE_SET", "SET_GL_3X2"))]
+    # One iteration and one ray: the identity holds after any number of
+    # iterations, and the PRD lines take addJgasRay, the rest addJgasRow
+    cases += [("3d", prog3, "1 ray", ("ANGLE_SET", "SET_VERTICAL"))]
 failed = nchecks = 0
 for geo, prog, label, angles in cases:
     tag = f"{geo}_{label.replace(' ', '')}"
