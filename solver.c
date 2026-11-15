@@ -81,12 +81,16 @@ typedef struct {
 	double        *data;
 	long           N;
 	enum BlockKind kind;
-	void          *owner; /* the Atom or Molecule of a population block */
+	void          *owner; /* the Atom or Molecule of a population or rho block */
 } StateBlock;
 
 static StateBlock *blocks  = NULL;
 static int         Nblocks = 0;
 static long        Nstate  = 0;
+
+/* --- Nblocks + 1 offsets of the blocks into x, set by addBlock -- -- */
+
+static long *blockStart = NULL;
 
 /* --- Largest u with exp(u) finite: log(DBL_MAX) rounded down -- */
 
@@ -102,10 +106,13 @@ static void addBlock(const char *name, double *data, long N,
 {
 	blocks = (StateBlock *) realloc(blocks, (Nblocks + 1) * sizeof(StateBlock));
 	snprintf(blocks[Nblocks].name, MAX_MESSAGE_LENGTH, "%s", name);
-	blocks[Nblocks].data  = data;
-	blocks[Nblocks].N     = N;
-	blocks[Nblocks].kind  = kind;
-	blocks[Nblocks].owner = owner;
+	blocks[Nblocks].data    = data;
+	blocks[Nblocks].N       = N;
+	blocks[Nblocks].kind    = kind;
+	blocks[Nblocks].owner   = owner;
+	blockStart              = (long *) realloc(blockStart, (Nblocks + 2) * sizeof(long));
+	blockStart[0]           = 0;
+	blockStart[Nblocks + 1] = blockStart[Nblocks] + N;
 	Nblocks++;
 	Nstate += N;
 }
@@ -149,7 +156,7 @@ long stateInit(void)
 			line = atom->line + kr;
 			if (line->PRD) {
 				sprintf(name, "rho %s %d-%d", atom->ID, line->j, line->i);
-				addBlock(name, line->rho_prd[0], PRDRhoSize(line), BLOCK_RHO, NULL);
+				addBlock(name, line->rho_prd[0], PRDRhoSize(line), BLOCK_RHO, atom);
 			}
 		}
 	}
@@ -229,6 +236,145 @@ static double relChange(const double *old, const double *new, long N)
 	return dmax;
 }
 /* ------- end ---------------------------- relChange.c ------------- */
+
+/* ------- begin -------------------------- residualHistory.c ------- */
+
+/* --- The residuals of the iterations (largest relChange of the
+	   populations) of one run of SOLVER = FIXED_POINT, the last
+	   RES_HIST_MAX of them, for the estimate of the contraction at the
+	   end of the run (N-3). Only there the residuals follow the
+	   contraction of G: for ANDERSON and NEWTON_KRYLOV the same estimate
+	   was measured to understate the error by up to 20 times, and is
+	   not made -- ----------------------------------------------- */
+
+#define RES_HIST_MAX 11
+
+static double resHist[RES_HIST_MAX];
+static int    NresHist = 0;
+
+static void resHistReset(void)
+{
+	NresHist = 0;
+}
+
+static void resHistAdd(double r)
+{
+	if (NresHist == RES_HIST_MAX) {
+		memmove(resHist, resHist + 1, (RES_HIST_MAX - 1) * sizeof(double));
+		NresHist--;
+	}
+	resHist[NresHist++] = r;
+}
+
+static void printContraction(const char *routineName)
+{
+	int    m;
+	double lambda, rlast;
+
+	/* --- The geometric mean of the ratio of successive residuals
+		   over the last m (at most 10) iterations. Without the
+		   evidence (fewer than four iterations, no decrease) say so.
+		   The residual bounds the error through the contraction:
+		   error ~ r / (1 - lambda) --                   -------------- */
+
+	m = NresHist - 1;
+	if (m < 2 || !(resHist[0] > 0.0) || !(resHist[NresHist - 1] >= 0.0) ||
+		!isfinite(resHist[0]) || !isfinite(resHist[NresHist - 1])) {
+		sprintf(messageStr, " -- Estimated contraction: no estimate (fewer than 4"
+							" iterations, or no residual to compare)\n");
+		Error(MESSAGE, routineName, messageStr);
+		return;
+	}
+	rlast  = resHist[NresHist - 1];
+	lambda = pow(rlast / resHist[0], 1.0 / m);
+	if (!(lambda < 1.0)) {
+		sprintf(messageStr, " -- Estimated contraction: no estimate (the residual"
+							" did not decrease over the last %d iterations)\n",
+				m);
+		Error(MESSAGE, routineName, messageStr);
+		return;
+	}
+	sprintf(messageStr, " -- Estimated contraction %.3f per iteration (last %d"
+						" iterations); the error of the populations may be up to"
+						" about %.1E (residual / (1 - contraction))\n",
+			lambda, m, rlast / (1.0 - lambda));
+	Error(MESSAGE, routineName, messageStr);
+}
+/* ------- end ---------------------------- residualHistory.c ------- */
+
+/* ------- begin -------------------------- printRhoNe.c ------------ */
+
+static long rhoNeSize(void)
+{
+	register int n;
+
+	long N = 0;
+
+	for (n = 0; n < Nblocks; n++)
+		if (blocks[n].kind == BLOCK_RHO || blocks[n].kind == BLOCK_NE) N += blocks[n].N;
+	return N;
+}
+
+static void rhoNeSave(const double *x, double *buf)
+{
+	register int n;
+
+	/* --- The rho and ne blocks of x, one after the other, for a
+		   solver that overwrites x in place --         -------------- */
+
+	for (n = 0; n < Nblocks; n++) {
+		if (blocks[n].kind != BLOCK_RHO && blocks[n].kind != BLOCK_NE) continue;
+		memcpy(buf, x + blockStart[n], blocks[n].N * sizeof(double));
+		buf += blocks[n].N;
+	}
+}
+
+static void printRhoNe(const double *x, const double *saved, const double *gx)
+{
+	register int n, nact;
+
+	const double *old;
+	double        dpops;
+
+	/* --- Reporting only (N-3): the residual of the PRD rho blocks, one
+		   per atom with PRD lines, and of ne when it is in the state,
+		   relChange's measure on (x, G(x)). They are not part of the
+		   ITER_LIMIT test. With saved (rhoNeSave) the old values are
+		   taken from there instead of x -- ------------- */
+
+	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
+		Atom  *atom = atmos.activeatoms[nact];
+		bool_t any  = FALSE;
+
+		dpops = 0.0;
+		old   = saved;
+		for (n = 0; n < Nblocks; n++) {
+			if (blocks[n].kind != BLOCK_RHO && blocks[n].kind != BLOCK_NE) continue;
+			if (blocks[n].kind == BLOCK_RHO && blocks[n].owner == (void *) atom) {
+				dpops = MAX(dpops, relChange((saved) ? old : x + blockStart[n],
+											 gx + blockStart[n], blocks[n].N));
+				any   = TRUE;
+			}
+			if (saved) old += blocks[n].N;
+		}
+		if (any) {
+			sprintf(messageStr, " rho %s: delta = %6.4E\n", atom->ID, dpops);
+			Error(MESSAGE, NULL, messageStr);
+		}
+	}
+	old = saved;
+	for (n = 0; n < Nblocks; n++) {
+		if (blocks[n].kind != BLOCK_RHO && blocks[n].kind != BLOCK_NE) continue;
+		if (blocks[n].kind == BLOCK_NE) {
+			dpops = relChange((saved) ? old : x + blockStart[n], gx + blockStart[n],
+							  blocks[n].N);
+			sprintf(messageStr, " ne: delta = %6.4E\n", dpops);
+			Error(MESSAGE, NULL, messageStr);
+		}
+		if (saved) old += blocks[n].N;
+	}
+}
+/* ------- end ---------------------------- printRhoNe.c ------------ */
 
 /* ------- begin -------------------------- prdSubIterations.c ------ */
 
@@ -413,12 +559,14 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 
 	bool_t    accel, quiet, converged = FALSE, stopped = FALSE;
 	int       Ngorder;
-	double   *x, dpops, dpopsmax = 0.0;
+	double   *x, *saved, dpops, dpopsmax = 0.0;
 	Atom     *atom;
 	Molecule *molecule;
 
 	stateInit();
-	x = (double *) malloc(Nstate * sizeof(double));
+	x     = (double *) malloc(Nstate * sizeof(double));
+	saved = (double *) malloc(rhoNeSize() * sizeof(double) + 1);
+	resHistReset();
 
 	sprintf(messageStr,
 			"\n -- SOLVER = FIXED_POINT: x <- G(x), %ld unknowns;"
@@ -455,6 +603,7 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 		}
 		getCPU(2, TIME_START, NULL);
 
+		rhoNeSave(x, saved);
 		G_eval(x, x);
 
 		/* --- Change measure (and optional Ng) per atom, printed in
@@ -485,6 +634,8 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 					neChange, chemChange);
 			Error(MESSAGE, NULL, messageStr);
 		}
+		printRhoNe(NULL, saved, x);
+		if (niter > 1) resHistAdd(dpopsmax); /* not the jump from the start */
 		/* --- Ng changes the populations in place: take them back
 			   into x --                                     -------------- */
 
@@ -519,6 +670,10 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 		Error(WARNING, routineName, messageStr);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	}
+	/* --- With Ng the residuals are those of accelerated iterates:
+		   no estimate, as for ANDERSON and NEWTON_KRYLOV --  ------- */
+
+	if (input.Ngorder == 0) printContraction(routineName);
 	sprintf(messageStr, " -- G evaluations: %ld\n", Gcount);
 	Error(MESSAGE, routineName, messageStr);
 
@@ -538,6 +693,7 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 		NgFree(molecule->Ng_nv);
 	}
 	free(x);
+	free(saved);
 }
 /* ------- end ---------------------------- iterateFixedPoint.c ----- */
 
@@ -566,7 +722,6 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	   full x. With every block packed (ALL, and Newton-Krylov) the two
 	   tables are the same. --                         -------------- */
 
-static long                 *blockStart = NULL; /* Nblocks + 1 offsets into x */
 static int                  *packBlock  = NULL; /* block of each packed block */
 static int                  *carryBlock = NULL; /* the other blocks: carried */
 static int                   Ncarry     = 0;
@@ -718,13 +873,9 @@ static double *setupVariables(enum solver_variables     kind,
 		   1/sqrt(N)), x_0 in x, and the variables. Returns the
 		   weights, packed --                          -------------- */
 
-	blockStart    = (long *) realloc(blockStart, (Nblocks + 1) * sizeof(long));
-	blockStart[0] = 0;
-	offJ          = -1;
-	for (n = 0; n < Nblocks; n++) {
-		blockStart[n + 1] = blockStart[n] + blocks[n].N;
+	offJ = -1;
+	for (n = 0; n < Nblocks; n++)
 		if (blocks[n].kind == BLOCK_J) offJ = blockStart[n];
-	}
 	packBlock    = (int *) realloc(packBlock, Nblocks * sizeof(int));
 	carryBlock   = (int *) realloc(carryBlock, Nblocks * sizeof(int));
 	packStart    = (long *) realloc(packStart, (Nblocks + 1) * sizeof(long));
@@ -865,6 +1016,7 @@ static double printChange(const char *routineName, int niter, const double *x,
 				neChange, chemChange);
 		Error(MESSAGE, NULL, messageStr);
 	}
+	printRhoNe(x, NULL, gx);
 	return dpopsmax;
 }
 /* ------- end ---------------------------- printChange.c ----------- */

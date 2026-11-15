@@ -318,6 +318,32 @@ by 1.4 %. (Since #230 its Ng trajectory crashes at 1 thread; N-28.)
 Newton-type methods stop on the residual of the equations, which is the
 quantity that matters.
 
+What `ITER_LIMIT` guarantees (N-3). With the G solvers (ANDERSON, the
+default, NEWTON_KRYLOV, and FIXED_POINT with `NG_ORDER = 0`) the test is the
+largest over the active atoms and molecules of max |G(x) − x| / |G(x)|
+(`printChange`; `relChange` divides by the new value), the relative
+fixed-point residual of the populations, not their error. With `SOLVER = NG`,
+and with FIXED_POINT and `NG_ORDER > 0`, it is the change between Ng iterates
+(`MaxChange`). The error is about r/(1 − λ) with λ the contraction of G near
+the solution, so a residual of 10⁻³ at λ = 0.99 is an error of 10⁻¹. The PRD ρ
+blocks and ne (with `SOLVE_NE = ITERATION`) are part of the state but not of
+the test; the G solvers (not NG) print their residuals (same measure) per
+iteration (`rho ID: delta`, `ne: delta`). With `SOLVER = FIXED_POINT` and
+`NG_ORDER = 0` (the residuals follow the contraction of G) the log ends with a
+line `Estimated contraction λ per iteration (last m iterations); the error of
+the populations may be up to about r/(1 − λ)`, with λ = (r_n/r_{n−m})^{1/m}
+from the last m ≤ 10 iterations (the first, the jump from the starting
+solution, is left out), or "no estimate" (fewer than four iterations, or no
+decrease). It was within a factor 2 of the actual error in the case measured
+(`docs/changes/N-3.md`). With ANDERSON and NEWTON_KRYLOV the same estimate
+understated the error by 1.5 to 20 times, because the residual falls at the
+rate of the accelerated iteration while the error is set by the slow modes of
+G; so the residual of these solvers can understate the error by an order of
+magnitude, and no estimate is printed (nor with Ng, whose iterates are
+accelerated). A reliable one needs G's own contraction (for instance a few
+plain G steps at the end of the run); that is left open. A library caller
+needing a defined accuracy should compare with a run at a smaller `ITER_LIMIT`.
+
 ---
 
 ## 3. Target architecture
