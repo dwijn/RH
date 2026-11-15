@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <string.h>
 #include <unistd.h>
@@ -28,6 +29,7 @@
 #include "background.h"
 #include "inputs.h"
 #include "error.h"
+#include "prdh.h"
 
 #define PWRITE_SLICE 1073741824
 
@@ -609,6 +611,8 @@ size_t pwrite_rh(int fd, const void *buffer, size_t count, off_t offset)
 static __thread double *jgas_buf;
 static __thread char   *jgas_used;
 static __thread int     jgas_bufrows;
+static __thread PRDhBracket *jgas_br;  /* brackets of one ray, PRDH_LIMIT_MEM */
+static __thread int          jgas_brN;
 
 void initJgasLocks(void)
 {
@@ -629,9 +633,12 @@ void freeJgasBuffer(void)
 
 	free(jgas_buf);
 	free(jgas_used);
+	free(jgas_br);
 	jgas_buf     = NULL;
 	jgas_used    = NULL;
+	jgas_br      = NULL;
 	jgas_bufrows = 0;
+	jgas_brN     = 0;
 }
 
 void addJgas(int nspect, int k, double value)
@@ -665,25 +672,70 @@ long prdhIndex(int nspect, int mu, int to_obs, int k)
 
 /* ------- begin -------------------------- addJgasRay.c ------------ */
 
+/* --- Grid points (a range per location) and weights of one ray: from
+	   the table spectrum.nc, iprdh and cprdh, or, with PRDH_LIMIT_MEM,
+	   from prdhBracket and prdhWeight, which the table holds (P-17) -- */
+
+static inline long jgasFirst(long lamuk0, int k)
+{
+	if (input.prdh_limit_mem) return jgas_br[k].r[0];
+	return (lamuk0 + k == 0) ? 0 : spectrum.nc[lamuk0 + k - 1];
+}
+
+static inline long jgasLast(long lamuk0, int k)
+{
+	if (input.prdh_limit_mem) return jgas_br[k].r[2];
+	return spectrum.nc[lamuk0 + k];
+}
+
+static inline void jgasPoint(int k, long n, int *idx, double *w)
+{
+	/* --- n runs from jgasFirst to jgasLast: a grid index with
+		   PRDH_LIMIT_MEM, a position in the table otherwise -- ---- */
+
+	if (input.prdh_limit_mem) {
+		*idx = (int) n;
+		*w   = prdhWeight(&jgas_br[k], n);
+	} else {
+		*idx = spectrum.iprdh[n];
+		*w   = spectrum.cprdh[n];
+	}
+}
+
 void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 {
-	/* --- Add the intensity I of ray (nspect, mu, to_obs) to Jgas with
-		   the precomputed coefficients spectrum.nc, iprdh and cprdh -- */
+	/* --- Add the intensity I of ray (nspect, mu, to_obs) to Jgas.
+		   With and without PRDH_LIMIT_MEM the same points get the same
+		   weights, added in the same order --           -------------- */
 
-	int      Nspace = atmos.Nspace, k, row, imin, imax, Nrow;
-	long int lamuk0, lamuk, idx, idx0, idx1;
-	double  *buf;
+	int      Nspace = atmos.Nspace, k, row, imin, imax, Nrow, idx;
+	long int lamuk0 = 0, n, n0, n1;
+	double  *buf, w;
 
-	lamuk0 = prdhIndex(nspect, mu, to_obs, 0);
-	idx0   = (lamuk0 == 0) ? 0 : spectrum.nc[lamuk0 - 1];
-	idx1   = spectrum.nc[lamuk0 + Nspace - 1];
-	if (idx1 <= idx0) return;
+	if (input.prdh_limit_mem) {
+		if (jgas_brN < Nspace) {
+			free(jgas_br);
+			jgas_br  = (PRDhBracket *) malloc(Nspace * sizeof(PRDhBracket));
+			jgas_brN = Nspace;
+			if (jgas_br == NULL) Error(ERROR_LEVEL_2, "addJgasRay", "Out of memory");
+		}
+		for (k = 0; k < Nspace; k++)
+			prdhBracket(nspect, prdhShift(mu, to_obs, k), &jgas_br[k]);
+	} else
+		lamuk0 = prdhIndex(nspect, mu, to_obs, 0);
 
-	imin = imax = spectrum.iprdh[idx0];
-	for (idx = idx0; idx < idx1; idx++) {
-		if (spectrum.iprdh[idx] < imin) imin = spectrum.iprdh[idx];
-		if (spectrum.iprdh[idx] > imax) imax = spectrum.iprdh[idx];
+	imin = INT_MAX;
+	imax = -1;
+	for (k = 0; k < Nspace; k++) {
+		n0 = jgasFirst(lamuk0, k);
+		n1 = jgasLast(lamuk0, k);
+		for (n = n0; n < n1; n++) {
+			jgasPoint(k, n, &idx, &w);
+			if (idx < imin) imin = idx;
+			if (idx > imax) imax = idx;
+		}
 	}
+	if (imax < 0) return;
 	Nrow = imax - imin + 1;
 
 	/* --- A band wider than JGAS_MAXROWS (not seen in practice: the
@@ -692,10 +744,11 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 
 	if (Nrow > JGAS_MAXROWS) {
 		for (k = 0; k < Nspace; k++) {
-			lamuk = lamuk0 + k;
-			for (idx = (lamuk == 0) ? 0 : spectrum.nc[lamuk - 1];
-				 idx < spectrum.nc[lamuk]; idx++)
-				addJgas(spectrum.iprdh[idx], k, wmu * spectrum.cprdh[idx] * I[k]);
+			n1 = jgasLast(lamuk0, k);
+			for (n = jgasFirst(lamuk0, k); n < n1; n++) {
+				jgasPoint(k, n, &idx, &w);
+				addJgas(idx, k, wmu * w * I[k]);
+			}
 		}
 		return;
 	}
@@ -712,10 +765,10 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 	memset(jgas_used, 0, Nrow);
 
 	for (k = 0; k < Nspace; k++) {
-		lamuk = lamuk0 + k;
-		for (idx = (lamuk == 0) ? 0 : spectrum.nc[lamuk - 1];
-			 idx < spectrum.nc[lamuk]; idx++) {
-			row = spectrum.iprdh[idx] - imin;
+		n1 = jgasLast(lamuk0, k);
+		for (n = jgasFirst(lamuk0, k); n < n1; n++) {
+			jgasPoint(k, n, &idx, &w);
+			row = idx - imin;
 			if (!jgas_used[row]) {
 
 				/* --- Zero a row when the ray first reaches it -- ---- */
@@ -723,7 +776,7 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 				memset(jgas_buf + (size_t) row * Nspace, 0, Nspace * sizeof(double));
 				jgas_used[row] = 1;
 			}
-			jgas_buf[(size_t) row * Nspace + k] += wmu * spectrum.cprdh[idx] * I[k];
+			jgas_buf[(size_t) row * Nspace + k] += wmu * w * I[k];
 		}
 	}
 	for (row = 0; row < Nrow; row++) {

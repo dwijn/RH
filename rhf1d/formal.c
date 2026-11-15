@@ -68,11 +68,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	bool_t initialize, boundbound, polarized_as, polarized_c,
 		PRD_angle_dep, to_obs, solveStokes, angle_dep;
 	int      Nspace = atmos.Nspace, Nrays = atmos.Nrays, muslant;
-	long int idx;
 	double  *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
 						 dJmax = 0.0, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
-						 *J, *J20 = NULL, *lambda, sign,
-						 lambda_gas, lambda_prv, lambda_nxt, fac, dl, frac;
+						 *J, *J20 = NULL;
 	ActiveSet *as;
 
 	/* --- Retrieve active set as of transitions at wavelength nspect - */
@@ -275,75 +273,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 					if (atmos.NPRDactive > 0 &&
 						input.PRD_angle_dep == PRD_ANGLE_APPROX) {
 
-						if (input.prdh_limit_mem) {
-							sign = (to_obs) ? 1.0 : -1.0;
-
-							for (k = 0; k < Nspace; k++) {
-
-								/* --- Observer's frame wavelenght grid -- ---------- */
-
-								lambda = spectrum.lambda;
-
-								/* -- Previous, current and next wavelength shifted to
-									  gas rest frame --                -------------- */
-
-								fac        = (1.0 + spectrum.v_los[mu][k] * sign / CLIGHT);
-								lambda_prv = lambda[MAX(nspect - 1, 0)] * fac;
-								lambda_gas = lambda[nspect] * fac;
-								lambda_nxt = lambda[MIN(nspect + 1, spectrum.Nspect - 1)] * fac;
-
-								/* ---  Do lambda_prv and lambda_gas bracket
-										lambda points? --              -------------- */
-
-								if (lambda_prv != lambda_gas) {
-
-									dl = lambda_gas - lambda_prv;
-									for (idx = 0; idx < spectrum.Nspect; idx++) {
-										if (lambda[idx] > lambda_prv &&
-											lambda[idx] <= lambda_gas) {
-											frac = (lambda[idx] - lambda_prv) / dl;
-											addJgas(idx, k, frac * wmu * I[k]);
-										}
-									}
-								} else {
-
-									/* --- Edge case, use constant extrapolation for
-										   lambda[idx] < lambda gas --   -------------- */
-
-									for (idx = 0; idx < spectrum.Nspect; idx++) {
-										if (lambda[idx] < lambda_gas)
-											addJgas(idx, k, wmu * I[k]);
-									}
-								}
-
-								/* --- Do lambda_gas and lambda_nxt bracket
-									   lambda points? --               -------------- */
-
-								if (lambda_gas != lambda_nxt) {
-									dl = lambda_nxt - lambda_gas;
-
-									for (idx = 0; idx < spectrum.Nspect; idx++) {
-										if (lambda[idx] > lambda_gas &&
-											lambda[idx] < lambda_nxt) {
-											frac = (lambda[idx] - lambda_gas) / dl;
-											addJgas(idx, k, (1.0 - frac) * wmu * I[k]);
-										}
-									}
-								} else {
-
-									/* --- Edge case, use constant extrapolation for
-										   lambda[idx] > lambda gas --   -------------- */
-
-									for (idx = 0; idx < spectrum.Nspect; idx++) {
-										if (lambda[idx] > lambda_gas)
-											addJgas(idx, k, wmu * I[k]);
-									}
-								}
-							}
-						} else {
-
-							addJgasRay(nspect, mu, to_obs, wmu, I);
-						}
+						addJgasRay(nspect, mu, to_obs, wmu, I);
 					}
 
 					if (containsPRDline(as) &&

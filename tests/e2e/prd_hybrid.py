@@ -19,7 +19,21 @@ compiler fuses multiply-adds), so 2 is checked to 1e-9; the bug gave
 differences of order 1. Before the fix of B-31, with one ray, Jgas grew by
 J with every formal solution at the wavelengths without PRD line opacity
 and stayed zero at those of the PRD lines; in 2-D and 3-D it was 2 J at
-the wavelengths without PRD line opacity. Exit status 0 = pass.
+the wavelengths without PRD line opacity.
+
+Moving atmosphere (P-17): rhf1d on FAL-C with an outflow of 10 km/s above
+the lower chromosphere (tests/atmos/FALC_v10.atmos, 29 depths at rest),
+three rays, hybrid PRD with the interpolation tables and with
+PRDH_LIMIT_MEM = TRUE, which computes the same weights when needed:
+
+ 3. At the depths at rest the gas frame is the observer's frame:
+    Jgas = J at every wavelength, to 1e-12. Before P-17 the table gave
+    2 J at the last wavelength of the grid and PRDH_LIMIT_MEM gave Jgas
+    without the intensity of the first wavelength there.
+ 4. The PRDH_LIMIT_MEM run equals the table run to the bit (J, Jgas,
+    populations).
+
+Exit status 0 = pass.
 """
 import argparse
 import os
@@ -72,9 +86,10 @@ def read_doubles(path):
     return struct.unpack(f"={len(raw) // 8}d", raw)
 
 
-def run(name, prog, angles, mode):
+def run(name, prog, angles, mode, extra=()):
     """prog: (program, run dir in the source tree, atmosphere); angles:
-    keyword and value. Returns J and, for the hybrid mode, Jgas."""
+    keyword and value; extra: more keywords. Returns J and, for the
+    hybrid mode, Jgas."""
     program, rundir, atmos = prog
     d = os.path.join(work, "runs", name)
     if os.path.isdir(d):
@@ -87,7 +102,7 @@ def run(name, prog, angles, mode):
                  ("PRD_N_MAX_ITER", "2"), ("PRD_ANGLE_DEP", mode),
                  ("N_THREADS", "1"), ("PRINT_CPU", "FALSE"),
                  ("STARTING_J", "NEW_J"), ("KURUCZ_DATA", "none"),
-                 ("SOLVE_NE", "NONE")]:
+                 ("SOLVE_NE", "NONE")] + list(extra):
         kw = setkw(kw, k, v)
     open(os.path.join(d, "keyword.input"), "w").write(kw)
     open(os.path.join(d, "atoms.input"), "w").write(
@@ -134,6 +149,46 @@ for geo, prog, label, angles in cases:
         nchecks += 1
         if a.verbose or not ok:
             print(f"{'PASS' if ok else 'FAIL'}  {what}: {err:.2e} (tol {tol:g})")
+
+# --- Moving atmosphere: Jgas = J at rest, PRDH_LIMIT_MEM equals the table
+moving = os.path.join(src, "tests", "atmos", "FALC_v10.atmos")
+v = []
+for l in open(moving):
+    f = l.split()
+    if len(f) == 5 and not l.lstrip().startswith("*"):
+        v.append(float(f[3]))
+rest = [k for k, x in enumerate(v) if x == 0.0]
+Nspace = len(v)
+prog1 = (rhf1d, "rhf1d", moving)
+J_tab, Jgas_tab = run("hyb_1d_v10_table", prog1, ("NRAYS", "3"), "PRD_ANGLE_APPROX")
+J_mem, Jgas_mem = run("hyb_1d_v10_limitmem", prog1, ("NRAYS", "3"), "PRD_ANGLE_APPROX",
+                      [("PRDH_LIMIT_MEM", "TRUE")])
+d_tab = os.path.join(work, "runs", "hyb_1d_v10_table")
+d_mem = os.path.join(work, "runs", "hyb_1d_v10_limitmem")
+for label, J, Jgas in (("table", J_tab, Jgas_tab), ("PRDH_LIMIT_MEM", J_mem, Jgas_mem)):
+    Nspect = len(J) // Nspace
+    err, where = 0.0, None
+    for la in range(Nspect):
+        for k in rest:
+            i = la * Nspace + k
+            e = abs(Jgas[i] - J[i]) / max(abs(J[i]), 1e-300)
+            if e > err:
+                err, where = e, (la, k)
+    ok = len(rest) > 0 and len(J) == Nspect * Nspace and err <= TOL_JGAS
+    failed += not ok
+    nchecks += 1
+    if a.verbose or not ok:
+        print(f"{'PASS' if ok else 'FAIL'}  1d moving, {label}: Jgas vs J at the {len(rest)} "
+              f"depths at rest: {err:.2e} (tol {TOL_JGAS:g}), worst at wavelength, depth {where} "
+              f"of {Nspect}")
+same = (J_tab == J_mem and Jgas_tab == Jgas_mem and
+        open(os.path.join(d_tab, "pops.CA.out"), "rb").read() ==
+        open(os.path.join(d_mem, "pops.CA.out"), "rb").read())
+failed += not same
+nchecks += 1
+if a.verbose or not same:
+    print(f"{'PASS' if same else 'FAIL'}  1d moving: PRDH_LIMIT_MEM run equals the table run "
+          f"to the bit (J {maxrel(J_tab, J_mem):.2e}, Jgas {maxrel(Jgas_tab, Jgas_mem):.2e})")
 
 print(f"prd_hybrid: {nchecks} checks, {failed} failed")
 if not a.work:

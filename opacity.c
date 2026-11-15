@@ -41,6 +41,7 @@
 #include "atmos.h"
 #include "spectrum.h"
 #include "inputs.h"
+#include "prdh.h"
 #include "constant.h"
 
 /* --- Function prototypes --                          -------------- */
@@ -140,13 +141,13 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 	const char   routineName[] = "Opacity";
 	register int k, n, nact;
 
-	int    la, i, j, vi, vj, lamu, nt, NrecStokes, Nrecphi;
+	int    la, i, j, vi, vj, lamu, nt, NrecStokes, Nrecphi, id0, id1;
 	double gijk, twohnu3_c2, twohc, hc_4PI, hc_k, hc, fourPI,
 		*n_i, *n_j, Bijxhc_4PI = 0.0, wlambda,
 					*chi_Q = NULL, *chi_U = NULL, *chi_V = NULL,
 					*eta_Q, *eta_U, *eta_V,
 					*chip_Q = NULL, *chip_U = NULL, *chip_V = NULL,
-					lag, rho_int, *rho_tmp                  = NULL, sign;
+					rho_int, frac;
 	float *phi = NULL, *phi_Q = NULL, *phi_U = NULL, *phi_V = NULL,
 		  *psi_Q = NULL, *psi_U = NULL, *psi_V = NULL;
 	bool_t solveStokes = FALSE;
@@ -168,16 +169,6 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 
 	as = &spectrum.as[nspect];
 	nt = nspect % input.Nthreads;
-
-	/* --- Scratch for rho at one depth, only used to interpolate rho
-		   on the fly when the hybrid PRD tables are not kept
-		   (PRDH_LIMIT_MEM). Allocating it on every call regardless (about
-		   1 MB for 118k wavelengths, per wavelength, ray and direction in a
-		   moving atmosphere) cost about 10% of the formal solution in
-		   madvise and page faults --                       -------------- */
-
-	if (input.PRD_angle_dep == PRD_ANGLE_APPROX && input.prdh_limit_mem)
-		rho_tmp = (double *) calloc(spectrum.Nspect, sizeof(double));
 
 	/* --- If polarized transition is present and we solve for polarized
 		   radiation we need to fill all four Stokes components -- ---- */
@@ -310,41 +301,24 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 
 					case PRD_ANGLE_APPROX:
 
-						if (input.prdh_limit_mem) {
-							sign = (to_obs) ? 1.0 : -1.0;
+						/* --- rho interpolated to the gas-frame wavelength,
+							   with the weights of the table or, with
+							   PRDH_LIMIT_MEM, the same weights computed here
+							   (P-17) --                         -------------- */
 
-							for (k = 0; k < atmos.Nspace; k++) {
-
-								/* --- Wavelength in local rest frame frame -- ------ */
-
-								lag = line->lambda[la] *
-									  (1.0 + spectrum.v_los[mu][k] * sign / CLIGHT);
-
-								/* --- Prd factor at constant k,
-									   with wavelength contiguous in memory -- ------ */
-
-								for (lamu = 0; lamu < line->Nlambda; lamu++)
-									rho_tmp[lamu] = line->rho_prd[lamu][k];
-
-								/* --- Interpolate to account for Doppler shift -- -- */
-
-								Linear(line->Nlambda, line->lambda, &(rho_tmp[0]),
-									   1, &lag, &rho_int, TRUE);
-								atom->rhth[nt].gij[n][k] *= rho_int;
+						lamu = 2 * (atmos.Nrays * la + mu) + to_obs;
+						for (k = 0; k < atmos.Nspace; k++) {
+							if (input.prdh_limit_mem)
+								prdhRhoWeights(line, line->lambda[la] * prdhShift(mu, to_obs, k),
+											   &id0, &id1, &frac);
+							else {
+								id0  = line->id0[lamu][k];
+								id1  = line->id1[lamu][k];
+								frac = line->frac[lamu][k];
 							}
-
-						} else {
-
-							for (k = 0; k < atmos.Nspace; k++) {
-								lamu = 2 * (atmos.Nrays * la + mu) + to_obs;
-
-								rho_int = (1.0 - line->frac[lamu][k]) *
-											  line->rho_prd[line->id0[lamu][k]][k] +
-										  line->frac[lamu][k] *
-											  line->rho_prd[line->id1[lamu][k]][k];
-
-								atom->rhth[nt].gij[n][k] *= rho_int;
-							}
+							rho_int = (1.0 - frac) * line->rho_prd[id0][k] +
+									  frac * line->rho_prd[id1][k];
+							atom->rhth[nt].gij[n][k] *= rho_int;
 						}
 
 						break;
@@ -508,7 +482,6 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 		}
 	}
 
-	free(rho_tmp);
 }
 /* ------- end ---------------------------- Opacity.c --------------- */
 
