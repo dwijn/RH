@@ -1,7 +1,7 @@
 /* ------- file: -------------------------- test_prdrho.c -----------
 
 	   The check of rho of the PRD lines after a sub-iteration
-	   (PRDRhoCheck in redistribute.c, N-4): rho <= 0 or not finite
+	   (PRDRhoCheck in prdrho.c, N-4): rho <= 0 or not finite
 	   makes a negative line emissivity.
 
 	   For rho on a grid of wavelengths (and, with PRD_ANGLE_DEP, rays
@@ -68,10 +68,10 @@ static void run_stop(void)
 	PRDRhoCheck(&atom, 0);
 }
 
-/* --- Run f in a child with its output discarded; TRUE if it ended
-	   with RH's fatal exit status --                   -------------- */
+/* --- Run f in a child with its output discarded; 1 if it ended with
+	   RH's fatal exit status, 0 if not, -1 if fork or waitpid failed -- */
 
-static bool_t is_fatal(void (*f)(void))
+static int is_fatal(void (*f)(void))
 {
 	pid_t pid;
 	int   status;
@@ -85,7 +85,7 @@ static bool_t is_fatal(void (*f)(void))
 		f();
 		_exit(0);
 	}
-	if (pid < 0 || waitpid(pid, &status, 0) != pid) return FALSE;
+	if (pid < 0 || waitpid(pid, &status, 0) != pid) return -1;
 	return WIFEXITED(status) && WEXITSTATUS(status) == RH_EXIT_FATAL;
 }
 
@@ -104,7 +104,7 @@ static void check_case(const char *name, long row, int k, double value, bool_t s
 	if (second) rho[Nrow - 1][NSPACE - 1] = -1.0;
 	saved = rho[row][k];
 
-	CHECK(is_fatal(run_stop), "%s: outside a trial the run does not stop", name);
+	CHECK(is_fatal(run_stop) == 1, "%s: outside a trial the run does not stop (or fork failed)", name);
 
 	negTauReset();
 	negTauTrial(TRUE);
@@ -116,10 +116,10 @@ static void check_case(const char *name, long row, int k, double value, bool_t s
 	CHECK(strstr(msg, "atom XX") && strstr(msg, "PRD line 0") && strstr(msg, where) &&
 			  strstr(msg, "negative line emissivity"),
 		  "%s: message: %s", name, msg);
-	if (strstr(where, "location")) {
+	{
 		char loc[32];
 
-		sprintf(loc, "location %d", k);
+		sprintf(loc, "location %d ", k);
 		CHECK(strstr(msg, loc), "%s: no '%s' in: %s", name, loc, msg);
 	}
 	if (second)
@@ -139,12 +139,14 @@ static void check_all(const char *tag, bool_t angle)
 	rho                 = matrix_double(Nrow, NSPACE);
 	line.rho_prd        = rho;
 
+	CHECK(PRDRhoSize(&line) == Nrow * NSPACE, "%s: PRDRhoSize %ld, rows %ld", tag,
+		  PRDRhoSize(&line), Nrow);
 	reset_rho();
 	negTauReset();
 	negTauTrial(TRUE);
 	CHECK(PRDRhoCheck(&atom, 0) && !negTauFound(), "%s: positive rho rejected", tag);
 	negTauTrial(FALSE);
-	CHECK(!is_fatal(run_stop), "%s: positive rho stops the run", tag);
+	CHECK(is_fatal(run_stop) == 0, "%s: positive rho stops the run (or fork failed)", tag);
 
 	/* --- With angle dependence row = 2 * (NRAYS * la + mu) + to_obs -- */
 

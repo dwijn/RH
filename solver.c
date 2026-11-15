@@ -95,18 +95,6 @@ static long        Nstate  = 0;
 static long   Gcount   = 0;
 static double neChange = 0.0, chemChange = 0.0;
 
-/* ------- begin -------------------------- rhoSize.c --------------- */
-
-static long rhoSize(AtomicLine *line)
-{
-	long Nlamu = (input.PRD_angle_dep == PRD_ANGLE_DEP)
-					 ? 2L * atmos.Nrays * line->Nlambda
-					 : (long) line->Nlambda;
-
-	return Nlamu * atmos.Nspace;
-}
-/* ------- end ---------------------------- rhoSize.c --------------- */
-
 /* ------- begin -------------------------- addBlock.c -------------- */
 
 static void addBlock(const char *name, double *data, long N,
@@ -161,7 +149,7 @@ long stateInit(void)
 			line = atom->line + kr;
 			if (line->PRD) {
 				sprintf(name, "rho %s %d-%d", atom->ID, line->j, line->i);
-				addBlock(name, line->rho_prd[0], rhoSize(line), BLOCK_RHO, NULL);
+				addBlock(name, line->rho_prd[0], PRDRhoSize(line), BLOCK_RHO, NULL);
 			}
 		}
 	}
@@ -248,7 +236,7 @@ static double prdSubIterations(int Nsub)
 {
 	register int nact, kr;
 
-	bool_t      eval_operator, redistribute, bad = FALSE;
+	bool_t      eval_operator, redistribute;
 	int         nsub;
 	long        N;
 	double     *old = NULL, drho, drhomax = 0.0;
@@ -269,7 +257,7 @@ static double prdSubIterations(int Nsub)
 				line = atom->line + kr;
 				if (!line->PRD) continue;
 
-				N   = rhoSize(line);
+				N   = PRDRhoSize(line);
 				old = (double *) realloc(old, N * sizeof(double));
 				memcpy(old, line->rho_prd[0], N * sizeof(double));
 
@@ -287,10 +275,11 @@ static double prdSubIterations(int Nsub)
 				/* --- rho <= 0 or not finite: stops the run, or at a
 					   trial point invalidates it (N-4) --  -------------- */
 
-				if (!PRDRhoCheck(atom, kr)) bad = TRUE;
+				if (!PRDRhoCheck(atom, kr)) break; /* G_eval gives up (N-4) */
 			}
+			if (negTauFound()) break;
 		}
-		if (bad) break; /* G_eval gives up (N-4) */
+		if (negTauFound()) break;
 		solveSpectrum(eval_operator = FALSE, redistribute = TRUE);
 		if (negTauFound()) break; /* G_eval gives up (N-40) */
 	}
@@ -320,6 +309,25 @@ bool_t G_eval(const double *x_in, double *x_out)
 
 	stateScatter(x_in);
 
+	/* --- A trial point (an extrapolated Anderson point, a Newton
+		   probe) brings its own rho: not positive and finite is invalid,
+		   before the formal solution makes a negative emissivity of it
+		   (N-4). The guard of the Anderson trial leaves zero and the
+		   values where G's point is negative alone, and the probes of
+		   Newton have none --                           -------------- */
+
+	if (negTauInTrial() && atmos.NPRDactive > 0) {
+		for (nact = 0; nact < atmos.Nactiveatom; nact++) {
+			Atom *atom = atmos.activeatoms[nact];
+
+			for (int kr = 0; kr < atom->Nline; kr++) {
+				if (atom->line[kr].PRD && !PRDRhoCheck(atom, kr)) {
+					Gcount++;
+					return FALSE;
+				}
+			}
+		}
+	}
 	/* --- 0. With ne in the state (S-2b): everything the background
 		   derives from ne and the populations, from those of x_in:
 		   LTE populations, collision and fixed rates, chemical
@@ -369,6 +377,7 @@ bool_t G_eval(const double *x_in, double *x_out)
 
 	if (atmos.NPRDactive > 0) prdSubIterations(input.PRD_NmaxIter);
 	if (negTauFound()) {
+		stateScatter(x_in); /* rho of the sub-iterations goes too */
 		Gcount++;
 		return FALSE;
 	}

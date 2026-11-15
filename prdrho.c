@@ -19,6 +19,22 @@ extern Atmosphere atmos;
 extern InputData  input;
 extern char       messageStr[];
 
+/* ------- begin -------------------------- PRDRhoSize.c ----------- */
+
+long PRDRhoSize(const AtomicLine *line)
+{
+	/* --- The number of values of rho_prd[0][.] of a PRD line: a row
+		   per wavelength, or per wavelength, ray and direction with
+		   PRD_ANGLE_DEP, times the locations -- ---------------------- */
+
+	long Nlamu = (input.PRD_angle_dep == PRD_ANGLE_DEP)
+					 ? 2L * atmos.Nrays * line->Nlambda
+					 : (long) line->Nlambda;
+
+	return Nlamu * atmos.Nspace;
+}
+/* ------- end ---------------------------- PRDRhoSize.c ----------- */
+
 /* ------- begin -------------------------- PRDRhoCheck.c ----------- */
 
 bool_t PRDRhoCheck(const Atom *atom, int kr)
@@ -28,7 +44,7 @@ bool_t PRDRhoCheck(const Atom *atom, int kr)
 	const long        Ns            = atmos.Nspace;
 	long              n, N, Nbad = 0, nbad = -1;
 	int               la, mu, to_obs;
-	char              where[96], what[640];
+	char              where[96], what[440];
 
 	/* --- After a PRD sub-iteration (N-4): rho, the ratio of the PRD to
 		   the CRD profile, must be positive and finite in every value:
@@ -38,8 +54,7 @@ bool_t PRDRhoCheck(const Atom *atom, int kr)
 		   returned; outside a trial the run stops. Nothing is
 		   clipped --                                   -------------- */
 
-	N = (input.PRD_angle_dep == PRD_ANGLE_DEP) ? 2L * atmos.Nrays * line->Nlambda * Ns
-											   : (long) line->Nlambda * Ns;
+	N = PRDRhoSize(line);
 	for (n = 0; n < N; n++) {
 		double rho = line->rho_prd[0][n];
 
@@ -70,7 +85,7 @@ bool_t PRDRhoCheck(const Atom *atom, int kr)
 		negTauInvalid(what);
 		return FALSE;
 	}
-	sprintf(messageStr, "\n  %s", what);
+	snprintf(messageStr, MAX_MESSAGE_LENGTH, "\n  %s", what);
 	Error(ERROR_LEVEL_2, routineName, messageStr);
 	return FALSE;
 }
