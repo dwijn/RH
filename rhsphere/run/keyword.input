@@ -40,22 +40,24 @@
   N_MAX_ITER = 25
   ITER_LIMIT = 1.0E-2
 
-# ITER_LIMIT is not an error bound. With SOLVER = ANDERSON, FIXED_POINT or
-# NEWTON_KRYLOV the run stops when the largest relative residual
-# |G(x) - x| / |x| of the populations of the active atoms and molecules
-# (one application of the iteration map G) is below ITER_LIMIT; with
-# SOLVER = NG, when the largest relative change between iterates is.
-# The PRD rho and ne (SOLVE_NE = ITERATION) are reported with each
-# iteration but are not part of the test. The error of the populations is
-# about residual / (1 - c) with c the contraction of the iteration, which
-# is close to 1 when it converges slowly: at c = 0.99 a residual of 1E-3
+# ITER_LIMIT is not an error bound. With SOLVER = ANDERSON, NEWTON_KRYLOV
+# or FIXED_POINT with NG_ORDER = 0 the run stops when the largest relative
+# residual |G(x) - x| / |G(x)| of the populations of the active atoms and
+# molecules (one application of the iteration map G) is below ITER_LIMIT;
+# with SOLVER = NG, or FIXED_POINT with NG_ORDER > 0, when the largest
+# relative change between Ng iterates is. With the G solvers (not NG) the
+# PRD rho and ne (SOLVE_NE = ITERATION) are reported with each iteration
+# but are not part of the test. The error of the populations is about
+# residual / (1 - c) with c the contraction of the iteration, which is
+# close to 1 when it converges slowly: at c = 0.99 a residual of 1E-3
 # leaves an error of 1E-1. With ANDERSON and NEWTON_KRYLOV the residual
 # can understate the error by an order of magnitude (up to 20 times in
 # the case measured), since the acceleration lowers the residual faster
-# than the error. With FIXED_POINT the log ends with an estimate of c
-# from the last residuals and of the error ("Estimated contraction"); the
-# other solvers print none. For results that matter, check against a run
-# with a smaller ITER_LIMIT. See docs/SOLVER.md section 2.4.
+# than the error. With FIXED_POINT and NG_ORDER = 0 the log ends with an
+# estimate of c from the last residuals and of the error ("Estimated
+# contraction"); the other solvers print none. For results that matter,
+# check against a run with a smaller ITER_LIMIT. See docs/SOLVER.md
+# section 2.4.
 
 # Iteration scheme (KEYWORD_DEFAULT): ANDERSON, the default in 1-D and
 # spherical geometry (and in 2-D and 3-D); NG (MALI with Ng

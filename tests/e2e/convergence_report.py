@@ -9,9 +9,9 @@ solver_anderson.py:
     CA: delta = ...") and, with SOLVE_NE = ITERATION, that of ne, with
     all three G solvers.
  2. SOLVER = FIXED_POINT ends with " -- Estimated contraction ..." after
-    the convergence message, which keeps its format; with fewer than three
-    iterations the line says "no estimate". ANDERSON, NEWTON_KRYLOV and NG
-    print no such line (the estimate understates their error by up to 20
+    the convergence message, which keeps its format; with fewer than four
+    iterations the line says "no estimate". ANDERSON, NEWTON_KRYLOV, NG and
+    FIXED_POINT with NG_ORDER > 0 print no such line (the estimate understates their error by up to 20
     times, docs/changes/N-3.md).
  3. The FIXED_POINT error estimate (residual / (1 - contraction)) at
     ITER_LIMIT = 1e-4 is within a factor 3 of the actual difference to an
@@ -111,7 +111,10 @@ for name, kws in SOLVERS.items():
     d, out = run(f"lines_{name}", MAP + kws + [("SOLVE_NE", "ITERATION"),
                                                ("ITER_LIMIT", "1e-3"),
                                                ("N_MAX_ITER", "60")])
-    n_it = len(re.findall(r"\n -- Iteration +\d+\n", out))
+    # iterations that evaluated the residual: iterateAnderson prints a header
+    # for a rejected trial point without one
+    n_it = sum(1 for blk in re.split(r"\n -- Iteration +\d+\n", out)[1:]
+               if re.search(r"^ ?\S+\s*, delta = ", blk, re.M))
     n_rho = len(re.findall(r"^ rho CA: delta = [0-9.E+-]+$", out, re.M))
     n_ne = len(re.findall(r"^ ne: delta = [0-9.E+-]+$", out, re.M))
     conv = re.search(r"\n -- Converged (in \d+ iterations|at base point \d+): max change "
@@ -132,10 +135,17 @@ print(f"NG: {'no estimate line' if ok else 'ESTIMATE LINE PRESENT or no converge
 if not ok:
     failed.append("NG prints no estimate")
 
+d, out = run("fp_ng", MAP + [("SOLVER", "FIXED_POINT"), ("NG_ORDER", "2"),
+                            ("ITER_LIMIT", "1e-2"), ("N_MAX_ITER", "40")])
+ok = re.search(r" -- Converged (in|at)", out) and "Estimated contraction" not in out
+print(f"FIXED_POINT with NG_ORDER = 2: {'no estimate line' if ok else 'WRONG'}")
+if not ok:
+    failed.append("FIXED_POINT with Ng prints no estimate")
+
 d, out = run("short", MAP + [("SOLVER", "FIXED_POINT"), ("ITER_LIMIT", "1e-14"),
                              ("N_MAX_ITER", "2")])
 ok = "NOT CONVERGED after 2 iterations" in out and \
-    "Estimated contraction: no estimate (fewer than 3" in out
+    "Estimated contraction: no estimate (fewer than 4" in out
 print(f"two iterations: {'no estimate' if ok else 'WRONG'}")
 if not ok:
     failed.append("no estimate with two iterations")
