@@ -392,13 +392,18 @@ static Geometry *pos_mesh[2][NINTERP];
 
 /* --- B-54: rays whose crossings of the x and y planes come close to
 	   a cell corner. With ux = 0.6 and uy = 0.502 (and the same in the
-	   other octants, with the roles swapped) the 6th x plane (s =
-	   10 dx) and the 5th y plane (s = 9.96 dx) lie 0.04 dx apart, less
-	   than MIN_FRAC * dx = 0.1 dx, and so do the 12th and 10th and the
-	   18th and 15th: the second of each pair is discarded, and the ds
-	   of the neighbouring stencils must still reach from point to
-	   point. The other rays only pass a corner at the same s (both
-	   crossings at once) or not at all --            -------------- */
+	   other octants, with the roles swapped) the 5th y plane (s =
+	   9.96 dx) and the 6th x plane (10 dx) lie 0.040 dx apart and the
+	   10th y plane (19.92 dx) and the 12th x plane (20 dx) 0.080 dx,
+	   less than MIN_FRAC * dx = 0.1 dx: the second of each pair is
+	   discarded, and the ds of the neighbouring stencils must still
+	   reach from point to point. (The 15th y and 18th x plane, 0.12 dx
+	   apart, are both kept.) The test requires that crossings are
+	   discarded (exactly 2 per corner ray, the pairs above; others may discard
+	   coincident ones), so that a change of mesh or of MIN_FRAC cannot
+	   silently remove the coverage. The other rays only pass a corner
+	   at the same s (both crossings at once) or not at all --
+	   -------------- */
 
 static const double corner_mu[3][3] = {{0.6, 0.502, 0.6228932492811269},
 									   {-0.6, 0.502, 0.6228932492811269},
@@ -421,7 +426,10 @@ static void check_longchar_positions_rays(bool_t verbose, int set,
 	const double  dx = 1.0 / 64, dtau = 0.25;
 	enum order_3D saved = input.interpolate_3D;
 	double       *xyz[3];
+	int           Noblique = 0;
 
+	for (int mu = 0; mu < Nrays; mu++)
+		if (rays[mu][0] != 0.0 || rays[mu][1] != 0.0) Noblique++;
 	for (int c = 0; c < 3; c++) xyz[c] = malloc(Nspace * sizeof(double));
 
 	for (int i = 0; i < NINTERP; i++) {
@@ -495,6 +503,24 @@ static void check_longchar_positions_rays(bool_t verbose, int set,
 						  "%s, ray %d (%+.3f, %+.3f), %s long characteristic: ds add up to %.12g, path is %.12g",
 						  iname, mu, rays[mu][0], rays[mu][1], wname, s, dpath);
 				}
+
+				/* --- Crossings of the vertical planes before the next
+					   layer, and the number discarded: Nst counts the
+					   start on the layer and the valid crossings --  --- */
+
+				{
+					double dz    = wind ? geo->z[k] - geo->z[k + 1] : geo->z[k - 1] - geo->z[k],
+						   dpath = dz / rays[mu][2];
+					int ncross   = (int) floor(fabs(rays[mu][0]) * dpath / dx) + (int) floor(fabs(rays[mu][1]) * dpath / dx),
+						ndisc    = ncross + 1 - lc->Nst;
+
+					if (verbose)
+						printf("LONGCHAR %-7s ray %d (%+.3f %+.3f) %-8s: %d crossings, %d discarded\n",
+							   iname, mu, rays[mu][0], rays[mu][1], wname, ncross, ndisc);
+					CHECK(set ? ndisc == 2 : ndisc >= 0,
+						  "%s, ray %d (%+.3f, %+.3f), %s long characteristic: %d of %d crossings discarded",
+						  iname, mu, rays[mu][0], rays[mu][1], wname, ndisc, ncross);
+				}
 				if (verbose)
 					printf("LONGCHAR %-7s ray %d (%+.3f %+.3f) %-8s: %2d points, position error %.1e\n",
 						   iname, mu, rays[mu][0], rays[mu][1], wname, lc->Nst, err);
@@ -503,10 +529,11 @@ static void check_longchar_positions_rays(bool_t verbose, int set,
 					  iname, mu, rays[mu][0], rays[mu][1], wname, err, dx);
 			}
 
-			/* --- The four oblique rays must have been checked -- --- */
+			/* --- Every oblique ray (mux or muy not zero) must have been
+				   checked --                                  -------------- */
 
-			CHECK(Nlong == (set ? Nrays : Nrays - 1), "%s: %d of %d oblique rays have a %s long characteristic",
-				  iname, Nlong, set ? Nrays : Nrays - 1, wname);
+			CHECK(Nlong == Noblique, "%s: %d of %d oblique rays have a %s long characteristic",
+				  iname, Nlong, Noblique, wname);
 		}
 	}
 	for (int c = 0; c < 3; c++) free(xyz[c]);

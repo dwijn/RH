@@ -512,7 +512,8 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 				else {
 					/* --- The next valid intersection toward the local point:
 						   vis[n - 1] may have been discarded (B-54) --  --- */
-					for (m = n - 1; !valid[m]; m--);
+					m = n - 1;
+					while (!valid[m]) m--;
 					lc->stencil[count].ds = svalid - vis[m].s;
 					svalid                = vis[m].s;
 				}
