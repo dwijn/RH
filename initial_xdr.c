@@ -40,6 +40,7 @@
 #include "error.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "prdh.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -53,70 +54,17 @@ extern char        messageStr[];
 
 extern enum Topology topology;
 
-/* ------- begin -------------------------- prdhRanges.c ------------ */
-
-/* --- First index of the ascending array lambda[0..N-1] with
-	   lambda[idx] > x (above = TRUE) or lambda[idx] >= x (above =
-	   FALSE), N if there is none --                  -------------- */
-
-static long firstIndex(const double *lambda, long N, double x, bool_t above)
-{
-	long lo = 0, hi = N, mid;
-
-	while (lo < hi) {
-		mid = lo + (hi - lo) / 2;
-		if (above ? (lambda[mid] > x) : (lambda[mid] >= x))
-			hi = mid;
-		else
-			lo = mid + 1;
-	}
-	return lo;
-}
-
-/* --- Wavelength indices that the gas-frame wavelength lambda_gas
-	   (between its shifted neighbours lambda_prv and lambda_nxt)
-	   contributes to in the hybrid PRD interpolation of Jgas: the
-	   points of the ascending grid in (lambda_prv, lambda_gas] are
-	   r[0] <= idx < r[1], those in (lambda_gas, lambda_nxt) are
-	   r[2] <= idx < r[3]. At the ends of the grid, where the shifted
-	   neighbour equals lambda_gas, all points below (or above) are
-	   taken. The ranges are the same index sets, in the same order, as
-	   the linear scans over the whole grid that this replaces, which
-	   made the setup O(Nspect^2 Nrays Nspace): about 5 h before the
-	   first iteration for 118k wavelengths and 77 depth points --- */
-
-static void prdhRanges(const double *lambda, long N, double lambda_prv,
-					   double lambda_gas, double lambda_nxt, long r[4])
-{
-	r[0] = (lambda_prv != lambda_gas) ? firstIndex(lambda, N, lambda_prv, TRUE) : 0;
-	r[1] = firstIndex(lambda, N, lambda_gas, TRUE);
-	if (lambda_gas != lambda_nxt) {
-		r[2] = r[1];
-		r[3] = firstIndex(lambda, N, lambda_nxt, FALSE);
-	} else {
-		r[2] = firstIndex(lambda, N, lambda_gas, FALSE);
-		r[3] = N;
-	}
-	if (r[1] < r[0]) r[1] = r[0];
-	if (r[3] < r[2]) r[3] = r[2];
-}
-/* ------- end ---------------------------- prdhRanges.c ------------ */
-
 /* ------- begin -------------------------- initSolution.c ---------- */
 
 void initSolution(void)
 {
 	const char   routineName[] = "initSolution";
-	register int k, i, ij, nspect, n, kr, nact, mu;
+	register int k, i, ij, nspect, n, nact, mu;
 
-	char   permission[3];
-	bool_t openJfile;
-	int    la, j, Nsr, Nplane, index, status, oflag,
-		to_obs, sign, ncoef, ilow, Nlamu, lamu;
-	double gijk, wla, twohnu3_c2, hc_k, twoc, fourPI, *J, *J20,
-		*lambda, fac, lambda_prv, lambda_gas, lambda_nxt, dl,
-		lag;
-	long int         idx, lc, lamuk, Nlamuk, r[4];
+	char             permission[3];
+	bool_t           openJfile;
+	int              la, j, Nsr, Nplane, index, status, oflag;
+	double           gijk, wla, twohnu3_c2, hc_k, twoc, fourPI, *J, *J20;
 	Atom            *atom;
 	Molecule        *molecule;
 	ActiveSet       *as;
@@ -156,205 +104,10 @@ void initSolution(void)
 			}
 		}
 
-		/* --- Precompute prd_rho interpolation coefficients if requested */
+		/* --- Interpolation weights of rho and Jgas, unless they are
+			   computed when needed (PRDH_LIMIT_MEM) --  -------------- */
 
-		if (!input.prdh_limit_mem) {
-
-			for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-				atom = atmos.activeatoms[nact];
-
-				for (kr = 0; kr < atom->Nline; kr++) {
-					line = &atom->line[kr];
-
-					if (line->PRD) {
-						Nlamu = 2 * atmos.Nrays * line->Nlambda;
-
-						line->frac = matrix_double(Nlamu, atmos.Nspace);
-						line->id0  = matrix_int(Nlamu, atmos.Nspace);
-						line->id1  = matrix_int(Nlamu, atmos.Nspace);
-
-						for (la = 0; la < line->Nlambda; la++) {
-							for (mu = 0; mu < atmos.Nrays; mu++) {
-								for (to_obs = 0; to_obs <= 1; to_obs++) {
-									sign = (to_obs) ? 1.0 : -1.0;
-									lamu = 2 * (atmos.Nrays * la + mu) + to_obs;
-
-									for (k = 0; k < atmos.Nspace; k++) {
-
-										/* ---  Wavelength in local rest frame -- ------- */
-
-										lag = line->lambda[la] *
-											  (1.0 + spectrum.v_los[mu][k] * sign / CLIGHT);
-
-										if (lag <= line->lambda[0]) {
-
-											/* --- out of the lambda table then
-											   constant extrapolation -- ------------- */
-
-											line->frac[lamu][k] = 0.0;
-											line->id0[lamu][k]  = 0;
-											line->id1[lamu][k]  = 1;
-
-										} else if (lag >= line->lambda[line->Nlambda - 1]) {
-
-											/* --- Out of the lambda table then
-											   constant extrapolation -- ------------- */
-
-											line->frac[lamu][k] = 1.0;
-											line->id0[lamu][k]  = line->Nlambda - 2;
-											line->id1[lamu][k]  = line->Nlambda - 1;
-
-										} else {
-
-											/* --- Locate index of line->lambda of point
-											   directly to the left of lag --- ------- */
-
-											Locate(line->Nlambda, line->lambda, lag, &ilow);
-											line->frac[lamu][k] = (lag - line->lambda[ilow]) /
-																  (line->lambda[ilow + 1] - line->lambda[ilow]);
-											line->id0[lamu][k] = ilow;
-											line->id1[lamu][k] = ilow + 1;
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		/* --- Precompute Jgas interpolation coefficients if requested -- */
-
-		if (!input.prdh_limit_mem) {
-			lambda = spectrum.lambda;
-
-			/* --- keeps track of where to get indices and interpolation
-				   coefficients in spectrum.iprhh and spectrum.cprdh -- --- */
-
-			Nlamuk      = 2L * atmos.Nrays * spectrum.Nspect * atmos.Nspace;
-			spectrum.nc = (long *) malloc(Nlamuk * sizeof(long));
-			if (spectrum.nc == NULL) {
-				sprintf(messageStr,
-						"Unable to allocate the hybrid PRD interpolation table"
-						" (%ld points)",
-						Nlamuk);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
-			}
-
-			for (la = 0; la < spectrum.Nspect; la++) {
-				for (mu = 0; mu < atmos.Nrays; mu++) {
-					for (to_obs = 0; to_obs <= 1; to_obs++) {
-
-						sign = (to_obs) ? 1.0 : -1.0;
-
-						for (k = 0; k < atmos.Nspace; k++) {
-
-							lamuk = prdhIndex(la, mu, to_obs, k);
-
-							ncoef = 0;
-
-							/* --- Previous, current and next wavelength shifted to
-							   gas rest frame --                 -------------- */
-
-							fac        = (1.0 + spectrum.v_los[mu][k] * sign / CLIGHT);
-							lambda_prv = lambda[MAX(la - 1, 0)] * fac;
-							lambda_gas = lambda[la] * fac;
-							lambda_nxt = lambda[MIN(la + 1, spectrum.Nspect - 1)] * fac;
-
-							/* --- Grid points bracketed by lambda_prv and
-							   lambda_gas, and by lambda_gas and lambda_nxt -- */
-
-							prdhRanges(lambda, spectrum.Nspect, lambda_prv,
-									   lambda_gas, lambda_nxt, r);
-							ncoef = (int) ((r[1] - r[0]) + (r[3] - r[2]));
-
-							/* --- number of point this lambda contributes to is
-							   computed as a difference --       -------------- */
-
-							if (lamuk == 0) {
-								spectrum.nc[lamuk] = ncoef;
-							} else {
-								spectrum.nc[lamuk] = spectrum.nc[lamuk - 1] + ncoef;
-							}
-						}
-					}
-				}
-			}
-			/* --- Now we know the number of interpolation coefficients,
-				   it's stored in the last element of spectrum.nc,
-			   so allocate space --                      -------------- */
-
-			idx            = spectrum.nc[Nlamuk - 1];
-			spectrum.iprdh = (int *) malloc(idx * sizeof(int));
-			spectrum.cprdh = (double *) malloc(idx * sizeof(double));
-			if (idx > 0 && (spectrum.iprdh == NULL || spectrum.cprdh == NULL)) {
-				sprintf(messageStr,
-						"Unable to allocate the hybrid PRD interpolation table"
-						" (%ld points, %ld coefficients)",
-						Nlamuk, idx);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
-			}
-
-			/* --- Run through all lamuk points again, and now store indices
-				   to lambda array and the corresponding interpolation
-				   coefficients --                           -------------- */
-
-			for (la = 0; la < spectrum.Nspect; la++) {
-				for (mu = 0; mu < atmos.Nrays; mu++) {
-					for (to_obs = 0; to_obs <= 1; to_obs++) {
-
-						sign = (to_obs) ? 1.0 : -1.0;
-
-						for (k = 0; k < atmos.Nspace; k++) {
-
-							lamuk = prdhIndex(la, mu, to_obs, k);
-
-							/* --- Starting index for storage for this lamuk point- */
-
-							lc = (lamuk == 0) ? 0 : spectrum.nc[lamuk - 1];
-
-							/* --- Previous, current and next wavelength shifted
-							   to gas rest frame --              -------------- */
-
-							fac        = (1.0 + spectrum.v_los[mu][k] * sign / CLIGHT);
-							lambda_prv = lambda[MAX(la - 1, 0)] * fac;
-							lambda_gas = lambda[la] * fac;
-							lambda_nxt = lambda[MIN(la + 1, spectrum.Nspect - 1)] * fac;
-
-							prdhRanges(lambda, spectrum.Nspect, lambda_prv,
-									   lambda_gas, lambda_nxt, r);
-
-							/* --- Points bracketed by lambda_prv and lambda_gas,
-							   or below lambda_gas at the start of the grid
-							   (constant extrapolation) --       -------------- */
-
-							dl = lambda_gas - lambda_prv;
-							for (idx = r[0]; idx < r[1]; idx++) {
-								spectrum.iprdh[lc] = idx;
-								spectrum.cprdh[lc] = (lambda_prv != lambda_gas)
-														 ? (lambda[idx] - lambda_prv) / dl
-														 : 1.0;
-								lc++;
-							}
-
-							/* --- Points bracketed by lambda_gas and lambda_nxt,
-							   or above lambda_gas at the end of the grid
-							   (constant extrapolation) --       -------------- */
-
-							dl = lambda_nxt - lambda_gas;
-							for (idx = r[2]; idx < r[3]; idx++) {
-								spectrum.iprdh[lc] = idx;
-								spectrum.cprdh[lc] = (lambda_gas != lambda_nxt)
-														 ? 1.0 - (lambda[idx] - lambda_gas) / dl
-														 : 1.0;
-								lc++;
-							}
-						}
-					}
-				}
-			}
-		}
+		initPRDhTables();
 	}
 
 	/* --- Allocate space for the emergent intensity --  -------------- */
