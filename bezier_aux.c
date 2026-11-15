@@ -18,6 +18,8 @@
 
 	   --------------------------                      ----------RH-- */
 
+#include <complex.h>
+#undef I /* complex.h's imaginary unit; RH uses I for intensities */
 #include <math.h>
 #include <string.h> // memcpy, memset
 
@@ -402,7 +404,7 @@ static bool_t use_exp_step(double dtau, double K_uw[4][4], double K_loc[4][4],
 static void invert4(double A[4][4], double Ainv[4][4])
 {
 	/* --- Ainv = A^-1 by Gauss-Jordan elimination with partial
-		   pivoting; for the thick steps of exp_step_const, where A is
+		   pivoting; for the thick steps of Stokes_Exp_const_step, where A is
 		   well conditioned (its eigenvalues have real parts below -40)
 		   --                                              -------------- */
 
@@ -529,11 +531,191 @@ static void exp_phi4(double A[4][4], double E[4][4], double F[4][4][4])
 }
 /* ------- end ---------------------------- exp_phi4.c -------------- */
 
-/* ------- begin -------------------------- exp_step_const.c -------- */
+/* ------- begin -------------------------- exp_phis.c -------------- */
 
-static void exp_step_const(double dtau, double K[4][4], double S_uw[4],
-						   double S_loc[4], double dS_uw[4],
-						   double dS_loc[4], double I_uw[4], double I_loc[4])
+static void exp_phis(double complex z, double complex f[5])
+{
+	/* --- f[0] = e^z and f[k] = phi_k(z), k = 1 .. 4: the power series
+		   of phi_4 and downward phi_k = 1/k! + z phi_(k+1) where |z| < 2,
+		   else e^z and upward phi_(k+1) = (phi_k - 1/k!) / z -- ------- */
+
+	if (cabs(z) < 2.0) {
+		double complex term = 1.0 / 24.0, sum = term;
+
+		for (int n = 1; n <= 30; n++) {
+			term *= z / (n + 4);
+			sum += term;
+		}
+		f[4] = sum;
+		f[3] = 1.0 / 6.0 + z * f[4];
+		f[2] = 0.5 + z * f[3];
+		f[1] = 1.0 + z * f[2];
+		f[0] = 1.0 + z * f[1];
+	} else {
+		f[0] = cexp(z);
+		f[1] = (f[0] - 1.0) / z;
+		f[2] = (f[1] - 1.0) / z;
+		f[3] = (f[2] - 0.5) / z;
+		f[4] = (f[3] - 1.0 / 6.0) / z;
+	}
+}
+/* ------- end ---------------------------- exp_phis.c -------------- */
+
+/* ------- begin -------------------------- exp_pair.c -------------- */
+
+static void exp_pair(double z, double s, double ge[5], double go[5])
+{
+	/* --- Even and odd parts of g_k(x) = f_k(z + x) (f_0 = exp,
+		   f_k = phi_k) on the pair x = +-r, r = sqrt(s), s of either
+		   sign (r imaginary for s < 0):
+
+			 ge_k = [g_k(r) + g_k(-r)] / 2,  go_k = [g_k(r) - g_k(-r)] / (2 r),
+
+		   both entire in s. Where |r| >= 1 directly; else without the
+		   division by r: for z <= -3 from e^z cosh r and e^z sinh(r)/r
+		   upward with phi_(k+1)(w) = (phi_k(w) - 1/k!) / w, for z > -3
+		   from the power series -- ---------------------- -------------- */
+
+	static const double c[4] = {1.0, 1.0, 0.5, 1.0 / 6.0};
+	double              m    = sqrt(fabs(s));
+
+	if (m >= 1.0) {
+		if (s > 0.0) {
+			double complex fp[5], fm[5];
+
+			exp_phis(z + m, fp);
+			exp_phis(z - m, fm);
+			for (int k = 0; k < 5; k++) {
+				ge[k] = 0.5 * (creal(fp[k]) + creal(fm[k]));
+				go[k] = 0.5 * (creal(fp[k]) - creal(fm[k])) / m;
+			}
+		} else {
+			double complex fc[5];
+
+			exp_phis(z + _Complex_I * m, fc);
+			for (int k = 0; k < 5; k++) {
+				ge[k] = creal(fc[k]);
+				go[k] = cimag(fc[k]) / m;
+			}
+		}
+	} else if (z <= -3.0) {
+		double C, Sh, ez = exp(z), den = z * z - s;
+
+		if (m < 1.0e-3) {
+			C  = 1.0 + s * (0.5 + s / 24.0);
+			Sh = 1.0 + s * (1.0 / 6.0 + s / 120.0);
+		} else if (s > 0.0) {
+			C  = cosh(m);
+			Sh = sinh(m) / m;
+		} else {
+			C  = cos(m);
+			Sh = sin(m) / m;
+		}
+		ge[0] = ez * C;
+		go[0] = ez * Sh;
+		for (int k = 0; k < 4; k++) {
+			ge[k + 1] = (z * (ge[k] - c[k]) - s * go[k]) / den;
+			go[k + 1] = (z * go[k] - (ge[k] - c[k])) / den;
+		}
+	} else {
+		/* --- g_k(x) = sum_n (z + x)^n / (n + k)!, with
+			   E_n = [(z + r)^n + (z - r)^n] / 2 and
+			   O_n = [(z + r)^n - (z - r)^n] / (2 r) --       ---------- */
+
+		double E = 1.0, O = 0.0, ifact = 1.0, ifk[5];
+
+		for (int k = 0; k < 5; k++) ge[k] = go[k] = 0.0;
+		for (int n = 0; n < 34; n++) {
+			if (n > 0) ifact /= n;
+			ifk[0] = ifact;
+			for (int k = 1; k < 5; k++) ifk[k] = ifk[k - 1] / (n + k);
+			for (int k = 0; k < 5; k++) {
+				ge[k] += E * ifk[k];
+				go[k] += O * ifk[k];
+			}
+			double En = z * E + s * O;
+
+			O = z * O + E;
+			E = En;
+		}
+	}
+}
+/* ------- end ---------------------------- exp_pair.c -------------- */
+
+/* ------- begin -------------------------- exp_step_spectral.c ----- */
+
+static bool_t exp_step_spectral(double dtau, double K[4][4], double v[5][4],
+								double I_loc[4])
+{
+	/* --- The sum of f_k(A) v_k, k = 0 .. 4 (f_0 = exp, f_k = phi_k),
+		   A = -dtau (1 + K'), in closed form. K' = [[0, eta], [eta, R]]
+		   with R antisymmetric (rho) generates a Lorentz transformation:
+		   B = -dtau K' has eigenvalues +-a and +-i b, a^2 and -b^2 the
+		   roots of s^2 - p s - q^2, p = dtau^2 (eta^2 - rho^2),
+		   q = dtau^2 eta.rho, and B satisfies (B^2 - a^2)(B^2 + b^2) = 0.
+		   With g_k(x) = f_k(-dtau + x) and its even and odd parts on the
+		   two pairs (exp_pair), interpolation on the spectrum gives
+
+			 f_k(A) = al0 + be0 B + al1 B^2 + be1 B^3.
+
+		   Returns FALSE (and the caller uses exp_phi4) where K' is not
+		   of that form or close to degenerate (|eta| = |rho|,
+		   eta _|_ rho), where a^2 + b^2 is small against |B|^2 --- -- */
+
+	double e2 = SQ(K[0][1]) + SQ(K[0][2]) + SQ(K[0][3]);
+	double r2 = SQ(K[2][3]) + SQ(K[1][3]) + SQ(K[1][2]);
+	double er = K[0][1] * K[2][3] - K[0][2] * K[1][3] + K[0][3] * K[1][2];
+
+	for (int i = 0; i < 4; i++) {
+		if (K[i][i] != 0.0) return FALSE;
+		for (int j = i + 1; j < 4; j++)
+			if (K[j][i] != ((i == 0) ? K[i][j] : -K[i][j])) return FALSE;
+	}
+
+	double p = e2 - r2, q2 = er * er, R = sqrt(0.25 * p * p + q2), A2, B2;
+
+	if (p >= 0.0) {
+		A2 = 0.5 * p + R;
+		B2 = (A2 > 0.0) ? q2 / A2 : 0.0;
+	} else {
+		B2 = -0.5 * p + R;
+		A2 = q2 / B2;
+	}
+	double a2 = dtau * dtau * A2, b2 = dtau * dtau * B2, D = a2 + b2;
+
+	if (!(D >= 0.01 * dtau * dtau * (e2 + r2)) || D == 0.0) return FALSE;
+
+	double gea[5], goa[5], geb[5], gob[5], B[4][4], w1[4], w2[4], w3[4];
+
+	exp_pair(-dtau, a2, gea, goa);
+	exp_pair(-dtau, -b2, geb, gob);
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++) B[i][j] = -dtau * K[i][j];
+	for (int i = 0; i < 4; i++) I_loc[i] = 0.0;
+	for (int k = 0; k < 5; k++) {
+		double al1 = (gea[k] - geb[k]) / D, al0 = (gea[k] * b2 + geb[k] * a2) / D;
+		double be1 = (goa[k] - gob[k]) / D, be0 = (goa[k] * b2 + gob[k] * a2) / D;
+
+		for (int i = 0; i < 4; i++) {
+			w1[i] = B[i][0] * v[k][0] + B[i][1] * v[k][1] + B[i][2] * v[k][2] + B[i][3] * v[k][3];
+		}
+		for (int i = 0; i < 4; i++) {
+			w2[i] = B[i][0] * w1[0] + B[i][1] * w1[1] + B[i][2] * w1[2] + B[i][3] * w1[3];
+		}
+		for (int i = 0; i < 4; i++) {
+			w3[i] = B[i][0] * w2[0] + B[i][1] * w2[1] + B[i][2] * w2[2] + B[i][3] * w2[3];
+		}
+		for (int i = 0; i < 4; i++) I_loc[i] += al0 * v[k][i] + be0 * w1[i] + al1 * w2[i] + be1 * w3[i];
+	}
+	return TRUE;
+}
+/* ------- end ---------------------------- exp_step_spectral.c ----- */
+
+/* ------- begin -------------------------- Stokes_Exp_const_step.c - */
+
+void Stokes_Exp_const_step(double dtau, double K[4][4], double S_uw[4],
+						   double S_loc[4], double dS_uw[4], double dS_loc[4],
+						   double I_uw[4], double I_loc[4], bool_t closed_form)
 {
 	/* --- dI/dtau = S - K I, K = 1 + K', over dtau with constant K'
 		   and S the cubic Hermite polynomial through S_uw, S_loc with
@@ -584,8 +766,27 @@ static void exp_step_const(double dtau, double K[4][4], double S_uw[4],
 					F[k - 1][i][j] = sum;
 				}
 		memset(E, 0, sizeof(E));
-	} else
+	} else {
+		/* --- The closed form where it applies (see above), with the
+			   Hermite coefficients times dtau as the vectors --  ------- */
+
+		double v[5][4], I_spec[4];
+
+		for (int n = 0; n < 4; n++) {
+			double m0 = dtau * dS_uw[n], m1 = dtau * dS_loc[n];
+
+			v[0][n] = I_uw[n];
+			v[1][n] = dtau * S_uw[n];
+			v[2][n] = dtau * m0;
+			v[3][n] = dtau * 2.0 * (3.0 * (S_loc[n] - S_uw[n]) - 2.0 * m0 - m1);
+			v[4][n] = dtau * 6.0 * (2.0 * (S_uw[n] - S_loc[n]) + m0 + m1);
+		}
+		if (closed_form && exp_step_spectral(dtau, K, v, I_spec)) {
+			memcpy(I_loc, I_spec, sizeof(I_spec));
+			return;
+		}
 		exp_phi4(A, E, F);
+	}
 
 	/* --- Monomial coefficients of the Hermite cubic, already times
 		   m! (0!, 1!, 2!, 3!) --                         -------------- */
@@ -605,7 +806,7 @@ static void exp_step_const(double dtau, double K[4][4], double S_uw[4],
 		}
 	}
 }
-/* ------- end ---------------------------- exp_step_const.c -------- */
+/* ------- end ---------------------------- Stokes_Exp_const_step.c - */
 
 /* ------- begin -------------------------- Stokes_Exp_step.c ------- */
 
@@ -616,7 +817,7 @@ void Stokes_Exp_step(double dtau, double K_uw[4][4], double K_loc[4][4],
 	/* --- One step of the polarized transfer equation dI/dtau = S - K I,
 		   K = 1 + K', from the upwind to the local point over dtau, for
 		   the DELO steps' fallback (B-55): two exact half steps
-		   (exp_step_const), K' = K'_uw on the first and K'_loc on the
+		   (Stokes_Exp_const_step), K' = K'_uw on the first and K'_loc on the
 		   second, with S the cubic Hermite polynomial through S_uw,
 		   S_loc and the derivatives dS_uw, dS_loc, split at the
 		   midpoint (exactly). The propagators never increase the norm
@@ -643,20 +844,20 @@ void Stokes_Exp_step(double dtau, double K_uw[4][4], double K_loc[4][4],
 		   same thing --                                   -------------- */
 
 	if (!memcmp(K_uw, K_loc, 16 * sizeof(double))) {
-		exp_step_const(dtau, K_uw, S_uw, S_loc, dS_uw, dS_loc, I_uw, I_loc);
+		Stokes_Exp_const_step(dtau, K_uw, S_uw, S_loc, dS_uw, dS_loc, I_uw, I_loc, TRUE);
 		return;
 	}
 
 	/* --- Where the second half is thick (its e^A is dropped, the
-		   condition of exp_step_const), I_mid does not matter --  ---- */
+		   condition of Stokes_Exp_const_step), I_mid does not matter --  ---- */
 
 	double eta2 = SQ(K_loc[0][1]) + SQ(K_loc[0][2]) + SQ(K_loc[0][3]);
 
 	if (eta2 < 1.0 && h * (1.0 - sqrt(eta2)) > 40.0)
 		memset(I_mid, 0, sizeof(I_mid));
 	else
-		exp_step_const(h, K_uw, S_uw, S_mid, dS_uw, dS_mid, I_uw, I_mid);
-	exp_step_const(h, K_loc, S_mid, S_loc, dS_mid, dS_loc, I_mid, I_loc);
+		Stokes_Exp_const_step(h, K_uw, S_uw, S_mid, dS_uw, dS_mid, I_uw, I_mid, TRUE);
+	Stokes_Exp_const_step(h, K_loc, S_mid, S_loc, dS_mid, dS_loc, I_mid, I_loc, TRUE);
 }
 /* ------- end ---------------------------- Stokes_Exp_step.c ------- */
 

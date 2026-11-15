@@ -315,11 +315,97 @@ static void check_no_amplification(bool_t verbose)
 	}
 }
 
+/* --- The closed form of the constant-K' step against the Taylor
+	   series and doublings (Stokes_Exp_const_step with closed_form
+	   FALSE). B = -dtau K' has eigenvalues +-a, +-i b; with eta
+	   parallel to rho, a = dtau |eta| and b = dtau |rho|. On a grid
+	   of a from 1e-6 to 1e2 and b from 1e-6 to 1e4, and for random
+	   directions, the two agree to rounding of the phase b (bound
+	   1e-13 max(10, b), measured 5e-15 max(10, b); against long
+	   double both errors are below 1e-13 up to b ~ 10 and grow as
+	   b eps). Most grid points must differ at rounding level, which
+	   shows that the closed form is taken at all. A degenerate
+	   K' (|eta| = |rho|, eta _|_ rho) must take the Taylor path:
+	   identical results --                             -------------- */
+
+static double const_step_diff(double dtau, double K[4][4])
+{
+	double S0[4], S1[4], d0[4], d1[4], I0[4], Ic[4], It[4], scale = 0.0, err = 0.0;
+
+	for (int i = 0; i < 4; i++) {
+		double w = (i == 0) ? 1.0 : 0.3, o = (i == 0) ? 1.5 : 0.0;
+
+		S0[i] = o + w * (2.0 * urand() - 1.0);
+		S1[i] = o + w * (2.0 * urand() - 1.0);
+		d0[i] = w * (2.0 * urand() - 1.0);
+		d1[i] = w * (2.0 * urand() - 1.0);
+		I0[i] = o + w * (2.0 * urand() - 1.0);
+	}
+	Stokes_Exp_const_step(dtau, K, S0, S1, d0, d1, I0, Ic, TRUE);
+	Stokes_Exp_const_step(dtau, K, S0, S1, d0, d1, I0, It, FALSE);
+	for (int i = 0; i < 4; i++) {
+		scale = fmax(scale, fmax(fabs(It[i]), fmax(fabs(I0[i]), fabs(S1[i]))));
+		err   = fmax(err, fabs(Ic[i] - It[i]));
+	}
+	return err / scale;
+}
+
+static void check_closed_form(bool_t verbose)
+{
+	double worst_grid = 0.0, worst_rand = 0.0, degen = 0.0;
+	int    ndiff = 0, ngrid = 0;
+
+	for (int la = -6; la <= 2; la++)
+		for (int lb = -6; lb <= 4; lb++) {
+			double a = pow(10.0, la), b = pow(10.0, lb), dtau = fmax(1.0, a / 0.9);
+			double th = acos(2.0 * urand() - 1.0), ph = 2.0 * M_PI * urand(), u[3], K[4][4];
+
+			u[0]           = sin(th) * cos(ph);
+			u[1]           = sin(th) * sin(ph);
+			u[2]           = cos(th);
+			double e[3]    = {u[0] * a / dtau, u[1] * a / dtau, u[2] * a / dtau};
+			double q[3]    = {u[0] * b / dtau, u[1] * b / dtau, u[2] * b / dtau};
+			double k[4][4] = {{0.0, e[0], e[1], e[2]},
+							  {e[0], 0.0, q[2], -q[1]},
+							  {e[1], -q[2], 0.0, q[0]},
+							  {e[2], q[1], -q[0], 0.0}};
+
+			memcpy(K, k, sizeof(k));
+			double d   = const_step_diff(dtau, K) / (1.0e-13 * fmax(10.0, b));
+			worst_grid = fmax(worst_grid, d);
+			ngrid++;
+			if (d > 0.0) ndiff++;
+			if (verbose && d > 0.1) printf("  a %g b %g: %.3g of the bound\n", a, b, d);
+		}
+	for (int n = 0; n < 20000; n++) {
+		double K[4][4], rho = pow(10.0, -3.0 + 6.0 * urand()), dtau = pow(10.0, -3.0 + 5.0 * urand());
+
+		random_K(K, 0.95 * urand(), rho);
+		worst_rand = fmax(worst_rand, const_step_diff(dtau, K) / (1.0e-13 * fmax(10.0, 2.0 * rho * dtau)));
+	}
+	for (int n = 0; n < 1000; n++) {
+		double m = urand(), dtau = pow(10.0, -2.0 + 3.0 * urand());
+		double K[4][4] = {{0.0, m, 0.0, 0.0}, {m, 0.0, 0.0, -m}, {0.0, 0.0, 0.0, 0.0}, {0.0, m, 0.0, 0.0}};
+
+		/* eta = (m, 0, 0), rho = (0, m, 0) in the convention of random_K */
+		degen = fmax(degen, const_step_diff(dtau, K));
+	}
+	if (verbose)
+		printf("closed form vs Taylor: grid %.3g, random %.3g of the bound; degenerate %.3g;"
+			   " %d of %d grid points differ\n",
+			   worst_grid, worst_rand, degen, ndiff, ngrid);
+	CHECK(worst_grid <= 1.0, "closed form, (a, b) grid: %.3g of the bound", worst_grid);
+	CHECK(worst_rand <= 1.0, "closed form, random K': %.3g of the bound", worst_rand);
+	CHECK(ndiff >= 0.9 * ngrid, "closed form taken at %d of %d grid points", ndiff, ngrid);
+	CHECK(degen == 0.0, "closed form, degenerate K': differs from Taylor by %.3g", degen);
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && !strcmp(argv[1], "-v"));
 
 	check_closed_forms(verbose);
+	check_closed_form(verbose);
 	check_cubic_exact(verbose);
 	check_thick_limit(verbose);
 	check_thickness_range(verbose);
