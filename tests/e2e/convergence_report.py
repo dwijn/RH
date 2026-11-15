@@ -27,9 +27,8 @@ import re
 import shutil
 import subprocess
 import sys
+import struct
 import tempfile
-
-import numpy as np
 
 p = argparse.ArgumentParser()
 p.add_argument("--rhf1d", required=True)
@@ -44,8 +43,19 @@ for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels dow
     link = os.path.join(work, d)
     if not os.path.lexists(link):
         os.symlink(os.path.join(src, d), link)
-sys.path.insert(0, os.path.join(src, "tests"))
-from analyze_run import read_pops  # noqa: E402
+
+
+def read_pops(path):
+    """NLTE populations of a pops.*.out file as a flat list (the layout
+    analyze_run.read_pops detects; struct only, as the CI build jobs have
+    no numpy)."""
+    b = open(path, "rb").read()
+    for off in range(4, min(len(b) - 8, 512), 4):
+        nl, ns = struct.unpack(">2i", b[off:off + 8])
+        if 0 < nl < 100000 and 0 < ns and off + 8 + 16 * nl * ns == len(b):
+            return struct.unpack(f">{nl * ns}d", b[off + 8:off + 8 + 8 * nl * ns])
+    raise ValueError(f"cannot parse {path}")
+
 
 MAP = [("NG_ORDER", "0"), ("NG_DELAY", None), ("NG_PERIOD", None),
        ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0")]
@@ -155,8 +165,7 @@ if not ok:
 def err(d1, d2):
     n1, n2 = read_pops(os.path.join(d1, "pops.CA.out")), \
         read_pops(os.path.join(d2, "pops.CA.out"))
-    nz = n2 != 0
-    return float(np.max(np.abs((n1 - n2)[nz] / n2[nz])))
+    return max(abs((x - y) / y) for x, y in zip(n1, n2) if y != 0)
 
 
 ref, out_ref = run("ref_ANDERSON_1e-7", MAP + SOLVERS["ANDERSON"] +
