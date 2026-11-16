@@ -72,11 +72,11 @@ int main(int argc, char *argv[])
 	readAtomicModels();
 	readMolecularModels();
 	SortLambda();
-	checkEddington();
 
 	getBoundary(&atmos, &geometry);
 
 	Background(analyze_output = TRUE, equilibria_only = FALSE);
+	checkEddington();
 
 	getProfiles();
 	initSolution();

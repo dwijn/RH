@@ -327,8 +327,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 				addtoGamma(nspect, geometry.wmu[0], I, Psi);
 			}
 			if (spectrum.updateJ) {
-				for (k = 0; k < Nspace; k++)
-					spectrum.J[nspect][k] += I[k] * geometry.wmu[0];
+				for (k = 0; k < Nspace; k++) J[k] += I[k] * geometry.wmu[0];
 				addtoRates(nspect, 0, 0, geometry.wmu[0], I, redistribute);
 			}
 		} else {

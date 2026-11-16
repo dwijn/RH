@@ -50,6 +50,7 @@
 #include "atom.h"
 #include "atmos.h"
 #include "geometry.h"
+#include "spectrum.h"
 #include "inputs.h"
 #include "statistics.h"
 #include "error.h"
@@ -71,6 +72,7 @@ void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
 
 extern char       messageStr[];
 extern Atmosphere atmos;
+extern Spectrum   spectrum;
 extern InputData  input;
 
 /* ------- begin -------------------------- checkEddington.c -------- */
@@ -79,19 +81,46 @@ void checkEddington(void)
 {
 	const char routineName[] = "checkEddington";
 
-	register int nact;
+	register int nact, nspect;
 	bool_t       lines = FALSE;
 
 	/* --- ANGLE_SET = SET_EDDINGTON solves the columns one by one
-		   (Feautrier_2D) with one angle-independent ray. What needs the
-		   rays of the short-characteristics solver (no stencils are
-		   made) cannot be done. The keyword-level conflicts (polarization,
-		   background polarization) are stopped by readInput; this is the
-		   rest, which needs the atoms and the atmosphere. Formal() stops
-		   at any wavelength that still turns out to be angle-dependent
-		   (e.g. polarized or moving background lines) -- ----------- */
+		   (Feautrier_2D) with one angle-independent ray, and makes no
+		   stencils. Whatever makes Formal() take its angle-dependent
+		   branch (short characteristics) cannot be done. Called once by
+		   rhsc2d and rhsc2d_gcheck after Background(), when atoms,
+		   atmosphere and background flags are all known; Formal() stops
+		   at any wavelength missed here -- ------------------------- */
 
 	if (atmos.angleSet.set != SET_EDDINGTON) return;
+
+	/* --- Polarization: background polarization, a magnetic field (it
+		   makes the active lines polarizable whatever STOKES_MODE is, and
+		   adjustStokesMode() turns FIELD_FREE into FULL_STOKES for the
+		   final solution), polarized background lines -- ------------- */
+
+	if (input.backgr_pol) {
+		Error(ERROR_LEVEL_2, routineName,
+			  "ANGLE_SET = SET_EDDINGTON cannot treat background"
+			  " polarization:\n set BACKGROUND_POLARIZATION = FALSE");
+	}
+	if (atmos.Stokes) {
+		Error(ERROR_LEVEL_2, routineName,
+			  "ANGLE_SET = SET_EDDINGTON cannot treat a magnetic field"
+			  " (the Zeeman opacity is angle-dependent):\n set"
+			  " STOKES_INPUT = none");
+	}
+	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+		if (atmos.backgrflags[nspect].ispolarized) {
+			sprintf(messageStr,
+					"ANGLE_SET = SET_EDDINGTON cannot treat polarized"
+					" background lines (wavelength index %d, %.4f nm)",
+					nspect, spectrum.lambda[nspect]);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
+	}
+
+	/* --- Angle-dependent PRD --                        -------------- */
 
 	if (atmos.NPRDactive > 0 && (input.PRD_angle_dep == PRD_ANGLE_DEP ||
 								 input.PRD_angle_dep == PRD_ANGLE_APPROX)) {
@@ -100,14 +129,29 @@ void checkEddington(void)
 			  " (PRD_ANGLE_DEP = PRD_ANGLE_DEP or PRD_ANGLE_APPROX with a PRD"
 			  " line):\n set PRD_ANGLE_DEP = PRD_ANGLE_AVER or FALSE");
 	}
-	for (nact = 0; nact < atmos.Nactiveatom; nact++)
-		if (atmos.activeatoms[nact]->Nline > 0) lines = TRUE;
-	if (atmos.moving && (lines || atmos.Nactivemol > 0)) {
-		Error(ERROR_LEVEL_2, routineName,
-			  "ANGLE_SET = SET_EDDINGTON cannot treat a moving atmosphere"
-			  " with active lines (the line opacity depends on the"
-			  " direction):\n use a SET_VERTICAL or other angle set, or an"
-			  " atmosphere at rest");
+
+	/* --- Moving atmosphere with lines (active or background) -- ---- */
+
+	if (atmos.moving) {
+		for (nact = 0; nact < atmos.Nactiveatom; nact++)
+			if (atmos.activeatoms[nact]->Nline > 0) lines = TRUE;
+		if (lines || atmos.Nactivemol > 0) {
+			Error(ERROR_LEVEL_2, routineName,
+				  "ANGLE_SET = SET_EDDINGTON cannot treat a moving atmosphere"
+				  " with active lines (the line opacity depends on the"
+				  " direction):\n use another angle set, or an atmosphere"
+				  " at rest");
+		}
+		for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+			if (atmos.backgrflags[nspect].hasline) {
+				sprintf(messageStr,
+						"ANGLE_SET = SET_EDDINGTON cannot treat a moving"
+						" atmosphere with background lines (wavelength index"
+						" %d, %.4f nm)",
+						nspect, spectrum.lambda[nspect]);
+				Error(ERROR_LEVEL_2, routineName, messageStr);
+			}
+		}
 	}
 }
 /* ------- end ---------------------------- checkEddington.c -------- */

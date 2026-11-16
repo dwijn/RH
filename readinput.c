@@ -37,6 +37,27 @@ static bool_t keywordSet(const Keyword *theKeywords, int Nkeyword,
 						 const char *name);
 static void   setKeywordValue(Keyword *theKeywords, int Nkeyword,
 							  const char *name, const char *value);
+static void   setEddingtonNrays(const char *geometryName);
+
+/* ------- begin -------------------------- setEddingtonNrays.c ------ */
+
+/* --- SET_EDDINGTON is one ray at muz = 1/sqrt(3): NRAYS is set to 1, with
+	   a warning when the input gave another value (1-D and 2-D) -- --- */
+
+static void setEddingtonNrays(const char *geometryName)
+{
+	const char routineName[] = "readInput";
+
+	if (atmos.Nrays != 0 && atmos.Nrays != 1) {
+		sprintf(messageStr,
+				"Ignoring value of NRAYS in %s geometry when SET_EDDINGTON is"
+				" specified.\n Setting NRAYS = 1 and muz = 1/sqrt(3)",
+				geometryName);
+		Error(WARNING, routineName, messageStr);
+	}
+	atmos.Nrays = 1;
+}
+/* ------- end ---------------------------- setEddingtonNrays.c ------ */
 
 /* ------- begin -------------------------- readInput.c ------------- */
 
@@ -281,14 +302,7 @@ void readInput()
 				break;
 
 			case SET_EDDINGTON:
-
-				if (atmos.Nrays != 1) {
-					Error(WARNING, routineName,
-						  "Ignoring value of NRAYS in 1-D plane geometry when"
-						  " SET_EDDINGTON is specified\n. Setting NRAYS = 1,"
-						  " and muz = 1/sqrt(3)");
-				}
-				atmos.Nrays = 1;
+				setEddingtonNrays("1-D plane");
 				break;
 
 			default:
@@ -312,34 +326,12 @@ void readInput()
 		if (atmos.angleSet.set == SET_EDDINGTON) {
 
 			/* --- Each column is solved on its own (Feautrier_2D) with one
-				   ray at muz = 1/sqrt(3), angle-independent: what needs
-				   angle-dependent opacity has no solver (B-57). The
-				   atoms and the atmosphere, which tell about PRD lines and
-				   velocities, are checked by checkEddington() -- ----- */
+				   ray at muz = 1/sqrt(3). What needs angle-dependent opacity
+				   has no solver there (B-57); checkEddington() refuses it
+				   once the atoms, the atmosphere and the background are
+				   known --                                  ---------- */
 
-			if (atmos.Nrays > 1) {
-				Error(WARNING, routineName,
-					  "Ignoring value of NRAYS in 2-D plane geometry when"
-					  " SET_EDDINGTON is specified\n. Setting NRAYS = 1,"
-					  " and muz = 1/sqrt(3)");
-			}
-			atmos.Nrays = 1;
-			if (input.backgr_pol) {
-				Error(ERROR_LEVEL_2, routineName,
-					  "ANGLE_SET = SET_EDDINGTON cannot treat background"
-					  " polarization:\n set BACKGROUND_POLARIZATION = FALSE");
-			}
-			if (strcmp(input.Stokes_input, "none")) {
-
-				/* --- Any field makes the lines polarizable (whatever
-					   STOKES_MODE, and adjustStokesMode() turns FIELD_FREE
-					   into FULL_STOKES for the final solution) -- ------ */
-
-				Error(ERROR_LEVEL_2, routineName,
-					  "ANGLE_SET = SET_EDDINGTON cannot treat a magnetic"
-					  " field (the Zeeman opacity is angle-dependent):\n set"
-					  " STOKES_INPUT = none");
-			}
+			setEddingtonNrays("2-D plane");
 		}
 		break;
 

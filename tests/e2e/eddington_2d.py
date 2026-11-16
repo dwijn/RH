@@ -10,7 +10,7 @@ mu = 1/sqrt(3), weight 1, no horizontal transfer, no stencils. Ca II (with
 PRD) on FAL-C, three columns:
 
  1. The run converges, and every column of a horizontally uniform atmosphere
-    gives the same J and emergent I to 1e-12.
+    gives the same J and emergent I, exactly.
  2. It agrees with rhf1d, ANGLE_SET = SET_EDDINGTON, on the same atmosphere
     (one ray at mu = 1/sqrt(3) as well) to the difference of the two formal
     solvers (Feautrier against DELO-Bezier on 82 depths, not round-off).
@@ -25,17 +25,23 @@ PRD) on FAL-C, three columns:
     factor of 1.5 to 3 headroom.
  3. Column independence: in a run with different columns (ne scaled
     by 1, 1.3, 0.7), each column equals the run with that column's atmosphere
-    in every column, to 1e-12 (10 iterations of SOLVER = NG without acceleration, which
+    in every column, exactly (10 iterations of SOLVER = NG without acceleration, which
     couples the points, as does the default SOLVER = ANDERSON).
  4. solveray of a Eddington run uses the short characteristics of its own
     ray (finite I, the same in every column).
 
+    LIMIT_MEMORY = TRUE (J in a buffer, not in spectrum.J) gives the same
+    J.dat and spectrum.out as FALSE, to the bit (it crashed when the Eddington
+    branch wrote spectrum.J directly).
+ 4b. solveray is not refused when a magnetic field and SET_EDDINGTON are in its
+    keyword.input: it solves a polarized ray with short characteristics.
+
 Not available with SET_EDDINGTON (needs angle-dependent opacity, for which
 there is no solver), each stops with a message and status 70:
- 5. at readInput: BACKGROUND_POLARIZATION, a magnetic field, 3-D geometry;
-    after reading the atoms and the atmosphere: PRD_ANGLE_DEP and
-    PRD_ANGLE_APPROX with a PRD line, a moving atmosphere with active lines;
-    in the formal solution: a moving atmosphere with background lines.
+ 5. at readInput: 3-D geometry; in checkEddington() (rhsc2d, gcheck, after
+    Background()): BACKGROUND_POLARIZATION, a magnetic field, PRD_ANGLE_DEP
+    and PRD_ANGLE_APPROX with a PRD line, a moving atmosphere with active
+    lines or with background lines; Formal() is the backstop.
     chartflow stops too. Before B-57 all of these gave "Did not recognize
     angleset" (or nothing: input.Eddington was never set).
 
@@ -224,7 +230,7 @@ spreadI = max((max(row) - min(row)) / max(abs(x) for x in row) for row in I2)
 spreadJ = max(maxrel(J2[la * Nz * Nx:(la + 1) * Nz * Nx:Nx],
                      J2[la * Nz * Nx + c:(la + 1) * Nz * Nx:Nx])
               for la in range(ns) for c in range(1, Nx))
-check(spreadI <= 1e-12 and spreadJ <= 1e-12,
+check(spreadI == 0 and spreadJ == 0,
       "uniform atmosphere: every column gives the same I and J",
       f"(I {spreadI:.1e}, J {spreadJ:.1e})")
 
@@ -279,11 +285,52 @@ for c in range(Nx):
                     maxrel(Jv[la * Nz * Nx + c:(la + 1) * Nz * Nx:Nx],
                            Ju[la * Nz * Nx + c:(la + 1) * Nz * Nx:Nx]),
                     abs(Iv[la][c] - Iu[la][c]) / abs(Iu[la][c]))
-check(worst <= 1e-12, "columns are independent: varied atmosphere against "
+check(worst == 0, "columns are independent: varied atmosphere against "
       "the uniform atmosphere of each column", f"(worst relative difference {worst:.1e})")
 
 # ===================================================================
 # 4: solveray after an Eddington run
+
+# --- LIMIT_MEMORY = TRUE gives the same J and I (CRD Ca II: PRD cannot
+#     limit memory)
+CAII_CRD = CAII.replace("CaII.atom", "CaII_CRD.atom")
+LM = [("ANGLE_SET", "SET_EDDINGTON"), ("SOLVER", "NG"), ("N_MAX_ITER", "3"),
+      ("NG_ORDER", "0"), ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0"),
+      ("ATMOS_FILE", "../../Atmos/FALC_03x82.atmos")]
+rcm, outm, dm = must_run("lm_false", a.rhsc2d, "rhsc2d", LM + [("LIMIT_MEMORY", "FALSE")],
+                         atoms=CAII_CRD)
+rct, outt, dt = run("lm_true", a.rhsc2d, "rhsc2d", LM + [("LIMIT_MEMORY", "TRUE")],
+                    atoms=CAII_CRD)
+same = rct in (0, 1) and all(
+    os.path.exists(os.path.join(dt, f)) and
+    open(os.path.join(dm, f), "rb").read() == open(os.path.join(dt, f), "rb").read()
+    for f in ("J.dat", "spectrum.out"))
+check(same, "LIMIT_MEMORY = TRUE gives the same J.dat and spectrum.out as FALSE, to the bit",
+      f"(status {rct})")
+
+# --- a magnetic field with SET_EDDINGTON in solveray's keyword.input: not
+#     refused (solveray solves its ray with short characteristics)
+bfile = os.path.join(work, "field_2d.B")
+subprocess.run([sys.executable, "-I", os.path.join(src, "tests", "make_field.py"),
+                "2d", os.path.join(src, "Atmos", "FALC_03x82.atmos"), bfile],
+               check=True, stdout=subprocess.DEVNULL)
+if a.solveray2d:
+    rcb, outb, db = must_run("ray_B_main", a.rhsc2d, "rhsc2d",
+                             [("ANGLE_SET", "SET_VERTICAL"), ("SOLVER", "NG"),
+                              ("N_MAX_ITER", "2"), ("NG_ORDER", "0"),
+                              ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0"),
+                              ("ATMOS_FILE", "../../Atmos/FALC_03x82.atmos"),
+                              ("STOKES_INPUT", bfile), ("STOKES_MODE", "FIELD_FREE")])
+    kw = open(os.path.join(db, "keyword.input")).read()
+    open(os.path.join(db, "keyword.input"), "w").write(
+        setkw(kw, "ANGLE_SET", "SET_EDDINGTON"))
+    open(os.path.join(db, "ray.input"), "w").write("0.5 0.7\n0\n")
+    r = subprocess.run([os.path.abspath(a.solveray2d)], cwd=db, stdout=subprocess.PIPE,
+                       stderr=subprocess.STDOUT, text=True, timeout=300)
+    check(r.returncode == 0 and "ERROR" not in r.stdout and
+          any(x.startswith("spectrum_") for x in os.listdir(db)),
+          "solveray with SET_EDDINGTON and a magnetic field in keyword.input runs",
+          f"(status {r.returncode})")
 
 if a.solveray2d:
     d = os.path.join(work, "runs", "ray")
@@ -320,7 +367,8 @@ refusals = [
     ("background polarization", a.rhsc2d, "rhsc2d", EDDQ +
      [("BACKGROUND_POLARIZATION", "TRUE")], {}, "cannot treat background polarization"),
     ("magnetic field", a.rhsc2d, "rhsc2d", EDDQ +
-     [("STOKES_INPUT", "no_such_field.B"), ("STOKES_MODE", "FULL_STOKES")],
+     [("STOKES_INPUT", bfile),
+      ("STOKES_MODE", "FULL_STOKES")],
      {}, "cannot treat a magnetic field"),
     ("PRD_ANGLE_APPROX with a PRD line", a.rhsc2d, "rhsc2d", EDDQ +
      [("PRD_ANGLE_DEP", "PRD_ANGLE_APPROX")], {},
@@ -334,7 +382,7 @@ refusals = [
      [("ATMOS_FILE", "atmos.xdr"), ("KURUCZ_DATA", "kurucz.input"),
       ("LAMBDA_REF", "630.42")],
      {"atmos_bytes": moving_bytes, "atoms": BACKGROUND_ONLY, "written": FE_LIST},
-     "cannot treat angle-dependent opacity"),
+     "cannot treat a moving atmosphere with background lines"),
 ]
 if a.rhsc3d:
     refusals.append(("3-D geometry", a.rhsc3d, "rhsc3d", [("ANGLE_SET", "SET_EDDINGTON"),
