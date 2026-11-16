@@ -125,7 +125,8 @@ void getAngleQuadr(Geometry *geometry)
 							 0.17152232};
 
 	switch (atmos.angleSet.set) {
-	case SET_VERTICAL: geometry->Nrays = 1; break;
+	case SET_VERTICAL:
+	case SET_EDDINGTON: geometry->Nrays = 1; break;
 	case SET_GL:
 		geometry->Nrays =
 			2 * atmos.angleSet.Ninclination * atmos.angleSet.Nazimuth;
@@ -154,15 +155,21 @@ void getAngleQuadr(Geometry *geometry)
 
 	switch (atmos.angleSet.set) {
 	case SET_VERTICAL:
-		if (input.Eddington) {
-			geometry->mux[0] = 1.0 / sqrt(3.0);
-			geometry->muy[0] = 1.0 / sqrt(3.0);
-			geometry->muz[0] = 1.0 / sqrt(3.0);
-		} else {
-			geometry->mux[0] = 0.0;
-			geometry->muy[0] = 0.0;
-			geometry->muz[0] = 1.0;
-		}
+		geometry->mux[0] = 0.0;
+		geometry->muy[0] = 0.0;
+		geometry->muz[0] = 1.0;
+		geometry->wmu[0] = 1.0;
+		return;
+
+	case SET_EDDINGTON:
+
+		/* --- One ray at mu = 1/sqrt(3) to the vertical, weight 1; the
+			   solver (Feautrier_2D) works on the columns, so only muz
+			   enters the transfer -- --------------------- ------------ */
+
+		geometry->mux[0] = 1.0 / sqrt(3.0);
+		geometry->muy[0] = 1.0 / sqrt(3.0);
+		geometry->muz[0] = 1.0 / sqrt(3.0);
 		geometry->wmu[0] = 1.0;
 		return;
 

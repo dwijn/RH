@@ -86,6 +86,13 @@ int main(int argc, char *argv[])
 	getCPU(1, TIME_START, NULL);
 	readAtmos(&atmos, &geometry);
 
+	/* --- The ray of a run with ANGLE_SET = SET_EDDINGTON (whose J and
+		   populations OLD_J starts from) is solved with the short
+		   characteristics of the ray, like any other: not with
+		   the columnwise Eddington solver -- ---------------- ---------- */
+
+	if (atmos.angleSet.set == SET_EDDINGTON) atmos.angleSet.set = SET_VERTICAL;
+
 	/* --- Read direction cosines for ray --             -------------- */
 
 	if ((fp_ray = fopen(RAY_INPUT_FILE, "r")) == NULL) {

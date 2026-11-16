@@ -69,8 +69,48 @@ void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
 
 /* --- Global variables --                             -------------- */
 
-extern char      messageStr[];
-extern InputData input;
+extern char       messageStr[];
+extern Atmosphere atmos;
+extern InputData  input;
+
+/* ------- begin -------------------------- checkEddington.c -------- */
+
+void checkEddington(void)
+{
+	const char routineName[] = "checkEddington";
+
+	register int nact;
+	bool_t       lines = FALSE;
+
+	/* --- ANGLE_SET = SET_EDDINGTON solves the columns one by one
+		   (Feautrier_2D) with one angle-independent ray. What needs the
+		   rays of the short-characteristics solver (no stencils are
+		   made) cannot be done. The keyword-level conflicts (polarization,
+		   background polarization) are stopped by readInput; this is the
+		   rest, which needs the atoms and the atmosphere. Formal() stops
+		   at any wavelength that still turns out to be angle-dependent
+		   (e.g. polarized or moving background lines) -- ----------- */
+
+	if (atmos.angleSet.set != SET_EDDINGTON) return;
+
+	if (atmos.NPRDactive > 0 && (input.PRD_angle_dep == PRD_ANGLE_DEP ||
+								 input.PRD_angle_dep == PRD_ANGLE_APPROX)) {
+		Error(ERROR_LEVEL_2, routineName,
+			  "ANGLE_SET = SET_EDDINGTON cannot treat angle-dependent PRD"
+			  " (PRD_ANGLE_DEP = PRD_ANGLE_DEP or PRD_ANGLE_APPROX with a PRD"
+			  " line):\n set PRD_ANGLE_DEP = PRD_ANGLE_AVER or FALSE");
+	}
+	for (nact = 0; nact < atmos.Nactiveatom; nact++)
+		if (atmos.activeatoms[nact]->Nline > 0) lines = TRUE;
+	if (atmos.moving && (lines || atmos.Nactivemol > 0)) {
+		Error(ERROR_LEVEL_2, routineName,
+			  "ANGLE_SET = SET_EDDINGTON cannot treat a moving atmosphere"
+			  " with active lines (the line opacity depends on the"
+			  " direction):\n use a SET_VERTICAL or other angle set, or an"
+			  " atmosphere at rest");
+	}
+}
+/* ------- end ---------------------------- checkEddington.c -------- */
 
 /* ------- begin -------------------------- fillMesh.c -------------- */
 
@@ -86,7 +126,10 @@ void fillMesh(Geometry *geometry)
 	Stencil  *st;
 	LongChar *lc;
 
-	if (input.Eddington) return;
+	/* --- ANGLE_SET = SET_EDDINGTON solves each column on its own
+		   (Feautrier_2D): no stencils, no long characteristics -- ------ */
+
+	if (atmos.angleSet.set == SET_EDDINGTON) return;
 
 	getCPU(2, TIME_START, NULL);
 

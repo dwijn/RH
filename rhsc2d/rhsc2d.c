@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
 	readAtomicModels();
 	readMolecularModels();
 	SortLambda();
+	checkEddington();
 
 	getBoundary(&atmos, &geometry);
 
