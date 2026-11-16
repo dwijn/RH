@@ -47,129 +47,57 @@ there is no solver), each stops with a message and status 70:
 
 Python 3 standard library only. Exit status 0 = pass.
 """
-import argparse
 import math
 import os
-import shutil
 import statistics
 import struct
-import subprocess
 import sys
-import tempfile
 
-here = os.path.dirname(os.path.abspath(__file__))
-p = argparse.ArgumentParser()
-p.add_argument("--rhf1d", required=True)
-p.add_argument("--rhsc2d", required=True)
-p.add_argument("--solveray2d")
-p.add_argument("--chartflow2d")
-p.add_argument("--rhsc3d")
-p.add_argument("--src", default=os.path.dirname(os.path.dirname(here)),
-               help="RH source tree (Atoms/, Atmos/, Molecules/, rh*/run/)")
-p.add_argument("--work", help="run directory, kept (default: a temporary dir under "
-                               "$TMPDIR, removed when the test passes, kept and named "
-                               "on failure)")
-p.add_argument("-v", "--verbose", action="store_true")
-a = p.parse_args()
-src = os.path.abspath(a.src)
-work = os.path.abspath(a.work) if a.work else tempfile.mkdtemp(prefix="rh_e2e_")
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from rhtest.check import Checker, maxrel, same_file
+from rhtest.cli import parse
+from rhtest.keywords import H6_CAII, edit_file
+from rhtest.output import read_bytes, read_doubles, read_solveray_intensity, read_spectrum
+from rhtest.run import EXIT_FATAL, copy_dir, execute, make_field, prepare
+from rhtest.workdir import WorkDir
 
-def _name_work(*exc):                  # an uncaught exception keeps the runs: say where
-    sys.__excepthook__(*exc)
-    print(f"runs kept in {work}", file=sys.stderr)
+a = parse(required=("rhf1d", "rhsc2d"),
+          optional=("solveray2d", "chartflow2d", "rhsc3d"), verbose=True,
+          src_help="RH source tree (Atoms/, Atmos/, Molecules/, rh*/run/)")
+src = a.src
+work = WorkDir(src, a.work)
+ck = Checker(a.verbose)
 
-
-sys.excepthook = _name_work
-os.makedirs(os.path.join(work, "runs"), exist_ok=True)
-for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels down
-    link = os.path.join(work, d)
-    if not os.path.lexists(link):
-        os.symlink(os.path.join(src, d), link)
-
-failed = nchecks = 0
-
-
-def check(ok, what, detail=""):
-    global failed, nchecks
-    nchecks += 1
-    failed += not ok
-    if a.verbose or not ok:
-        print(f"{'PASS' if ok else 'FAIL'}  {what} {detail}")
-
-
-def setkw(text, key, value):
-    out, done = [], False
-    for l in text.splitlines():
-        s = l.strip()
-        if not s.startswith("#") and "=" in s and s.split("=")[0].strip() == key:
-            out.append(f"  {key} = {value}")
-            done = True
-        else:
-            out.append(l)
-    if not done:
-        out.append(f"  {key} = {value}")
-    return "\n".join(out) + "\n"
-
-
-CAII = ("2\n  ../../Atoms/H_6.atom  PASSIVE  LTE_POPULATIONS\n"
-        "  ../../Atoms/CaII.atom  ACTIVE  ZERO_RADIATION  pops.CA.out\n")
-BACKGROUND_ONLY = "1\n  ../../Atoms/H_6.atom  PASSIVE  LTE_POPULATIONS\n"
+CAII = H6_CAII
+BACKGROUND_ONLY = H6_CAII[:1]
 
 
 def run(name, program, rundir, kws, atoms=CAII, files=(), atmos_bytes=None,
         written=None, timeout=300):
     """Run program in a fresh copy of the run files of rundir with the
-    keywords kws, the files `written` ({name: text}) added. Returns (status,
-    output, directory)."""
-    d = os.path.join(work, "runs", name)
-    shutil.rmtree(d, ignore_errors=True)
-    os.makedirs(d)
-    kw = open(os.path.join(src, rundir, "run", "keyword.input")).read()
+    keywords kws, the files `written` ({name: text}) added. Returns the
+    Result."""
     base = [("STOKES_MODE", "NO_STOKES"), ("STOKES_INPUT", "none"),
             ("N_THREADS", "1"), ("PRINT_CPU", "FALSE"), ("STARTING_J", "NEW_J"),
             ("KURUCZ_DATA", "none"), ("SOLVE_NE", "NONE"), ("PRD_N_MAX_ITER", "2"),
             ("PRD_ANGLE_DEP", "PRD_ANGLE_AVER"), ("LAMBDA_REF", "500.0")]
-    for k, v in base + list(kws):
-        kw = setkw(kw, k, v)
-    open(os.path.join(d, "keyword.input"), "w").write(kw)
-    open(os.path.join(d, "atoms.input"), "w").write(atoms)
-    for f in ("molecules.input", "ray.input") + tuple(files):
-        shutil.copy(os.path.join(src, rundir, "run", f), d)
+    d = prepare(work, name, rundir, base + list(kws), atoms, copy=(),
+                required=("molecules.input", "ray.input") + tuple(files))
     for f, text in (written or {}).items():
         open(os.path.join(d, f), "w").write(text)
     if atmos_bytes is not None:
         open(os.path.join(d, "atmos.xdr"), "wb").write(atmos_bytes)
-    try:
-        r = subprocess.run([os.path.abspath(program)], cwd=d, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, text=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        sys.exit(f"{program} timed out in {d}")
-    open(os.path.join(d, "out.log"), "w").write(r.stdout)
-    return r.returncode, r.stdout, d
+    return execute(program, d, timeout=timeout)
 
 
 def must_run(*args, **kw):
-    rc, out, d = run(*args, **kw)
-    if "ERROR" in out:
-        tail = "\n".join(out.splitlines()[-40:])           # FP trap backtrace (B-33)
-        sys.exit(f"{args[1]} failed in {d} (status {rc}); end of out.log:\n{tail}")
-    return rc, out, d
+    return run(*args, **kw).require(ok=None, bad_text="ERROR")    # any status, FP trap (B-33)
 
 
-def read_doubles(path):
-    raw = open(path, "rb").read()
-    return struct.unpack(f"={len(raw) // 8}d", raw)
-
-
-def read_spectrum(d, Nx):
+def read_I(d, Nx):
     """Wavelengths and the emergent I per wavelength and column (one ray)."""
-    raw = open(os.path.join(d, "spectrum.out"), "rb").read()
-    ns = struct.unpack(">i", raw[:4])[0]
-    lam = struct.unpack(f">{ns}d", raw[4:4 + 8 * ns])
-    pos = 4 + 8 * ns
-    I = struct.unpack(f">{ns * Nx}d", raw[pos:pos + 8 * ns * Nx])
-    return lam, [I[i * Nx:(i + 1) * Nx] for i in range(ns)]
+    return read_spectrum(os.path.join(d, "spectrum.out"), Nx)
 
 
 # --- 2-D atmosphere files: the layout read by rhsc2d/readatmos_xdr.c
@@ -178,7 +106,7 @@ def read_spectrum(d, Nx):
 #     nH[NH][Nz][Nx]; big-endian
 
 def read_atmos2d(path):
-    b = open(path, "rb").read()
+    b = read_bytes(path)
     Nx, Nz, NH = struct.unpack(">3i", b[:12])
     N = Nx * Nz
     pos = 24 + 8 * Nx + 8 * Nz
@@ -186,16 +114,13 @@ def read_atmos2d(path):
     fields = [list(struct.unpack(f">{N}d", b[pos + 8 * N * i:pos + 8 * N * (i + 1)]))
               for i in range(5)]
     tail = b[pos + 40 * N:]
-    assert len(tail) == 8 * NH * N, "unexpected layout of the 2-D atmosphere"
+    if len(tail) != 8 * NH * N:
+        raise ValueError(f"{path}: unexpected layout of the 2-D atmosphere")
     return Nx, Nz, head, fields, tail
 
 
 def write_atmos2d(Nx, Nz, head, fields, tail):
     return head + b"".join(struct.pack(f">{Nx * Nz}d", *f) for f in fields) + tail
-
-
-def maxrel(x, y):
-    return max(abs(u - v) / max(abs(u), abs(v), 1e-300) for u, v in zip(x, y))
 
 
 Nx, Nz, head, fields, tail = read_atmos2d(os.path.join(src, "Atmos", "FALC_03x82.atmos"))
@@ -205,34 +130,36 @@ rmean = lambda xs: statistics.median(xs)
 # 1, 2: uniform atmosphere, convergence, columns, rhf1d
 
 EDD = [("ANGLE_SET", "SET_EDDINGTON"), ("ITER_LIMIT", "1.0E-4"), ("N_MAX_ITER", "300")]
-rc2, out2, d2 = must_run("e2d", a.rhsc2d, "rhsc2d", EDD + [
+r2 = must_run("e2d", a.rhsc2d, "rhsc2d", EDD + [
     ("ATMOS_FILE", "../../Atmos/FALC_03x82.atmos")])
-check(rc2 == 0 and "Converged in" in out2, "2-D SET_EDDINGTON run converges",
-      f"(status {rc2})")
-rc1, out1, d1 = must_run("e1d", a.rhf1d, "rhf1d", [
+d2 = r2.dir
+ck.check(r2.returncode == 0 and "Converged in" in r2.stdout, "2-D SET_EDDINGTON run converges",
+         f"(status {r2.returncode})")
+r1 = must_run("e1d", a.rhf1d, "rhf1d", [
     ("ANGLE_SET", "SET_EDDINGTON"), ("NRAYS", "1"), ("ITER_LIMIT", "1.0E-6"),
     ("N_MAX_ITER", "300"), ("ATMOS_FILE", "../../Atmos/FALC_82.atmos")])
-check(rc1 == 0 and "Converged in" in out1, "1-D SET_EDDINGTON run converges",
-      f"(status {rc1})")
+d1 = r1.dir
+ck.check(r1.returncode == 0 and "Converged in" in r1.stdout, "1-D SET_EDDINGTON run converges",
+         f"(status {r1.returncode})")
 
-lam1, I1 = read_spectrum(d1, 1)
-lam2, I2 = read_spectrum(d2, Nx)
+lam1, I1 = read_I(d1, 1)
+lam2, I2 = read_I(d2, Nx)
 J1 = read_doubles(os.path.join(d1, "J.dat"))
 J2 = read_doubles(os.path.join(d2, "J.dat"))
 ns = len(lam1)
-check(len(lam2) == ns and len(J1) == ns * Nz and len(J2) == ns * Nz * Nx,
-      "1-D and 2-D runs have the same wavelengths and shapes")
-if failed:
-    sys.exit(1)
+ck.check(len(lam2) == ns and len(J1) == ns * Nz and len(J2) == ns * Nz * Nx,
+         "1-D and 2-D runs have the same wavelengths and shapes")
+if ck.failed:
+    ck.finish("eddington_2d", work)
 
 # --- every column equal
 spreadI = max((max(row) - min(row)) / max(abs(x) for x in row) for row in I2)
 spreadJ = max(maxrel(J2[la * Nz * Nx:(la + 1) * Nz * Nx:Nx],
                      J2[la * Nz * Nx + c:(la + 1) * Nz * Nx:Nx])
               for la in range(ns) for c in range(1, Nx))
-check(spreadI == 0 and spreadJ == 0,
-      "uniform atmosphere: every column gives the same I and J",
-      f"(I {spreadI:.1e}, J {spreadJ:.1e})")
+ck.check(spreadI == 0 and spreadJ == 0,
+         "uniform atmosphere: every column gives the same I and J",
+         f"(I {spreadI:.1e}, J {spreadJ:.1e})")
 
 # --- against rhf1d
 Ie = [abs(r2[0] - r1[0]) / abs(r1[0]) for r1, r2 in zip(I1, I2)]
@@ -249,8 +176,8 @@ stats = [("I, median over wavelengths", rmean(Ie), 1.0e-2),
          ("J (of its peak), worst from 300 nm", max(Jpk[la] for la in vis), 1.0e-2),
          ("J (of its peak), worst below 150 nm", max(Jpk[la] for la in euv), 0.15)]
 for what, val, tol in stats:
-    check(val <= tol, f"2-D Feautrier against 1-D SET_EDDINGTON: {what}",
-          f"({val:.2e}, bound {tol:g})")
+    ck.check(val <= tol, f"2-D Feautrier against 1-D SET_EDDINGTON: {what}",
+             f"({val:.2e}, bound {tol:g})")
 
 # ===================================================================
 # 3: column independence
@@ -271,9 +198,8 @@ def atmos_ne(factors):
 
 
 def run_cols(name, factors):
-    rc, out, d = must_run(name, a.rhsc2d, "rhsc2d", ITERS,
-                          atmos_bytes=atmos_ne(factors))
-    return read_doubles(os.path.join(d, "J.dat")), read_spectrum(d, Nx)[1]
+    d = must_run(name, a.rhsc2d, "rhsc2d", ITERS, atmos_bytes=atmos_ne(factors)).dir
+    return read_doubles(os.path.join(d, "J.dat")), read_I(d, Nx)[1]
 
 
 Jv, Iv = run_cols("cols_varied", scale)
@@ -285,72 +211,61 @@ for c in range(Nx):
                     maxrel(Jv[la * Nz * Nx + c:(la + 1) * Nz * Nx:Nx],
                            Ju[la * Nz * Nx + c:(la + 1) * Nz * Nx:Nx]),
                     abs(Iv[la][c] - Iu[la][c]) / abs(Iu[la][c]))
-check(worst == 0, "columns are independent: varied atmosphere against "
-      "the uniform atmosphere of each column", f"(worst relative difference {worst:.1e})")
+ck.check(worst == 0, "columns are independent: varied atmosphere against "
+         "the uniform atmosphere of each column", f"(worst relative difference {worst:.1e})")
 
 # ===================================================================
 # 4: solveray after an Eddington run
 
 # --- LIMIT_MEMORY = TRUE gives the same J and I (CRD Ca II: PRD cannot
 #     limit memory)
-CAII_CRD = CAII.replace("CaII.atom", "CaII_CRD.atom")
+CAII_CRD = [CAII[0], (CAII[1][0].replace("CaII.atom", "CaII_CRD.atom"),) + CAII[1][1:]]
 LM = [("ANGLE_SET", "SET_EDDINGTON"), ("SOLVER", "NG"), ("N_MAX_ITER", "3"),
       ("NG_ORDER", "0"), ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0"),
       ("ATMOS_FILE", "../../Atmos/FALC_03x82.atmos")]
-rcm, outm, dm = must_run("lm_false", a.rhsc2d, "rhsc2d", LM + [("LIMIT_MEMORY", "FALSE")],
-                         atoms=CAII_CRD)
-rct, outt, dt = run("lm_true", a.rhsc2d, "rhsc2d", LM + [("LIMIT_MEMORY", "TRUE")],
-                    atoms=CAII_CRD)
-same = rct in (0, 1) and all(
-    os.path.exists(os.path.join(dt, f)) and
-    open(os.path.join(dm, f), "rb").read() == open(os.path.join(dt, f), "rb").read()
+dm = must_run("lm_false", a.rhsc2d, "rhsc2d", LM + [("LIMIT_MEMORY", "FALSE")],
+              atoms=CAII_CRD).dir
+rt = run("lm_true", a.rhsc2d, "rhsc2d", LM + [("LIMIT_MEMORY", "TRUE")], atoms=CAII_CRD)
+dt = rt.dir
+same = rt.ran and all(
+    os.path.exists(os.path.join(dt, f)) and same_file(dm, dt, f)
     for f in ("J.dat", "spectrum.out"))
-check(same, "LIMIT_MEMORY = TRUE gives the same J.dat and spectrum.out as FALSE, to the bit",
-      f"(status {rct})")
+ck.check(same, "LIMIT_MEMORY = TRUE gives the same J.dat and spectrum.out as FALSE, to the bit",
+         f"(status {rt.returncode})")
 
 # --- a magnetic field with SET_EDDINGTON in solveray's keyword.input: not
 #     refused (solveray solves its ray with short characteristics)
-bfile = os.path.join(work, "field_2d.B")
-subprocess.run([sys.executable, "-I", os.path.join(src, "tests", "make_field.py"),
-                "2d", os.path.join(src, "Atmos", "FALC_03x82.atmos"), bfile],
-               check=True, stdout=subprocess.DEVNULL)
+bfile = work.join("field_2d.B")
+make_field(src, "2d", os.path.join(src, "Atmos", "FALC_03x82.atmos"), bfile)
 if a.solveray2d:
-    rcb, outb, db = must_run("ray_B_main", a.rhsc2d, "rhsc2d",
-                             [("ANGLE_SET", "SET_VERTICAL"), ("SOLVER", "NG"),
-                              ("N_MAX_ITER", "2"), ("NG_ORDER", "0"),
-                              ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0"),
-                              ("ATMOS_FILE", "../../Atmos/FALC_03x82.atmos"),
-                              ("STOKES_INPUT", bfile), ("STOKES_MODE", "FIELD_FREE")])
-    kw = open(os.path.join(db, "keyword.input")).read()
-    open(os.path.join(db, "keyword.input"), "w").write(
-        setkw(kw, "ANGLE_SET", "SET_EDDINGTON"))
+    db = must_run("ray_B_main", a.rhsc2d, "rhsc2d",
+                  [("ANGLE_SET", "SET_VERTICAL"), ("SOLVER", "NG"),
+                   ("N_MAX_ITER", "2"), ("NG_ORDER", "0"),
+                   ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0"),
+                   ("ATMOS_FILE", "../../Atmos/FALC_03x82.atmos"),
+                   ("STOKES_INPUT", bfile), ("STOKES_MODE", "FIELD_FREE")]).dir
+    edit_file(os.path.join(db, "keyword.input"), [("ANGLE_SET", "SET_EDDINGTON")])
     open(os.path.join(db, "ray.input"), "w").write("0.5 0.7\n0\n")
-    r = subprocess.run([os.path.abspath(a.solveray2d)], cwd=db, stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT, text=True, timeout=300)
-    check(r.returncode == 0 and "ERROR" not in r.stdout and
-          any(x.startswith("spectrum_") for x in os.listdir(db)),
-          "solveray with SET_EDDINGTON and a magnetic field in keyword.input runs",
-          f"(status {r.returncode})")
+    r = execute(a.solveray2d, db, timeout=300, log="solveray.log")
+    ck.check(r.returncode == 0 and "ERROR" not in r.stdout and
+             any(x.startswith("spectrum_") for x in os.listdir(db)),
+             "solveray with SET_EDDINGTON and a magnetic field in keyword.input runs",
+             f"(status {r.returncode})")
 
 if a.solveray2d:
-    d = os.path.join(work, "runs", "ray")
-    shutil.rmtree(d, ignore_errors=True)
-    shutil.copytree(d2, d)
+    d = copy_dir(work, "ray", d2)
     open(os.path.join(d, "ray.input"), "w").write("0.0 1.0\n0\n")
-    r = subprocess.run([os.path.abspath(a.solveray2d)], cwd=d, stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT, text=True, timeout=300)
+    r = execute(a.solveray2d, d, timeout=300, log=None)
     files = [x for x in os.listdir(d) if x.startswith("spectrum_")]
     ok = r.returncode == 0 and "ERROR" not in r.stdout and len(files) == 1
     if ok:
-        raw = open(os.path.join(d, files[0]), "rb").read()
         M = ns * Nx
-        # mux, muz (2 doubles), I, then the int Nspect = 0
-        vals = struct.unpack(f">{M}d", raw[16:16 + 8 * M])
+        vals = read_solveray_intensity(os.path.join(d, files[0]), M)
         rows = [vals[i * Nx:(i + 1) * Nx] for i in range(ns)]
-        ok = (len(raw) == 16 + 8 * M + 4 and all(math.isfinite(v) for v in vals)
+        ok = (all(math.isfinite(v) for v in vals)
               and all(max(r) - min(r) <= 1e-12 * max(abs(x) for x in r) for r in rows))
-    check(ok, "solveray after a SET_EDDINGTON run: finite, the same in every column",
-          f"(status {r.returncode})")
+    ck.check(ok, "solveray after a SET_EDDINGTON run: finite, the same in every column",
+             f"(status {r.returncode})")
 
 # ===================================================================
 # 5: what is refused
@@ -388,21 +303,16 @@ if a.rhsc3d:
     refusals.append(("3-D geometry", a.rhsc3d, "rhsc3d", [("ANGLE_SET", "SET_EDDINGTON"),
                      ("N_MAX_ITER", "2")], {}, "not available in 3-D"))
 for what, prog, rundir, kws, extra, msg in refusals:
-    rc, out, d = run("refuse_" + what.replace(" ", "_").replace(",", ""), prog, rundir,
-                     kws, **extra)
+    r = run("refuse_" + what.replace(" ", "_").replace(",", ""), prog, rundir, kws, **extra)
+    rc, out = r.returncode, r.stdout
     flat = " ".join(out.split())
-    check(rc == 70 and " ".join(msg.split()) in flat and "Did not recognize" not in out,
-          f"SET_EDDINGTON refused: {what}", f"(status {rc}, message '{msg}')")
+    ck.check(rc == EXIT_FATAL and " ".join(msg.split()) in flat and "Did not recognize" not in out,
+             f"SET_EDDINGTON refused: {what}", f"(status {rc}, message '{msg}')")
 
 if a.chartflow2d:
-    rc, out, d = run("refuse_chartflow", a.chartflow2d, "rhsc2d", EDDQ,
-                     files=("flow.input",))
-    check(rc == 70 and "no short characteristics to analyze" in " ".join(out.split()),
-          "SET_EDDINGTON refused: chartflow", f"(status {rc})")
+    r = run("refuse_chartflow", a.chartflow2d, "rhsc2d", EDDQ, files=("flow.input",))
+    rc = r.returncode
+    ck.check(rc == EXIT_FATAL and "no short characteristics to analyze" in " ".join(r.stdout.split()),
+             "SET_EDDINGTON refused: chartflow", f"(status {rc})")
 
-print(f"eddington_2d: {nchecks} checks, {failed} failed")
-if failed:
-    print(f"runs kept in {work}")
-elif not a.work:
-    shutil.rmtree(work)
-sys.exit(1 if failed else 0)
+ck.finish("eddington_2d", work)

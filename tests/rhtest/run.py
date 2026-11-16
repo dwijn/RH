@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 
 from . import keywords
 
@@ -91,23 +92,57 @@ class Result:
     def require(self, ok=RAN, bad_text=None, tail=40):
         """Exit the test (status 1, message with the end of out.log, which
         carries the backtrace of a trapped floating-point exception, B-33)
-        unless the status is in ok and bad_text (e.g. "ERROR") is not in the
-        output. Returns self."""
-        if self.returncode not in ok or (bad_text and bad_text in self.stdout):
+        unless the status is in ok (None: any status) and bad_text (e.g.
+        "ERROR") is not in the output. Returns self."""
+        if (ok is not None and self.returncode not in ok) or (bad_text and bad_text in self.stdout):
             sys.exit(f"{os.path.basename(self.program)} failed in {self.dir} "
                      f"(status {self.returncode}); end of out.log:\n{self.tail(tail)}")
         return self
 
 
-def execute(program, d, args=(), timeout=600):
-    """Run program in the directory d, its output in d/out.log. A timeout
-    (seconds, None for none) ends the test."""
+def execute(program, d, args=(), timeout=600, log="out.log"):
+    """Run program in the directory d, its output in d/<log> (not written
+    with log=None). A timeout (seconds, None for none) ends the test."""
     program = os.path.abspath(program)
     try:
         r = subprocess.run([program, *args], cwd=d, stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         sys.exit(f"{os.path.basename(program)} timed out in {d}")
-    with open(os.path.join(d, "out.log"), "w") as f:
-        f.write(r.stdout)
+    if log:
+        with open(os.path.join(d, log), "w") as f:
+            f.write(r.stdout)
     return Result(program, d, r.returncode, r.stdout)
+
+
+def execute_streaming(program, d, on_line=None, timeout=600):
+    """execute(), reading the output line by line as the program writes it
+    (stderr unbuffered, merged with stdout) and calling on_line(line) for
+    each, e.g. to create a STOP_RH file at a given point of the run. A
+    timeout (seconds) kills the program and ends the test."""
+    program = os.path.abspath(program)
+    proc = subprocess.Popen([program], cwd=d, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True)
+    timer = threading.Timer(timeout, proc.kill)
+    timer.start()
+    lines = []
+    for line in proc.stdout:
+        lines.append(line)
+        if on_line:
+            on_line(line)
+    rc = proc.wait()
+    timed_out = not timer.is_alive()
+    timer.cancel()
+    out = "".join(lines)
+    with open(os.path.join(d, "out.log"), "w") as f:
+        f.write(out)
+    if timed_out:
+        sys.exit(f"{os.path.basename(program)} timed out in {d}")
+    return Result(program, d, rc, out)
+
+
+def make_field(src, geom, atmos, dst):
+    """Write a magnetic field for the 2-D or 3-D atmosphere file atmos
+    (tests/make_field.py; geom "2d" or "3d") to dst."""
+    subprocess.run([sys.executable, "-I", os.path.join(src, "tests", "make_field.py"),
+                    geom, atmos, dst], check=True, stdout=subprocess.DEVNULL)

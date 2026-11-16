@@ -26,7 +26,6 @@ Python 3 standard library only. Exit status 0 = pass.
 """
 import math
 import os
-import subprocess
 import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -34,7 +33,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from rhtest.check import Checker, maxabs, maxdiff
 from rhtest.cli import parse
 from rhtest.output import read_solveray
-from rhtest.run import copy_dir, execute, template
+from rhtest.run import copy_dir, execute, make_field, template
 from rhtest.workdir import WorkDir
 
 a = parse(required=("rhsc2d", "solveray2d", "solveray3d"), verbose=True,
@@ -49,9 +48,7 @@ def main_run(geo, rhsc):
     d = copy_dir(work, geo, template(src, f"rhsc{geo}"))
     atmos = {"2d": "FALC_03x82", "3d": "FALC_04x04x82"}[geo]
     bfile = work.join(f"field_{geo}.B")
-    subprocess.run([sys.executable, "-I", os.path.join(src, "tests", "make_field.py"),
-                    geo, os.path.join(src, "Atmos", atmos + ".atmos"), bfile],
-                   check=True, stdout=subprocess.DEVNULL)
+    make_field(src, geo, os.path.join(src, "Atmos", atmos + ".atmos"), bfile)
     with open(os.path.join(d, "keyword.input"), "a") as f:
         f.write(f"  STOKES_INPUT = {bfile}\n  STOKES_MODE = FIELD_FREE\n"
                 "  N_MAX_ITER = 2\n  N_THREADS = 1\n")
