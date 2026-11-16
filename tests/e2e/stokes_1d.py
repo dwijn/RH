@@ -42,43 +42,25 @@ linear problem:
 Tests 1-3 use FAL-C with a depth-dependent field, 4 FAL-C and the grey
 atmosphere, 5 the grey atmosphere. Exit status 0 = pass.
 """
-import argparse
 import math
 import os
 import shutil
 import struct
-import subprocess
 import sys
-import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(HERE))
 
-p = argparse.ArgumentParser()
-p.add_argument("--rhf1d", required=True)
-p.add_argument("--src", default=os.path.dirname(os.path.dirname(HERE)),
-               help="RH source tree (Atoms/, Atmos/, Molecules/, rhf1d/run/)")
-p.add_argument("--work", help="run directory, kept (default: a temporary dir under "
-                               "$TMPDIR, removed when the test passes, kept and named "
-                               "on failure)")
-p.add_argument("-v", "--verbose", action="store_true")
-a = p.parse_args()
-rhf1d = os.path.abspath(a.rhf1d)
-src = os.path.abspath(a.src)
+from rhtest.check import Checker, maxabs, maxdiff
+from rhtest.cli import parse
+from rhtest.output import read_stokes_spectrum
+from rhtest.run import EXIT_OK, execute, fresh_dir, setup_dir
+from rhtest.workdir import WorkDir
 
-work = os.path.abspath(a.work) if a.work else tempfile.mkdtemp(prefix="rh_e2e_")
-
-
-def _name_work(*exc):                  # an uncaught exception keeps the runs: say where
-    sys.__excepthook__(*exc)
-    print(f"runs kept in {work}", file=sys.stderr)
-
-
-sys.excepthook = _name_work
-os.makedirs(os.path.join(work, "runs"), exist_ok=True)
-for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels down
-    link = os.path.join(work, d)
-    if not os.path.lexists(link):
-        os.symlink(os.path.join(src, d), link)
+a = parse(required=("rhf1d",), verbose=True)
+rhf1d, src = a.rhf1d, a.src
+work = WorkDir(src, a.work)
+ck = Checker(a.verbose)
 
 # --- Physical input ---------------------------------------------------------
 
@@ -170,85 +152,28 @@ def write_B(path, B, gamma, chi):
 
 # --- Running rhf1d ----------------------------------------------------------
 
-def setkw(text, key, value):
-    out, done = [], False
-    for l in text.splitlines():
-        s = l.strip()
-        if not s.startswith("#") and "=" in s and s.split("=")[0].strip() == key:
-            out.append(f"  {key} = {value}")
-            done = True
-        else:
-            out.append(l)
-    if not done:
-        out.append(f"  {key} = {value}")
-    return "\n".join(out) + "\n"
-
-
 def run(name, atmos_text, ndep, field, vertical=False, solve_ne=False, mo="TRUE"):
     """field: (B [T], gamma, chi) per depth, or None for B = 0. Returns
     (lambda, [I, Q, U, V]) with each Stokes array [nspect][nray]."""
-    d = os.path.join(work, "runs", name)
-    if os.path.isdir(d):
-        shutil.rmtree(d)
-    os.makedirs(d)
+    d = fresh_dir(work, name)
     open(os.path.join(d, "atmos.atmos"), "w").write(atmos_text)
     B, gam, chi = field if field else ([0.0] * ndep,) * 3
     write_B(os.path.join(d, "B.dat"), B, gam, chi)
     shutil.copy(os.path.join(HERE, "TI_fict.atom"), d)
-    kw = open(os.path.join(src, "rhf1d", "run", "keyword.input")).read()
-    for k, v in [("ATMOS_FILE", "atmos.atmos"), ("STOKES_MODE", "FULL_STOKES"),
-                 ("STOKES_INPUT", "B.dat"), ("N_MAX_ITER", "0"),
-                 ("N_MAX_SCATTER", "1"), ("N_THREADS", "1"),
-                 ("PRINT_CPU", "FALSE"), ("VACUUM_TO_AIR", "FALSE"),
-                 ("MAGNETO_OPTICAL", mo), ("BACKGROUND_POLARIZATION", "FALSE"),
-                 ("STARTING_J", "NEW_J"), ("KURUCZ_DATA", "none"),
-                 ("SOLVE_NE", "ONCE" if solve_ne else "NONE")]:
-        kw = setkw(kw, k, v)
-    kw = setkw(kw, "ANGLE_SET", "SET_VERTICAL") if vertical else setkw(kw, "NRAYS", str(NRAYS))
-    open(os.path.join(d, "keyword.input"), "w").write(kw)
-    open(os.path.join(d, "atoms.input"), "w").write(
-        "2\n  ../../Atoms/H_6.atom  PASSIVE  LTE_POPULATIONS\n"
-        "  TI_fict.atom  ACTIVE  LTE_POPULATIONS  pops.TI.out\n")
-    shutil.copy(os.path.join(src, "rhf1d", "run", "molecules.input"), d)
-    r = subprocess.run([rhf1d], cwd=d, stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT, text=True)
-    open(os.path.join(d, "out.log"), "w").write(r.stdout)
-    if r.returncode != 0 or "ERROR" in r.stdout:
-        tail = "\n".join(r.stdout.splitlines()[-40:])   # FP trap backtrace (B-33)
-        sys.exit(f"rhf1d failed in {d} (status {r.returncode}); end of out.log:\n{tail}")
-    raw = open(os.path.join(d, "spectrum.out"), "rb").read()
-    ns = struct.unpack(">i", raw[:4])[0]
-    lam = struct.unpack(f">{ns}d", raw[4:4 + 8 * ns])
-    nr = 1 if vertical else NRAYS
-    size, pos = ns * nr, 4 + 8 * ns
-    I = struct.unpack(f">{size}d", raw[pos:pos + 8 * size]); pos += 8 * size + 12
-    QUV = [struct.unpack(f">{size}d", raw[pos + 8 * size * i:pos + 8 * size * (i + 1)])
-           for i in range(3)]
-    if pos + 24 * size != len(raw):
-        sys.exit(f"{d}/spectrum.out: unexpected size")
-    shape = lambda q: [q[l * nr:(l + 1) * nr] for l in range(ns)]
-    return lam, [shape(q) for q in [I] + QUV]
-
-
-failures = []
-
-
-def check(name, value, tol, at_least=False):
-    """value <= tol, or value >= tol with at_least."""
-    ok = value >= tol if at_least else value <= tol
-    if not ok:
-        failures.append(name)
-    if a.verbose or not ok:
-        print(f"{'ok  ' if ok else 'FAIL'} {name}: {value:.3e} "
-              f"({'at least' if at_least else 'tol'} {tol:.1e})")
-
-
-def maxabs(q):
-    return max(abs(x) for row in q for x in row)
-
-
-def maxdiff(p, q, sign=1.0):
-    return max(abs(x - sign * y) for rp, rq in zip(p, q) for x, y in zip(rp, rq))
+    pairs = [("ATMOS_FILE", "atmos.atmos"), ("STOKES_MODE", "FULL_STOKES"),
+             ("STOKES_INPUT", "B.dat"), ("N_MAX_ITER", "0"),
+             ("N_MAX_SCATTER", "1"), ("N_THREADS", "1"),
+             ("PRINT_CPU", "FALSE"), ("VACUUM_TO_AIR", "FALSE"),
+             ("MAGNETO_OPTICAL", mo), ("BACKGROUND_POLARIZATION", "FALSE"),
+             ("STARTING_J", "NEW_J"), ("KURUCZ_DATA", "none"),
+             ("SOLVE_NE", "ONCE" if solve_ne else "NONE"),
+             ("ANGLE_SET", "SET_VERTICAL") if vertical else ("NRAYS", str(NRAYS))]
+    setup_dir(d, src, "rhf1d", pairs,
+              [("../../Atoms/H_6.atom", "PASSIVE", "LTE_POPULATIONS"),
+               ("TI_fict.atom", "ACTIVE", "LTE_POPULATIONS", "pops.TI.out")],
+              copy=(), required=("molecules.input",))
+    execute(rhf1d, d, timeout=None).require(ok=(EXIT_OK,), bad_text="ERROR")
+    return read_stokes_spectrum(os.path.join(d, "spectrum.out"), 1 if vertical else NRAYS)
 
 
 def field(n):
@@ -276,7 +201,7 @@ atm = falc_v(0.0)
 
 lam, free = run("free", atm, ndep, None)
 for i, s in enumerate("QUV"):
-    check(f"no field: max|{s}| / max I", maxabs(free[i + 1]) / maxabs(free[0]), 0.0)
+    ck.value(f"no field: max|{s}| / max I", maxabs(free[i + 1]) / maxabs(free[0]), 0.0)
 
 for mo in ("TRUE", "FALSE"):
     _, base = run(f"base_mo{mo}", atm, ndep, (B0, G0, C0), mo=mo)
@@ -286,14 +211,14 @@ for mo in ("TRUE", "FALSE"):
     _, mir = run(f"mirror_mo{mo}", atm, ndep,
                  (B0, [math.pi - g for g in G0], [math.pi - c for c in C0]), mo=mo)
     for i, s in enumerate("IQUV"):
-        check(f"mirror y -> -y, MO {mo}: {s}",
-              maxdiff(mir[i], base[i], -1.0 if s in "UV" else 1.0) / scale[i], 1e-12)
+        ck.value(f"mirror y -> -y, MO {mo}: {s}",
+                  maxdiff(mir[i], base[i], -1.0 if s in "UV" else 1.0) / scale[i], 1e-12)
     if mo == "FALSE":
         _, neg = run("minusB", atm, ndep,
                      (B0, [math.pi - g for g in G0], [c + math.pi for c in C0]), mo=mo)
         for i, s in enumerate("IQUV"):
-            check(f"B -> -B, no MO: {s}",
-                  maxdiff(neg[i], base[i], -1.0 if s == "V" else 1.0) / scale[i], 1e-12)
+            ck.value(f"B -> -B, no MO: {s}",
+                      maxdiff(neg[i], base[i], -1.0 if s == "V" else 1.0) / scale[i], 1e-12)
 
 # --- 4 on FAL-C: vertical ray, field azimuth turned by 35 deg ----------------
 
@@ -308,10 +233,10 @@ ROT_TOL = 5e-7
 _, vb = run("rot_falc", atm, ndep, (B0, G0, C0), vertical=True)
 _, vt = run("rot_falc_turned", atm, ndep, (B0, G0, [c + turn for c in C0]), vertical=True)
 Qr, Ur = rotate(vb, turn)
-check("frame rotation, FAL-C: I", maxdiff(vt[0], vb[0]) / maxabs(vb[0]), ROT_TOL)
-check("frame rotation, FAL-C: V", maxdiff(vt[3], vb[3]) / maxabs(vb[3]), ROT_TOL)
-check("frame rotation, FAL-C: Q, U",
-      max(maxdiff(vt[1], Qr), maxdiff(vt[2], Ur)) / max(maxabs(vb[1]), maxabs(vb[2])), ROT_TOL)
+ck.value("frame rotation, FAL-C: I", maxdiff(vt[0], vb[0]) / maxabs(vb[0]), ROT_TOL)
+ck.value("frame rotation, FAL-C: V", maxdiff(vt[3], vb[3]) / maxabs(vb[3]), ROT_TOL)
+ck.value("frame rotation, FAL-C: Q, U",
+          max(maxdiff(vt[1], Qr), maxdiff(vt[2], Ur)) / max(maxabs(vb[1]), maxabs(vb[2])), ROT_TOL)
 
 # --- 4, 5: frame rotation and weak field on smooth grey atmospheres ---------
 
@@ -320,7 +245,7 @@ dv = 0.02                                                   # km/s
 errs, rots = [], []
 for n in (40, 80, 160, 320):
     def text(vz):
-        path = os.path.join(work, "tmp.atmos")
+        path = work.join("tmp.atmos")
         write_atmos_text(path, *grey(n, vz), f"GREY_{n}")
         return open(path).read()
 
@@ -356,15 +281,10 @@ for n in (40, 80, 160, 320):
                       f"max|V - V_wf| / max|V| = {e:.2e}")
     errs.append(err)
 
-check("weak field, N = 320: max|V - V_wf| / max|V|", errs[-1], 1e-5)
+ck.value("weak field, N = 320: max|V - V_wf| / max|V|", errs[-1], 1e-5)
 for n, r in zip((40, 80, 160, 320), rots):
-    check(f"frame rotation, N = {n}: largest deviation", r, ROT_TOL)
+    ck.value(f"frame rotation, N = {n}: largest deviation", r, ROT_TOL)
 for n, e0, e1 in zip((80, 160, 320), errs, errs[1:]):
-    check(f"weak field, error ratio N = {n // 2} -> {n}", e0 / e1, 8.0, at_least=True)
+    ck.value(f"weak field, error ratio N = {n // 2} -> {n}", e0 / e1, 8.0, at_least=True)
 
-if failures:
-    print(f"runs kept in {work}")
-elif not a.work:
-    shutil.rmtree(work)
-print(f"{'FAILED: ' + ', '.join(failures) if failures else 'all passed'}")
-sys.exit(1 if failures else 0)
+ck.finish("stokes_1d", work)

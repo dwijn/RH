@@ -26,95 +26,36 @@ Ca II with angle-averaged PRD (two PRD lines) on FAL-C, H_6 passive:
 
 Exit status 0 = pass.
 """
-import argparse
 import os
-import shutil
-import subprocess
 import sys
-import tempfile
 
-p = argparse.ArgumentParser()
-p.add_argument("--rhf1d", required=True)
-p.add_argument("--gcheck1d", required=True)
-p.add_argument("--gcheck2d")
-p.add_argument("--src", default=os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))))
-p.add_argument("--work", help="run directory, kept (default: a temporary dir under "
-                               "$TMPDIR, removed when the test passes, kept and named "
-                               "on failure)")
-a = p.parse_args()
-src = os.path.abspath(a.src)
-work = os.path.abspath(a.work) if a.work else tempfile.mkdtemp(prefix="rh_e2e_")
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from rhtest.check import Checker, same_file
+from rhtest.cli import parse
+from rhtest.keywords import H6_CAII
+from rhtest.run import EXIT_FATAL, EXIT_OK, execute, prepare
+from rhtest.workdir import WorkDir
 
-def _name_work(*exc):                  # an uncaught exception keeps the runs: say where
-    sys.__excepthook__(*exc)
-    print(f"runs kept in {work}", file=sys.stderr)
-
-
-sys.excepthook = _name_work
-os.makedirs(os.path.join(work, "runs"), exist_ok=True)
-for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels down
-    link = os.path.join(work, d)
-    if not os.path.lexists(link):
-        os.symlink(os.path.join(src, d), link)
+a = parse(required=("rhf1d", "gcheck1d"), optional=("gcheck2d",))
+work = WorkDir(a.src, a.work)
+ck = Checker()
 
 G_KEYWORDS = [("SOLVER", "FIXED_POINT"), ("NG_ORDER", "0"),
               ("PRD_NG_ORDER", "0"), ("PRD_ITER_LIMIT", "0")]
 
 
-def setkw(text, key, value):
-    """Set key = value in a keyword.input text; value None removes the key
-    (comments it out), so that it is not set at all."""
-    out, done = [], False
-    for l in text.splitlines():
-        s = l.strip()
-        if not s.startswith("#") and "=" in s and s.split("=")[0].strip() == key:
-            out.append(f"# {s}" if value is None else f"  {key} = {value}")
-            done = True
-        else:
-            out.append(l)
-    if not done and value is not None:
-        out.append(f"  {key} = {value}")
-    return "\n".join(out) + "\n"
-
-
-def prepare(name, geom, keywords):
+def prepare_g(name, geom, keywords):
     rundir = {"1d": "rhf1d", "2d": "rhsc2d"}[geom]
     atmos = {"1d": "../../Atmos/FALC_82.atmos", "2d": "../../Atmos/FALC_03x82.atmos"}[geom]
-    d = os.path.join(work, "runs", name)
-    if os.path.isdir(d):
-        shutil.rmtree(d)
-    os.makedirs(d)
-    kw = open(os.path.join(src, rundir, "run", "keyword.input")).read()
-    for k, v in [("ATMOS_FILE", atmos), ("STOKES_MODE", "NO_STOKES"),
-                 ("STOKES_INPUT", "none"), ("PRD_N_MAX_ITER", "2"),
-                 ("PRD_ANGLE_DEP", "PRD_ANGLE_AVER"), ("N_THREADS", "1"),
-                 ("PRINT_CPU", "FALSE"), ("STARTING_J", "NEW_J"),
-                 ("KURUCZ_DATA", "none"), ("SOLVE_NE", "NONE"),
-                 ("COLL_RELAX_NSTEP", "0")] + keywords:
-        kw = setkw(kw, k, v)
-    open(os.path.join(d, "keyword.input"), "w").write(kw)
-    open(os.path.join(d, "atoms.input"), "w").write(
-        "2\n  ../../Atoms/H_6.atom  PASSIVE  LTE_POPULATIONS\n"
-        "  ../../Atoms/CaII.atom  ACTIVE  ZERO_RADIATION  pops.CA.out\n")
-    for f in ("molecules.input", "ray.input"):
-        if os.path.exists(os.path.join(src, rundir, "run", f)):
-            shutil.copy(os.path.join(src, rundir, "run", f), d)
-    return d
+    return prepare(work, name, rundir,
+                   [("ATMOS_FILE", atmos), ("STOKES_MODE", "NO_STOKES"),
+                    ("STOKES_INPUT", "none"), ("PRD_N_MAX_ITER", "2"),
+                    ("PRD_ANGLE_DEP", "PRD_ANGLE_AVER"), ("N_THREADS", "1"),
+                    ("PRINT_CPU", "FALSE"), ("STARTING_J", "NEW_J"),
+                    ("KURUCZ_DATA", "none"), ("SOLVE_NE", "NONE"),
+                    ("COLL_RELAX_NSTEP", "0")] + keywords, H6_CAII)
 
-
-def execute(program, d, args=()):
-    try:
-        r = subprocess.run([program, *args], cwd=d, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, text=True, timeout=600)
-    except subprocess.TimeoutExpired:
-        sys.exit(f"{program} timed out in {d}")
-    open(os.path.join(d, "out.log"), "w").write(r.stdout)
-    return r
-
-
-failed = []
 
 # --- 1. Iteration history of FIXED_POINT = SOLVER = NG without Ng
 runs = {}
@@ -125,92 +66,79 @@ for name, extra in (("hist_ng", NG_DAMPED),
                     ("hist_fp", G_KEYWORDS), ("hist_fp_unset", UNSET),
                     ("hist_ng_crd", NG_DAMPED + CRD),
                     ("hist_fp_crd", G_KEYWORDS + CRD)):
-    d = prepare(name, "1d", extra + [("N_MAX_ITER", "5"), ("ITER_LIMIT", "1e-14")])
-    r = execute(os.path.abspath(a.rhf1d), d)
-    if r.returncode not in (0, 1):            # 1: not converged, expected
-        sys.exit(f"rhf1d failed in {d} (status {r.returncode})")
+    d = prepare_g(name, "1d", extra + [("N_MAX_ITER", "5"), ("ITER_LIMIT", "1e-14")])
+    execute(a.rhf1d, d).require()             # 1: not converged, expected
     runs[name] = d
 for ref, other in (("hist_ng", "hist_fp"), ("hist_ng", "hist_fp_unset"),
                    ("hist_ng_crd", "hist_fp_crd")):
     for f in ("pops.CA.out", "J.dat", "spectrum.out"):
-        same = open(os.path.join(runs[ref], f), "rb").read() == \
-            open(os.path.join(runs[other], f), "rb").read()
-        print(f"history  {other:13s} {f:13s} {'bit-identical' if same else 'DIFFERS'}")
-        if not same:
-            failed.append(f"history {other} {f}")
+        same = same_file(runs[ref], runs[other], f)
+        ck.report(same, f"history  {other:13s} {f:13s} {'bit-identical' if same else 'DIFFERS'}",
+                  f"history {other} {f}")
 # The CRD runs must really be CRD: their populations differ from the PRD runs'
-crd = open(os.path.join(runs["hist_fp_crd"], "pops.CA.out"), "rb").read() != \
-    open(os.path.join(runs["hist_fp"], "pops.CA.out"), "rb").read()
-print(f"history  PRD_N_MAX_ITER = 0 {'differs from PRD (CRD)' if crd else 'SAME AS PRD'}")
-if not crd:
-    failed.append("history: PRD_N_MAX_ITER = 0 did not change the run")
+crd = not same_file(runs["hist_fp_crd"], runs["hist_fp"], "pops.CA.out")
+ck.report(crd, f"history  PRD_N_MAX_ITER = 0 {'differs from PRD (CRD)' if crd else 'SAME AS PRD'}",
+          "history: PRD_N_MAX_ITER = 0 did not change the run")
 
 # --- 2. gcheck: twice and history independence
 checks = [("gcheck_1d", "1d", a.gcheck1d, "1")]
 if a.gcheck2d:
     checks.append(("gcheck_2d", "2d", a.gcheck2d, "2"))
 for name, geom, program, threads in checks:
-    d = prepare(name, geom, G_KEYWORDS + [("N_THREADS", threads)])
-    r = execute(os.path.abspath(program), d, ["--steps", "3", "--lag", "1"])
+    d = prepare_g(name, geom, G_KEYWORDS + [("N_THREADS", threads)])
+    r = execute(program, d, ["--steps", "3", "--lag", "1"])
     lines = [l for l in r.stdout.splitlines() if l.startswith("gcheck: twice")
              or l.startswith("gcheck: history")]
-    if r.returncode != 0 or len(lines) != 2:
-        tail = "\n".join(r.stdout.splitlines()[-30:])
-        sys.exit(f"{program} failed in {d} (status {r.returncode}):\n{tail}")
+    r.require(ok=(EXIT_OK,), tail=30)
+    if len(lines) != 2:
+        sys.exit(f"{os.path.basename(program)} failed in {d}: expected 2 gcheck lines, "
+                 f"end of out.log:\n{r.tail(30)}")
     for l in lines:
-        print(f"{name} ({threads} thread{'s' if threads != '1' else ''}): {l[8:]}")
-        if "bit-identical" not in l:
-            failed.append(f"{name}: {l}")
+        ck.report("bit-identical" in l,
+                  f"{name} ({threads} thread{'s' if threads != '1' else ''}): {l[8:]}",
+                  f"{name}: {l}")
 
 # --- 3. Conflicting keywords stop the run at input
-d = prepare("validate", "1d", [("SOLVER", "FIXED_POINT"), ("PRD_ITER_LIMIT", "1e-2")])
-r = execute(os.path.abspath(a.rhf1d), d)
-ok = r.returncode == 70 and "PRD_ITER_LIMIT" in r.stdout and \
+d = prepare_g("validate", "1d", [("SOLVER", "FIXED_POINT"), ("PRD_ITER_LIMIT", "1e-2")])
+r = execute(a.rhf1d, d)
+ok = r.returncode == EXIT_FATAL and "PRD_ITER_LIMIT" in r.stdout and \
     "reading input file" not in r.stdout.split("TERMINATING")[0].split("readInput")[-1]
-print(f"validate SOLVER = FIXED_POINT with PRD_ITER_LIMIT = 1e-2: "
-      f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})")
-if not ok:
-    failed.append("validation")
+ck.report(ok, f"validate SOLVER = FIXED_POINT with PRD_ITER_LIMIT = 1e-2: "
+              f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})",
+          "validation")
 
 # Keywords without an "off" value stop the run when set at all
 for kw, val, want in (("PRD_NG_DELAY", "2", "PRD_NG_DELAY is set"),
                       ("PRD_NG_PERIOD", "3", "PRD_NG_PERIOD is set"),
                       ("COLL_RELAX_FACTOR", "0.01", "COLL_RELAX_FACTOR = 0.01")):
-    d = prepare(f"validate_{kw.lower()}", "1d", G_KEYWORDS + [(kw, val)])
-    r = execute(os.path.abspath(a.rhf1d), d)
-    ok = r.returncode == 70 and want in r.stdout
-    print(f"validate SOLVER = FIXED_POINT with {kw} = {val}: "
-          f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})")
-    if not ok:
-        failed.append(f"validation ({kw})")
+    d = prepare_g(f"validate_{kw.lower()}", "1d", G_KEYWORDS + [(kw, val)])
+    r = execute(a.rhf1d, d)
+    ok = r.returncode == EXIT_FATAL and want in r.stdout
+    ck.report(ok, f"validate SOLVER = FIXED_POINT with {kw} = {val}: "
+                  f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})",
+              f"validation ({kw})")
 
 # ne in the state requires the background in double (SOLVER.md Q11)
-d = prepare("validate_ne", "1d", G_KEYWORDS + [("SOLVE_NE", "ITERATION"),
+d = prepare_g("validate_ne", "1d", G_KEYWORDS + [("SOLVE_NE", "ITERATION"),
                                                ("BACKGROUND_DOUBLE", "FALSE")])
-r = execute(os.path.abspath(a.rhf1d), d)
-ok = r.returncode == 70 and "BACKGROUND_DOUBLE" in r.stdout and \
+r = execute(a.rhf1d, d)
+ok = r.returncode == EXIT_FATAL and "BACKGROUND_DOUBLE" in r.stdout and \
     "reading input file" not in r.stdout.split("TERMINATING")[0].split("readInput")[-1]
-print(f"validate SOLVE_NE = ITERATION with BACKGROUND_DOUBLE = FALSE: "
-      f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})")
-if not ok:
-    failed.append("validation (BACKGROUND_DOUBLE)")
+ck.report(ok, f"validate SOLVE_NE = ITERATION with BACKGROUND_DOUBLE = FALSE: "
+              f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})",
+          "validation (BACKGROUND_DOUBLE)")
 
 # Negative Ng orders and delays stop at input under every solver (B-45)
 for kw, val, want in (("NG_ORDER", "-2", "Values of NG_ORDER and NG_DELAY"),
                       ("NG_DELAY", "-1", "Values of NG_ORDER and NG_DELAY"),
                       ("PRD_NG_ORDER", "-2", "Values of PRD_NG_ORDER and PRD_NG_DELAY"),
                       ("PRD_NG_DELAY", "-1", "Values of PRD_NG_ORDER and PRD_NG_DELAY")):
-    d = prepare(f"validate_{kw.lower()}", "1d", [("SOLVER", "NG"), (kw, val)])
-    r = execute(os.path.abspath(a.rhf1d), d)
-    ok = r.returncode == 70 and want in r.stdout and \
+    d = prepare_g(f"validate_{kw.lower()}", "1d", [("SOLVER", "NG"), (kw, val)])
+    r = execute(a.rhf1d, d)
+    ok = r.returncode == EXIT_FATAL and want in r.stdout and \
         "readInput" in r.stdout.split(want)[0].rsplit("TERMINATING", 1)[-1]
-    print(f"validate SOLVER = NG with {kw} = {val}: "
-          f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})")
-    if not ok:
-        failed.append(f"validation ({kw} < 0)")
+    ck.report(ok, f"validate SOLVER = NG with {kw} = {val}: "
+                  f"{'stops at input' if ok else 'NOT STOPPED'} (status {r.returncode})",
+              f"validation ({kw} < 0)")
 
-if failed:
-    sys.exit("FAILED: " + "; ".join(failed) + f"\n runs in {work}")
-if not a.work:
-    shutil.rmtree(work)
-print("PASS")
+ck.finish("solver_g", work)

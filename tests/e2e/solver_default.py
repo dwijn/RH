@@ -20,80 +20,32 @@ Each program runs its shipped example (run/) for one or two iterations:
     does not call NG the default.
 Exit status 0 = pass.
 """
-import argparse
 import os
-import shutil
-import subprocess
 import sys
-import tempfile
 
-p = argparse.ArgumentParser()
-p.add_argument("--rhf1d", required=True)
-p.add_argument("--rhsphere", required=True)
-p.add_argument("--rhsc2d", required=True)
-p.add_argument("--rhsc3d", required=True)
-p.add_argument("--src", default=os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))))
-p.add_argument("--work", help="run directory, kept (default: a temporary dir under "
-                               "$TMPDIR, removed when the test passes, kept and named "
-                               "on failure)")
-a = p.parse_args()
-src = os.path.abspath(a.src)
-work = os.path.abspath(a.work) if a.work else tempfile.mkdtemp(prefix="rh_e2e_")
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from rhtest.check import Checker
+from rhtest.cli import parse
+from rhtest.keywords import edit_file
+from rhtest.run import EXIT_FATAL, copy_dir, execute, template
+from rhtest.workdir import WorkDir
 
-def _name_work(*exc):                  # an uncaught exception keeps the runs: say where
-    sys.__excepthook__(*exc)
-    print(f"runs kept in {work}", file=sys.stderr)
-
-
-sys.excepthook = _name_work
-os.makedirs(os.path.join(work, "runs"), exist_ok=True)
-for d in ("Atoms", "Atmos", "Molecules"):          # run dirs sit two levels down
-    link = os.path.join(work, d)
-    if not os.path.lexists(link):
-        os.symlink(os.path.join(src, d), link)
-
-
-def setkw(text, key, value):
-    out, done = [], False
-    for l in text.splitlines():
-        s = l.strip()
-        if not s.startswith("#") and "=" in s and s.split("=")[0].strip() == key:
-            out.append(f"  {key} = {value}")
-            done = True
-        else:
-            out.append(l)
-    if not done:
-        out.append(f"  {key} = {value}")
-    return "\n".join(out) + "\n"
+a = parse(required=("rhf1d", "rhsphere", "rhsc2d", "rhsc3d"))
+work = WorkDir(a.src, a.work)
+ck = Checker()
 
 
 def run(name, program, rundir, keywords):
-    d = os.path.join(work, "runs", name)
-    if os.path.isdir(d):
-        shutil.rmtree(d)
-    shutil.copytree(os.path.join(src, rundir, "run"), d)
-    kw = open(os.path.join(d, "keyword.input")).read()
-    for k, v in [("N_THREADS", "1"), ("PRINT_CPU", "FALSE")] + keywords:
-        kw = setkw(kw, k, v)
-    open(os.path.join(d, "keyword.input"), "w").write(kw)
-    try:
-        r = subprocess.run([os.path.abspath(program)], cwd=d, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, text=True, timeout=600)
-    except subprocess.TimeoutExpired:
-        sys.exit(f"{program} timed out in {d}")
-    open(os.path.join(d, "out.log"), "w").write(r.stdout)
-    return r
+    """The shipped example of rundir, with keywords."""
+    d = copy_dir(work, name, template(a.src, rundir))
+    edit_file(os.path.join(d, "keyword.input"),
+              [("N_THREADS", "1"), ("PRINT_CPU", "FALSE")] + keywords)
+    return execute(program, d)
 
 
-failed = []
-
-
-def check(label, ok, r):
-    print(f"{label}: {'ok' if ok else 'FAILED'} (status {r.returncode})")
-    if not ok:
-        failed.append(label)
+def report_run(label, ok, r):
+    ck.report(ok, f"{label}: {'ok' if ok else 'FAILED'} (status {r.returncode})", label)
 
 
 # --- 1. The default of each geometry
@@ -103,34 +55,30 @@ for name, program, rundir, want in (
         ("rhsc2d", a.rhsc2d, "rhsc2d", "POPULATIONS_RHO"),
         ("rhsc3d", a.rhsc3d, "rhsc3d", "POPULATIONS_RHO")):
     r = run(f"default_{name}", program, rundir, [("N_MAX_ITER", "2")])
-    ok = r.returncode in (0, 1) and " -- SOLVER = ANDERSON (the default)\n" in r.stdout \
+    ok = r.ran and " -- SOLVER = ANDERSON (the default)\n" in r.stdout \
         and "-- Anderson: extrapolated" in r.stdout \
         and f"ANDERSON_EXTRAPOLATE = {want} (the default):" in r.stdout
-    check(f"{name} without SOLVER iterates with ANDERSON, {want} (the default)", ok, r)
+    report_run(f"{name} without SOLVER iterates with ANDERSON, {want} (the default)", ok, r)
 
 # --- Without PRD lines: the 2-D default is silent, an explicit setting warns
 WARN = "ANDERSON_EXTRAPOLATE = POPULATIONS_RHO, but there are no PRD"
 for label, extra, warn in (("default", [], False),
                            ("explicit", [("ANDERSON_EXTRAPOLATE", "POPULATIONS_RHO")], True)):
     r = run(f"noprd_{label}", a.rhsc2d, "rhsc2d", [("N_MAX_ITER", "2"), ("PRD_N_MAX_ITER", "0")] + extra)
-    ok = r.returncode in (0, 1) and (WARN in r.stdout) == warn \
+    ok = r.ran and (WARN in r.stdout) == warn \
         and "ANDERSON_EXTRAPOLATE = POPULATIONS_RHO" in r.stdout
-    check(f"rhsc2d without PRD lines, POPULATIONS_RHO {label}: "
-          f"{'warns' if warn else 'no warning'}", ok, r)
+    report_run(f"rhsc2d without PRD lines, POPULATIONS_RHO {label}: "
+               f"{'warns' if warn else 'no warning'}", ok, r)
 
 # --- 2. A keyword file written for the old default
 OLD = [("NG_ORDER", "2"), ("NG_DELAY", "10"), ("NG_PERIOD", "3"),
        ("PRD_ITER_LIMIT", "1.0E-2")]
 r = run("old_file", a.rhf1d, "rhf1d", OLD)
-ok = r.returncode == 70 and "SOLVER = ANDERSON (the default)" in r.stdout and \
+ok = r.returncode == EXIT_FATAL and "SOLVER = ANDERSON (the default)" in r.stdout and \
     "Set SOLVER = NG" in r.stdout and "4 keyword settings conflict" in r.stdout
-check("rhf1d, old keyword file without SOLVER stops at input", ok, r)
+report_run("rhf1d, old keyword file without SOLVER stops at input", ok, r)
 r = run("old_file_ng", a.rhf1d, "rhf1d", OLD + [("SOLVER", "NG"), ("N_MAX_ITER", "2")])
-ok = r.returncode in (0, 1) and " -- SOLVER = NG\n" in r.stdout
-check("rhf1d, old keyword file with SOLVER = NG runs with NG", ok, r)
+ok = r.ran and " -- SOLVER = NG\n" in r.stdout
+report_run("rhf1d, old keyword file with SOLVER = NG runs with NG", ok, r)
 
-if failed:
-    sys.exit("FAILED: " + "; ".join(failed) + f"\n runs in {work}")
-if not a.work:
-    shutil.rmtree(work)
-print("solver_default: all checks passed")
+ck.finish("solver_default", work)
