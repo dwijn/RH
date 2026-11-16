@@ -72,12 +72,17 @@ def read_first_molecule(path):
     Nmolecule; counted ID (xdr short, xdr string); Nv, NJ; Ediss, Tmin,
     Tmax. ValueError if the header does not parse."""
     b = read_bytes(path)
-    nmol, short, m = struct.unpack(">3i", b[:12])
-    if nmol <= 0 or short != m:
-        raise ValueError(f"{path}: no molecule header (Nmolecule {nmol})")
-    ident = b[12:12 + m].decode().strip()
-    off = 12 + 4 * ((m + 3) // 4) + 8              # skip Nv, NJ
-    tmin, tmax = struct.unpack(">2d", b[off + 8:off + 24])
+    try:
+        nmol = struct.unpack(">i", b[:4])[0]
+        if nmol <= 0:
+            raise ValueError(f"Nmolecule {nmol}")
+        ident, off = xdr_counted_string(b, 4)
+        if not ident:
+            raise ValueError("empty molecule ID")
+        ident = ident.strip()
+        tmin, tmax = struct.unpack(">2d", b[off + 16:off + 32])    # after Nv, NJ, Ediss
+    except (struct.error, UnicodeDecodeError, ValueError) as e:
+        raise ValueError(f"{path}: no molecule header ({e})") from None
     return ident, tmin, tmax
 
 

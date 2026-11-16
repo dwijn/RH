@@ -162,7 +162,7 @@ ck.check(spreadI == 0 and spreadJ == 0,
          f"(I {spreadI:.1e}, J {spreadJ:.1e})")
 
 # --- against rhf1d
-Ie = [abs(r2[0] - r1[0]) / abs(r1[0]) for r1, r2 in zip(I1, I2)]
+Ie = [abs(row2[0] - row1[0]) / abs(row1[0]) for row1, row2 in zip(I1, I2)]
 Jpk = []
 for la in range(ns):
     j1 = J1[la * Nz:(la + 1) * Nz]
@@ -260,10 +260,16 @@ if a.solveray2d:
     ok = r.returncode == 0 and "ERROR" not in r.stdout and len(files) == 1
     if ok:
         M = ns * Nx
-        vals = read_solveray_intensity(os.path.join(d, files[0]), M)
-        rows = [vals[i * Nx:(i + 1) * Nx] for i in range(ns)]
-        ok = (all(math.isfinite(v) for v in vals)
-              and all(max(r) - min(r) <= 1e-12 * max(abs(x) for x in r) for r in rows))
+        try:
+            vals = read_solveray_intensity(os.path.join(d, files[0]), M)
+        except ValueError as exc:          # wrong size: a failed check, not the end
+            print(exc)
+            ok = False
+        else:
+            rows = [vals[i * Nx:(i + 1) * Nx] for i in range(ns)]
+            ok = (all(math.isfinite(v) for v in vals)
+                  and all(max(row) - min(row) <= 1e-12 * max(abs(x) for x in row)
+                          for row in rows))
     ck.check(ok, "solveray after a SET_EDDINGTON run: finite, the same in every column",
              f"(status {r.returncode})")
 

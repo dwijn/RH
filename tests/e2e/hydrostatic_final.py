@@ -52,18 +52,19 @@ def run(name, keywords, stop_at=None):
     # stop request is read, so it is read at the end of iteration k.
     if stop_at == 0:                       # requested before the first iteration
         open(os.path.join(d, "STOP_RH"), "w").close()
-    seen = []                              # [True] after the header of iteration stop_at
+    seen = False                           # the header of iteration stop_at has appeared
 
     def on_line(line):
+        nonlocal seen
         if stop_at is None:
             return
         if line.strip() == f"-- Iteration {stop_at:3d}":
-            seen[:] = [True]
+            seen = True
         elif seen and line.startswith(" H , delta"):
             open(os.path.join(d, "STOP_RH"), "w").close()
-            seen[:] = []
+            seen = False
 
-    r = execute_streaming(a.rhf1d, d, on_line, timeout=900).require()
+    r = execute_streaming(a.rhf1d, d, timeout=900, on_line=on_line).require()
     return d, r.stdout, r.returncode
 
 
@@ -75,9 +76,14 @@ def inconsistency(d):
     be H2)."""
     nl, ns, n = read_pops_array(os.path.join(d, "pops.CA.out"))
     T, nh, ab = read_atmos_out(os.path.join(d, "atmos.out"), ns)
-    ident, tmin, tmax = read_first_molecule(os.path.join(d, "molecules.out"))
-    if ident != "H2":
-        sys.exit(f"first molecule of {d}/molecules.out is {ident!r}, not H2")
+    path = os.path.join(d, "molecules.out")
+    try:
+        ident, tmin, tmax = read_first_molecule(path)
+        problem = None if ident == "H2" else f"it is {ident!r}"
+    except ValueError as e:
+        problem = str(e)
+    if problem:
+        sys.exit(f"{path}: the first molecule must be H2 ({problem})")
     ks = [k for k in range(ns) if not tmin <= T[k] <= tmax]
     if len(ks) < 5:
         sys.exit(f"only {len(ks)} depth points outside the H2 range [{tmin}, {tmax}] K:"
