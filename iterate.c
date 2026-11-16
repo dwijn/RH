@@ -237,10 +237,10 @@ static void iterateNg(int NmaxIter, double iterLimit)
 
 			/* --- After the last iteration of a run that did not converge
 				   (N_MAX_ITER reached, or a stop requested) skip the
-				   hydrostatic step. It
-				   rescales only hydrogen to the new nHtot, so the other
-				   active atoms would be off by the last HSE change in the
-				   output (N-16). A converged run never gets here --  ---- */
+				   hydrostatic step. It rescales only hydrogen to the new
+				   nHtot, so the other active atoms would be off by the last
+				   HSE change in the output (N-16). A converged run never
+				   gets here --                                ------------ */
 
 			if (more) Hydrostatic(N_MAX_HSE_ITER, HSE_ITER_LIMIT);
 		}
