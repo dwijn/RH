@@ -156,7 +156,7 @@ struct rhthread {
 
 struct Atom {
 	char          ID[ATOM_ID_WIDTH + 1], **label, *popsinFile, *popsoutFile;
-	bool_t        active, NLTEpops;
+	bool_t        active, NLTEpops, popsInit;
 	enum solution initial_solution;
 	int           Nlevel, Nline, Ncont, Nfixed, Nprd, *stage, periodic_table,
 		activeindex;

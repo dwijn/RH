@@ -649,6 +649,7 @@ void initAtom(Atom *atom)
 	atom->initial_solution = UNKNOWN;
 	atom->active           = FALSE;
 	atom->NLTEpops         = FALSE;
+	atom->popsInit         = FALSE;
 	atom->Nfixed = atom->Ncont = atom->Nline = atom->Nlevel = 0;
 	atom->Nprd                                              = 0;
 	atom->stage                                             = NULL;

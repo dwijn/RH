@@ -269,6 +269,8 @@ if(Python3_Interpreter_FOUND)
       --solveray3d $<TARGET_FILE:rhsc3d_solveray>)
   rh_add_e2e(solver_newton solver_newton
       --rhf1d $<TARGET_FILE:rhf1d>)
+  rh_add_e2e(solver_ng_restart solver_ng_restart
+      --rhf1d $<TARGET_FILE:rhf1d>)
 endif()
 
 message(STATUS "RH ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, "
