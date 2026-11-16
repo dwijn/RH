@@ -48,7 +48,6 @@ int main(int argc, char *argv[])
 	stats.printCPU      = TRUE;
 	commandline.quiet   = FALSE;
 	commandline.logfile = stderr;
-	input.Eddington     = FALSE;
 
 	input.S_interpolation = S_BEZIER3;
 	input.interpolate_2D  = BEZIER_2D;
@@ -60,6 +59,10 @@ int main(int argc, char *argv[])
 	if (Nread != 1) {
 		sprintf(messageStr, "Unable to read atmos.angleSet.set from standard input");
 		Error(ERROR_LEVEL_2, argv[0], messageStr);
+	}
+	if (atmos.angleSet.set == SET_EDDINGTON) {
+		Error(ERROR_LEVEL_2, argv[0],
+			  "SET_EDDINGTON is not a short-characteristics angle set");
 	}
 	Nread = fread(&mu, sizeof(int), 1, stdin);
 	if (Nread != 1) {

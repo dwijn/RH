@@ -95,6 +95,22 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 				 (atmos.moving &&
 				  (boundbound || atmos.backgrflags[nspect].hasline)));
 
+	/* --- ANGLE_SET = SET_EDDINGTON has no angle-dependent solver (no
+		   stencils): checkEddington() refuses what it can see at setup, this
+		   catches the rest, e.g. polarized or moving background lines -- */
+
+	if (angle_dep && atmos.angleSet.set == SET_EDDINGTON) {
+		sprintf(messageStr,
+				"ANGLE_SET = SET_EDDINGTON cannot treat angle-dependent opacity\n"
+				" or emissivity (wavelength index %d, %.4f nm: polarized %d,"
+				" polarized background lines %d,\n angle-dependent PRD %d,"
+				" background polarization %d, moving atmosphere with lines %d)",
+				nspect, spectrum.lambda[nspect], polarized_as, polarized_c,
+				PRD_angle_dep, input.backgr_pol,
+				atmos.moving && (boundbound || atmos.backgrflags[nspect].hasline));
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+
 	/* --- Allocate temporary space --                   -------------- */
 
 	if (eval_operator)
@@ -300,19 +316,19 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 			goto cleanup;
 		for (k = 0; k < Nspace; k++)
 			S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k]) / chi[k];
-		if (input.Eddington) {
+		if (atmos.angleSet.set == SET_EDDINGTON) {
+
+			/* --- No Jgas here: PRD_ANGLE_APPROX with a PRD line, the one case
+				   that needs it, is refused by checkEddington() -- -------- */
+
 			Feautrier_2D(nspect, chi, S, STANDARD, I, Psi);
 			if (eval_operator) {
 				for (k = 0; k < Nspace; k++) Psi[k] /= chi[k];
 				addtoGamma(nspect, geometry.wmu[0], I, Psi);
 			}
 			if (spectrum.updateJ) {
-				for (k = 0; k < Nspace; k++)
-					spectrum.J[nspect][k] += I[k] * geometry.wmu[0];
+				for (k = 0; k < Nspace; k++) J[k] += I[k] * geometry.wmu[0];
 				addtoRates(nspect, 0, 0, geometry.wmu[0], I, redistribute);
-				if (atmos.NPRDactive > 0 &&
-					input.PRD_angle_dep == PRD_ANGLE_APPROX)
-					addJgasRow(nspect, geometry.wmu[0], I);
 			}
 		} else {
 			for (mu = 0; mu < Nrays; mu++) {

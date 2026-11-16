@@ -80,6 +80,11 @@ int main(int argc, char *argv[])
 
 	getCPU(1, TIME_START, NULL);
 	readAtmos(&atmos, &geometry);
+	if (atmos.angleSet.set == SET_EDDINGTON) {
+		Error(ERROR_LEVEL_2, argv[0],
+			  "ANGLE_SET = SET_EDDINGTON has no short characteristics to"
+			  " analyze: use another angle set");
+	}
 	if (atmos.Stokes) Bproject();
 	fillMesh(&geometry);
 

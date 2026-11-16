@@ -37,6 +37,27 @@ static bool_t keywordSet(const Keyword *theKeywords, int Nkeyword,
 						 const char *name);
 static void   setKeywordValue(Keyword *theKeywords, int Nkeyword,
 							  const char *name, const char *value);
+static void   setEddingtonNrays(const char *geometryName);
+
+/* ------- begin -------------------------- setEddingtonNrays.c ------ */
+
+/* --- SET_EDDINGTON is one ray at muz = 1/sqrt(3): NRAYS is set to 1, with
+	   a warning when the input gave another value (1-D and 2-D) -- --- */
+
+static void setEddingtonNrays(const char *geometryName)
+{
+	const char routineName[] = "readInput";
+
+	if (atmos.Nrays != 0 && atmos.Nrays != 1) {
+		sprintf(messageStr,
+				"Ignoring value of NRAYS in %s geometry when SET_EDDINGTON is"
+				" specified.\n Setting NRAYS = 1 and muz = 1/sqrt(3)",
+				geometryName);
+		Error(WARNING, routineName, messageStr);
+	}
+	atmos.Nrays = 1;
+}
+/* ------- end ---------------------------- setEddingtonNrays.c ------ */
 
 /* ------- begin -------------------------- readInput.c ------------- */
 
@@ -281,14 +302,7 @@ void readInput()
 				break;
 
 			case SET_EDDINGTON:
-
-				if (atmos.Nrays != 1) {
-					Error(WARNING, routineName,
-						  "Ignoring value of NRAYS in 1-D plane geometry when"
-						  " SET_EDDINGTON is specified\n. Setting NRAYS = 1,"
-						  " and muz = 1/sqrt(3)");
-				}
-				atmos.Nrays = 1;
+				setEddingtonNrays("1-D plane");
 				break;
 
 			default:
@@ -309,12 +323,15 @@ void readInput()
 		break;
 
 	case TWO_D_PLANE:
-		if (input.Eddington && atmos.angleSet.set != NO_SET) {
-			Error(WARNING, routineName,
-				  "Ignoring value of keywords ANGLE_SET > NO_VERTICAL when\n "
-				  " EDDINGTON is set to TRUE\n"
-				  " Using SET_VERTICAL with muz = 1/sqrt(3)");
-			atmos.angleSet.set = SET_EDDINGTON;
+		if (atmos.angleSet.set == SET_EDDINGTON) {
+
+			/* --- Each column is solved on its own (Feautrier_2D) with one
+				   ray at muz = 1/sqrt(3). What needs angle-dependent opacity
+				   has no solver there (B-57); checkEddington() refuses it
+				   once the atoms, the atmosphere and the background are
+				   known --                                  ---------- */
+
+			setEddingtonNrays("2-D plane");
 		}
 		break;
 
@@ -322,6 +339,11 @@ void readInput()
 		if (atmos.angleSet.set == NO_SET)
 			Error(ERROR_LEVEL_2, routineName,
 				  "Must set keyword ANGLE_SET in multi-D plane geometry");
+		if (atmos.angleSet.set == SET_EDDINGTON)
+			Error(ERROR_LEVEL_2, routineName,
+				  "ANGLE_SET = SET_EDDINGTON is not available in 3-D plane"
+				  " geometry (there is no 3-D Eddington solver); it is"
+				  " implemented in 1-D and 2-D");
 		if (atmos.Nrays > 0)
 			Error(WARNING, routineName,
 				  "Ignoring value of keyword NRAYS in multi-D plane geometry");

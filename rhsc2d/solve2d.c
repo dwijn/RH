@@ -46,7 +46,6 @@ int main(int argc, char *argv[])
 	stats.printCPU      = TRUE;
 	commandline.quiet   = FALSE;
 	commandline.logfile = stderr;
-	input.Eddington     = FALSE;
 
 	input.S_interpolation = S_BEZIER3;
 	input.interpolate_2D  = BEZIER_2D;
@@ -65,6 +64,10 @@ int main(int argc, char *argv[])
 	}
 
 	atmos.angleSet.set = (enum angleset) inputs[0];
+	if (atmos.angleSet.set == SET_EDDINGTON) {
+		Error(ERROR_LEVEL_2, argv[0],
+			  "SET_EDDINGTON is not a short-characteristics angle set");
+	}
 	if (atmos.angleSet.set == SET_GL) {
 		result = xdr_int(&xdrs, &atmos.angleSet.Ninclination);
 		result &= xdr_int(&xdrs, &atmos.angleSet.Nazimuth);
