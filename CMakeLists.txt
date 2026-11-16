@@ -271,6 +271,8 @@ if(Python3_Interpreter_FOUND)
       --rhf1d $<TARGET_FILE:rhf1d>)
   rh_add_e2e(solver_ng_restart solver_ng_restart
       --rhf1d $<TARGET_FILE:rhf1d>)
+  rh_add_e2e(hydrostatic_final hydrostatic_final
+      --rhf1d $<TARGET_FILE:rhf1d>)
   rh_add_e2e(eddington_2d eddington_2d
       --rhf1d $<TARGET_FILE:rhf1d> --rhsc2d $<TARGET_FILE:rhsc2d>
       --solveray2d $<TARGET_FILE:rhsc2d_solveray>

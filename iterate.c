@@ -41,9 +41,18 @@ extern Spectrum   spectrum;
 extern InputData  input;
 extern char       messageStr[];
 
-static void iterateNg(int NmaxIter, double iterLimit);
+static void   iterateNg(int NmaxIter, double iterLimit);
+static bool_t moreIterations(int niter, int NmaxIter);
 
 /* ------- begin -------------------------- Iterate.c --------------- */
+
+/* --- Whether the loop of iterateNg runs iteration niter: up to
+	   N_MAX_ITER, and up to CR_Nstep if that is larger -- ------------ */
+
+static bool_t moreIterations(int niter, int NmaxIter)
+{
+	return (niter <= NmaxIter || (input.CR_Nstep > 0 && niter <= input.CR_Nstep));
+}
 
 void Iterate(int NmaxIter, double iterLimit)
 {
@@ -97,7 +106,7 @@ static void iterateNg(int NmaxIter, double iterLimit)
 	register int niter, nact;
 
 	bool_t eval_operator, write_analyze_output, equilibria_only,
-		converged = FALSE, stopped = FALSE;
+		converged = FALSE, stopped = FALSE, more;
 	int       Ngorder;
 	double    dpopsmax = 0.0, PRDiterlimit;
 	Atom     *atom;
@@ -122,10 +131,13 @@ static void iterateNg(int NmaxIter, double iterLimit)
 	/* --- Start of the main iteration loop --             ------------ */
 
 	niter = 1;
-	while (niter <= NmaxIter ||
-		   (input.CR_Nstep > 0 && niter <= input.CR_Nstep)) {
+	while (moreIterations(niter, NmaxIter)) {
 
-		if (StopRequested()) {
+		/* --- A stop request is read once per iteration: here before the
+			   first one, afterwards at the end of the previous iteration
+			   (below), before its hydrostatic step -- ------------------- */
+
+		if (niter == 1 && StopRequested()) {
 			stopped = TRUE;
 			break;
 		}
@@ -204,6 +216,15 @@ static void iterateNg(int NmaxIter, double iterLimit)
 		}
 		niter++;
 
+		/* --- Whether another iteration follows; if a stop is requested
+			   none does --                               -------------- */
+
+		more = moreIterations(niter, NmaxIter);
+		if (more && StopRequested()) {
+			stopped = TRUE;
+			more    = FALSE;
+		}
+
 		if (input.solve_ne == ITERATION)
 			Background(write_analyze_output = TRUE, equilibria_only = FALSE);
 
@@ -213,8 +234,17 @@ static void iterateNg(int NmaxIter, double iterLimit)
 									" for hydrogen active");
 				Error(ERROR_LEVEL_2, routineName, messageStr);
 			}
-			Hydrostatic(N_MAX_HSE_ITER, HSE_ITER_LIMIT);
+
+			/* --- After the last iteration of a run that did not converge
+				   (N_MAX_ITER reached, or a stop requested) skip the
+				   hydrostatic step. It rescales only hydrogen to the new
+				   nHtot, so the other active atoms would be off by the last
+				   HSE change in the output (N-16). A converged run never
+				   gets here --                                ------------ */
+
+			if (more) Hydrostatic(N_MAX_HSE_ITER, HSE_ITER_LIMIT);
 		}
+		if (stopped) break;
 	}
 
 	/* --- Say whether the populations converged. A run that stops at
