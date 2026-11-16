@@ -50,7 +50,6 @@ int main(int argc, char *argv[])
 	stats.printCPU      = TRUE;
 	commandline.quiet   = FALSE;
 	commandline.logfile = stderr;
-	input.Eddington     = FALSE;
 	input.Nthreads      = 0;
 
 	getCPU(0, TIME_START, NULL);
