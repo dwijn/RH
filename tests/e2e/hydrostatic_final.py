@@ -14,6 +14,9 @@ list.
     consistent to 1e-5. Without the fix the last hydrostatic step leaves
     it off by 0.1.
  2. A run that converges (ITER_LIMIT = 5e-2) is consistent to 1e-5.
+ 3. A run stopped with STOP_RH during iteration 3 ends after 3 iterations
+    and is consistent to 1e-5. With STOP_RH present at the start no iteration
+    runs ("after 0 iterations").
 """
 
 import argparse
@@ -23,6 +26,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 
 p = argparse.ArgumentParser()
 p.add_argument("--rhf1d", required=True)
@@ -102,7 +106,7 @@ def setkw(text, key, value):
     return "\n".join(out) + "\n"
 
 
-def run(name, keywords):
+def run(name, keywords, stop_at=None):
     d = os.path.join(work, "runs", name)
     if os.path.isdir(d):
         shutil.rmtree(d)
@@ -122,15 +126,36 @@ def run(name, keywords):
     for f in ("molecules.input", "ray.input"):
         if os.path.exists(os.path.join(src, "rhf1d", "run", f)):
             shutil.copy(os.path.join(src, "rhf1d", "run", f), d)
-    try:
-        r = subprocess.run([os.path.abspath(a.rhf1d)], cwd=d, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, text=True, timeout=900)
-    except subprocess.TimeoutExpired:
+    # The messages go to stderr (unbuffered), so they arrive as they are
+    # written. With stop_at = k, STOP_RH is created when the line of
+    # iteration k with its H residual appears: three PRD sweeps (each of
+    # the order of 0.1 s) come before the end of that iteration, where the
+    # stop request is read, so it is read at the end of iteration k.
+    if stop_at == 0:                       # requested before the first iteration
+        open(os.path.join(d, "STOP_RH"), "w").close()
+    timer = threading.Timer(900, lambda: proc.kill())
+    proc = subprocess.Popen([os.path.abspath(a.rhf1d)], cwd=d, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True)
+    timer.start()
+    lines, seen = [], False
+    for line in proc.stdout:
+        lines.append(line)
+        if stop_at is not None:
+            if line.strip() == f"-- Iteration {stop_at:3d}":
+                seen = True
+            elif seen and line.startswith(" H , delta"):
+                open(os.path.join(d, "STOP_RH"), "w").close()
+                seen = False
+    rc = proc.wait()
+    timed_out = not timer.is_alive()
+    timer.cancel()
+    out = "".join(lines)
+    open(os.path.join(d, "out.log"), "w").write(out)
+    if timed_out:
         sys.exit(f"rhf1d timed out in {d}")
-    open(os.path.join(d, "out.log"), "w").write(r.stdout)
-    if r.returncode not in (0, 1):
-        sys.exit(f"rhf1d failed in {d} (status {r.returncode})")
-    return d, r.stdout, r.returncode
+    if rc not in (0, 1):
+        sys.exit(f"rhf1d failed in {d} (status {rc})")
+    return d, out, rc
 
 
 def read_h2_range(path):
@@ -184,6 +209,23 @@ print(f"converged: status {rc}, Ca II vs nHtot of the output {c:.2E}"
       f" ({'ok' if ok else 'FAIL'})")
 if not ok:
     failed.append(f"converged run: status {rc}, inconsistency {c:.2E}")
+
+# STOP_RH created during iteration 3: the run ends after 3 iterations, like
+# N_MAX_ITER = 3, and must be as consistent
+d, out, rc = run("stopped", [("N_MAX_ITER", "100"), ("ITER_LIMIT", "1e-3")], stop_at=3)
+c = inconsistency(d)
+ok = rc == 1 and "Stopped on request (STOP_RH) after 3 iterations" in out and c < TOL
+print(f"STOP_RH in iteration 3: status {rc}, Ca II vs nHtot of the output {c:.2E}"
+      f" ({'ok' if ok else 'FAIL'})")
+if not ok:
+    failed.append(f"stopped run: status {rc}, inconsistency {c:.2E}")
+
+# STOP_RH present at the start: no iteration runs
+d, out, rc = run("stopped0", [("N_MAX_ITER", "100"), ("ITER_LIMIT", "1e-3")], stop_at=0)
+ok = rc == 1 and "Stopped on request (STOP_RH) after 0 iterations" in out
+print(f"STOP_RH at the start: status {rc} ({'ok' if ok else 'FAIL'})")
+if not ok:
+    failed.append(f"stop at the start: status {rc}")
 
 if failed:
     sys.exit("FAILED: " + "; ".join(failed) + f"\n runs in {work}")

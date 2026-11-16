@@ -106,7 +106,7 @@ static void iterateNg(int NmaxIter, double iterLimit)
 	register int niter, nact;
 
 	bool_t eval_operator, write_analyze_output, equilibria_only,
-		converged = FALSE, stopped = FALSE;
+		converged = FALSE, stopped = FALSE, more;
 	int       Ngorder;
 	double    dpopsmax = 0.0, PRDiterlimit;
 	Atom     *atom;
@@ -133,7 +133,11 @@ static void iterateNg(int NmaxIter, double iterLimit)
 	niter = 1;
 	while (moreIterations(niter, NmaxIter)) {
 
-		if (StopRequested()) {
+		/* --- A stop request is read once per iteration: here before the
+			   first one, afterwards at the end of the previous iteration
+			   (below), before its hydrostatic step -- ------------------- */
+
+		if (niter == 1 && StopRequested()) {
 			stopped = TRUE;
 			break;
 		}
@@ -212,6 +216,15 @@ static void iterateNg(int NmaxIter, double iterLimit)
 		}
 		niter++;
 
+		/* --- Whether another iteration follows; if a stop is requested
+			   none does --                               -------------- */
+
+		more = moreIterations(niter, NmaxIter);
+		if (more && StopRequested()) {
+			stopped = TRUE;
+			more    = FALSE;
+		}
+
 		if (input.solve_ne == ITERATION)
 			Background(write_analyze_output = TRUE, equilibria_only = FALSE);
 
@@ -223,14 +236,15 @@ static void iterateNg(int NmaxIter, double iterLimit)
 			}
 
 			/* --- After the last iteration of a run that did not converge
-				   (N_MAX_ITER reached) skip the hydrostatic step. It
+				   (N_MAX_ITER reached, or a stop requested) skip the
+				   hydrostatic step. It
 				   rescales only hydrogen to the new nHtot, so the other
 				   active atoms would be off by the last HSE change in the
 				   output (N-16). A converged run never gets here --  ---- */
 
-			if (moreIterations(niter, NmaxIter))
-				Hydrostatic(N_MAX_HSE_ITER, HSE_ITER_LIMIT);
+			if (more) Hydrostatic(N_MAX_HSE_ITER, HSE_ITER_LIMIT);
 		}
+		if (stopped) break;
 	}
 
 	/* --- Say whether the populations converged. A run that stops at
