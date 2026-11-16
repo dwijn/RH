@@ -136,7 +136,7 @@ void ChemicalEquilibriumOfState(int Niter)
 static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 {
 	const char   routineName[] = "ChemicalEquilibrium";
-	register int k, i, j, nu;
+	register int k, i, j, nu, pass;
 
 	char   tmpStr[13];
 	bool_t quiet;
@@ -255,30 +255,33 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 
 				/* --- Atomic model has been read for this nucleus -- ------- */
 
-				fn0[i] = 0.0;
-				if (atom->active) {
+				/* --- N-36: the neutral fraction of an atom comes from its
+					   populations n, normalized by their sum, as in the map
+					   G. An active atom whose populations have not been
+					   initialized yet (atom->popsInit, set by initSolution;
+					   the setup Background() runs before it, with n still
+					   zero or the atmosphere-file populations of H) takes the
+					   LTE populations nstar, as a fresh run always did. A sum
+					   that is zero or not finite also falls back to nstar, so
+					   that fn0 is never NaN. The legacy iteration used to take
+					   nstar for an active atom unless OLD_POPULATIONS, so its
+					   SOLVE_NE = ITERATION fixed point differed from that of
+					   the G solvers (H2, H-, ne by 1e-6) and a restart
+					   changed the result -- --------------------------- */
 
-					/* --- N-36: the neutral fraction of an active atom comes
-						   from its populations, in the map G and in the legacy
-						   iteration alike, normalized by their sum. It used to
-						   come from the LTE nstar in a fresh legacy run, so the
-						   legacy and the G fixed points of SOLVE_NE = ITERATION
-						   differed (H2, H-, ne by 1e-6) and a restart changed
-						   the result -- ----------------------------- */
-
-					sum = 0.0;
+				double **pop = atom->n;
+				if (atom->active && !ofState && !atom->popsInit)
+					pop = atom->nstar;
+				for (pass = 0; pass < 2; pass++) {
+					fn0[i] = sum = 0.0;
 					for (j = 0; j < atom->Nlevel; j++) {
-						if (atom->stage[j] == 0) fn0[i] += atom->n[j][k];
-						sum += atom->n[j][k];
+						if (atom->stage[j] == 0) fn0[i] += pop[j][k];
+						sum += pop[j][k];
 					}
-					fn0[i] /= sum;
-				} else {
-					for (j = 0; j < atom->Nlevel; j++) {
-						if (atom->stage[j] > 0) break;
-						fn0[i] += atom->n[j][k];
-					}
-					fn0[i] /= atom->ntotal[k];
+					if (sum > 0.0 && isfinite(sum)) break;
+					pop = atom->nstar;
 				}
+				fn0[i] /= sum;
 				a[i] = atom->abundance * atmos.nHtot[k];
 			}
 		}

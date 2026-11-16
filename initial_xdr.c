@@ -403,6 +403,11 @@ void initSolution(void)
 		default:;
 			break;
 		}
+		/* --- From here on the populations are the starting solution;
+			   ChemicalEquilibrium() takes its neutral fraction from them
+			   (N-36) --                                   -------------- */
+
+		atom->popsInit = TRUE;
 	}
 	/* --- Now the molecules that are active --          -------------- */
 
