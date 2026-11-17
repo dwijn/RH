@@ -148,7 +148,8 @@ example), since floating-point sums depend on thread count. Use `--exact`
 for changes that must not alter a single bit (memory management).
 
 The log, `keyword.input` and timing of the runs behind every failure (both
-sides of a comparison, in subdirectories named like the run directories) are kept in
+sides of a comparison, in subdirectories named like the run directories; for
+a failure raised as an error, every run of its case) are kept in
 `WORK/failed/` (CI uploads them as an artifact), since run directories are
 reused by later cases.
 

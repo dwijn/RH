@@ -130,6 +130,7 @@ class Suite:
         self.npass = self.nfail = self.nskip = 0
         self.failed = []
         self.rundir = ""            # the run directory the last prepare() made
+        self.casedirs = []          # the run directories the current case made
 
     # -- reporting ------------------------------------------------------
     def record(self, status, name, detail, dirs=()):
@@ -146,8 +147,9 @@ class Suite:
         # Keep the logs of the runs behind a failure (the run directories
         # are reused by later cases), so that intermittent failures can be
         # looked at afterwards: in the directory itself for one run, in a
-        # subdirectory named like each run directory for several
-        dirs = [d for d in dirs if os.path.isfile(os.path.join(d, "log.log"))]
+        # subdirectory named like each run directory for several. A run
+        # without a log is named, so that a missing side shows
+        dirs = [d for d in dirs if d and os.path.isdir(d)]
         if status == "FAIL" and dirs:
             keep = os.path.join(self.work, "failed", "%s_%s" % (
                 name.replace(" ", "_").replace("/", "_").replace("=", "_"),
@@ -160,6 +162,8 @@ class Suite:
                         shutil.copy(os.path.join(d, f), dst)
                     except OSError:
                         pass
+                if not os.path.isfile(os.path.join(d, "log.log")):
+                    print("       no log.log in %s" % d)
             print("       log kept in %s" % keep)
 
     # -- run directories --------------------------------------------------
@@ -168,6 +172,7 @@ class Suite:
         candidate's example: keyword.input with N_THREADS, N_MAX_ITER = 4 and
         the modifications mods (KEY=VALUE or @H6_ACTIVE) set."""
         d = self.rundir = run.fresh_dir(self.wd, "%s_%s_%s_n%s" % (label, geom, name, n))
+        self.casedirs.append(d)
         t = run.template(self.cand_src, GEOMDIR[geom])
         for f in sorted(os.listdir(t)):
             if not f.startswith(".") and os.path.isfile(os.path.join(t, f)):
@@ -310,6 +315,8 @@ class Suite:
                                 os.path.join(self.cand_src, "Atmos", "FALC_03x82.atmos"), tiled,
                                 "96"], stdout=log, stderr=subprocess.STDOUT)
         if r.returncode != 0:
+            with open(os.path.join(tdir, "log.log")) as log:
+                sys.stdout.write("".join("       " + l for l in log.readlines()[-20:]))
             self.record("FAIL", "2d/mem", "tiling failed", [tdir])
             return
         mods = ["ATMOS_FILE=" + tiled, "N_MAX_ITER=1", "SOLVER=NG", "NG_DELAY=6", "NG_ORDER=2",
@@ -371,10 +378,12 @@ class Suite:
             self.record("FAIL", "1d/kurucz_blank", text, [A, B])
 
     def guarded(self, name, case, *args):
+        """Run a case; an OSError fails it and keeps the runs it made."""
+        self.casedirs = []
         try:
             case(*args)
         except OSError as e:
-            self.record("FAIL", name, "error: %s" % e)
+            self.record("FAIL", name, "error: %s" % e, self.casedirs)
 
     def selected(self, name):
         return (not self.o["only"] or self.o["only"] in name) and \
