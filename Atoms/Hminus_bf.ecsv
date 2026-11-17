@@ -1,0 +1,77 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - {name: lambda, unit: nm, datatype: float64, description: vacuum wavelength}
+# - {name: sigma, unit: Mbarn, datatype: float64, description: H- bound-free (photodetachment) cross-section}
+# meta: !!omap
+# - {title: 'H- bound-free cross-section, 80-125 nm, for RH (Hminus_bf)'}
+# - {source: 'McLaughlin B M, Stancil P C, Sadeghpour H R and Forrey R C 2017, J. Phys. B: At. Mol. Opt. Phys. 50, 114001, supplementary
+#     data JPBaa6c1fSuppdata1.dat (merged and scaled single detachment)'}
+# - {doi: 10.1088/1361-6455/aa6c1f}
+# - {derivation: Means of the source over 0.1 nm bins in wavelength (empty bins bridged linearly); knots placed so that linear interpolation
+#     stays within 1% of the bin means; the end knots take the values of the fits RH uses outside the table.}
+# - {generator: docs/opacity/hminus_bf_table.py}
+# - {rh_reader: 'RH reads only this form: space-delimited, the columns lambda [nm] and sigma [Mbarn] in this order, lambda strictly increasing.
+#     It applies its fits below the first and above the last knot; the table must cover 85-120 nm.'}
+# schema: astropy-2.0
+lambda sigma
+80.0 4.45795
+80.45 4.4691
+85.05 5.06573
+86.65 5.30298
+88.15 5.47542
+88.35 5.60061
+89.45 5.68878
+89.95 5.78944
+90.35 5.89017
+90.45 5.73598
+90.95 5.91077
+91.55 6.06904
+91.85 5.99493
+91.95 6.37254
+92.05 5.95022
+92.45 6.0538
+92.65 6.24731
+92.85 6.74308
+93.05 6.14999
+95.85 6.7402
+96.15 6.73888
+96.65 7.44007
+96.85 6.97104
+97.35 6.3274
+97.55 5.85745
+97.65 5.44629
+97.75 4.85629
+97.85 4.1149
+97.95 4.69006
+98.05 7.78606
+98.15 8.92142
+98.65 7.97948
+99.35 7.54931
+101.35 7.31897
+104.75 7.50491
+107.65 8.09173
+109.35 8.84973
+110.55 9.88816
+111.25 11.0189
+111.75 12.5667
+112.05 14.0958
+112.25 15.849
+112.35 17.1491
+112.45 19.1405
+112.55 22.1567
+112.65 26.8729
+112.75 35.8183
+112.85 54.7224
+112.95 76.3388
+113.25 9.94862
+113.35 8.85107
+113.45 36.3641
+113.55 8.83434
+113.65 8.16991
+113.85 7.49149
+114.25 6.80223
+114.95 6.24073
+116.35 5.79528
+119.35 5.51559
+125.0 5.52477

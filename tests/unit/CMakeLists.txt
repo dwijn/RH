@@ -41,6 +41,9 @@ rh_unit_test(test_prdrho test_prdrho.c)
 rh_unit_test(test_collision_formulas test_collision_formulas.c)
 rh_unit_test(test_background test_background.c
   ${PROJECT_SOURCE_DIR}/rhf1d/project.c)
+rh_unit_test(test_hminus_bf test_hminus_bf.c)
+target_compile_definitions(test_hminus_bf PRIVATE
+  RH_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 rh_unit_test(test_formal_1d test_formal_1d.c
   ${PROJECT_SOURCE_DIR}/rhf1d/piecewise_1D.c
   ${PROJECT_SOURCE_DIR}/rhf1d/bezier_1D.c

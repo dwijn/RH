@@ -137,6 +137,13 @@
 
 #  METALLICITY = 0.4
 
+# HMINUS_BF_DATA points to the ECSV table of the H-minus bound-free
+# cross-section (McLaughlin et al. 2017), used between its first and
+# last wavelength; fits are used outside it. Type is KEYWORD_DEFAULT.
+# Default value is ../../Atoms/Hminus_bf.ecsv.
+
+#  HMINUS_BF_DATA = ../../Atoms/Hminus_bf.ecsv
+
 # Data file with lines in Bob Kurucz's format. Type is KEYWORD_OPTIONAL.
 # When KURUCZ_DATA is set to ``none'' (the default value) no data is read.
 # Solve for electron density if SOLVE_NE is set to true.
