@@ -67,23 +67,38 @@ def read_atmos_out(path, nspace):
     return T, nh, ab
 
 
-def read_first_molecule(path):
-    """(ID, Tmin, Tmax) of the first molecule of molecules.out. Header:
-    Nmolecule; counted ID (xdr short, xdr string); Nv, NJ; Ediss, Tmin,
-    Tmax. ValueError if the header does not parse."""
+def read_molecules(path, nspace):
+    """(molecules, nHmin) of molecules.out (xdr_molecules): molecules is a
+    list of (ID, Tmin, Tmax, n) in the order of molecules.input, n the number
+    densities at the nspace depth points; nHmin the H- densities, the last
+    record. Per molecule: counted ID (xdr short, xdr string); Nv, NJ; Ediss,
+    Tmin, Tmax; n; if Nv > 0 and NJ > 0 the Nv x NJ energies. ValueError if
+    the file does not parse."""
     b = read_bytes(path)
+    mols = []
     try:
         nmol = struct.unpack(">i", b[:4])[0]
         if nmol <= 0:
             raise ValueError(f"Nmolecule {nmol}")
-        ident, off = xdr_counted_string(b, 4)
-        if not ident:
-            raise ValueError("empty molecule ID")
-        ident = ident.strip()
-        tmin, tmax = struct.unpack(">2d", b[off + 16:off + 32])    # after Nv, NJ, Ediss
+        off = 4
+        for _ in range(nmol):
+            ident, off = xdr_counted_string(b, off)
+            if not ident:
+                raise ValueError("empty molecule ID")
+            nv, nj = struct.unpack(">2i", b[off:off + 8])
+            tmin, tmax = struct.unpack(">2d", b[off + 16:off + 32])    # after Nv, NJ, Ediss
+            off += 32
+            n = struct.unpack(f">{nspace}d", b[off:off + 8 * nspace])
+            off += 8 * nspace
+            if nv > 0 and nj > 0:
+                off += 8 * nv * nj
+            mols.append((ident.strip(), tmin, tmax, n))
+        nhmin = struct.unpack(f">{nspace}d", b[off:off + 8 * nspace])
+        if off + 8 * nspace != len(b):
+            raise ValueError(f"{len(b) - off - 8 * nspace} bytes left after nHmin")
     except (struct.error, UnicodeDecodeError, ValueError) as e:
-        raise ValueError(f"{path}: no molecule header ({e})") from None
-    return ident, tmin, tmax
+        raise ValueError(f"{path}: cannot parse molecules.out ({e})") from None
+    return mols, nhmin
 
 
 def read_spectrum(path, nrays):
