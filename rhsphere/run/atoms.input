@@ -6,16 +6,16 @@
 
   ../../Atoms/H_6.atom        ACTIVE      ZERO_RADIATION    pops.H.out
   ../../Atoms/C.atom	      PASSIVE     LTE_POPULATIONS
-  ../../Atoms/O.atom          PASSIVE     ZERO_RADIATION    pops.O.out
+  ../../Atoms/O.atom          PASSIVE     LTE_POPULATIONS
   ../../Atoms/Si.atom	      PASSIVE     LTE_POPULATIONS  
 			              
   ../../Atoms/Al.atom	      PASSIVE     LTE_POPULATIONS  
   ../../Atoms/CaII_XRD.atom       ACTIVE      ZERO_RADIATION    pops.CA.out
-  ../../Atoms/Fe.atom	      PASSIVE     LTE_POPULATIONS   pops.FE.out
+  ../../Atoms/Fe.atom	      PASSIVE     LTE_POPULATIONS
   ../../Atoms/He.atom	      PASSIVE     LTE_POPULATIONS  
-  ../../Atoms/Mg.atom	      PASSIVE     ZERO_RADIATION    pops.MG.out
+  ../../Atoms/Mg.atom	      PASSIVE     LTE_POPULATIONS
   ../../Atoms/N.atom	      PASSIVE     LTE_POPULATIONS  
-  ../../Atoms/Na.atom         PASSIVE     LTE_POPULATIONS   pops.NA.out
+  ../../Atoms/Na.atom         PASSIVE     LTE_POPULATIONS
   ../../Atoms/S.atom	      PASSIVE     LTE_POPULATIONS  
 
-##../../Atoms/NiI.atom        PASSIVE     ZERO_RADIATION    pops.NI.out
+##../../Atoms/NiI.atom        PASSIVE     LTE_POPULATIONS

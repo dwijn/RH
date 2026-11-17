@@ -283,7 +283,9 @@ def element(f):
             return l.split()[0].upper()
 lines = open(path).read().splitlines()
 for i, l in enumerate(lines):
-    lines[i] = l.replace(" ACTIVE ", " PASSIVE ").replace("\tACTIVE\t", "\tPASSIVE\t")
+    w = l.split()
+    if len(w) >= 3 and not w[0].startswith("#") and w[1] == "ACTIVE":
+        lines[i] = f"  {w[0]}   PASSIVE   LTE_POPULATIONS"   # B-59: no ZERO_RADIATION, no file
 for a in filter(None, wanted):
     el = element(f"{atomdir}/{a}.atom")
     for i, l in enumerate(lines):
