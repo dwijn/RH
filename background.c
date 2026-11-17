@@ -877,8 +877,9 @@ static void backgroundOpacities(bool_t write_analyze_output)
 		writeMolecules(MOLECULAR_CONCENTRATION_FILE);
 	}
 	/* --- Clean up but keep H, H2 (atoms[0] and molecules[0], which
-		   readAtoms and readMolecules require), and active atom and/or
-		   molecule if appropriate --                      ------------ */
+		   readAtoms and readMolecularModels require; atmos.H2 is
+		   skipped explicitly as well), and active atom and/or molecule
+		   if appropriate --                               ------------ */
 
 	if (atmos.Natom > 1) {
 		for (n = 1; n < atmos.Natom; n++)
@@ -890,7 +891,7 @@ static void backgroundOpacities(bool_t write_analyze_output)
 	if (atmos.Nmolecule > 1) {
 		for (n = 1; n < atmos.Nmolecule; n++)
 			if (!atmos.molecules[n].active &&
-				!atmos.hydrostatic &&
+				&atmos.molecules[n] != atmos.H2 && !atmos.hydrostatic &&
 				input.solve_ne < ITERATION)
 				freeMolecule(&atmos.molecules[n]);
 	}

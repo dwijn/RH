@@ -7,7 +7,7 @@ RH uses atmos.H2, the molecule with ID H2, in the background opacities
 (H2- free-free, Rayleigh scattering by H2), the H2 collisions and
 hydrostatic equilibrium, and takes molecules[0] for H2 where Background()
 frees the passive molecules and (until B-62) where Hydrostatic() decides
-whether H2 is present at a depth point. readMolecules required the first
+whether H2 is present at a depth point. readMolecularModels (readmolecule.c) required the first
 molecule to be H2 with a substring test, so H2+ or H2O first passed, and an
 empty list was not checked:
 
@@ -18,6 +18,8 @@ empty list was not checked:
     with HYDROSTATIC = TRUE, H2 was switched on and off by H2O's
     temperature range (converged nHtot of FAL-C off by 2.7e-4).
  3. No molecules: as 1.
+ 4. H2 first with its ID written "h2" in the file: the first-molecule
+    check (on getMoleculeID's upper case) passed, atmos.H2 stayed NULL.
 
 Each now stops at input with a message and status 70. The shipped lists
 (H2 first) run in every other test.
@@ -49,8 +51,11 @@ def shipped_list():
         return [l for l in f.read().splitlines() if ".molecule" in l and not l.lstrip().startswith("#")]
 
 
-def case(name, lines, text):
+def case(name, lines, text, files=None):
     d = prepare(work, name, "rhf1d", KWS, ATOMS, copy=("ray.input",))
+    for fname, content in (files or {}).items():
+        with open(os.path.join(d, fname), "w") as f:
+            f.write(content)
     with open(os.path.join(d, "molecules.input"), "w") as f:
         f.write("  %d\n\n%s\n" % (len(lines), "\n".join(lines)))
     r = execute(a.rhf1d, d, timeout=300)
@@ -64,13 +69,23 @@ ck.check(shipped and "/H2.molecule" in shipped[0] and any("/H2+.molecule" in l f
          and any("/H2O.molecule" in l for l in shipped),
          "shipped molecules.input lists H2 first, and H2+ and H2O")
 
-no_h2 = [l for l in shipped if "/H2.molecule" not in l]
+h2plus = [l for l in shipped if "/H2+.molecule" in l]
+no_h2 = h2plus + [l for l in shipped if "/H2.molecule" not in l and "/H2+.molecule" not in l]
 case("h2plus_first", no_h2, "The first molecule in molecules.input must be H2, not H2+")
 
 h2o = [l for l in shipped if "/H2O.molecule" in l]
 h2o_first = h2o + [l for l in shipped if "/H2O.molecule" not in l]
 case("h2o_first", h2o_first, "The first molecule in molecules.input must be H2, not H2O")
 
-case("none", [], "molecules.input lists 0 molecules: it must list at least H2")
+# H2 first, but its file's ID in lower case: the check on the ID line
+# (upper-cased by getMoleculeID) passes, atmos.H2 (ID compared as written)
+# is not set: caught by the check after the list is read.
+with open(os.path.join(a.src, "Molecules", "H2.molecule")) as f:
+    h2_lower = f.read().replace("\n  H2\n", "\n  h2\n", 1)
+lower = ["  h2.molecule   PASSIVE    LTE_POPULATIONS"] + shipped[1:]
+case("h2_lowercase", lower, "the first molecule must be the only model with ID H2 (found none)",
+     {"h2.molecule": h2_lower})
+
+case("none", [], "Number of molecules in molecules.input is 0: the list must contain at least H2")
 
 ck.finish("molecules_input", work)

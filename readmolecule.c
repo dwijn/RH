@@ -962,8 +962,8 @@ void readMolecularModels(void)
 
 	if (atmos.Nmolecule < 1) {
 		snprintf(messageStr, MAX_MESSAGE_LENGTH,
-				 "%.200s lists %d molecules: it must list at least H2, as the"
-				 " first molecule",
+				 "Number of molecules in %.200s is %d: the list must contain"
+				 " at least H2, as the first molecule",
 				 input.molecules_input, atmos.Nmolecule);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
@@ -985,6 +985,17 @@ void readMolecularModels(void)
 
 		moleculeID = getMoleculeID(filename);
 
+		/* --- The first molecule must be H2, exactly (B-62: a substring
+			   test let H2+ or H2O through). Checked on the ID line before
+			   the model is parsed; the check after the loop makes sure
+			   that atmos.H2 is molecules[0] --          -------------- */
+
+		if (n == 0 && strcmp(moleculeID, "H2") != 0) {
+			snprintf(messageStr, MAX_MESSAGE_LENGTH,
+					 "The first molecule in %.200s must be H2, not %s (%.200s)",
+					 input.molecules_input, moleculeID, filename);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
 		/* --- Check for duplicate molecule IDs --         -------------- */
 
 		for (m = 0; m < n; m++) {
@@ -999,18 +1010,6 @@ void readMolecularModels(void)
 		readMolecule(molecule, filename,
 					 active = (strstr(actionKey, "ACTIVE") ? TRUE : FALSE));
 
-		/* --- The first molecule must be H2, exactly (B-62: a substring
-			   test let H2+ or H2O through). Its ID is compared as
-			   atmos.H2 is set below, so atmos.H2 = &atmos.molecules[0],
-			   which Background() keeps when it frees passive molecules,
-			   and Hydrostatic() takes as H2 --            -------------- */
-
-		if (n == 0 && strcmp(molecule->ID, "H2") != 0) {
-			snprintf(messageStr, MAX_MESSAGE_LENGTH,
-					 "The first molecule in %.200s must be H2, not %s (%.200s)",
-					 input.molecules_input, molecule->ID, filename);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
-		}
 		/* --- Create an alias to the hydrogen molecule  structure -- ----- */
 
 		if (strcmp(molecule->ID, "H2") == 0) atmos.H2 = molecule;
@@ -1047,6 +1046,19 @@ void readMolecularModels(void)
 					moleculeID);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
+	}
+	/* --- atmos.H2 is the one model with ID H2, molecules[0]: the ID
+		   inside the file is compared case-sensitively here, while the
+		   check above and the duplicate check use getMoleculeID's upper
+		   case (B-62) --                              -------------- */
+
+	if (atmos.H2 != &atmos.molecules[0]) {
+		snprintf(messageStr, MAX_MESSAGE_LENGTH,
+				 "%.200s: the first molecule must be the only model with ID"
+				 " H2 (found %s)",
+				 input.molecules_input,
+				 (atmos.H2 == NULL) ? "none" : "another one later in the list");
+		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	fclose(fp_molecules);
 
