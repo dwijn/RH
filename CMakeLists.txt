@@ -278,6 +278,11 @@ if(Python3_Interpreter_FOUND)
       --solveray2d $<TARGET_FILE:rhsc2d_solveray>
       --chartflow2d $<TARGET_FILE:rhsc2d_chartflow>
       --rhsc3d $<TARGET_FILE:rhsc3d>)
+
+  # The readers and comparisons of tests/rhtest, on synthetic files
+  add_test(NAME unit_rhtest
+           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/unit/test_rhtest.py)
+  set_tests_properties(unit_rhtest PROPERTIES LABELS unit TIMEOUT 120)
 endif()
 
 message(STATUS "RH ${PROJECT_VERSION}: build type ${CMAKE_BUILD_TYPE}, "

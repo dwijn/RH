@@ -67,6 +67,8 @@ the CI build jobs have none), which a script finds with a two-line
 | `tree.py` | `tree_bin()`, `tree_src()`, `tree_sanitized()`, `missing_programs()`: where the programs and data of a build are (a CMake build directory, a source tree with `build/`, or one built in place with the old makefiles); `tree.sh` is the same for the shell script that still sources it (`make_references.sh`) |
 | `check.py` | `Checker` (record, summary, exit status), `maxabs`, `maxdiff`, `maxrel`, `same_file` |
 
+`tests/unit/test_rhtest.py` (ctest `unit_rhtest`, label `unit`) checks the readers (pops with the LTE block, `spectrum.out` of both layouts and the Q-21 size trap, solveray output), `compare_spectra()`, the command line of `compare_spectra.py` and the helpers of `run_tests.py` on synthetic files written with `struct`.
+
 A new e2e script: `cli.parse`, `WorkDir`, `Checker`, then `prepare` and
 `execute(...).require()` for each run, and `ck.finish(name, work)` last.
 
@@ -156,7 +158,7 @@ the upstream segfault.
 ## Stress, convergence and performance cases
 
 `run_tests.py` stops every case after 4 iterations. `run_stress.py` runs
-strongly NLTE problems **to convergence** (`--set conv`, 21 cases, 5 more on Bifrost cuts) or for a
+strongly NLTE problems **to convergence** (`--set conv`, 22 cases, 6 more on Bifrost cuts) or for a
 fixed number of iterations on large multi-D grids (`--set perf`), on one or
 more builds, and reports iterations, final population change, trend
 (monotone / oscillating / stalled), wall time, peak memory, and the population

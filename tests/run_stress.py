@@ -62,7 +62,7 @@ sys.path.insert(0, HERE)
 from rhtest import compare, keywords, run, tree, workdir      # noqa: E402
 
 DOC = __doc__.split("\n\n(Python 3.8")[0] + "\n"
-GEOMDIR = {"1d": "rhf1d", "2d": "rhsc2d", "3d": "rhsc3d", "sph": "rhsphere"}
+GEOMDIR = tree.GEOMDIR
 
 # Cases: NAME | SET | GEOM | ATMOS | ACTIVE ATOMS | KEYWORDS
 #
@@ -265,6 +265,7 @@ class Stress:
     def __init__(self, o):
         self.o = o
         self.lock = threading.Lock()
+        self.errors = 0
 
     # -- atmospheres -------------------------------------------------------
     def atmos_path(self, spec, setname):
@@ -319,10 +320,7 @@ class Stress:
     def prepare(self, name, geom, atm, atoms, kws, tname, setname):
         """The run directory of a case and tree; the error text if the atoms
         cannot be set (also left in prepare_error)."""
-        d = os.path.join(self.work, "runs", "%s__%s" % (name, tname))
-        if os.path.lexists(d):
-            shutil.rmtree(d)
-        os.makedirs(d)
+        d = run.fresh_dir(self.wd, "%s__%s" % (name, tname))
         t = run.template(self.ref_src, GEOMDIR[geom])
         for f in sorted(os.listdir(t)):
             if not f.startswith(".") and os.path.isfile(os.path.join(t, f)):
@@ -375,11 +373,22 @@ class Stress:
         return "".join(v + "\n" for v in vals).rstrip("\n")
 
     def run_one(self, case, i):
+        """One case on one tree. An exception (a file that cannot be written,
+        a program that cannot be started) is the row's status and the exit
+        status of the script, not the end of the other cases."""
+        try:
+            self._run_one(case, i)
+        except Exception as e:
+            self.errors += 1
+            self.append(trim(fields(case)[0]), self.names[i],
+                        json.dumps({"status": "error: %s: %s" % (type(e).__name__, e)}))
+
+    def _run_one(self, case, i):
         n, s, g, a, at, kw = [trim(x) for x in fields(case)]
         tname, tdir = self.names[i], self.dirs[i]
         d, err = self.prepare(n, g, a, at, kw, tname, s)
         if err is not None:
-            self.append(n, tname, '{"status": "%s"}' % err)
+            self.append(n, tname, json.dumps({"status": err}))
             return
         prog = os.path.join(tdir, GEOMDIR[g], GEOMDIR[g])
         run.execute_to_log(prog, d)
@@ -467,9 +476,8 @@ class Stress:
             if miss:
                 fail("missing binary: " + miss[0])
         self.ref_src = srcs[0]
-        os.makedirs(os.path.join(o["work"], "runs"), exist_ok=True)
-        wd = workdir.WorkDir(self.ref_src, o["work"], relink=True, announce=False)
-        self.work = wd.path
+        self.wd = workdir.WorkDir(self.ref_src, o["work"], relink=True, announce=False)
+        self.work = self.wd.path
         if not run.have_time():
             fail("need GNU /usr/bin/time")
         self.results = os.path.join(self.work, "results_%s.tsv" % time.strftime("%Y%m%d-%H%M%S"))
@@ -506,6 +514,10 @@ class Stress:
         for th in pool:
             th.join()
         self.report()
+        if self.errors:
+            print("run_stress.py: %d case(s) stopped with an error (status 'error:' above)"
+                  % self.errors, file=sys.stderr)
+            sys.exit(1)
 
     # -- the table ---------------------------------------------------------
     def report(self):
