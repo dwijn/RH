@@ -38,6 +38,11 @@ usage: run_stress.py --tree NAME=DIR [--tree NAME=DIR ...] [options]
 
 Results go to WORK/results_<date-time>.tsv (one file per invocation, one line
 per case and tree) and are printed as a table. Every run writes its
+radiative and collisional rates, and the table shows the work (formal-
+solution equivalents and Background() calls, SOLVER.md 4.1) and the SE
+residual (tests/se_residual.py) of every run. Atomic data, atmospheres and
+molecules are taken from the first tree; generated multi-D atmospheres are
+written to WORK.
 
 (Python 3.8 or newer. The tree logic is rhtest.tree, the runs rhtest.run; the analysis is
 analyze_run.py, which needs numpy.)
@@ -270,14 +275,8 @@ class Stress:
         self.errors = 0
 
     # -- atmospheres -------------------------------------------------------
-    def atmos_path(self, spec, setname):
-        """The path of the atmosphere file of spec (generated if needed) for
-        a case of the set setname. As in the old run_stress.sh, the name of a
-        generated 3-D atmosphere has the set of the case where the size
-        should be: `local s=... f=...${s/:/x}...` in the bash used the s of
-        the case loop. The cases of one set share one file, whichever is
-        generated first (3d_perf_mgi66 runs on the 24 x 24 columns of
-        3d_perf_many)."""
+    def atmos_path(self, spec):
+        """The path of the atmosphere file of spec (generated if needed)."""
         w, ref = self.work, self.ref_src
         if spec.startswith("gen:2d:"):
             n = spec[len("gen:2d:"):]
@@ -288,7 +287,7 @@ class Stress:
             return f
         if spec.startswith("gen:3d:"):
             s = spec[len("gen:3d:"):]
-            f = "%s/pert_3d_%s.atmos" % (w, setname)
+            f = "%s/pert_3d_%s.atmos" % (w, s.replace(":", "x", 1))
             if not os.path.isfile(f):
                 subprocess.run([sys.executable, "-I", os.path.join(HERE, "make_perturbed_atmos.py"),
                                 ref + "/Atmos/FALC_03x82.atmos", f, s.split(":")[0],
@@ -319,7 +318,7 @@ class Stress:
         return "../../Atmos/" + spec
 
     # -- one run --------------------------------------------------------------
-    def prepare(self, name, geom, atm, atoms, kws, tname, setname):
+    def prepare(self, name, geom, atm, atoms, kws, tname):
         """The run directory of a case and tree; the error text if the atoms
         cannot be set (also left in prepare_error)."""
         d = run.fresh_dir(self.wd, "%s__%s" % (name, tname))
@@ -331,7 +330,7 @@ class Stress:
         with open(kwf) as f:
             text = f.read()
         # Plain intensity output unless a case asks otherwise
-        text = keywords.apply(text, [("ATMOS_FILE", self.atmos_path(atm, setname)),
+        text = keywords.apply(text, [("ATMOS_FILE", self.atmos_path(atm)),
                                      ("STOKES_MODE", "NO_STOKES"), ("STOKES_INPUT", "none"),
                                      ("PRINT_CPU", "FALSE")])
         if geom == "1d":
@@ -343,7 +342,7 @@ class Stress:
             if m.startswith("@NOMOL="):
                 drop_molecule(os.path.join(d, "molecules.input"), m[len("@NOMOL="):])
             elif m == "STOKES_INPUT=@B":
-                b = self.atmos_path(atm, setname)
+                b = self.atmos_path(atm)
                 text = keywords.setkw(text, "STOKES_INPUT", (b[:-6] if b.endswith(".atmos") else b) + ".B")
             elif m.startswith("-") and len(m) > 1:
                 text = keywords.unsetkw(text, m[1:])
@@ -388,7 +387,7 @@ class Stress:
     def _run_one(self, case, i):
         n, s, g, a, at, kw = [trim(x) for x in fields(case)]
         tname, tdir = self.names[i], self.dirs[i]
-        d, err = self.prepare(n, g, a, at, kw, tname, s)
+        d, err = self.prepare(n, g, a, at, kw, tname)
         if err is not None:
             self.append(n, tname, json.dumps({"status": err}))
             return
@@ -491,7 +490,7 @@ class Stress:
             print("bifrost cases skipped (no --bifrost DIR or RH_BIFROST_DIR)")
         # Pre-generate atmospheres serially (avoids races between parallel jobs)
         for c in sel:
-            self.atmos_path(trim(fields(c)[3]), trim(fields(c)[1]))
+            self.atmos_path(trim(fields(c)[3]))
 
         jobs = int(o["jobs"])
         slots = threading.Semaphore(jobs)
@@ -507,6 +506,11 @@ class Stress:
             s = trim(fields(c)[1])
             for i in range(len(self.names)):
                 if s == "perf":
+                    # alone: after the conv jobs still running, and no conv job
+                    # starts meanwhile (this thread starts them)
+                    for th in pool:
+                        th.join()
+                    pool.clear()
                     self.run_one(c, i)
                 else:
                     slots.acquire()
