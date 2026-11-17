@@ -38,25 +38,39 @@ bool_t xdr_populations(XDR *xdrs, char *atmosID, int Nlevel, int Nspace,
 
 	/* --- The actual reading/writing routine. Upon input the values
 		   for atmosID, Nlevel and Nspace in the file are checked against
-		   the values supplied in the call. --           -------------- */
+		   the values supplied in the call: populations of another
+		   atmosphere (ID) or of another model stop the run (B-61).
+		   --                                            -------------- */
 
 	if (xdrs->x_op == XDR_ENCODE) {
 		result &= xdr_counted_string(xdrs, &atmosID);
 		result &= xdr_int(xdrs, &Nlevel);
 		result &= xdr_int(xdrs, &Nspace);
 	} else {
-		result &= xdr_counted_string(xdrs, &ID);
-		if (!strstr(ID, atmosID)) {
-			sprintf(messageStr, "Populations were computed with different"
-								"atmosphere (%s) than current one",
-					ID);
-			Error(WARNING, routineName, messageStr);
+		ID = NULL;
+		if (!xdr_counted_string(xdrs, &ID)) {
+			free(ID);
+			return FALSE;
+		}
+		if (strcmp(ID, atmosID) != 0) {
+			snprintf(messageStr, MAX_MESSAGE_LENGTH,
+					 "Populations were computed with atmosphere \"%s\",\n"
+					 " not with the current one, \"%s\"",
+					 ID, atmosID);
+			free(ID);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		free(ID);
 
 		result &= xdr_int(xdrs, &Nl);
 		result &= xdr_int(xdrs, &Ns);
-		if ((Nl != Nlevel) || (Ns != Nspace)) return FALSE;
+		if (result && ((Nl != Nlevel) || (Ns != Nspace))) {
+			sprintf(messageStr,
+					"Populations have %d levels at %d depths, the model and\n"
+					" atmosphere %d levels at %d depths",
+					Nl, Ns, Nlevel, Nspace);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
 	}
 	/* --- Exit if true populations do not exist --      -------------- */
 
@@ -118,8 +132,10 @@ void readPopulations(Atom *atom)
 	/* --- Read populations from file.
 
 	 Note: readPopulations only reads the true populations and not
-		   the LTE populations. To this effect it passes a NULL pointer
-		   to xdr_populations as its last argument.
+		   the LTE populations, which are those of the current
+		   atmosphere and electron density (SetLTEQuantities). To this
+		   effect it passes a NULL pointer to xdr_populations as its
+		   last argument (it passed nstar until B-60).
 		   --                                            -------------- */
 
 	if ((fp_in = fopen(atom->popsinFile, "r")) == NULL) {
@@ -130,7 +146,7 @@ void readPopulations(Atom *atom)
 	xdrstdio_create(&xdrs, fp_in, XDR_DECODE);
 
 	if (!xdr_populations(&xdrs, atmos.ID, atom->Nlevel, atmos.Nspace,
-						 atom->n[0], atom->nstar[0])) {
+						 atom->n[0], NULL)) {
 		sprintf(messageStr, "Unable to read from input file %s",
 				atom->popsinFile);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
