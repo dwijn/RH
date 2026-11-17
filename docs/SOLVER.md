@@ -1157,7 +1157,7 @@ on `1d_falc_h6_ca_mg`; the keyword conflicts stop the run; a short
 `ANDERSON` run is bit-reproducible.
 
 **Acceptance:** default runs (`SOLVER = NG`) unchanged bit for bit
-(`run_tests.sh --exact` against the base commit); with
+(`run_tests.py --exact` against the base commit); with
 `SOLVER = ANDERSON` the S-5 case set runs and reports all S-1 metrics,
 plus rejections, guard actions and GTH fallbacks.
 
@@ -1649,7 +1649,7 @@ memory its history takes; RSS is the peak of the Ng run.
      switch for "every line in CRD" (`readAtom`), and G then has no PRD
      sub-iterations. S-2's check that refused it is removed (B-46).
      `PRD_ITER_LIMIT` and `PRD_NG_*` are still checked in such a run.
-     `run_tests.sh`'s `1d/crd` needs no pin once item 4 has removed
+     `run_tests.py`'s `1d/crd` needs no pin once item 4 has removed
      `PRD_ITER_LIMIT` from the shipped file.
    - The test tools gain a way to remove a keyword from a shipped file
      (`run_stress.sh --kw '-NG_DELAY'`), since `rhsc2d` and `rhsc3d`
@@ -1695,7 +1695,7 @@ memory its history takes; RSS is the peak of the Ng run.
      lines (all four checks pass with differences of 0, run with
      `SOLVER = ANDERSON` and those lines removed), and `stokes_1d` does
      no iterations (`N_MAX_ITER = 0`); neither needs a pin, but both
-     need item 4 in the same PR as item 1. `run_tests.sh`'s `1d/crd`
+     need item 4 in the same PR as item 1. `run_tests.py`'s `1d/crd`
      needs B-46 (#301).
    - The other stress cases run the default solver: they test what
      users get. Their group comments describe Ng's behaviour and are
@@ -1882,7 +1882,7 @@ the change is mostly which entries Anderson's vectors hold.
 
 **Order of work.** One PR per step:
 1. The code, with `ALL` as the default. No results change
-   (`run_tests.sh --exact`).
+   (`run_tests.py --exact`).
 2. The measurements of item 5, written up in this section and
    `MODERNIZATION.md` §2.
 3. The defaults of item 6 (`changes-results`).
@@ -2026,7 +2026,7 @@ Two tiers, as agreed:
 **Tier 1, regression (gate on every pull request).**
 
 - With each program's default solver (`ANDERSON` in 1-D and spherical
-  geometry since S-10, `NG` in 2-D and 3-D), the existing `run_tests.sh`
+  geometry since S-10, `NG` in 2-D and 3-D), the existing `run_tests.py`
   (4 iterations; the CI gate compares with the base commit, `--exact` for
   refactors, and reports drift from upstream) is unchanged. Its drift
   from upstream in 1-D and spherical geometry includes the change of

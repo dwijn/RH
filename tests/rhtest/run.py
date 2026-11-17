@@ -213,25 +213,26 @@ def execute_to_log(program, d, log="log.log", env=None, time_file="time.txt"):
 def peak_rss_mb(d, time_file="time.txt"):
     """Peak resident set size in MB, rounded, from the time file that
     execute_to_log wrote in d (as the awk of the old run_tests.sh read it);
-    0 if there is none."""
+    None if there is no time file or it has no such line (a measurement that
+    should exist but does not)."""
     try:
         with open(os.path.join(d, time_file), errors="replace") as f:
             lines = f.read().split("\n")
     except OSError:
-        return 0
+        return None
     for l in lines:
         if sys.platform == "darwin":
             if "maximum resident set size" in l:
                 return int("%.0f" % (float(l.split()[0]) / 1048576))
         elif "Maximum resident set size" in l:
             return int("%.0f" % (float(l.split()[-1]) / 1024))
-    return 0
+    return None
 
 
 # What marks a failed run in its log: a fatal error of RH, a sanitizer report,
 # a crash. The text of the first report (with the line after it) is what the
 # regression suite prints with a failure.
-_FATAL_RE = re.compile(r"TERMINATING_ERROR|AddressSanitizer|runtime error|Segmentation", re.I)
+_SEGV_RE = re.compile(r"Segmentation", re.I)
 _REPORT_RE = re.compile(r"TERMINATING_ERROR|AddressSanitizer|runtime error", re.I)
 _NAN_RE = re.compile(r"(^|[^A-Za-z])NAN([^A-Za-z]|$)")
 
@@ -239,18 +240,17 @@ _NAN_RE = re.compile(r"(^|[^A-Za-z])NAN([^A-Za-z]|$)")
 def log_problem(path):
     """A reason why the run with the log at path failed ("" if the log shows
     none): the first line with TERMINATING_ERROR, AddressSanitizer or
-    runtime error and the next one (150 characters at most), empty when only
-    a segmentation fault is mentioned; else "NaN in log" if a NaN is printed.
-    As the grep pipeline of the old run_tests.sh."""
+    runtime error and the next one (150 characters at most); else the first
+    line that says Segmentation (the old run_tests.sh let a log with only
+    that pass); else "NaN in log" if a NaN is printed."""
     with open(path, errors="replace") as f:
         lines = f.read().split("\n")
     if lines and lines[-1] == "":
         lines.pop()
-    if any(_FATAL_RE.search(l) for l in lines):
+    for pattern in (_REPORT_RE, _SEGV_RE):
         for i, l in enumerate(lines):
-            if _REPORT_RE.search(l):
+            if pattern.search(l):
                 return " ".join(lines[i:i + 2] + [""])[:150]       # grep -m1 -A1
-        return ""
     if any(_NAN_RE.search(l) for l in lines):
         return "NaN in log"
     return ""

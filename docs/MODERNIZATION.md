@@ -154,7 +154,7 @@ Notes:
 
 ## 2. Baseline results
 
-### 2.1 Regression suite (`run_tests.sh`, WIP tree vs upstream)
+### 2.1 Regression suite (`run_tests.py`, WIP tree vs upstream)
 
 32 of 34 checks pass. The two failures are `1d/fieldfree` and `1d/fullstokes`
 (Q/U differ by 1.5e-6, I by 4e-8). **Cause verified:** upstream uses the
@@ -749,7 +749,7 @@ upstream issue or pull request once filed. Most severe first.
 ## 4. Plan
 
 Ordered so that every step can be verified against upstream: byte-identical
-(`run_tests.sh --exact`) for pure refactors, tolerance mode for numerics, and
+(`run_tests.py --exact`) for pure refactors, tolerance mode for numerics, and
 `run_stress.sh` for convergence and performance.
 
 1. **Cheap, high-value fixes** — crash and silent-wrong-answer bugs (B-1 to
@@ -768,7 +768,7 @@ Ordered so that every step can be verified against upstream: byte-identical
    belong to the stress tier, not the unit tests; check the data's
    redistribution terms first, and commit a fetch script with checksums
    instead of the data if needed.
-   *Two test tiers from here on:* regression (`run_tests.sh`, must pass on
+   *Two test tiers from here on:* regression (`run_tests.py`, must pass on
    every pull request; a non-default solver is checked on converged
    solutions against stored references, not on iteration 4) and stress
    (`run_stress.sh`, convergence and performance, including the RMHD
@@ -1783,7 +1783,7 @@ With `PRD_ANGLE_APPROX` the formal solution of each wavelength adds its intensit
 ### 2026-10-17 — CI compares each change with its base commit; drift from upstream is reported (Q-14)
 
 - The regression job builds the base commit of the change (the target
-  branch before it) and runs `run_tests.sh` against it in tolerance mode.
+  branch before it) and runs `run_tests.py` against it in tolerance mode.
   Results must match, unless the pull request carries the label
   `changes-results` (an intended change of results): then the differences
   from the base are reported in the job summary instead of failing, while
@@ -1820,7 +1820,7 @@ With `PRD_ANGLE_APPROX` the formal solution of each wavelength adds its intensit
   a user cannot act on a category, and the message says what went wrong.
 - A run with a deliberately small `N_MAX_ITER` now exits with 1; scripts
   that test for success should test for 0, or accept bit 1.
-  `run_tests.sh` and `analyze_run.py` treat 1–63 as completed.
+  `run_tests.py` and `analyze_run.py` treat 1–63 as completed.
 - Verified: no input → 70; CaII CRD at `N_MAX_ITER = 4` → 1 with the NOT
   CONVERGED warning, at 200 → 0 after 10 iterations; the regression suite
   is byte-identical to the previous build.
@@ -1974,7 +1974,7 @@ build -j`. The seven makefiles and `tests/build_asan.sh` are gone.
   Intel compilers get `-fp-model=precise`: with icx's default fast
   floating point the wavelength grids differed and the Kurucz case died
   with SIGFPE.
-- `run_tests.sh` and `run_stress.sh` accept a CMake build directory or a
+- `run_tests.py` and `run_stress.sh` accept a CMake build directory or a
   source tree with `build/`, as well as in-place makefile builds (upstream).
 
 Verified: `run_tests.sh --exact` against upstream is byte-identical in all
