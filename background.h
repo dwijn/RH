@@ -84,7 +84,7 @@ int    Hminus_bf_readTable(const char *fileName, char *errmsg, size_t len);
 void   Hminus_bf_freeTable(void);
 void   Hminus_bf_joins(double *short_ratio, double *long_ratio);
 bool_t Hminus_ff(double lambda, double *chi);
-bool_t Hminus_ff_long(double lambda, double *chi);
+double Hminus_ff_kappa(double lambda, double theta);
 bool_t Hydrogen_bf(double lambda, double *chi, double *eta);
 void   Hydrogen_ff(double lambda, double *chi);
 bool_t H2minus_ff(double lambda, double *chi);

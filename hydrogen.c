@@ -563,210 +563,144 @@ bool_t Hminus_bf(double lambda, double *chi, double *eta)
 
 /* ------- begin -------------------------- Hminus_ff.c ------------- */
 
-#define NFF    17
-#define NTHETA 16
+/* --- H-minus free-free absorption coefficient (N-45).
 
-static double *Hmff_theta_index = NULL;
+ From: T. L. John (1988), A&A 193, 189-192, Tables 3a and 3b: fits to
+	   the R-matrix calculation of K. L. Bell and K. A. Berrington
+	   (1987), J. Phys. B 20, 801-806 (theta = 0.5-3.6, lambda >=
+	   182.3 nm), which they reproduce to 1.5 %.
 
-static double thetaFF_Hm[NTHETA] = {
-	0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2,
-	1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0};
+	   k = 1.0E-29 sum_{n=1}^{6} theta^((n+1)/2) (A_n lambda^2 + B_n
+		   + C_n/lambda + D_n/lambda^2 + E_n/lambda^3 + F_n/lambda^4)
+	   in cm^4/dyn per H atom and unit electron pressure (stimulated
+	   emission included), theta = 5040/T, lambda in micron.
 
-static void Hminus_ff_prepare(void)
+  -- lambda >= 364.5 nm: Table 3a; 182.3 <= lambda < 364.5 nm:
+	 Table 3b. At 364.5 nm they agree to 0.6 % for theta >= 0.5;
+	 below, where both are extrapolated, they part (3a/3b = 0.97 at
+	 theta = 0.3, 0.81 at 0.1).
+  -- lambda < 182.3 nm: k(182.3 nm) (lambda / 182.3 nm)^2. Neither
+	 source goes below 182.3 nm, and Table 3b cannot be extrapolated
+	 (it turns negative below 150 nm at theta = 0.5).
+  -- theta > 3.6 (T < 1400 K) is taken at 3.6: beyond, the fits stop
+	 rising with theta (from theta = 4.4) and turn negative near
+	 theta = 7. Below theta = 0.5 they are extrapolated; they stay
+	 positive and monotonic in theta down to theta = 0.05.
+
+ Replaces the table of Stilley & Callaway (1970) used below 9113 nm.
+ Constant tables only, so Hminus_ff can be called from several
+ threads. --                                         -------------- */
+
+#define NJOHN           6
+#define HMFF_LAMBDA_3A  364.5 /* [nm] Table 3a from here on */
+#define HMFF_LAMBDA_MIN 182.3 /* [nm] lambda^2 tail below */
+#define HMFF_THETA_MAX  3.6
+
+/* --- Rows n = 1..6, columns A..F. --                 -------------- */
+
+static const double John_3a[NJOHN][NJOHN] = {
+	{0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+	{2483.346, 285.827, -2054.291, 2827.776, -1341.537, 208.952},
+	{-3449.889, -1158.382, 8746.523, -11485.632, 5303.609, -812.939},
+	{2200.040, 2427.719, -13651.105, 16755.524, -7510.494, 1132.738},
+	{-696.271, -1841.400, 8624.970, -10051.530, 4400.067, -655.020},
+	{88.283, 444.517, -1863.864, 2095.288, -901.788, 132.985}};
+
+static const double John_3b[NJOHN][NJOHN] = {
+	{518.1021, -734.8666, 1021.1775, -479.0721, 93.1373, -6.4285},
+	{473.2636, 1443.4137, -1977.3395, 922.3575, -178.9275, 12.3600},
+	{-482.2089, -737.1616, 1096.8827, -521.1341, 101.7963, -7.0571},
+	{115.5291, 169.6374, -245.6490, 114.2430, -21.9972, 1.5097},
+	{0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+	{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
+
+/* ------- begin -------------------------- Hmff_coeffs.c ----------- */
+
+static double Hmff_coeffs(double lambda, double C_lambda[NJOHN])
 {
-	register int k;
+	/* --- The wavelength-dependent coefficients C_n(lambda), in
+		   units of 1.0E-32 m^5/J (1.0E-29 cm^4/dyn). Returns the
+		   factor of the lambda^2 tail (1 from 182.3 nm on).
+		   --                                            -------------- */
 
-	int    index = 0;
-	double theta;
+	const double(*T)[NJOHN] = (lambda >= HMFF_LAMBDA_3A) ? John_3a : John_3b;
+	double lambda_mu, lambda_inv, scale = 1.0;
+	int    n;
 
-	Hmff_theta_index = (double *) malloc(atmos.Nspace * sizeof(double));
-	for (k = 0; k < atmos.Nspace; k++) {
-		theta = THETA0 / atmos.T[k];
-		if (theta <= thetaFF_Hm[0])
-			Hmff_theta_index[k] = 0;
-		else if (theta >= thetaFF_Hm[NTHETA - 1])
-			Hmff_theta_index[k] = NTHETA - 1;
-		else {
-			Hunt(NTHETA, thetaFF_Hm, theta, &index);
-			Hmff_theta_index[k] = (double) index +
-								  (theta - thetaFF_Hm[index]) /
-									  (thetaFF_Hm[index + 1] - thetaFF_Hm[index]);
-		}
+	if (lambda < HMFF_LAMBDA_MIN) {
+		scale  = SQ(lambda / HMFF_LAMBDA_MIN);
+		lambda = HMFF_LAMBDA_MIN;
 	}
+	lambda_mu  = lambda / MICRON_TO_NM;
+	lambda_inv = 1.0 / lambda_mu;
+	for (n = 0; n < NJOHN; n++) {
+		C_lambda[n] = SQ(lambda_mu) * T[n][0] + T[n][1] +
+					  lambda_inv *
+						  (T[n][2] +
+						   lambda_inv *
+							   (T[n][3] +
+								lambda_inv * (T[n][4] + lambda_inv * T[n][5])));
+	}
+	return scale;
 }
+/* ------- end ---------------------------- Hmff_coeffs.c ----------- */
+
+/* ------- begin -------------------------- Hmff_sum.c -------------- */
+
+static double Hmff_sum(const double C_lambda[NJOHN], double theta)
+{
+	/* --- sum_{n=1}^{6} theta^((n+1)/2) C_n, theta at most
+		   HMFF_THETA_MAX. --                            -------------- */
+
+	double sqrt_theta, theta_n, sum = 0.0;
+	int    n;
+
+	if (theta > HMFF_THETA_MAX) theta = HMFF_THETA_MAX;
+	sqrt_theta = sqrt(theta);
+	theta_n    = theta;
+	for (n = 0; n < NJOHN; n++) {
+		sum += theta_n * C_lambda[n];
+		theta_n *= sqrt_theta;
+	}
+	return sum;
+}
+/* ------- end ---------------------------- Hmff_sum.c -------------- */
+
+/* ------- begin -------------------------- Hminus_ff_kappa.c ------- */
+
+double Hminus_ff_kappa(double lambda, double theta)
+{
+	/* --- Free-free absorption coefficient [m^5/J] per H atom and
+		   unit electron pressure at lambda [nm] and theta = 5040/T;
+		   zero for lambda <= 0. --                      -------------- */
+
+	double C_lambda[NJOHN], scale;
+
+	if (lambda <= 0.0) return 0.0;
+	scale = Hmff_coeffs(lambda, C_lambda);
+	return scale * Hmff_sum(C_lambda, theta) * 1.0E-32;
+}
+/* ------- end ---------------------------- Hminus_ff_kappa.c ------- */
 
 bool_t Hminus_ff(double lambda, double *chi)
 {
-	const char   routineName[] = "Hminus_ff";
 	register int k;
 
-	/* --- H-minus Free-Free coefficients (in units of 1.0E-29 m^5/J)
+	double C_lambda[NJOHN], scale, pe;
 
-	 From: J. L. Stilley and J. Callaway (1970), ApJ 160, 245-260
-	 Also: D. Mihalas (1978), p. 102
-		   R. Mathisen (1984), Master's thesis, Inst. Theor.
-			Astroph., University of Oslo. p. 17
-
-		   The fractional indices for atmospheric temperatures into
-		   the theta table are stored in Hmff_theta_index by
-		   hydrogenPrepare, so that this routine only reads them and
-		   can be called from several threads. --      -------------- */
-
-	static double lambdaFF[NFF] = {
-		0.0, 303.8, 455.6, 506.3, 569.5, 650.9, 759.4, 911.3, 1013.0, 1139.0,
-		1302.0, 1519.0, 1823.0, 2278.0, 3038.0, 4556.0, 9113.0};
-
-	/* --- theta = 5040.0/T --                           -------------- */
-
-	static double kappaFF[NFF * NTHETA] = {
-		/* --- lambda =    0.0 [nm] --                     -------------- */
-		0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00,
-		0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00,
-		0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00,
-		/* --- lambda =  303.8 [nm] --                     -------------- */
-		3.44e-02, 4.18e-02, 4.91e-02, 5.65e-02, 6.39e-02, 7.13e-02,
-		7.87e-02, 8.62e-02, 9.36e-02, 1.01e-01, 1.08e-01, 1.16e-01,
-		1.23e-01, 1.30e-01, 1.38e-01, 1.45e-01,
-		/* --- lambda =  455.6 [nm] --                     -------------- */
-		7.80e-02, 9.41e-02, 1.10e-01, 1.25e-01, 1.40e-01, 1.56e-01,
-		1.71e-01, 1.86e-01, 2.01e-01, 2.16e-01, 2.31e-01, 2.45e-01,
-		2.60e-01, 2.75e-01, 2.89e-01, 3.03e-01,
-		/* --- lambda =  506.3 [nm] --                     -------------- */
-		9.59e-02, 1.16e-01, 1.35e-01, 1.53e-01, 1.72e-01, 1.90e-01,
-		2.08e-01, 2.25e-01, 2.43e-01, 2.61e-01, 2.78e-01, 2.96e-01,
-		3.13e-01, 3.30e-01, 3.47e-01, 3.64e-01,
-		/* --- lambda =  569.5 [nm] --                     -------------- */
-		1.21e-01, 1.45e-01, 1.69e-01, 1.92e-01, 2.14e-01, 2.36e-01,
-		2.58e-01, 2.80e-01, 3.01e-01, 3.22e-01, 3.43e-01, 3.64e-01,
-		3.85e-01, 4.06e-01, 4.26e-01, 4.46e-01,
-		/* --- lambda =  650.9 [nm] --                     -------------- */
-		1.56e-01, 1.88e-01, 2.18e-01, 2.47e-01, 2.76e-01, 3.03e-01,
-		3.31e-01, 3.57e-01, 3.84e-01, 4.10e-01, 4.36e-01, 4.62e-01,
-		4.87e-01, 5.12e-01, 5.37e-01, 5.62e-01,
-		/* --- lambda =  759.4 [nm] --                     -------------- */
-		2.10e-01, 2.53e-01, 2.93e-01, 3.32e-01, 3.69e-01, 4.06e-01,
-		4.41e-01, 4.75e-01, 5.09e-01, 5.43e-01, 5.76e-01, 6.08e-01,
-		6.40e-01, 6.72e-01, 7.03e-01, 7.34e-01,
-		/* --- lambda =  911.3 [nm] --                     -------------- */
-		2.98e-01, 3.59e-01, 4.16e-01, 4.70e-01, 5.22e-01, 5.73e-01,
-		6.21e-01, 6.68e-01, 7.15e-01, 7.60e-01, 8.04e-01, 8.47e-01,
-		8.90e-01, 9.32e-01, 9.73e-01, 1.01e+00,
-		/* --- lambda = 1013.0 [nm] --                     -------------- */
-		3.65e-01, 4.39e-01, 5.09e-01, 5.75e-01, 6.39e-01, 7.00e-01,
-		7.58e-01, 8.15e-01, 8.71e-01, 9.25e-01, 9.77e-01, 1.03e+00,
-		1.08e+00, 1.13e+00, 1.18e+00, 1.23e+00,
-		/* --- lambda = 1139.0 [nm] --                     -------------- */
-		4.58e-01, 5.50e-01, 6.37e-01, 7.21e-01, 8.00e-01, 8.76e-01,
-		9.49e-01, 1.02e+00, 1.09e+00, 1.15e+00, 1.22e+00, 1.28e+00,
-		1.34e+00, 1.40e+00, 1.46e+00, 1.52e+00,
-		/* --- lambda = 1302.0 [nm] --                     -------------- */
-		5.92e-01, 7.11e-01, 8.24e-01, 9.31e-01, 1.03e+00, 1.13e+00,
-		1.23e+00, 1.32e+00, 1.40e+00, 1.49e+00, 1.57e+00, 1.65e+00,
-		1.73e+00, 1.80e+00, 1.88e+00, 1.95e+00,
-		/* --- lambda = 1519.0 [nm] --                     -------------- */
-		7.98e-01, 9.58e-01, 1.11e+00, 1.25e+00, 1.39e+00, 1.52e+00,
-		1.65e+00, 1.77e+00, 1.89e+00, 2.00e+00, 2.11e+00, 2.21e+00,
-		2.32e+00, 2.42e+00, 2.51e+00, 2.61e+00,
-		/* --- lambda = 1823.0 [nm] --                     -------------- */
-		1.14e+00, 1.36e+00, 1.58e+00, 1.78e+00, 1.98e+00, 2.17e+00,
-		2.34e+00, 2.52e+00, 2.68e+00, 2.84e+00, 3.00e+00, 3.15e+00,
-		3.29e+00, 3.43e+00, 3.57e+00, 3.70e+00,
-		/* --- lambda = 2278.0 [nm] --                     -------------- */
-		1.77e+00, 2.11e+00, 2.44e+00, 2.75e+00, 3.05e+00, 3.34e+00,
-		3.62e+00, 3.89e+00, 4.14e+00, 4.39e+00, 4.63e+00, 4.86e+00,
-		5.08e+00, 5.30e+00, 5.51e+00, 5.71e+00,
-		/* --- lambda = 3038.0 [nm] --                     -------------- */
-		3.10e+00, 3.71e+00, 4.29e+00, 4.84e+00, 5.37e+00, 5.87e+00,
-		6.36e+00, 6.83e+00, 7.28e+00, 7.72e+00, 8.14e+00, 8.55e+00,
-		8.95e+00, 9.33e+00, 9.71e+00, 1.01e+01,
-		/* --- lambda = 4556.0 [nm] --                     -------------- */
-		6.92e+00, 8.27e+00, 9.56e+00, 1.08e+01, 1.19e+01, 1.31e+01,
-		1.42e+01, 1.52e+01, 1.62e+01, 1.72e+01, 1.82e+01, 1.91e+01,
-		2.00e+01, 2.09e+01, 2.17e+01, 2.25e+01,
-		/* --- lambda = 9113.0 [nm] --                     -------------- */
-		2.75e+01, 3.29e+01, 3.80e+01, 4.28e+01, 4.75e+01, 5.19e+01,
-		5.62e+01, 6.04e+01, 6.45e+01, 6.84e+01, 7.23e+01, 7.60e+01,
-		7.97e+01, 8.32e+01, 8.67e+01, 9.01e+01};
-
-	int    Nspace = atmos.Nspace, index = 0;
-	double pe, lambda_index, kappa;
-
-	/* --- Use long-wavelength expansion if wavelength beyond 9113 nm - */
-
-	if (lambda >= lambdaFF[NFF - 1])
-		return Hminus_ff_long(lambda, chi);
-
-	if (Hmff_theta_index == NULL) {
-		sprintf(messageStr, "Index table not set up "
-							"(call hydrogenPrepare first)");
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+	if (lambda <= 0.0) {
+		for (k = 0; k < atmos.Nspace; k++) chi[k] = 0.0;
+		return TRUE;
 	}
-
-	Hunt(NFF, lambdaFF, lambda, &index);
-	lambda_index = (double) index +
-				   (lambda - lambdaFF[index]) / (lambdaFF[index + 1] - lambdaFF[index]);
-
-	for (k = 0; k < Nspace; k++) {
+	scale = Hmff_coeffs(lambda, C_lambda) * 1.0E-32;
+	for (k = 0; k < atmos.Nspace; k++) {
 		pe     = atmos.ne[k] * KBOLTZMANN * atmos.T[k];
-		kappa  = bilinear(NTHETA, NFF, kappaFF,
-						  Hmff_theta_index[k], lambda_index);
-		chi[k] = (atmos.H->n[0][k] * 1.0E-29) * pe * kappa;
+		chi[k] = atmos.H->n[0][k] * pe * scale *
+				 Hmff_sum(C_lambda, THETA0 / atmos.T[k]);
 	}
 	return TRUE;
 }
 /* ------- end ---------------------------- Hminus_ff.c ------------- */
-
-#define NJOHN 6
-
-/* ------- begin -------------------------- Hminus_ff_long.c -------- */
-
-bool_t Hminus_ff_long(double lambda, double *chi)
-{
-	register int k, n;
-
-	/* --- H-minus Free-Free opacity. Parametrization for long wavelengths
-		   as given by T. L. John (1988), A&A 193, 189-192 (see table 3a).
-	   His results are based on calculations by K. L. Bell and
-	   K. A. Berrington (1987), J. Phys. B 20, 801-806. -- -------- */
-
-	static double A[NJOHN] = {0.000, 2483.346, -3449.889, 2200.040,
-							  -696.271, 88.283};
-	static double B[NJOHN] = {0.000, 285.827, -1158.382, 2427.719,
-							  -1841.400, 444.517};
-	static double C[NJOHN] = {0.000, -2054.291, 8746.523, -13651.105,
-							  8624.970, -1863.864};
-	static double D[NJOHN] = {0.000, 2827.776, -11485.632, 16755.524,
-							  -10051.530, 2095.288};
-	static double E[NJOHN] = {0.000, -1341.537, 5303.609, -7510.494,
-							  4400.067, -901.788};
-	static double F[NJOHN] = {0.000, 208.952, -812.939, 1132.738,
-							  -655.020, 132.985};
-
-	double Clambda[NJOHN], lambda_mu, lambda_inv, sqrt_theta, theta_n,
-		Ck = (KBOLTZMANN * THETA0 * 1.0E-32);
-
-	/* --- First evaluate the wavelength dependent coefficients -- ---- */
-
-	lambda_mu  = lambda / MICRON_TO_NM;
-	lambda_inv = 1.0 / lambda_mu;
-	for (n = 1; n < NJOHN; n++) {
-		Clambda[n] = SQ(lambda_mu) * A[n] + B[n] + lambda_inv * (C[n] + lambda_inv * (D[n] + lambda_inv * (E[n] + lambda_inv * F[n])));
-	}
-	/* --- Then spatial dependence --                      ------------ */
-
-	for (k = 0; k < atmos.Nspace; k++) {
-		chi[k]     = 0.0;
-		theta_n    = 1.0;
-		sqrt_theta = sqrt(THETA0 / atmos.T[k]);
-		for (n = 1; n < NJOHN; n++) {
-			theta_n *= sqrt_theta;
-			chi[k] += theta_n * Clambda[n];
-		}
-		chi[k] *= atmos.H->n[0][k] * (atmos.ne[k] * Ck);
-	}
-	return TRUE;
-}
-/* ------- end ---------------------------- Hminus_ff_long.c -------- */
 
 /* ------- begin -------------------------- H2minus_ff.c ------------ */
 
@@ -1141,7 +1075,6 @@ void hydrogenPrepare(void)
 			Error(WARNING, routineName, messageStr);
 		}
 	}
-	Hminus_ff_prepare();
 	H2minus_ff_prepare();
 	H2plus_ff_prepare();
 }
@@ -1155,9 +1088,8 @@ void hydrogenCleanup(void)
 		   table, which does not depend on the atmosphere, is kept.
 		   --                                            -------------- */
 
-	free(Hmff_theta_index);
 	free(H2mff_theta_index);
 	free(H2pff_temp_index);
-	Hmff_theta_index = H2mff_theta_index = H2pff_temp_index = NULL;
+	H2mff_theta_index = H2pff_temp_index = NULL;
 }
 /* ------- end ---------------------------- hydrogenCleanup.c ------- */
