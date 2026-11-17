@@ -53,7 +53,7 @@ for ids, step in [
     ("B-10 B-11 M-1 M-2 M-3 M-4 M-5 M-6 M-7 M-8 M-9", 6),
     ("B-41 B-12 B-14 T-1 T-2 T-3 Q-4 Q-5 Q-6 Q-7 Q-8 Q-9 Q-16 Q-19 Q-30 P-11", 7),
     # Not planned work: the wishlist (section 3.7) has its own option
-    ("F-1 F-2 F-3 F-4 F-5 S-6 S-7 S-8 S-9 S-12 N-14 N-12 N-30 F-6 F-7 N-9 F-8", "Wishlist"),
+    ("F-1 F-2 F-3 F-4 F-5 S-6 S-7 S-8 S-9 S-12 N-14 N-12 N-30 F-6 F-7 N-9 F-8 N-46", "Wishlist"),
 ]:
     for i in ids.split():
         STEP[i] = step
