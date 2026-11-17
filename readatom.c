@@ -943,8 +943,9 @@ void readAtomicModels(void)
 			   applies to ACTIVE atoms only, and a populations file is read
 			   only with OLD_POPULATIONS. Passive hydrogen takes its
 			   populations from the atmosphere (LTE with HYDROGEN_LTE), see
-			   distribute_nH, so it cannot read them. Input that would be
-			   ignored stops the run (B-59) --             -------------- */
+			   distribute_nH, so it cannot read them. An initial solution
+			   that would be ignored stops the run; a populations file that
+			   is not read gives a warning (B-59) --        -------------- */
 
 		if (!atom->active) {
 			if (atom->initial_solution == ZERO_RADIATION) {
@@ -965,11 +966,10 @@ void readAtomicModels(void)
 			}
 			if (atom->initial_solution == LTE_POPULATIONS && Nread == 4) {
 				sprintf(messageStr,
-						"Populations file %s of PASSIVE atom %s would not be\n"
-						" read with LTE_POPULATIONS. Remove it, or use\n"
-						" OLD_POPULATIONS to read it",
+						"Populations file %s of PASSIVE atom %s is not read\n"
+						" with LTE_POPULATIONS (OLD_POPULATIONS reads it)",
 						popsFile, atomID);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(WARNING, routineName, messageStr);
 			}
 		}
 		/* --- If input.startJ == OLD_J then enforce OLD_POPULATIONAS - - */

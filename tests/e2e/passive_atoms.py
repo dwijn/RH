@@ -8,15 +8,16 @@ or populations read from a file (OLD_POPULATIONS). Passive hydrogen takes its
 populations from the atmosphere (LTE with HYDROGEN_LTE). Before B-59 RH
 accepted input that it then ignored, without a word: ZERO_RADIATION gave
 LTE, a populations file without OLD_POPULATIONS was not read, and passive
-hydrogen read OLD_POPULATIONS and threw them away. Each now stops at input
-with a message and status 70:
+hydrogen read OLD_POPULATIONS and threw them away. The first and the last
+now stop at input with a message and status 70, the second gives a warning:
 
  1. PASSIVE atom with ZERO_RADIATION, without and with a populations file.
- 2. PASSIVE atom with LTE_POPULATIONS and a populations file.
- 3. PASSIVE hydrogen with OLD_POPULATIONS.
+ 2. PASSIVE hydrogen with OLD_POPULATIONS.
 
 What stays valid:
 
+ 3. PASSIVE atom with LTE_POPULATIONS and a populations file: runs with a
+    warning that the file is not read, and gives the spectrum of 4.
  4. PASSIVE atom with LTE_POPULATIONS (no file): runs.
  5. ACTIVE atom with LTE_POPULATIONS and a file (read with STARTING_J =
     OLD_J): runs.
@@ -75,13 +76,21 @@ refused("passive_zero_radiation", [H6, CAII, (HE, "PASSIVE", "ZERO_RADIATION")],
         "ZERO_RADIATION is for ACTIVE atoms only (PASSIVE atom HE")
 refused("passive_zero_radiation_file", [H6, CAII, (HE, "PASSIVE", "ZERO_RADIATION", "pops.HE.out")],
         "ZERO_RADIATION is for ACTIVE atoms only (PASSIVE atom HE")
-refused("passive_lte_file", [H6, CAII, (HE, "PASSIVE", "LTE_POPULATIONS", "pops.HE.out")],
-        "Populations file pops.HE.out of PASSIVE atom HE would not be read")
 
 # --- 4-6: valid --                                           ------------
 
 lte = run("passive_lte", [H6, CAII, (HE, "PASSIVE", "LTE_POPULATIONS")])
 ck.check(lte.ran, "passive He with LTE_POPULATIONS runs", f"(status {lte.returncode})")
+
+warned = run("passive_lte_file", [H6, CAII, (HE, "PASSIVE", "LTE_POPULATIONS", "pops.HE.out")])
+ck.check(warned.ran and "Populations file pops.HE.out of PASSIVE atom HE is not read"
+         in " ".join(warned.stdout.split()),
+         "passive He with LTE_POPULATIONS and a file runs, with a warning",
+         f"(status {warned.returncode})")
+if warned.ran and lte.ran:
+    ck.check(read_bytes(os.path.join(warned.dir, "spectrum.out"))
+             == read_bytes(os.path.join(lte.dir, "spectrum.out")),
+             "... and gives the spectrum of LTE_POPULATIONS without a file")
 
 act = run("active_lte_file", [H6, ("../../Atoms/CaII.atom", "ACTIVE", "LTE_POPULATIONS", "pops.CA.out")])
 ck.check(act.ran, "active Ca II with LTE_POPULATIONS and a file runs", f"(status {act.returncode})")
