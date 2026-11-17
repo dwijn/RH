@@ -69,8 +69,7 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 
 	for (k = 0; k < atmos.Nspace; k++) {
 
-		if (atmos.T[k] >= atmos.molecules[0].Tmin &&
-			atmos.T[k] <= atmos.molecules[0].Tmax) {
+		if (atmos.T[k] >= atmos.H2->Tmin && atmos.T[k] <= atmos.H2->Tmax) {
 			H2present = TRUE;
 			Nhse      = 5;
 		} else {
