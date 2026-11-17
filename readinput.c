@@ -152,6 +152,8 @@ void readInput()
 		 setboolValue},
 		{"KURUCZ_PF_DATA", "../../Atoms/pf_Kurucz.input", FALSE,
 		 KEYWORD_REQUIRED, &input.pfData, setcharValue},
+		{"HMINUS_BF_DATA", "../../Atoms/Hminus_bf.ecsv", FALSE,
+		 KEYWORD_DEFAULT, input.HminusBfData, setcharValue},
 		{"SOLVE_NE", "NONE", FALSE, KEYWORD_DEFAULT, &input.solve_ne,
 		 setnesolution},
 		/* --- ANDERSON in every geometry (S-10, S-11) -- -- */

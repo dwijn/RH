@@ -79,6 +79,10 @@ void rlk_prepare(void);
 void rlk_cleanup(void);
 
 bool_t Hminus_bf(double lambda, double *chi, double *eta);
+double Hminus_bf_sigma(double lambda);
+int    Hminus_bf_readTable(const char *fileName, char *errmsg, size_t len);
+void   Hminus_bf_freeTable(void);
+void   Hminus_bf_joins(double *short_ratio, double *long_ratio);
 bool_t Hminus_ff(double lambda, double *chi);
 bool_t Hminus_ff_long(double lambda, double *chi);
 bool_t Hydrogen_bf(double lambda, double *chi, double *eta);

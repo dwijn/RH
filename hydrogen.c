@@ -39,6 +39,7 @@
 
 #include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 #include "rh.h"
@@ -47,6 +48,7 @@
 #include "constant.h"
 #include "background.h"
 #include "error.h"
+#include "inputs.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -55,6 +57,7 @@ double bilinear(int Ncol, int Nrow, double *f, double x, double y);
 /* --- Global variables --                             -------------- */
 
 extern Atmosphere atmos;
+extern InputData  input;
 extern char       messageStr[];
 
 /* ------- begin -------------------------- distribute_nH.c --------- */
@@ -278,49 +281,272 @@ double Gaunt_ff(double lambda, int charge, double T)
 
 /* ------- begin -------------------------- Hminus_bf.c ------------- */
 
-#define NBF 34
+/* --- H-minus bound-free (photodetachment) cross-section (N-35).
 
-/* --- H-minus Bound-Free coefficients (in units of 1.0E-21 m^2).
+ From: B. M. McLaughlin, P. C. Stancil, H. R. Sadeghpour and
+	   R. C. Forrey (2017), J. Phys. B 50, 114001, the merged and
+	   scaled single-detachment cross-section of their supplementary
+	   data (doi:10.1088/1361-6455/aa6c1f).
 
- From: S. Geltman (1962), ApJ 136, 935-945
- Also: Mihalas (1978), p. 102
+ Three parts:
+  -- lambda_min <= lambda <= lambda_max: linear interpolation in a
+	 table read at run time (keyword HMINUS_BF_DATA, default
+	 Atoms/Hminus_bf.ecsv: 80-125 nm, with the n = 2, 3, 4
+	 resonances).
+  -- lambda < lambda_min: sigma = A E^p (1 + (Ec/E)^q)^-s, E in eV,
+	 a fit to the source below 85 nm.
+  -- lambda > lambda_max: the form of John (1988, A&A 193, 189),
+	 sigma = lambda^3 x^(3/2) sum_n C_n x^(n/2), lambda in micron,
+	 x = 1/lambda - 1/lambda0, refitted to the source above 120 nm.
+ Both fits are in Mb (1.0E-22 m^2). The table must cover the range
+ where neither fit holds (85-120 nm). The table and the fits are made
+ by docs/opacity/hminus_bf_table.py.
 
- Note: The spline coefficients of this constant table are set up once
-	   in hydrogenPrepare, so that Hminus_bf can be called from several
-	   threads. --                                   -------------- */
+ Note: The table is read once in hydrogenPrepare, so that Hminus_bf
+	   can be called from several threads. -------------- */
 
-static double lambdaBF[NBF] = {
-	0.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 450.0,
-	500.0, 550.0, 600.0, 650.0, 700.0, 750.0, 800.0, 850.0, 900.0, 950.0,
-	1000.0, 1050.0, 1100.0, 1150.0, 1200.0, 1250.0, 1300.0, 1350.0,
-	1400.0, 1450.0, 1500.0, 1550.0, 1600.0, 1641.9};
+#define HMBF_LAMBDA0   1643.907988 /* threshold [nm], E0 = 0.754204 eV */
+#define HMBF_SHORT_MAX 85.0        /* short-wavelength fit holds below */
+#define HMBF_LONG_MIN  120.0       /* long-wavelength fit holds above */
+#define HMBF_JOIN_WARN 0.02        /* warn when a join steps more */
+#define MBARN_TO_M2    1.0E-22
+#define HMBF_MAX_LINE  4096
 
-static double alphaBF[NBF] = {
-	0.0, 0.15, 0.33, 0.57, 0.85, 1.17, 1.52, 1.89, 2.23, 2.55, 2.84,
-	3.11, 3.35, 3.56, 3.71, 3.83, 3.92, 3.95, 3.93, 3.85, 3.73, 3.58,
-	3.38, 3.14, 2.85, 2.54, 2.20, 1.83, 1.46, 1.06, 0.71, 0.40, 0.17, 0.0};
+static const double Hmbf_short[5] = {71425.67213, -3.295011963, 39.10512916,
+									 4.530454567, 0.1547112957};
+static const double Hmbf_John[6]  = {149.5104613, 43.6244984, -99.21317025,
+									 73.67718562, -26.18373202, 3.742690569};
 
-static SplineTable Hmbf_spline = {FALSE, 0, 0.0, 0.0, NULL, NULL, NULL};
+static int     Hmbf_N      = 0;
+static double *Hmbf_lambda = NULL, *Hmbf_sigma = NULL;
+
+/* ------- begin -------------------------- Hmbf_short_fit.c -------- */
+
+static double Hmbf_short_fit(double lambda)
+{
+	/* --- Fit below the table, in Mb. --              -------------- */
+
+	double E = HPLANCK * CLIGHT / (NM_TO_M * lambda) / EV;
+
+	return Hmbf_short[0] * pow(E, Hmbf_short[1]) *
+		   pow(1.0 + pow(Hmbf_short[2] / E, Hmbf_short[3]), -Hmbf_short[4]);
+}
+/* ------- end ---------------------------- Hmbf_short_fit.c -------- */
+
+/* ------- begin -------------------------- Hmbf_long_fit.c --------- */
+
+static double Hmbf_long_fit(double lambda)
+{
+	/* --- Fit above the table, in Mb; zero at and beyond threshold.
+		   --                                            -------------- */
+
+	int    n;
+	double lambda_mu = lambda / 1000.0, x, sqrt_x, sum = 0.0, xn = 1.0;
+
+	if (lambda >= HMBF_LAMBDA0) return 0.0;
+	x      = 1.0 / lambda_mu - 1000.0 / HMBF_LAMBDA0;
+	sqrt_x = sqrt(x);
+	for (n = 0; n < 6; n++) {
+		sum += Hmbf_John[n] * xn;
+		xn *= sqrt_x;
+	}
+	return CUBE(lambda_mu) * x * sqrt_x * sum;
+}
+/* ------- end ---------------------------- Hmbf_long_fit.c --------- */
+
+/* ------- begin -------------------------- Hminus_bf_sigma.c ------- */
+
+double Hminus_bf_sigma(double lambda)
+{
+	/* --- Cross-section [m^2] at lambda [nm]; zero outside
+		   0 < lambda < HMBF_LAMBDA0. Needs the table
+		   (Hminus_bf_readTable). --                     -------------- */
+
+	int    lo, hi, mid;
+	double w;
+
+	if (lambda <= 0.0 || lambda >= HMBF_LAMBDA0) return 0.0;
+	if (lambda < Hmbf_lambda[0]) return Hmbf_short_fit(lambda) * MBARN_TO_M2;
+	if (lambda > Hmbf_lambda[Hmbf_N - 1])
+		return Hmbf_long_fit(lambda) * MBARN_TO_M2;
+
+	lo = 0;
+	hi = Hmbf_N - 1;
+	while (hi - lo > 1) {
+		mid = (lo + hi) / 2;
+		if (lambda >= Hmbf_lambda[mid])
+			lo = mid;
+		else
+			hi = mid;
+	}
+	w = (lambda - Hmbf_lambda[lo]) / (Hmbf_lambda[hi] - Hmbf_lambda[lo]);
+	return ((1.0 - w) * Hmbf_sigma[lo] + w * Hmbf_sigma[hi]) * MBARN_TO_M2;
+}
+/* ------- end ---------------------------- Hminus_bf_sigma.c ------- */
+
+/* ------- begin -------------------------- Hmbf_column.c ----------- */
+
+static bool_t Hmbf_column(const char *line, const char *name,
+						  const char *unit)
+{
+	/* --- Whether an ECSV datatype line declares column name with
+		   unit, e.g. "# - {name: lambda, unit: nm, ...}". -- ---- */
+
+	char        key[64];
+	const char *p;
+
+	snprintf(key, sizeof(key), "name: %s,", name);
+	if ((p = strstr(line, key)) == NULL) return FALSE;
+	snprintf(key, sizeof(key), "unit: %s", unit);
+	if ((p = strstr(p, key)) == NULL) return FALSE;
+	p += strlen(key);
+	return (*p == ',' || *p == '}');
+}
+/* ------- end ---------------------------- Hmbf_column.c ----------- */
+
+/* ------- begin -------------------------- Hminus_bf_readTable.c --- */
+
+int Hminus_bf_readTable(const char *fileName, char *errmsg, size_t len)
+{
+	/* --- Read the table of Hminus_bf from an ECSV file (the subset
+		   written by docs/opacity/hminus_bf_table.py: space-delimited,
+		   columns lambda [nm] and sigma [Mbarn]). Returns 0, or -1
+		   with a message in errmsg. Replaces a table read before.
+		   --                                            -------------- */
+
+	char    line[HMBF_MAX_LINE], first[64], second[64], extra[2];
+	bool_t  header = TRUE, has_lambda = FALSE, has_sigma = FALSE;
+	int     N = 0, Nmax = 0, lineNo = 0, status = -1;
+	double *lambda = NULL, *sigma = NULL, l, s;
+	FILE   *fp;
+
+	if ((fp = fopen(fileName, "r")) == NULL) {
+		snprintf(errmsg, len, "Unable to open H-minus bound-free table %s",
+				 fileName);
+		return -1;
+	}
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		lineNo++;
+		if (strchr(line, '\n') == NULL && !feof(fp)) {
+			snprintf(errmsg, len, "%s:%d: line too long", fileName, lineNo);
+			goto done;
+		}
+		if (lineNo == 1 && strncmp(line, "# %ECSV ", 8) != 0) {
+			snprintf(errmsg, len, "%s: not an ECSV file (no \"# %%ECSV\")",
+					 fileName);
+			goto done;
+		}
+		if (line[0] == '#') {
+			if (!header) continue;
+			if (Hmbf_column(line, "lambda", "nm")) has_lambda = TRUE;
+			if (Hmbf_column(line, "sigma", "Mbarn")) has_sigma = TRUE;
+			if (strstr(line, "delimiter:") != NULL &&
+				strstr(line, "delimiter: ' '") == NULL) {
+				snprintf(errmsg, len,
+						 "%s:%d: only space-delimited ECSV is supported",
+						 fileName, lineNo);
+				goto done;
+			}
+			continue;
+		}
+		if (sscanf(line, "%1s", extra) != 1) continue; /* blank line */
+
+		if (header) {
+			/* --- The column-name line ends the header -- -------------- */
+
+			if (!has_lambda || !has_sigma ||
+				sscanf(line, "%63s %63s %1s", first, second, extra) != 2 ||
+				strcmp(first, "lambda") != 0 || strcmp(second, "sigma") != 0) {
+				snprintf(errmsg, len,
+						 "%s: need exactly the columns lambda [nm] and sigma "
+						 "[Mbarn], in this order",
+						 fileName);
+				goto done;
+			}
+			header = FALSE;
+			continue;
+		}
+		if (sscanf(line, "%lf %lf %1s", &l, &s, extra) != 2) {
+			snprintf(errmsg, len, "%s:%d: expected two numbers", fileName,
+					 lineNo);
+			goto done;
+		}
+		if (s < 0.0 || (N > 0 && l <= lambda[N - 1])) {
+			snprintf(errmsg, len,
+					 "%s:%d: need sigma >= 0 and lambda strictly increasing",
+					 fileName, lineNo);
+			goto done;
+		}
+		if (N == Nmax) {
+			Nmax   = (Nmax == 0) ? 64 : 2 * Nmax;
+			lambda = (double *) realloc(lambda, Nmax * sizeof(double));
+			sigma  = (double *) realloc(sigma, Nmax * sizeof(double));
+		}
+		lambda[N] = l;
+		sigma[N]  = s;
+		N++;
+	}
+	if (N < 2 || lambda[0] > HMBF_SHORT_MAX || lambda[N - 1] < HMBF_LONG_MIN ||
+		lambda[N - 1] >= HMBF_LAMBDA0) {
+		snprintf(errmsg, len,
+				 "%s: the table must have at least two rows and cover "
+				 "%.0f-%.0f nm, below threshold (%.2f nm)",
+				 fileName, HMBF_SHORT_MAX, HMBF_LONG_MIN, HMBF_LAMBDA0);
+		goto done;
+	}
+	Hminus_bf_freeTable();
+	Hmbf_N      = N;
+	Hmbf_lambda = lambda;
+	Hmbf_sigma  = sigma;
+	lambda = sigma = NULL;
+	status         = 0;
+
+done:
+	fclose(fp);
+	free(lambda);
+	free(sigma);
+	return status;
+}
+/* ------- end ---------------------------- Hminus_bf_readTable.c --- */
+
+/* ------- begin -------------------------- Hminus_bf_freeTable.c --- */
+
+void Hminus_bf_freeTable(void)
+{
+	free(Hmbf_lambda);
+	free(Hmbf_sigma);
+	Hmbf_lambda = Hmbf_sigma = NULL;
+	Hmbf_N                   = 0;
+}
+/* ------- end ---------------------------- Hminus_bf_freeTable.c --- */
+
+/* ------- begin -------------------------- Hminus_bf_joins.c ------- */
+
+void Hminus_bf_joins(double *short_ratio, double *long_ratio)
+{
+	/* --- Ratio fit / table at both ends of the table. -- ------- */
+
+	*short_ratio = Hmbf_short_fit(Hmbf_lambda[0]) / Hmbf_sigma[0];
+	*long_ratio  = Hmbf_long_fit(Hmbf_lambda[Hmbf_N - 1]) / Hmbf_sigma[Hmbf_N - 1];
+}
+/* ------- end ---------------------------- Hminus_bf_joins.c ------- */
 
 bool_t Hminus_bf(double lambda, double *chi, double *eta)
 {
 	const char   routineName[] = "Hminus_bf";
 	register int k;
 
-	bool_t hunt;
 	int    Nspace = atmos.Nspace;
 	double hc_kla, stimEmis, twohnu3_c2, alpha_bf;
 
-	if ((lambda <= lambdaBF[0]) || (lambda >= lambdaBF[NBF - 1]))
-		return FALSE;
+	if (lambda <= 0.0 || lambda >= HMBF_LAMBDA0) return FALSE;
 
-	if (Hmbf_spline.M == NULL) {
-		sprintf(messageStr, "Spline coefficients not set up "
+	if (Hmbf_lambda == NULL) {
+		sprintf(messageStr, "H-minus bound-free table not read "
 							"(call hydrogenPrepare first)");
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
-	splineTableEval(&Hmbf_spline, 1, &lambda, &alpha_bf, hunt = FALSE);
-	alpha_bf *= 1.0E-21;
+	alpha_bf = Hminus_bf_sigma(lambda);
 
 	hc_kla     = (HPLANCK * CLIGHT) / (KBOLTZMANN * NM_TO_M * lambda);
 	twohnu3_c2 = (2.0 * HPLANCK * CLIGHT) / CUBE(NM_TO_M * lambda);
@@ -895,10 +1121,26 @@ void hydrogenPrepare(void)
 		   for different wavelengths. The temperature indices depend on
 		   atmos.T, which should not change until hydrogenCleanup. - - */
 
+	const char routineName[] = "hydrogenPrepare";
+	double     short_ratio, long_ratio;
+
 	hydrogenCleanup();
 
-	if (Hmbf_spline.M == NULL)
-		splineTableInit(&Hmbf_spline, NBF, lambdaBF, alphaBF);
+	if (Hmbf_lambda == NULL) {
+		if (Hminus_bf_readTable(input.HminusBfData, messageStr,
+								MAX_MESSAGE_LENGTH) != 0)
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		Hminus_bf_joins(&short_ratio, &long_ratio);
+		if (fabs(short_ratio - 1.0) > HMBF_JOIN_WARN ||
+			fabs(long_ratio - 1.0) > HMBF_JOIN_WARN) {
+			sprintf(messageStr,
+					"H-minus bound-free table %s does not join its fits: "
+					"fit/table = %.4f at %.2f nm, %.4f at %.2f nm",
+					input.HminusBfData, short_ratio, Hmbf_lambda[0], long_ratio,
+					Hmbf_lambda[Hmbf_N - 1]);
+			Error(WARNING, routineName, messageStr);
+		}
+	}
 	Hminus_ff_prepare();
 	H2minus_ff_prepare();
 	H2plus_ff_prepare();
@@ -909,8 +1151,9 @@ void hydrogenPrepare(void)
 
 void hydrogenCleanup(void)
 {
-	/* --- Free the temperature index tables. The spline coefficients
-		   of the constant H-minus table are kept. --  -------------- */
+	/* --- Free the temperature index tables. The H-minus bound-free
+		   table, which does not depend on the atmosphere, is kept.
+		   --                                            -------------- */
 
 	free(Hmff_theta_index);
 	free(H2mff_theta_index);

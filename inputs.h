@@ -90,7 +90,8 @@ typedef struct {
 		collrateFile[MAX_VALUE_LENGTH],
 		dampingFile[MAX_VALUE_LENGTH],
 		coolingFile[MAX_VALUE_LENGTH],
-		Itop[MAX_VALUE_LENGTH];
+		Itop[MAX_VALUE_LENGTH],
+		HminusBfData[MAX_VALUE_LENGTH];
 	bool_t magneto_optical, XRD,
 		backgr_pol, limit_memory, allow_passive_bb, NonICE,
 		rlkscatter, xdr_endian, old_background, accelerate_mols,
