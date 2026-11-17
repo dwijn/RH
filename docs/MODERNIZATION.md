@@ -131,7 +131,7 @@ wontfix.
 | Tool | Purpose |
 |---|---|
 | `tests/run_tests.py` | Regression: candidate vs baseline at 4 iterations on 1-D (3 Stokes modes, CRD, two active atoms), 2-D, 3-D, spherical; thread-count consistency (3 and 8 threads vs 1); optional ASan build; peak memory on a tiled 2-D grid; Kurucz blank-line crash. `--exact` for byte-identical changes. |
-| `tests/run_stress.sh` | Stress/convergence/performance: runs NLTE problems **to convergence** on one or more builds and reports iterations, final change, trend (monotone / oscillating / stalled), wall time, peak memory, and the population and spectrum differences between builds. `--set conv` (24 cases) or `--set perf`. Run with `--work /hao/solar1/dwijn/rh-stress` (large outputs). |
+| `tests/run_stress.py` | Stress/convergence/performance: runs NLTE problems **to convergence** on one or more builds and reports iterations, final change, trend (monotone / oscillating / stalled), wall time, peak memory, and the population and spectrum differences between builds. `--set conv` (24 cases) or `--set perf`. Run with `--work /hao/solar1/dwijn/rh-stress` (large outputs). |
 | `tests/analyze_run.py` | Parses a run's log and `time.txt` (iterations, convergence, trend, status) and compares `pops.*.out` between runs. |
 | `tests/make_perturbed_atmos.py` | Builds inhomogeneous 2-D/3-D atmospheres from FAL-C: transition region shifted by up to ±250 km, chromospheric T modulated by ±35 %, velocities up to ±8 km/s (vertical) and ±4 km/s (horizontal). Deterministic and periodic. |
 | `tests/atmos/FALC_v10.atmos`, `FALC_shock.atmos` | 1-D FAL-C with a ±10 km/s velocity field, and with a 2.2× temperature spike plus a velocity jump. |

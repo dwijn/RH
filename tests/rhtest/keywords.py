@@ -20,6 +20,14 @@ def setkw(text, key, value):
     return "\n".join(out) + "\n"
 
 
+def unsetkw(text, key):
+    """Every setting of key in a keyword.input text commented out (a "#"
+    put in front of the line, which keeps its indentation), so that it is not
+    set; unlike setkw(text, key, None), all of them and the line unchanged."""
+    pat = re.compile(r"^([ \t\r\f\v]*" + re.escape(key) + r"[ \t\r\f\v]*=.*)")
+    return "\n".join(pat.sub(r"#\1", l) for l in text.split("\n"))
+
+
 def apply(text, pairs):
     """setkw for each (key, value) of pairs, in order."""
     for k, v in pairs:
