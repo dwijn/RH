@@ -132,7 +132,7 @@ prepare() {
   local IFS=';'
   for m in $mods; do
     case "$m" in
-      @H6_ACTIVE) sed -E -i.bak 's/(H_6\.atom[[:space:]]+)PASSIVE/\1ACTIVE/' "$RUNDIR/atoms.input"
+      @H6_ACTIVE) sed -E -i.bak 's/(H_6\.atom[[:space:]]+)PASSIVE.*/\1ACTIVE     ZERO_RADIATION    pops.H.out/' "$RUNDIR/atoms.input"
                   rm -f "$RUNDIR/atoms.input.bak";;
       ?*=*)       setkw "$RUNDIR/keyword.input" "${m%%=*}" "${m#*=}";;
     esac
