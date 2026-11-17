@@ -956,6 +956,17 @@ void readMolecularModels(void)
 	Nread = sscanf(inputLine, "%d", &atmos.Nmolecule);
 	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 1);
 
+	/* --- H2 is required: the background opacities (H2- free-free,
+		   Rayleigh scattering by H2), H2 collisions and hydrostatic
+		   equilibrium use atmos.H2 (B-62) --          -------------- */
+
+	if (atmos.Nmolecule < 1) {
+		snprintf(messageStr, MAX_MESSAGE_LENGTH,
+				 "%.200s lists %d molecules: it must list at least H2, as the"
+				 " first molecule",
+				 input.molecules_input, atmos.Nmolecule);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
 	atmos.molecules =
 		(Molecule *) malloc(atmos.Nmolecule * sizeof(Molecule));
 
@@ -974,13 +985,6 @@ void readMolecularModels(void)
 
 		moleculeID = getMoleculeID(filename);
 
-		/* --- The first molecule MUST be H2 --            -------------- */
-
-		if (n == 0 && !strstr(moleculeID, "H2")) {
-			sprintf(messageStr,
-					"\n First molecule should be H2\n");
-			Error(ERROR_LEVEL_2, routineName, messageStr);
-		}
 		/* --- Check for duplicate molecule IDs --         -------------- */
 
 		for (m = 0; m < n; m++) {
@@ -995,6 +999,18 @@ void readMolecularModels(void)
 		readMolecule(molecule, filename,
 					 active = (strstr(actionKey, "ACTIVE") ? TRUE : FALSE));
 
+		/* --- The first molecule must be H2, exactly (B-62: a substring
+			   test let H2+ or H2O through). Its ID is compared as
+			   atmos.H2 is set below, so atmos.H2 = &atmos.molecules[0],
+			   which Background() keeps when it frees passive molecules,
+			   and Hydrostatic() takes as H2 --            -------------- */
+
+		if (n == 0 && strcmp(molecule->ID, "H2") != 0) {
+			snprintf(messageStr, MAX_MESSAGE_LENGTH,
+					 "The first molecule in %.200s must be H2, not %s (%.200s)",
+					 input.molecules_input, molecule->ID, filename);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
 		/* --- Create an alias to the hydrogen molecule  structure -- ----- */
 
 		if (strcmp(molecule->ID, "H2") == 0) atmos.H2 = molecule;

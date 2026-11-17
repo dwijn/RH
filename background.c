@@ -876,8 +876,9 @@ static void backgroundOpacities(bool_t write_analyze_output)
 		writeMetals("metals.out");
 		writeMolecules(MOLECULAR_CONCENTRATION_FILE);
 	}
-	/* --- Clean up but keep H, H2, and active atom and/or molecule
-		   if appropriate --                               ------------ */
+	/* --- Clean up but keep H, H2 (atoms[0] and molecules[0], which
+		   readAtoms and readMolecules require), and active atom and/or
+		   molecule if appropriate --                      ------------ */
 
 	if (atmos.Natom > 1) {
 		for (n = 1; n < atmos.Natom; n++)

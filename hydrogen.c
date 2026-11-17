@@ -78,7 +78,7 @@ void distribute_nH()
 
 		   1 -- To save memory:
 				- let atmos.np point to atmos.H.n[atmos.H.Nlevel-1]
-				- let nH2 point to atmos.molecules[0].n;
+				- let nH2 point to atmos.H2->n (= molecules[0]);
 
 		   2 -- atmos.nHtot represents the total number of hydrogen
 				atoms in neutral atoms, protons, H-, and H2 and H2+
