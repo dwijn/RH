@@ -111,7 +111,7 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 			   of nHtot that the chemical equilibrium found, as F keeps
 			   the electrons of the metals (N-44) --       -------------- */
 
-		fH = (atmos.H->ntotal[k] + 2.0 * nH2[k]) / atmos.nHtot[k];
+		fH = (n_k[0] + n_k[2] + 2.0 * nH2[k]) / n_k[Nhse - 1];
 
 		/* --- Initialize structure for Ng convergence acceleration -- -- */
 
