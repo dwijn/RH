@@ -147,7 +147,8 @@ itself (about 1e-11 in 1-D/3-D/spherical, 2e-9 in the ill-conditioned 2-D
 example), since floating-point sums depend on thread count. Use `--exact`
 for changes that must not alter a single bit (memory management).
 
-The log, `keyword.input` and timing of every failed run are kept in
+The log, `keyword.input` and timing of the runs behind every failure (both
+sides of a comparison, in subdirectories named like the run directories) are kept in
 `WORK/failed/` (CI uploads them as an artifact), since run directories are
 reused by later cases.
 

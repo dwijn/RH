@@ -132,7 +132,9 @@ class Suite:
         self.rundir = ""            # the run directory the last prepare() made
 
     # -- reporting ------------------------------------------------------
-    def record(self, status, name, detail):
+    def record(self, status, name, detail, dirs=()):
+        """dirs: the run directories behind a FAIL (the runs that were
+        compared, or the one that failed)."""
         if status == "PASS":
             self.npass += 1
         elif status == "FAIL":
@@ -141,19 +143,23 @@ class Suite:
         else:
             self.nskip += 1
         print("[%s] %-34s %s" % (status, name, detail))
-        # Keep the log of a failed run (the run directory is reused by later
-        # cases), so that intermittent failures can be looked at afterwards
-        log = os.path.join(self.rundir, "log.log")
-        if status == "FAIL" and self.rundir and os.path.isfile(log):
+        # Keep the logs of the runs behind a failure (the run directories
+        # are reused by later cases), so that intermittent failures can be
+        # looked at afterwards: in the directory itself for one run, in a
+        # subdirectory named like each run directory for several
+        dirs = [d for d in dirs if os.path.isfile(os.path.join(d, "log.log"))]
+        if status == "FAIL" and dirs:
             keep = os.path.join(self.work, "failed", "%s_%s" % (
                 name.replace(" ", "_").replace("/", "_").replace("=", "_"),
                 time.strftime("%H%M%S")))
-            os.makedirs(keep, exist_ok=True)
-            for f in ("log.log", "keyword.input", "time.txt"):
-                try:
-                    shutil.copy(os.path.join(self.rundir, f), keep)
-                except OSError:
-                    pass
+            for d in dirs:
+                dst = keep if len(dirs) == 1 else os.path.join(keep, os.path.basename(d))
+                os.makedirs(dst, exist_ok=True)
+                for f in ("log.log", "keyword.input", "time.txt"):
+                    try:
+                        shutil.copy(os.path.join(d, f), dst)
+                    except OSError:
+                        pass
             print("       log kept in %s" % keep)
 
     # -- run directories --------------------------------------------------
@@ -221,10 +227,10 @@ class Suite:
         rc = self.execute(self.cand_bin, geom)
         why = self.problem()
         if not run.completed(rc) or why:
-            self.record("FAIL", "%s candidate N=1" % cid, "rc=%d %s" % (rc, why))
+            self.record("FAIL", "%s candidate N=1" % cid, "rc=%d %s" % (rc, why), [C1])
             return
         ok, text = self.compare(B1, C1, geom, exact=self.exact)
-        self.record("PASS" if ok else "FAIL", "%s candidate N=1 vs baseline" % cid, text)
+        self.record("PASS" if ok else "FAIL", "%s candidate N=1 vs baseline" % cid, text, [B1, C1])
 
         for n in self.threads:
             self.prepare(geom, name, "cand", n, mods)
@@ -232,10 +238,10 @@ class Suite:
             rc = self.execute(self.cand_bin, geom)
             why = self.problem()
             if not run.completed(rc) or why:
-                self.record("FAIL", "%s candidate N=%s" % (cid, n), "rc=%d %s" % (rc, why))
+                self.record("FAIL", "%s candidate N=%s" % (cid, n), "rc=%d %s" % (rc, why), [CN])
                 continue
             ok, text = self.compare(C1, CN, geom)
-            self.record("PASS" if ok else "FAIL", "%s N=%s vs N=1" % (cid, n), text)
+            self.record("PASS" if ok else "FAIL", "%s N=%s vs N=1" % (cid, n), text, [C1, CN])
 
         if not self.asan_bin:
             return
@@ -254,7 +260,7 @@ class Suite:
             if run.completed(rc) and not why:
                 self.record("PASS", "%s ASan N=%s" % (cid, n), "clean")
             else:
-                self.record("FAIL", "%s ASan N=%s" % (cid, n), "rc=%d %s" % (rc, why))
+                self.record("FAIL", "%s ASan N=%s" % (cid, n), "rc=%d %s" % (rc, why), [self.rundir])
 
     @staticmethod
     def mapped_mb(bin_dir, d):
@@ -298,11 +304,13 @@ class Suite:
             self.record("SKIP", "2d/mem", "no /usr/bin/time")
             return
         tiled = os.path.join(self.work, "tiled_2d.atmos")
-        r = subprocess.run([sys.executable, "-I", os.path.join(HERE, "make_tiled_2d_atmos.py"),
-                            os.path.join(self.cand_src, "Atmos", "FALC_03x82.atmos"), tiled, "96"],
-                           stdout=subprocess.DEVNULL)
+        tdir = run.fresh_dir(self.wd, "tile_2d_mem")       # the output of the tiling
+        with open(os.path.join(tdir, "log.log"), "w") as log:
+            r = subprocess.run([sys.executable, "-I", os.path.join(HERE, "make_tiled_2d_atmos.py"),
+                                os.path.join(self.cand_src, "Atmos", "FALC_03x82.atmos"), tiled,
+                                "96"], stdout=log, stderr=subprocess.STDOUT)
         if r.returncode != 0:
-            self.record("FAIL", "2d/mem", "tiling failed")
+            self.record("FAIL", "2d/mem", "tiling failed", [tdir])
             return
         mods = ["ATMOS_FILE=" + tiled, "N_MAX_ITER=1", "SOLVER=NG", "NG_DELAY=6", "NG_ORDER=2",
                 "NG_PERIOD=3", "PRD_ITER_LIMIT=1.0E-2"]
@@ -318,7 +326,7 @@ class Suite:
         rc = self.execute(self.cand_bin, "2d")
         why = self.problem()
         if not run.completed(rc) or why:
-            self.record("FAIL", "2d/mem candidate", "rc=%d %s" % (rc, why))
+            self.record("FAIL", "2d/mem candidate", "rc=%d %s" % (rc, why), [C])
             return
         # Peak RSS without the mapped background file of either program (P-18)
         bmap = self.mapped_mb(self.base_bin, B)
@@ -328,7 +336,8 @@ class Suite:
         note = ("limit x%s; mapped background file not counted: baseline %d MB, candidate %d MB"
                 % (self.o["memtol"], bmap, cmap))
         text = "candidate %d MB vs baseline %d MB (%s)" % (cm, bm, note)
-        self.record("PASS" if cm <= bm * float(self.o["memtol"]) else "FAIL", "2d/mem peak memory", text)
+        self.record("PASS" if cm <= bm * float(self.o["memtol"]) else "FAIL", "2d/mem peak memory", text,
+                    [B, C])
 
     def run_kurucz_blank_case(self):
         """A Kurucz list with a leading blank line (as downloaded from the
@@ -341,7 +350,7 @@ class Suite:
         rc = self.execute(self.cand_bin, "1d")
         why = self.problem()
         if not run.completed(rc) or why:
-            self.record("FAIL", "1d/kurucz_blank reference", "rc=%d %s" % (rc, why))
+            self.record("FAIL", "1d/kurucz_blank reference", "rc=%d %s" % (rc, why), [A])
             return
         B = self.prepare("1d", "kurucz_blank", "cand", "1", mods)
         with open(os.path.join(self.cand_src, "Atoms", "Kurucz", "gf0400.10"), "rb") as f:
@@ -353,13 +362,13 @@ class Suite:
         rc = self.execute(self.cand_bin, "1d")
         why = self.problem()
         if not run.completed(rc) or why:
-            self.record("FAIL", "1d/kurucz_blank", "rc=%d %s" % (rc, why))
+            self.record("FAIL", "1d/kurucz_blank", "rc=%d %s" % (rc, why), [B])
             return
         ok, text = self.compare(A, B, "1d", exact=True)
         if ok:
             self.record("PASS", "1d/kurucz_blank", "same as without the blank line")
         else:
-            self.record("FAIL", "1d/kurucz_blank", text)
+            self.record("FAIL", "1d/kurucz_blank", text, [A, B])
 
     def guarded(self, name, case, *args):
         try:
