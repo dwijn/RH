@@ -53,6 +53,7 @@ if sys.version_info < (3, 8):
              "Run it with a newer python3."
              % (sys.version_info[0], sys.version_info[1], sys.executable))
 
+import mmap
 import os
 import re
 import shutil
@@ -66,7 +67,7 @@ from rhtest import compare, keywords, run, tree, workdir      # noqa: E402
 HELP = __doc__.split("\n\n(Python 3.8")[0] + "\n"
 USAGE = "\n".join(HELP.split("\n")[:5]) + "\n"
 
-GEOMDIR = {"1d": "rhf1d", "2d": "rhsc2d", "3d": "rhsc3d", "sph": "rhsphere"}
+GEOMDIR = tree.GEOMDIR
 
 
 def fail(message):
@@ -101,6 +102,9 @@ def parse_args(argv):
     if not (o["baseline"] and o["candidate"]):
         sys.stdout.write(USAGE)
         sys.exit(1)
+    for t in o["threads"].split():
+        if not (t.isdigit() and int(t) > 0):
+            fail("--threads needs positive integers, not '%s'" % t)
     for k in ("tol", "memtol"):
         if o[k]:
             try:
@@ -157,11 +161,7 @@ class Suite:
         """Run directory WORK/runs/<label>_<geom>_<name>_n<n> from the
         candidate's example: keyword.input with N_THREADS, N_MAX_ITER = 4 and
         the modifications mods (KEY=VALUE or @H6_ACTIVE) set."""
-        d = os.path.join(self.work, "runs", "%s_%s_%s_n%s" % (label, geom, name, n))
-        self.rundir = d
-        if os.path.lexists(d):
-            shutil.rmtree(d)
-        os.makedirs(d)
+        d = self.rundir = run.fresh_dir(self.wd, "%s_%s_%s_n%s" % (label, geom, name, n))
         t = run.template(self.cand_src, GEOMDIR[geom])
         for f in sorted(os.listdir(t)):
             if not f.startswith(".") and os.path.isfile(os.path.join(t, f)):
@@ -208,7 +208,7 @@ class Suite:
     # -- the cases ---------------------------------------------------------
     def run_case(self, geom, name, mods):
         cid = "%s/%s" % (geom, name)
-        threads_max = max(self.threads, key=_numeric_key) if self.threads else ""
+        threads_max = max(self.threads, key=int) if self.threads else ""
         self.prepare(geom, name, "base", "1", mods)
         B1 = self.rundir
         rc = self.execute(self.base_bin, geom)
@@ -266,14 +266,21 @@ class Suite:
         prog = os.path.join(bin_dir, GEOMDIR["2d"], GEOMDIR["2d"])
         bg = os.path.join(d, "background.dat")
         with open(prog, "rb") as f:
-            maps = b"Cannot map the background file" in f.read()
+            maps = False
+            if os.fstat(f.fileno()).st_size > 0:
+                with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
+                    maps = m.find(b"Cannot map the background file") >= 0
         if maps and os.path.isfile(bg):
             return int("%.0f" % (os.path.getsize(bg) / 1048576))
         return 0
 
     def rss_mb(self):
-        """Peak RSS of the last run in MB."""
-        return run.peak_rss_mb(self.rundir)
+        """Peak RSS of the last run in MB; OSError (a failure of the case)
+        where it was not measured."""
+        mb = run.peak_rss_mb(self.rundir)
+        if mb is None:
+            raise OSError("no peak memory in %s/time.txt" % self.rundir)
+        return mb
 
     def run_mem_case(self):
         """Peak memory must not grow with the number of wavelengths on a
@@ -354,6 +361,12 @@ class Suite:
         else:
             self.record("FAIL", "1d/kurucz_blank", text)
 
+    def guarded(self, name, case, *args):
+        try:
+            case(*args)
+        except OSError as e:
+            self.record("FAIL", name, "error: %s" % e)
+
     def selected(self, name):
         return (not self.o["only"] or self.o["only"] in name) and \
                (not self.o["skip"] or self.o["skip"] not in name)
@@ -390,20 +403,16 @@ class Suite:
                     os.path.join(self.asan_bin, "CMakeCache.txt")):
                 fail("--asan %s: %s is not configured with -DRH_SANITIZE" % (asan, self.asan_bin))
         self.cand_src = tree.tree_src(cand)
-        os.makedirs(os.path.join(o["work"], "runs"), exist_ok=True)
-        wd = workdir.WorkDir(self.cand_src, o["work"], relink=True, announce=False)
-        self.work = wd.path
-        # Magnetic fields for the 2-D and 3-D Stokes cases (make_field.py)
-        ok = True
-        for g, atm in (("2d", "FALC_03x82.atmos"), ("3d", "FALC_04x04x82.atmos")):
-            r = subprocess.run([sys.executable, "-I", os.path.join(HERE, "make_field.py"), g,
-                                os.path.join(self.cand_src, "Atmos", atm),
-                                os.path.join(self.work, "field_%s.B" % g)],
-                               stdout=subprocess.DEVNULL)
-            if r.returncode != 0:
-                ok = False
-                break
-        if not ok:
+        self.wd = workdir.WorkDir(self.cand_src, o["work"], relink=True, announce=False)
+        self.work = self.wd.path
+        # Magnetic fields for the 2-D and 3-D Stokes cases. make_field.py is
+        # the one of this checkout (as before), not the candidate's tree, which
+        # may be an older one.
+        try:
+            for g, atm in (("2d", "FALC_03x82.atmos"), ("3d", "FALC_04x04x82.atmos")):
+                run.make_field(os.path.dirname(HERE), g, os.path.join(self.cand_src, "Atmos", atm),
+                               os.path.join(self.work, "field_%s.B" % g))
+        except (OSError, subprocess.CalledProcessError):
             print("make_field.py failed: the 2d/3d fieldfree cases will fail")
 
         for t in (self.base_bin, self.cand_bin) + ((self.asan_bin,) if asan else ()):
@@ -421,13 +430,16 @@ class Suite:
             o["threads"]))
         print()
 
+        # An OSError of a case (a directory that cannot be made, a program that
+        # cannot be started, a file that cannot be read) fails that case; the
+        # others run and the summary is printed
         for geom, name, mods in self.cases():
             if self.selected("%s/%s" % (geom, name)):
-                self.run_case(geom, name, mods)
+                self.guarded("%s/%s" % (geom, name), self.run_case, geom, name, mods)
         if self.selected("2d/mem"):
-            self.run_mem_case()
+            self.guarded("2d/mem", self.run_mem_case)
         if self.selected("1d/kurucz_blank"):
-            self.run_kurucz_blank_case()
+            self.guarded("1d/kurucz_blank", self.run_kurucz_blank_case)
 
         print()
         print("passed %d, failed %d, skipped %d" % (self.npass, self.nfail, self.nskip))
@@ -435,12 +447,6 @@ class Suite:
             for f in self.failed:
                 print("FAILED: " + f)
             sys.exit(1)
-
-
-def _numeric_key(token):
-    """sort -n: the number a token starts with, else 0."""
-    m = re.match(r"\s*([-+]?(?:\d+\.?\d*|\.\d+))", token)
-    return float(m.group(1)) if m else 0.0
 
 
 def main(argv):

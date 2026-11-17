@@ -12,6 +12,8 @@ import os
 import re
 
 PROGRAMS = ("rhf1d", "rhsc2d", "rhsc3d", "rhsphere")
+# geometry (1d, 2d, 3d, sph) -> program and directory
+GEOMDIR = {"1d": "rhf1d", "2d": "rhsc2d", "3d": "rhsc3d", "sph": "rhsphere"}
 
 
 def _cache(d):

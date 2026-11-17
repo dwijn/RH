@@ -32,22 +32,20 @@ Exit status: 0 = match, 1 = mismatch, 2 = unreadable/incompatible files.
 """
 import argparse
 import os
-import struct
 import sys
 
-import numpy as np
-
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from rhtest import output      # noqa: E402
+from rhtest import compare, output      # noqa: E402
 
 
 def load(path, stokes=None):
     """Read spectrum.out (rhtest.output.read_spectrum_file finds the layout;
-    stokes=True or False demands one). Returns the raw bytes, lambda, the
-    arrays I (and Q, U, V) as numpy arrays and Nspect."""
+    stokes=True or False demands one), for analyze_run.py: the raw bytes,
+    lambda, the arrays I (and Q, U, V) as numpy arrays and Nspect."""
+    import numpy as np
     raw, lam, arrays, ns = output.read_spectrum_file(path, stokes)
-    return (raw, np.array(lam, dtype=np.float64),
-            {k: np.array(v, dtype=np.float64) for k, v in arrays.items()}, ns)
+    return (raw, np.frombuffer(lam, dtype=np.float64),
+            {k: np.frombuffer(v, dtype=np.float64) for k, v in arrays.items()}, ns)
 
 
 def main():
@@ -61,54 +59,12 @@ def main():
     ap.add_argument("--tol", type=float, default=1e-8)
     ap.add_argument("--exact", action="store_true")
     args = ap.parse_args()
-
-    try:
-        raw_a, lam_a, arr_a, ns = load(args.a, args.stokes)
-        raw_b, lam_b, arr_b, ns_b = load(args.b, args.stokes)
-    except (OSError, ValueError, struct.error) as e:
-        print(f"UNREADABLE: {e}")
-        return 2
-
-    if ns != ns_b or not np.array_equal(lam_a, lam_b):
-        print(f"WAVELENGTH GRID DIFFERS: Nspect {ns} vs {ns_b}")
-        return 1
-    if len(raw_a) != len(raw_b):
-        print(f"SIZE DIFFERS: {len(raw_a)} vs {len(raw_b)} bytes")
-        return 1
-    if args.exact:
-        if raw_a == raw_b:
-            print("byte-identical")
-            return 0
-        n = sum(x != y for x, y in zip(raw_a, raw_b))
-        print(f"NOT BYTE-IDENTICAL: {n} differing bytes")
-        return 1
-
-    worst = {}
-    for name in arr_a:
-        x, y = arr_a[name], arr_b[name]
-        if not (np.isfinite(x).all() and np.isfinite(y).all()):
-            print(f"NON-FINITE VALUES in {name}")
-            return 1
-        d = np.abs(x - y)
-        if name == "I":
-            rows = d.reshape(ns, -1).max(axis=1)
-            peak = np.abs(x).reshape(ns, -1).max(axis=1)
-            rel = np.where(peak > 0, rows / np.where(peak > 0, peak, 1), rows)
-            i = int(np.argmax(rel))
-            worst[name] = (rel[i], f"lambda={lam_a[i]:.4f}nm (index {i})")
-        else:
-            peak = np.abs(x).max()
-            rel = d.max() / peak if peak > 0 else d.max()
-            worst[name] = (rel, "")
-
-    bad = [n for n, (r, _) in worst.items() if r > args.tol]
-    summary = "  ".join(f"{n}={r:.1e}" for n, (r, _) in worst.items())
-    where = worst["I"][1]
-    if bad:
-        print(f"MISMATCH (tol {args.tol:.0e}): {summary}  worst I at {where}")
-        return 1
-    print(f"match (tol {args.tol:.0e}): {summary}")
-    return 0
+    # The comparison is rhtest.compare.compare_spectra, which run_tests.py and
+    # run_stress.py use as well
+    status, message = compare.compare_spectra(args.a, args.b, tol=args.tol, exact=args.exact,
+                                              stokes=args.stokes)
+    print(message)
+    return status
 
 
 if __name__ == "__main__":
