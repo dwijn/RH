@@ -226,7 +226,9 @@ def set_atoms(path, atomdir, wanted):
     with open(path) as f:
         lines = f.read().splitlines()
     for i, l in enumerate(lines):
-        lines[i] = l.replace(" ACTIVE ", " PASSIVE ").replace("\tACTIVE\t", "\tPASSIVE\t")
+        w = l.split()
+        if len(w) >= 3 and not w[0].startswith("#") and w[1] == "ACTIVE":
+            lines[i] = "  %s   PASSIVE   LTE_POPULATIONS" % w[0]     # B-59: no ZERO_RADIATION, no file
     for a in filter(None, wanted.split(",")):
         el = element("%s/%s.atom" % (atomdir, a))
         for i, l in enumerate(lines):

@@ -179,7 +179,9 @@ class Suite:
     def h6_active(path):
         with open(path, newline="", errors="surrogateescape") as f:
             lines = f.read().split("\n")
-        lines = [re.sub(r"(H_6\.atom[ \t\r\f\v]+)PASSIVE", r"\1ACTIVE", l, count=1) for l in lines]
+        # B-59: an ACTIVE atom gets its initial solution and populations file
+        lines = [re.sub(r"(H_6\.atom[ \t\r\f\v]+)PASSIVE.*", r"\1ACTIVE     ZERO_RADIATION    pops.H.out",
+                        l, count=1) for l in lines]
         with open(path, "w", newline="", errors="surrogateescape") as f:
             f.write("\n".join(lines))
 

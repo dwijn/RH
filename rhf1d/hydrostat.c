@@ -44,7 +44,7 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 	bool_t  Debeye, quiet, H2present;
 	int     niter, Ngdelay, Ngperiod, Ngorder, Nhse;
 	double *n_k, **dfdn, C1, C2, C3, beta, Phi_H, Phi_H2, *F, *dFdne, *f,
-		dnmax = 0.0, nHtot_old, *np, *nH2;
+		dnmax = 0.0, nHtot_old, *np, *nH2, fH;
 	struct Ng *Nghse;
 	Atom      *atom;
 
@@ -89,11 +89,8 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 		beta = (atmos.totalAbund - 1.0) +
 			   atmos.wght_per_H * C1 * SQ(atmos.vturb[k]) / atmos.T[k];
 
-		if (H2present)
-			Phi_H2 = nH2[k] / SQ(atmos.H->ntotal[k]);
-
 		/* --- Starting solution:
-			   Note: n_k[0] is the amount of atomic hydrogen. -- -------- */
+			   Note: n_k[0] is the amount of neutral atomic hydrogen. -- */
 
 		n_k[0] = atmos.H->ntotal[k] - np[k];
 		n_k[1] = atmos.ne[k];
@@ -102,6 +99,19 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 		n_k[Nhse - 1] = atmos.nHtot[k];
 
 		Phi_H = n_k[0] / (n_k[1] * n_k[2]);
+
+		/* --- H2 forms from neutral atomic hydrogen, as in the chemical
+			   equilibrium: n_H2 = Phi_H2 n_H^2 (N-44) --  -------------- */
+
+		if (H2present) Phi_H2 = n_k[3] / SQ(n_k[0]);
+
+		/* --- Fraction fH of nHtot in atomic hydrogen, protons and H2.
+			   Each H2 molecule holds two hydrogen nuclei. The rest (H-
+			   and hydrogen in other molecules) is kept at the fraction
+			   of nHtot that the chemical equilibrium found, as F keeps
+			   the electrons of the metals (N-44) --       -------------- */
+
+		fH = (n_k[0] + n_k[2] + 2.0 * nH2[k]) / n_k[Nhse - 1];
 
 		/* --- Initialize structure for Ng convergence acceleration -- -- */
 
@@ -133,13 +143,13 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 
 			/* --- Row for hydrogen number conservation --   -------------- */
 
-			f[2]       = n_k[0] + n_k[2] - n_k[Nhse - 1];
+			f[2]       = n_k[0] + n_k[2] - fH * n_k[Nhse - 1];
 			dfdn[2][2] = dfdn[2][0] = 1.0;
-			dfdn[2][Nhse - 1]       = -1.0;
+			dfdn[2][Nhse - 1]       = -fH;
 
 			if (H2present) {
-				f[2] += n_k[3];
-				dfdn[2][3] = 1.0;
+				f[2] += 2.0 * n_k[3];
+				dfdn[2][3] = 2.0;
 
 				/* --- Row for H2 equilibrium --               -------------- */
 
