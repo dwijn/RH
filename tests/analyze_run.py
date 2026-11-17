@@ -51,10 +51,12 @@ import json
 import math
 import os
 import re
-import struct
 import sys
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from rhtest import output      # noqa: E402
 
 
 def summary(rundir, iter_limit):
@@ -184,14 +186,13 @@ def newton(log):
 
 def read_pops(path, lte=False):
     """NLTE populations n[level, point] of a pops.*.out file, or the LTE
-    populations n* (written after them) with lte=True."""
-    b = open(path, "rb").read()
-    for off in range(4, min(len(b) - 8, 512), 4):
-        nl, ns = struct.unpack(">2i", b[off:off + 8])
-        if 0 < nl < 100000 and 0 < ns and off + 8 + 16 * nl * ns == len(b):
-            return np.frombuffer(b, ">f8", nl * ns,
-                                 off + 8 + (8 * nl * ns if lte else 0)).reshape(nl, ns)
-    raise ValueError(f"cannot parse {path}")
+    populations n* (written after them) with lte=True. The reader is
+    rhtest.output; this makes the array."""
+    try:
+        nl, ns, values = output.read_pops_array(path, lte)
+    except ValueError:
+        raise ValueError(f"cannot parse {path}") from None
+    return np.array(values, dtype=">f8").reshape(nl, ns)
 
 
 def pops(a, b):

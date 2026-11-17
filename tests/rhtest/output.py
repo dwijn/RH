@@ -35,16 +35,18 @@ def read_doubles(path):
     return doubles(raw, 0, n, big_endian=False)
 
 
-def read_pops_array(path):
+def read_pops_array(path, lte=False):
     """(Nlevel, Nspace, NLTE populations as a flat list [level][depth]) of a
     pops.*.out file (the layout analyze_run.read_pops detects): XDR, an
     unknown header, then Nlevel and Nspace as ints, the populations and the
-    LTE populations as doubles."""
+    LTE populations as doubles. With lte, the third item is the LTE
+    populations (written after the NLTE ones)."""
     b = read_bytes(path)
     for off in range(4, min(len(b) - 8, 512), 4):
         nl, ns = struct.unpack(">2i", b[off:off + 8])
         if 0 < nl < 100000 and 0 < ns and off + 8 + 16 * nl * ns == len(b):
-            return nl, ns, doubles(b, off + 8, nl * ns)
+            start = off + 8 + (8 * nl * ns if lte else 0)
+            return nl, ns, doubles(b, start, nl * ns)
     raise ValueError(f"{path}: cannot parse as a pops file (no layout with Nlevel, Nspace "
                      f"and 2 x Nlevel x Nspace doubles fits the size {len(b)})")
 

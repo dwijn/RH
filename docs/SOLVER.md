@@ -685,7 +685,7 @@ either order, then the S-5 gate. S-6 to S-9 depend on S-5.
   peak over its wavelength window). **Open:** which one the S-5 criterion
   uses; report both.
 - Add the CRD + ne case of S-5 (`1d_shock_h6crd_ne`) to
-  `tests/run_stress.sh`.
+  `tests/run_stress.py`.
 
 **Acceptance:** for the current Ng solver on the S-5 case set the report
 shows all metrics, and it shows what the 10⁻³ criterion leaves (N-3):
@@ -705,9 +705,9 @@ including a case that Ng converges at two thread counts (picked in S-1).
 - `tests/analyze_run.py compare` gives population errors with the same
   thresholds and spectrum errors per wavelength and per line (the line's
   window is the Nlambda spectrum wavelengths nearest λ0, since RH does not
-  write the line grids). `run_stress.sh --ref DIR` reports them;
+  write the line grids). `run_stress.py --ref DIR` reports them;
   `tests/make_references.sh` runs the recipe and writes a manifest.
-- New cases in `run_stress.sh`: `1d_shock_h6crd_ne` and, as the PRD
+- New cases in `run_stress.py`: `1d_shock_h6crd_ne` and, as the PRD
   limit cycle of S-5 note 2, `1d_bf_c100_prd` (Bifrost column 100, Ca II
   angle-averaged PRD): Ng repeats the deltas 3.4034×10⁻³ and 5.1739×10⁻³
   of N-4 exactly.
@@ -1350,7 +1350,7 @@ depth.
 
 **Goal:** decide by measurement which path to take.
 
-**Case set** (from `tests/run_stress.sh --set conv`; 1-D at 1 thread;
+**Case set** (from `tests/run_stress.py --set conv`; 1-D at 1 thread;
 iterations of the current default Ng at b5aa20c, all to be re-measured at
 the commit S-5 runs on):
 
@@ -1652,7 +1652,7 @@ memory its history takes; RSS is the peak of the Ng run.
      `run_tests.py`'s `1d/crd` needs no pin once item 4 has removed
      `PRD_ITER_LIMIT` from the shipped file.
    - The test tools gain a way to remove a keyword from a shipped file
-     (`run_stress.sh --kw '-NG_DELAY'`), since `rhsc2d` and `rhsc3d`
+     (`run_stress.py --kw '-NG_DELAY'`), since `rhsc2d` and `rhsc3d`
      keep their Ng lines.
 3. **Keyword files that set Ng-only keywords and no `SOLVER` (decided:
    no fallback to `NG`).**
@@ -2042,7 +2042,7 @@ Two tiers, as agreed:
 
 **Tier 2, stress (convergence and performance).**
 
-- `run_stress.sh --set conv` and `--set perf`, extended with the S-1
+- `run_stress.py --set conv` and `--set perf`, extended with the S-1
   metrics and run for each solver.
 - RMHD cut-outs (Q-18) exist: `tests/make_bifrost_atmos.py` converts a
   public Bifrost snapshot, which is fetched by hand and not committed; a

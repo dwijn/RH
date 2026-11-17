@@ -8,7 +8,7 @@ Four tiers:
   program on problems with exact properties.
 - **Regression** (`run_tests.py`, below): whole runs of a candidate build
   against a baseline build. Must pass on every pull request.
-- **Stress** (`run_stress.sh`, further below): convergence and performance
+- **Stress** (`run_stress.py`, further below): convergence and performance
   on hard and large problems.
 
 ## Unit tests
@@ -60,12 +60,14 @@ the CI build jobs have none), which a script finds with a two-line
 |---|---|
 | `cli.py` | `parse()`: `--PROGRAM` paths, `--src` (default: this source tree), `--work`, `-v` |
 | `workdir.py` | `WorkDir`: the work directory with the Atoms/Atmos/Molecules links; `--work` is kept, a temporary directory under `$TMPDIR` is removed when the test passes and kept and named on a failure, `sys.exit` or an uncaught exception (`relink=True` replaces existing links, `announce=False` stops the message: `run_tests.py`) |
-| `keywords.py` | `setkw()` (value `None` comments the key out), `apply()`, `edit_file()`, `atoms_input()`, the `H6_CAII` atom set, `has_stokes_input()` |
+| `keywords.py` | `setkw()` (value `None` comments the key out), `unsetkw()` (every setting commented out, the line kept), `apply()`, `edit_file()`, `atoms_input()`, the `H6_CAII` atom set, `has_stokes_input()` |
 | `run.py` | `prepare()` a run directory from `<geom>/run`, `copy_dir()` (a failed removal of an old directory raises), `execute()` with a timeout and `out.log`, `execute_streaming()` (line by line, with a callback, e.g. to create `STOP_RH`), `make_field()`, `Result.require()` (exit status and error text; 1 = not converged is expected after a few iterations), `RAN`, `EXIT_*`; for the regression suite `execute_to_log()` (output straight to a log, run under `/usr/bin/time -v -o time.txt` as the shell did, status as a shell reports it: 128 + signal), `peak_rss_mb()` (from `time.txt`), `completed()` (0-63), `log_problem()` (the reason a log shows a failed run: fatal error, sanitizer report, NaN) |
-| `output.py` | readers (arrays of doubles come back as `array('d')` in native order, which numpy wraps with `np.frombuffer` without a copy) of `pops.*.out`, `atmos.out`, the first molecule of `molecules.out`, `J.dat`, `spectrum.out` (polarized or not; `read_spectrum_file` finds the layout) and the solveray output; `xdr_counted_string` (the binary formats live here) |
+| `output.py` | readers (arrays of doubles come back as `array('d')` in native order, which numpy wraps with `np.frombuffer` without a copy) of `pops.*.out` (`read_pops_array(path, lte=True)`: the LTE populations), `atmos.out`, the first molecule of `molecules.out`, `J.dat`, `spectrum.out` (polarized or not; `read_spectrum_file` finds the layout) and the solveray output; `xdr_counted_string` (the binary formats live here) |
 | `compare.py` | `compare_spectra()`: two `spectrum.out` files compared per wavelength relative to the peak, or byte-identical, without numpy; `compare_spectra.py` is a command line over it |
-| `tree.py` | `tree_bin()`, `tree_src()`, `tree_sanitized()`, `missing_programs()`: where the programs and data of a build are (a CMake build directory, a source tree with `build/`, or one built in place with the old makefiles); `tree.sh` is the same for the shell scripts that still source it (`make_references.sh`, `run_stress.sh`) |
+| `tree.py` | `tree_bin()`, `tree_src()`, `tree_sanitized()`, `missing_programs()`: where the programs and data of a build are (a CMake build directory, a source tree with `build/`, or one built in place with the old makefiles); `tree.sh` is the same for the shell script that still sources it (`make_references.sh`) |
 | `check.py` | `Checker` (record, summary, exit status), `maxabs`, `maxdiff`, `maxrel`, `same_file` |
+
+`tests/unit/test_rhtest.py` (ctest `unit_rhtest`, label `unit`) checks the readers (pops with the LTE block, `spectrum.out` of both layouts and the Q-21 size trap, solveray output), `compare_spectra()`, the command line of `compare_spectra.py` and the helpers of `run_tests.py` on synthetic files written with `struct`.
 
 A new e2e script: `cli.parse`, `WorkDir`, `Checker`, then `prepare` and
 `execute(...).require()` for each run, and `ck.finish(name, work)` last.
@@ -155,17 +157,17 @@ the upstream segfault.
 
 ## Stress, convergence and performance cases
 
-`run_tests.py` stops every case after 4 iterations. `run_stress.sh` runs
-strongly NLTE problems **to convergence** (`--set conv`, 21 cases, 5 more on Bifrost cuts) or for a
+`run_tests.py` stops every case after 4 iterations. `run_stress.py` runs
+strongly NLTE problems **to convergence** (`--set conv`, 22 cases, 6 more on Bifrost cuts) or for a
 fixed number of iterations on large multi-D grids (`--set perf`), on one or
 more builds, and reports iterations, final population change, trend
 (monotone / oscillating / stalled), wall time, peak memory, and the population
 and spectrum differences between builds.
 
 ```
-tests/run_stress.sh --tree upstream=/path/to/upstream --tree candidate=. \
+python3 tests/run_stress.py --tree upstream=/path/to/upstream --tree candidate=. \
     --set conv --jobs 8 --work /large/scratch/rh-stress
-tests/run_stress.sh --list          # the cases and what each one exposes
+python3 tests/run_stress.py --list          # the cases and what each one exposes
 ```
 
 The cases include known failures (non-convergence, crashes, wrong answers);
@@ -173,7 +175,9 @@ the case table in the script groups them by what they expose. 1-D cases run on
 1 thread so that builds compare without summation-order noise. Multi-D
 atmospheres are generated by `make_perturbed_atmos.py` (FAL-C with a
 corrugated transition region and velocity field); `atmos/` holds two dynamic
-1-D models. `analyze_run.py` does the log parsing and population comparison.
+1-D models. `run_stress.py` needs Python 3.8 or newer and the standard library only (`analyze_run.py`, which it calls, needs numpy). It needs GNU
+`/usr/bin/time`. `--only` takes a `grep -E` pattern and is matched by `grep`. `analyze_run.py` does the log parsing and population comparison; it and
+`compare_spectra.py` read the binary outputs with `rhtest.output` and keep numpy for the analysis.
 `se_residual.py RUNDIR` checks the end point of a run in any geometry: the
 residual of the plain rate equations, with the radiative rates RH wrote for
 the final formal solution, at every point and level. It should be of order
@@ -190,7 +194,7 @@ uz, bx, by, bz and lgn1..lgn6). The data are not distributed with RH and these
 cases do not run on GitHub: download the cubes and point the script at them,
 
 ```
-tests/run_stress.sh --tree candidate=. --bifrost /path/to/en024048_hion/atmos --only _bf_
+python3 tests/run_stress.py --tree candidate=. --bifrost /path/to/en024048_hion/atmos --only _bf_
 ```
 
 (or set `RH_BIFROST_DIR`); without it they are skipped. `make_bifrost_atmos.py`
