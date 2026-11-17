@@ -273,6 +273,8 @@ if(Python3_Interpreter_FOUND)
       --rhf1d $<TARGET_FILE:rhf1d>)
   rh_add_e2e(hydrostatic_final hydrostatic_final
       --rhf1d $<TARGET_FILE:rhf1d>)
+  rh_add_e2e(pops_file pops_file
+      --rhf1d $<TARGET_FILE:rhf1d>)
   rh_add_e2e(passive_atoms passive_atoms
       --rhf1d $<TARGET_FILE:rhf1d>)
   rh_add_e2e(eddington_2d eddington_2d
