@@ -67,10 +67,11 @@ def read_atmos_out(path, nspace):
     return T, nh, ab
 
 
-def read_first_molecule(path):
-    """(ID, Tmin, Tmax) of the first molecule of molecules.out. Header:
+def read_first_molecule(path, nspace):
+    """(ID, Tmin, Tmax, n) of the first molecule of molecules.out, n its
+    number densities at the nspace depth points. Layout (xdr_molecules):
     Nmolecule; counted ID (xdr short, xdr string); Nv, NJ; Ediss, Tmin,
-    Tmax. ValueError if the header does not parse."""
+    Tmax; n. ValueError if it does not parse."""
     b = read_bytes(path)
     try:
         nmol = struct.unpack(">i", b[:4])[0]
@@ -81,9 +82,10 @@ def read_first_molecule(path):
             raise ValueError("empty molecule ID")
         ident = ident.strip()
         tmin, tmax = struct.unpack(">2d", b[off + 16:off + 32])    # after Nv, NJ, Ediss
+        n = struct.unpack(f">{nspace}d", b[off + 32:off + 32 + 8 * nspace])
     except (struct.error, UnicodeDecodeError, ValueError) as e:
         raise ValueError(f"{path}: no molecule header ({e})") from None
-    return ident, tmin, tmax
+    return ident, tmin, tmax, n
 
 
 def read_spectrum(path, nrays):

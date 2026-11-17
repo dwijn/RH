@@ -6,10 +6,13 @@ usage: hydrostatic_final.py --rhf1d PATH [--src DIR] [--work DIR]
 H_6 and Ca II active on FAL-C, SOLVE_NE = ITERATION. The hydrostatic step
 (Hydrostatic) rescales only hydrogen to the new nHtot, so a state that is
 written right after it has the other active atoms off by the last change of
-nHtot. The output of a run must be consistent: sum of the populations of
-Ca II = abundance(Ca) * nHtot, with nHtot the sum of the H populations in
-atmos.out (at the depth points without H2) and the abundance from its element
-list.
+nHtot. The output of a run must be consistent at every depth point: sum of
+the populations of Ca II = abundance(Ca) * nHtot, with the abundance from the
+element list of atmos.out and nHtot the hydrogen nuclei: the sum of the H
+populations in atmos.out (atoms and protons) plus twice the H2 density of
+molecules.out. Up to 6.2e-4 of nHtot is in H2 on FAL-C; the hydrogen in H-
+and other molecules (1e-6) is left out. Before N-44 the hydrostatic step
+counted H2 once, which the converged case sees (6.2e-4).
  1. A run that stops at N_MAX_ITER = 3 (exit status 1, NOT CONVERGED) is
     consistent to 1e-5. Without the fix the last hydrostatic step leaves
     it off by 0.1.
@@ -69,27 +72,24 @@ def run(name, keywords, stop_at=None):
 
 
 def inconsistency(d):
-    """max over the depth points without H2 of |sum_i n_CaII,i / (abund_Ca nHtot) - 1|.
-    nHtot is the sum of the H populations of atmos.out only where no H2 is
-    present: the depth points with T outside [Tmin, Tmax] of H2.molecule, the
-    condition of the hydrostatic step (molecules.out; the first molecule must
-    be H2)."""
+    """max over the depth points of |sum_i n_CaII,i / (abund_Ca nHtot) - 1|,
+    nHtot = sum of the H populations of atmos.out + 2 n_H2 (molecules.out;
+    the first molecule must be H2)."""
     nl, ns, n = read_pops_array(os.path.join(d, "pops.CA.out"))
     T, nh, ab = read_atmos_out(os.path.join(d, "atmos.out"), ns)
     path = os.path.join(d, "molecules.out")
     try:
-        ident, tmin, tmax = read_first_molecule(path)
+        ident, tmin, tmax, nH2 = read_first_molecule(path, ns)
         problem = None if ident == "H2" else f"it is {ident!r}"
     except ValueError as e:
         problem = str(e)
     if problem:
         sys.exit(f"{path}: the first molecule must be H2 ({problem})")
-    ks = [k for k in range(ns) if not tmin <= T[k] <= tmax]
-    if len(ks) < 5:
-        sys.exit(f"only {len(ks)} depth points outside the H2 range [{tmin}, {tmax}] K:"
-                 f" the test cannot see the problem")
-    return max(abs(sum(n[i * ns + k] for i in range(nl)) / (ab["CA"] * nh[k]) - 1.0)
-               for k in ks)
+    if max(nH2[k] / nh[k] for k in range(ns)) < 1e-4:
+        sys.exit("less than 1e-4 of the hydrogen in H2 at every depth point:"
+                 " the test cannot see N-44")
+    return max(abs(sum(n[i * ns + k] for i in range(nl)) / (ab["CA"] * (nh[k] + 2.0 * nH2[k]))
+                   - 1.0) for k in range(ns))
 
 
 TOL = 1e-5      # the starting state is off by 1.1e-6 (N_MAX_ITER = 1), unrelated to the hydrostatic step
