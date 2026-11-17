@@ -31,46 +31,21 @@ accumulations legitimately differ in the last bits.
 Exit status: 0 = match, 1 = mismatch, 2 = unreadable/incompatible files.
 """
 import argparse
-import struct
+import os
 import sys
 
-import numpy as np
-
-VACUUM_TO_AIR_LIMIT = 200.0     # spectrum.h
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from rhtest import compare, output      # noqa: E402
 
 
 def load(path, stokes=None):
-    """Read spectrum.out. stokes=None finds the layout from the file;
-    True or False demands that layout."""
-    raw = open(path, "rb").read()
-    ns = struct.unpack(">i", raw[:4])[0]
-    if ns <= 0 or len(raw) < 4 + 8 * ns + 12:
-        raise ValueError(f"{path}: not a spectrum.out (Nspect={ns}, "
-                         f"size {len(raw)})")
-    lam = np.frombuffer(raw, dtype=">f8", count=ns, offset=4)
-    body = len(raw) - 4 - 8 * ns - 12
-    fits = []
-    for narr in ((1, 4) if stokes is None else ((4,) if stokes else (1,))):
-        if body <= 0 or body % (8 * narr) or (body // (8 * narr)) % ns:
-            continue
-        n_i = body // (8 * narr)
-        marker = 4 + 8 * ns + 8 * n_i
-        flag, limit = struct.unpack(">id", raw[marker:marker + 12])
-        if flag in (0, 1) and limit == VACUUM_TO_AIR_LIMIT:
-            fits.append((narr, n_i))
-    if len(fits) != 1:
-        want = {None: "either layout", True: "the polarized layout",
-                False: "the unpolarized layout"}[stokes]
-        raise ValueError(f"{path}: size {len(raw)} and contents do not fit "
-                         f"{want} of spectrum.out (Nspect={ns})")
-    narr, n_i = fits[0]
-    off = 4 + 8 * ns
-    arrays = {}
-    for k, name in enumerate("IQUV"[:narr]):
-        start = off if k == 0 else off + 8 * n_i + 12 + 8 * n_i * (k - 1)
-        arrays[name] = np.frombuffer(raw, dtype=">f8", count=n_i,
-                                     offset=start).astype(np.float64)
-    return raw, lam.astype(np.float64), arrays, ns
+    """Read spectrum.out (rhtest.output.read_spectrum_file finds the layout;
+    stokes=True or False demands one), for analyze_run.py: the raw bytes,
+    lambda, the arrays I (and Q, U, V) as numpy arrays and Nspect."""
+    import numpy as np
+    raw, lam, arrays, ns = output.read_spectrum_file(path, stokes)
+    return (raw, np.frombuffer(lam, dtype=np.float64),
+            {k: np.frombuffer(v, dtype=np.float64) for k, v in arrays.items()}, ns)
 
 
 def main():
@@ -84,54 +59,12 @@ def main():
     ap.add_argument("--tol", type=float, default=1e-8)
     ap.add_argument("--exact", action="store_true")
     args = ap.parse_args()
-
-    try:
-        raw_a, lam_a, arr_a, ns = load(args.a, args.stokes)
-        raw_b, lam_b, arr_b, ns_b = load(args.b, args.stokes)
-    except (OSError, ValueError, struct.error) as e:
-        print(f"UNREADABLE: {e}")
-        return 2
-
-    if ns != ns_b or not np.array_equal(lam_a, lam_b):
-        print(f"WAVELENGTH GRID DIFFERS: Nspect {ns} vs {ns_b}")
-        return 1
-    if len(raw_a) != len(raw_b):
-        print(f"SIZE DIFFERS: {len(raw_a)} vs {len(raw_b)} bytes")
-        return 1
-    if args.exact:
-        if raw_a == raw_b:
-            print("byte-identical")
-            return 0
-        n = sum(x != y for x, y in zip(raw_a, raw_b))
-        print(f"NOT BYTE-IDENTICAL: {n} differing bytes")
-        return 1
-
-    worst = {}
-    for name in arr_a:
-        x, y = arr_a[name], arr_b[name]
-        if not (np.isfinite(x).all() and np.isfinite(y).all()):
-            print(f"NON-FINITE VALUES in {name}")
-            return 1
-        d = np.abs(x - y)
-        if name == "I":
-            rows = d.reshape(ns, -1).max(axis=1)
-            peak = np.abs(x).reshape(ns, -1).max(axis=1)
-            rel = np.where(peak > 0, rows / np.where(peak > 0, peak, 1), rows)
-            i = int(np.argmax(rel))
-            worst[name] = (rel[i], f"lambda={lam_a[i]:.4f}nm (index {i})")
-        else:
-            peak = np.abs(x).max()
-            rel = d.max() / peak if peak > 0 else d.max()
-            worst[name] = (rel, "")
-
-    bad = [n for n, (r, _) in worst.items() if r > args.tol]
-    summary = "  ".join(f"{n}={r:.1e}" for n, (r, _) in worst.items())
-    where = worst["I"][1]
-    if bad:
-        print(f"MISMATCH (tol {args.tol:.0e}): {summary}  worst I at {where}")
-        return 1
-    print(f"match (tol {args.tol:.0e}): {summary}")
-    return 0
+    # The comparison is rhtest.compare.compare_spectra, which run_tests.py and
+    # run_stress.py use as well
+    status, message = compare.compare_spectra(args.a, args.b, tol=args.tol, exact=args.exact,
+                                              stokes=args.stokes)
+    print(message)
+    return status
 
 
 if __name__ == "__main__":

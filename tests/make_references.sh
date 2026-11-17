@@ -1,21 +1,21 @@
 #!/bin/bash
 # Reference solutions for the solver comparison (S-1 in docs/SOLVER.md):
-# runs cases of run_stress.sh with the reference recipe and keeps their
+# runs cases of run_stress.py with the reference recipe and keeps their
 # outputs, with a MANIFEST of the build and the inputs, in OUT/CASE/.
-# run_stress.sh --ref OUT then reports every run's errors against them.
+# run_stress.py --ref OUT then reports every run's errors against them.
 #
 # usage: make_references.sh --tree DIR --out OUT [--only PATTERN] [--jobs N]
 #                           [--bifrost DIR] [--kw 'K=V;...'] [--commit HASH]
 #
-#   --tree DIR     a build of RH (as for run_stress.sh). Its source tree's
+#   --tree DIR     a build of RH (as for run_stress.py). Its source tree's
 #                  git commit is recorded; for a tree without .git (e.g. a
 #                  git archive export) give it with --commit
 #   --out OUT      where the references go (OUT/work holds the full runs)
-#   --only, --jobs, --bifrost   passed to run_stress.sh (--set is conv)
+#   --only, --jobs, --bifrost   passed to run_stress.py (--set is conv)
 #   --kw           extra keyword settings after the recipe (e.g. collisional
 #                  relaxation for a case that needs it)
 #
-# Recipe: 1 thread in 1-D (run_stress.sh), the NG solver (SOLVER = NG, pinned
+# Recipe: 1 thread in 1-D (run_stress.py), the NG solver (SOLVER = NG, pinned
 # so the recipe stays plain MALI when the default changes, S-10) with no
 # acceleration (NG_ORDER = 0, PRD_NG_ORDER = 0), a fixed number of PRD
 # sub-iterations (PRD_ITER_LIMIT = 0, so every main iteration does
@@ -23,7 +23,7 @@
 # ITER_LIMIT = 1e-10 (main iterations and the final background-scattering
 # iteration, up to N_MAX_SCATTER = 50 sweeps), N_MAX_ITER = 3000. A case
 # that does not reach ITER_LIMIT is kept but marked "reference: no" in its
-# MANIFEST, and run_stress.sh --ref still compares with it: judge such
+# MANIFEST, and run_stress.py --ref still compares with it: judge such
 # cases on the SE residual alone.
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -50,7 +50,7 @@ if [ -z "$COMMIT" ]; then
   [ -z "$(git -C "$SRC" status --porcelain --untracked-files=no)" ] || COMMIT="$COMMIT (modified)"
 fi
 
-"$HERE/run_stress.sh" --tree ref="$TREE" --set conv --work "$OUT/work" \
+python3 "$HERE/run_stress.py" --tree ref="$TREE" --set conv --work "$OUT/work" \
   --kw "$RECIPE${KW:+;$KW}" "${PASS[@]}" || exit 1
 RESULTS=$(ls -t "$OUT"/work/results_*.tsv | head -1)
 

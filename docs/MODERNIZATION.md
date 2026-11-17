@@ -130,8 +130,8 @@ wontfix.
 
 | Tool | Purpose |
 |---|---|
-| `tests/run_tests.sh` | Regression: candidate vs baseline at 4 iterations on 1-D (3 Stokes modes, CRD, two active atoms), 2-D, 3-D, spherical; thread-count consistency (3 and 8 threads vs 1); optional ASan build; peak memory on a tiled 2-D grid; Kurucz blank-line crash. `--exact` for byte-identical changes. |
-| `tests/run_stress.sh` | Stress/convergence/performance: runs NLTE problems **to convergence** on one or more builds and reports iterations, final change, trend (monotone / oscillating / stalled), wall time, peak memory, and the population and spectrum differences between builds. `--set conv` (24 cases) or `--set perf`. Run with `--work /hao/solar1/dwijn/rh-stress` (large outputs). |
+| `tests/run_tests.py` | Regression: candidate vs baseline at 4 iterations on 1-D (3 Stokes modes, CRD, two active atoms), 2-D, 3-D, spherical; thread-count consistency (3 and 8 threads vs 1); optional ASan build; peak memory on a tiled 2-D grid; Kurucz blank-line crash. `--exact` for byte-identical changes. |
+| `tests/run_stress.py` | Stress/convergence/performance: runs NLTE problems **to convergence** on one or more builds and reports iterations, final change, trend (monotone / oscillating / stalled), wall time, peak memory, and the population and spectrum differences between builds. `--set conv` (22 cases, 6 more on Bifrost cuts) or `--set perf`. Run with `--work /hao/solar1/dwijn/rh-stress` (large outputs). |
 | `tests/analyze_run.py` | Parses a run's log and `time.txt` (iterations, convergence, trend, status) and compares `pops.*.out` between runs. |
 | `tests/make_perturbed_atmos.py` | Builds inhomogeneous 2-D/3-D atmospheres from FAL-C: transition region shifted by up to ±250 km, chromospheric T modulated by ±35 %, velocities up to ±8 km/s (vertical) and ±4 km/s (horizontal). Deterministic and periodic. |
 | `tests/atmos/FALC_v10.atmos`, `FALC_shock.atmos` | 1-D FAL-C with a ±10 km/s velocity field, and with a 2.2× temperature spike plus a velocity jump. |
@@ -154,7 +154,7 @@ Notes:
 
 ## 2. Baseline results
 
-### 2.1 Regression suite (`run_tests.sh`, WIP tree vs upstream)
+### 2.1 Regression suite (`run_tests.py`, WIP tree vs upstream)
 
 32 of 34 checks pass. The two failures are `1d/fieldfree` and `1d/fullstokes`
 (Q/U differ by 1.5e-6, I by 4e-8). **Cause verified:** upstream uses the
@@ -163,7 +163,7 @@ without `HAVE_F90` is bit-identical to the WIP tree in both cases. All other
 cases are bit-identical to upstream at 1 thread; thread-count noise is 1e-12
 to 5e-9; peak memory on the tiled 2-D grid is 208 MB vs 206 MB.
 
-### 2.2 Convergence (`run_stress.sh --set conv`)
+### 2.2 Convergence (`run_stress.py --set conv`)
 
 1-D cases at 1 thread, `ITER_LIMIT = 1e-3`, `N_MAX_ITER = 200` unless noted.
 **The WIP tree is bit-identical to upstream in every case that produces
@@ -761,8 +761,8 @@ upstream issue or pull request once filed. Most severe first.
 ## 4. Plan
 
 Ordered so that every step can be verified against upstream: byte-identical
-(`run_tests.sh --exact`) for pure refactors, tolerance mode for numerics, and
-`run_stress.sh` for convergence and performance.
+(`run_tests.py --exact`) for pure refactors, tolerance mode for numerics, and
+`run_stress.py` for convergence and performance.
 
 1. **Cheap, high-value fixes** — crash and silent-wrong-answer bugs (B-1 to
    B-4, B-8, B-9), convergence status reporting (N-1), clamp/fallback for
@@ -780,10 +780,10 @@ Ordered so that every step can be verified against upstream: byte-identical
    belong to the stress tier, not the unit tests; check the data's
    redistribution terms first, and commit a fetch script with checksums
    instead of the data if needed.
-   *Two test tiers from here on:* regression (`run_tests.sh`, must pass on
+   *Two test tiers from here on:* regression (`run_tests.py`, must pass on
    every pull request; a non-default solver is checked on converged
    solutions against stored references, not on iteration 4) and stress
-   (`run_stress.sh`, convergence and performance, including the RMHD
+   (`run_stress.py`, convergence and performance, including the RMHD
    cases). See [`SOLVER.md`](https://github.com/dwijn/RH/blob/modernize/docs/SOLVER.md) §6.
    *Progress 2026-10-17:* unit tests run by `ctest` (also under
    ASan/UBSan in CI) for Voigt, the numerical kernels and the 1-D formal
@@ -1795,7 +1795,7 @@ With `PRD_ANGLE_APPROX` the formal solution of each wavelength adds its intensit
 ### 2026-10-17 — CI compares each change with its base commit; drift from upstream is reported (Q-14)
 
 - The regression job builds the base commit of the change (the target
-  branch before it) and runs `run_tests.sh` against it in tolerance mode.
+  branch before it) and runs `run_tests.py` against it in tolerance mode.
   Results must match, unless the pull request carries the label
   `changes-results` (an intended change of results): then the differences
   from the base are reported in the job summary instead of failing, while
@@ -1832,7 +1832,7 @@ With `PRD_ANGLE_APPROX` the formal solution of each wavelength adds its intensit
   a user cannot act on a category, and the message says what went wrong.
 - A run with a deliberately small `N_MAX_ITER` now exits with 1; scripts
   that test for success should test for 0, or accept bit 1.
-  `run_tests.sh` and `analyze_run.py` treat 1–63 as completed.
+  `run_tests.py` and `analyze_run.py` treat 1–63 as completed.
 - Verified: no input → 70; CaII CRD at `N_MAX_ITER = 4` → 1 with the NOT
   CONVERGED warning, at 200 → 0 after 10 iterations; the regression suite
   is byte-identical to the previous build.
@@ -1986,7 +1986,7 @@ build -j`. The seven makefiles and `tests/build_asan.sh` are gone.
   Intel compilers get `-fp-model=precise`: with icx's default fast
   floating point the wavelength grids differed and the Kurucz case died
   with SIGFPE.
-- `run_tests.sh` and `run_stress.sh` accept a CMake build directory or a
+- `run_tests.py` and `run_stress.py` accept a CMake build directory or a
   source tree with `build/`, as well as in-place makefile builds (upstream).
 
 Verified: `run_tests.sh --exact` against upstream is byte-identical in all

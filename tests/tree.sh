@@ -1,5 +1,5 @@
-# Locate the programs and the data of an RH tree; sourced by run_tests.sh
-# and run_stress.sh. A tree argument can be
+# Locate the programs and the data of an RH tree; sourced by make_references.sh
+# (run_tests.py and run_stress.py use rhtest/tree.py). A tree argument can be
 #   * a CMake build directory (contains CMakeCache.txt): programs there,
 #     data (Atoms/, example runs, ...) in its source directory;
 #   * a source tree with a CMake build in build/;

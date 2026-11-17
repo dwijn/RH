@@ -12,7 +12,9 @@
 name: CI
 
 # Changes that only touch documentation, or the files used only by the local
-# stress suite (tests/run_stress.sh and what it alone uses), skip CI: nothing
+# stress suite (tests/run_stress.py and what it alone uses, and the
+# stand-alone tests/compare_spectra.py; not the package tests/rhtest,
+# which CI uses), skip CI: nothing
 # CI builds or runs is affected. So do changes that only touch the shipped
 # input data (Atoms/, Atmos/, Molecules/): the regression suite runs the
 # candidate, base and upstream builds on the candidate's data, so a change of
@@ -23,12 +25,12 @@ name: CI
 on:
   push:
     branches: [modernize]
-    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.sh', 'tests/analyze_run.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/se_residual.py', 'tests/make_references.sh', 'tests/atmos/**', 'Atoms/**', 'Atmos/**', 'Molecules/**']
+    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.py', 'tests/analyze_run.py', 'tests/compare_spectra.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/se_residual.py', 'tests/make_references.sh', 'tests/atmos/**', 'Atoms/**', 'Atmos/**', 'Molecules/**']
   pull_request:
     # Any base branch: a pull request stacked on another one (based on its
     # branch, not on modernize) is checked against its own base too (Q-23)
     types: [opened, synchronize, reopened, labeled, unlabeled]
-    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.sh', 'tests/analyze_run.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/se_residual.py', 'tests/make_references.sh', 'tests/atmos/**', 'Atoms/**', 'Atmos/**', 'Molecules/**']
+    paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.py', 'tests/analyze_run.py', 'tests/compare_spectra.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/se_residual.py', 'tests/make_references.sh', 'tests/atmos/**', 'Atoms/**', 'Atmos/**', 'Molecules/**']
   workflow_dispatch:
 
 concurrency:
@@ -203,7 +205,7 @@ jobs:
           # The memory case runs on Linux only: what it guards (buffers that
           # grow with Nspect) does not depend on the platform, and macOS
           # peak RSS varies by ~6% between identical builds
-          tests/run_tests.sh --baseline base/build --candidate . \
+          python3 tests/run_tests.py --baseline base/build --candidate . \
             ${{ matrix.sanitize && '--asan build-san' || '' }} \
             ${{ runner.os == 'macOS' && '--skip 2d/mem' || '' }} \
             --work "$RUNNER_TEMP/rh-tests" 2>&1 | tee tests.log
@@ -250,7 +252,7 @@ jobs:
         if: ${{ !cancelled() && steps.drift.outputs.run == 'true' }}
         run: |
           set +e
-          tests/run_tests.sh --baseline upstream --candidate . --threads "" \
+          python3 tests/run_tests.py --baseline upstream --candidate . --threads "" \
             --work "$RUNNER_TEMP/rh-upstream" > upstream.log 2>&1
           {
             echo "### Against upstream RH (report only)"
