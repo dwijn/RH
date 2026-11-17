@@ -136,3 +136,48 @@ def read_solveray(path):
     off = 16 + 8 * M + 4
     return [struct.unpack(f">{M}d", b[o:o + 8 * M])
             for o in (16, off, off + 8 * M, off + 16 * M)]
+
+
+VACUUM_TO_AIR_LIMIT = 200.0     # spectrum.h
+
+
+def read_spectrum_file(path, stokes=None):
+    """spectrum.out of either layout (writespect_xdr.c, big-endian XDR: int
+    Nspect, double lambda[Nspect], double I[Nspect * Nrays * Nspace], a bool
+    and VACUUM_TO_AIR_LIMIT, then Q, U and V of the size of I if the run was
+    polarized). The size does not tell the layouts apart (Q, U, V read as
+    part of I still make a multiple of Nspect values, Q-21): the record that
+    must follow I (a bool, 0 or 1, and 200.0) does. stokes=True or False
+    demands that layout, None finds it. Returns (raw bytes, lambda, arrays,
+    Nspect) with arrays a dict {"I": [...]} or {"I", "Q", "U", "V"} of flat
+    lists with the wavelength as the slowest index. ValueError (or
+    struct.error for a file shorter than 4 bytes) if the file fits no
+    layout."""
+    raw = read_bytes(path)
+    ns = struct.unpack(">i", raw[:4])[0]
+    if ns <= 0 or len(raw) < 4 + 8 * ns + 12:
+        raise ValueError(f"{path}: not a spectrum.out (Nspect={ns}, "
+                         f"size {len(raw)})")
+    lam = struct.unpack(f">{ns}d", raw[4:4 + 8 * ns])
+    body = len(raw) - 4 - 8 * ns - 12
+    fits = []
+    for narr in ((1, 4) if stokes is None else ((4,) if stokes else (1,))):
+        if body <= 0 or body % (8 * narr) or (body // (8 * narr)) % ns:
+            continue
+        n_i = body // (8 * narr)
+        marker = 4 + 8 * ns + 8 * n_i
+        flag, limit = struct.unpack(">id", raw[marker:marker + 12])
+        if flag in (0, 1) and limit == VACUUM_TO_AIR_LIMIT:
+            fits.append((narr, n_i))
+    if len(fits) != 1:
+        want = {None: "either layout", True: "the polarized layout",
+                False: "the unpolarized layout"}[stokes]
+        raise ValueError(f"{path}: size {len(raw)} and contents do not fit "
+                         f"{want} of spectrum.out (Nspect={ns})")
+    narr, n_i = fits[0]
+    off = 4 + 8 * ns
+    arrays = {}
+    for k, name in enumerate("IQUV"[:narr]):
+        start = off if k == 0 else off + 8 * n_i + 12 + 8 * n_i * (k - 1)
+        arrays[name] = struct.unpack(f">{n_i}d", raw[start:start + 8 * n_i])
+    return raw, lam, arrays, ns

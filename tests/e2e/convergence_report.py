@@ -17,7 +17,7 @@ solver_anderson.py:
     ITER_LIMIT = 1e-4 is within a factor 3 of the actual difference to an
     ANDERSON run at ITER_LIMIT = 1e-7 (the reference). The numbers are
     printed.
-That the reporting leaves the results alone is checked by run_tests.sh
+That the reporting leaves the results alone is checked by run_tests.py
 --exact against a build without it.
 """
 

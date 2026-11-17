@@ -1,5 +1,6 @@
 """keyword.input and atoms.input."""
 import os
+import re
 
 
 def setkw(text, key, value):
@@ -50,3 +51,14 @@ def write_atoms_input(d, atoms):
 # atom set of the solver and PRD tests; run directories sit two levels down
 H6_CAII = [("../../Atoms/H_6.atom", "PASSIVE", "LTE_POPULATIONS"),
            ("../../Atoms/CaII.atom", "ACTIVE", "ZERO_RADIATION", "pops.CA.out")]
+
+
+def has_stokes_input(path):
+    """The keyword.input at path sets STOKES_INPUT to something other than
+    none (the run reads a magnetic field, so spectrum.out has Q, U, V).
+    Like the grep of the old run_tests.sh, "none" is matched as a prefix."""
+    with open(path, errors="replace") as f:
+        text = f.read()
+    return (re.search(r"^[ \t\r\f\v]*STOKES_INPUT[ \t\r\f\v]*=", text, re.M) is not None and
+            re.search(r"^[ \t\r\f\v]*STOKES_INPUT[ \t\r\f\v]*=[ \t\r\f\v]*none",
+                      text, re.M) is None)

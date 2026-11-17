@@ -203,7 +203,7 @@ jobs:
           # The memory case runs on Linux only: what it guards (buffers that
           # grow with Nspect) does not depend on the platform, and macOS
           # peak RSS varies by ~6% between identical builds
-          tests/run_tests.sh --baseline base/build --candidate . \
+          python3 tests/run_tests.py --baseline base/build --candidate . \
             ${{ matrix.sanitize && '--asan build-san' || '' }} \
             ${{ runner.os == 'macOS' && '--skip 2d/mem' || '' }} \
             --work "$RUNNER_TEMP/rh-tests" 2>&1 | tee tests.log
@@ -250,7 +250,7 @@ jobs:
         if: ${{ !cancelled() && steps.drift.outputs.run == 'true' }}
         run: |
           set +e
-          tests/run_tests.sh --baseline upstream --candidate . --threads "" \
+          python3 tests/run_tests.py --baseline upstream --candidate . --threads "" \
             --work "$RUNNER_TEMP/rh-upstream" > upstream.log 2>&1
           {
             echo "### Against upstream RH (report only)"

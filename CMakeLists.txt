@@ -215,7 +215,7 @@ endif()
 # --- Smoke tests -----------------------------------------------------------
 # Each program, run where it finds no input, must fail cleanly with RH's
 # own error message rather than crash. The physics regression suite is
-# tests/run_tests.sh.
+# tests/run_tests.py.
 
 enable_testing()
 foreach(prog rhf1d rhsc2d rhsc3d rhsphere)

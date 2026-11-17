@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build an upstream RH checkout (han-uitenbroek/RH, which still uses its
-# hand-written makefiles) as the baseline for run_tests.sh and
+# hand-written makefiles) as the baseline for run_tests.py and
 # run_stress.sh: rhf1d, rhsc2d, rhsc3d and rhsphere, built in place,
 # without the Fortran Voigt routines so that no Fortran compiler is needed.
 # Compare against it in tolerance mode: the Stokes cases differ by ~1e-10

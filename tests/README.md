@@ -6,7 +6,7 @@ Four tiers:
   problems with known answers. Fast, no input files.
 - **End-to-end tests** (`tests/e2e/`, run by `ctest`): whole runs of a
   program on problems with exact properties.
-- **Regression** (`run_tests.sh`, below): whole runs of a candidate build
+- **Regression** (`run_tests.py`, below): whole runs of a candidate build
   against a baseline build. Must pass on every pull request.
 - **Stress** (`run_stress.sh`, further below): convergence and performance
   on hard and large problems.
@@ -59,10 +59,12 @@ the CI build jobs have none), which a script finds with a two-line
 | Module | What it holds |
 |---|---|
 | `cli.py` | `parse()`: `--PROGRAM` paths, `--src` (default: this source tree), `--work`, `-v` |
-| `workdir.py` | `WorkDir`: the work directory with the Atoms/Atmos/Molecules links; `--work` is kept, a temporary directory under `$TMPDIR` is removed when the test passes and kept and named on a failure, `sys.exit` or an uncaught exception |
-| `keywords.py` | `setkw()` (value `None` comments the key out), `apply()`, `edit_file()`, `atoms_input()`, the `H6_CAII` atom set |
-| `run.py` | `prepare()` a run directory from `<geom>/run`, `copy_dir()` (a failed removal of an old directory raises), `execute()` with a timeout and `out.log`, `execute_streaming()` (line by line, with a callback, e.g. to create `STOP_RH`), `make_field()`, `Result.require()` (exit status and error text; 1 = not converged is expected after a few iterations), `RAN`, `EXIT_*` |
-| `output.py` | readers of `pops.*.out`, `atmos.out`, the first molecule of `molecules.out`, `J.dat`, `spectrum.out` (polarized or not) and the solveray output; `xdr_counted_string` (the binary formats live here) |
+| `workdir.py` | `WorkDir`: the work directory with the Atoms/Atmos/Molecules links; `--work` is kept, a temporary directory under `$TMPDIR` is removed when the test passes and kept and named on a failure, `sys.exit` or an uncaught exception (`relink=True` replaces existing links, `announce=False` stops the message: `run_tests.py`) |
+| `keywords.py` | `setkw()` (value `None` comments the key out), `apply()`, `edit_file()`, `atoms_input()`, the `H6_CAII` atom set, `has_stokes_input()` |
+| `run.py` | `prepare()` a run directory from `<geom>/run`, `copy_dir()` (a failed removal of an old directory raises), `execute()` with a timeout and `out.log`, `execute_streaming()` (line by line, with a callback, e.g. to create `STOP_RH`), `make_field()`, `Result.require()` (exit status and error text; 1 = not converged is expected after a few iterations), `RAN`, `EXIT_*`; for the regression suite `execute_to_log()` (output straight to a log, run under `/usr/bin/time -v -o time.txt` as the shell did, status as a shell reports it: 128 + signal), `peak_rss_mb()` (from `time.txt`), `completed()` (0-63), `log_problem()` (the reason a log shows a failed run: fatal error, sanitizer report, NaN) |
+| `output.py` | readers of `pops.*.out`, `atmos.out`, the first molecule of `molecules.out`, `J.dat`, `spectrum.out` (polarized or not; `read_spectrum_file` finds the layout) and the solveray output; `xdr_counted_string` (the binary formats live here) |
+| `compare.py` | `compare_spectra()`: two `spectrum.out` files compared as `compare_spectra.py` does (per wavelength relative to the peak, or byte-identical), without numpy |
+| `tree.py` | `tree_bin()`, `tree_src()`, `tree_sanitized()`, `missing_programs()`: where the programs and data of a build are (a CMake build directory, a source tree with `build/`, or one built in place with the old makefiles); `tree.sh` is the same for the shell scripts that still source it (`make_references.sh`, `run_stress.sh`) |
 | `check.py` | `Checker` (record, summary, exit status), `maxabs`, `maxdiff`, `maxrel`, `same_file` |
 
 A new e2e script: `cli.parse`, `WorkDir`, `Checker`, then `prepare` and
@@ -84,7 +86,7 @@ fast runs (the whole suite takes a few minutes).
 ```
 cmake -B build && cmake --build build -j                  # the candidate
 cmake -B build-asan -DRH_SANITIZE=address,undefined && cmake --build build-asan -j
-tests/run_tests.sh --baseline /path/to/upstream-tree --candidate . [--asan build-asan] [--exact]
+python3 tests/run_tests.py --baseline /path/to/upstream-tree --candidate . [--asan build-asan] [--exact]
 ```
 
 CI compares every change with a build of its base commit (the target
@@ -112,7 +114,14 @@ tests/build_upstream.sh upstream
 A build is given as a source tree with a CMake build in `build/`, as a CMake
 build directory, or as a source tree built in place with the old makefiles
 (upstream RH, the usual baseline). `rhf1d`, `rhsc2d`, `rhsc3d` and
-`rhsphere` must be built. Run `run_tests.sh --help` for the options.
+`rhsphere` must be built. Run `tests/run_tests.py --help` for the options.
+
+`run_tests.py` needs Python 3.8 or newer (CI has 3.12) and uses only the standard
+library, with the `rhtest` package like the end-to-end tests. Programs run with their output in
+`log.log` under `/usr/bin/time` (`-v` on Linux, `-l` on macOS), whose `time.txt`
+the memory case reads. Python's own `wait4` would not do: a child's
+`ru_maxrss` starts at the resident size of its parent when it is forked, so
+the suite's own memory would be a floor under every measurement.
 
 | Case | What it covers |
 |---|---|
@@ -146,7 +155,7 @@ the upstream segfault.
 
 ## Stress, convergence and performance cases
 
-`run_tests.sh` stops every case after 4 iterations. `run_stress.sh` runs
+`run_tests.py` stops every case after 4 iterations. `run_stress.sh` runs
 strongly NLTE problems **to convergence** (`--set conv`, 21 cases, 5 more on Bifrost cuts) or for a
 fixed number of iterations on large multi-D grids (`--set perf`), on one or
 more builds, and reports iterations, final population change, trend
