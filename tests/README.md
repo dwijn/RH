@@ -61,8 +61,8 @@ the CI build jobs have none), which a script finds with a two-line
 | `cli.py` | `parse()`: `--PROGRAM` paths, `--src` (default: this source tree), `--work`, `-v` |
 | `workdir.py` | `WorkDir`: the work directory with the Atoms/Atmos/Molecules links; `--work` is kept, a temporary directory under `$TMPDIR` is removed when the test passes and kept and named on a failure, `sys.exit` or an uncaught exception |
 | `keywords.py` | `setkw()` (value `None` comments the key out), `apply()`, `edit_file()`, `atoms_input()`, the `H6_CAII` atom set |
-| `run.py` | `prepare()` a run directory from `<geom>/run`, `copy_dir()` (a failed removal of an old directory raises), `execute()` with a timeout and `out.log`, `Result.require()` (exit status and error text; 1 = not converged is expected after a few iterations), `RAN`, `EXIT_*` |
-| `output.py` | readers of `pops.*.out`, `J.dat`, the polarized `spectrum.out` and the solveray output (the binary formats live here) |
+| `run.py` | `prepare()` a run directory from `<geom>/run`, `copy_dir()` (a failed removal of an old directory raises), `execute()` with a timeout and `out.log`, `execute_streaming()` (line by line, with a callback, e.g. to create `STOP_RH`), `make_field()`, `Result.require()` (exit status and error text; 1 = not converged is expected after a few iterations), `RAN`, `EXIT_*` |
+| `output.py` | readers of `pops.*.out`, `atmos.out`, the first molecule of `molecules.out`, `J.dat`, `spectrum.out` (polarized or not) and the solveray output; `xdr_counted_string` (the binary formats live here) |
 | `check.py` | `Checker` (record, summary, exit status), `maxabs`, `maxdiff`, `maxrel`, `same_file` |
 
 A new e2e script: `cli.parse`, `WorkDir`, `Checker`, then `prepare` and
