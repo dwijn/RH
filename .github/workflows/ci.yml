@@ -46,6 +46,29 @@ defaults:
     shell: bash       # -eo pipefail: a failing command before | tee fails the step
 
 jobs:
+  # The log is edited only by docs pull requests: a code pull request adds
+  # its change note docs/changes/<ID>.md and closes its issue, and after the
+  # merge a docs pull request folds the notes and sets the status cells
+  # (docs/make_log_page.py --sync-md). Code pull requests that edited the
+  # status cells of the log conflicted with each other and with docs pull
+  # requests rewriting the same rows. Docs-only pull requests skip CI, so
+  # this job sees code pull requests only; on the merge ref, HEAD^1 is the
+  # base.
+  log:
+    name: log untouched by code pull requests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: docs/MODERNIZATION.md unchanged
+        run: |
+          if git diff --name-only HEAD^1 HEAD | grep -qx docs/MODERNIZATION.md; then
+            echo "::error file=docs/MODERNIZATION.md::A code pull request does not edit the log: add docs/changes/<ID>.md, close the issue, and leave the status to the log sync (docs/make_log_page.py --sync-md) after the merge"
+            exit 1
+          fi
+
   format:
     name: code format (clang-format)
     runs-on: ubuntu-26.04
