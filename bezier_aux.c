@@ -403,6 +403,38 @@ double Bezier3_psi(double beta, double theta, double S_loc, double C_loc)
 }
 /* ------- end ---------------------------- Bezier3_psi.c ----------- */
 
+/* ------- begin -------------------------- Stokes_psi.c ------------ */
+
+double Stokes_psi(double psi, double I_loc, double S_loc)
+{
+	/* --- The diagonal of the approximate operator of a polarized step,
+		   psi (the scalar beta + theta), limited to I_loc / S_loc, of
+		   Stokes I and S_I at the local point, so that I - Psi eta in
+		   addPreconditionedRates (fillgamma.c) cannot be negative
+		   (B-67). Bezier3_psi (B-66) does not give that here: the
+		   step's dependence on S_loc goes through (1 + K')^-1, and with
+		   dichroism Stokes I sees further down the gradient of S
+		   (opacity chi_I (1 - |eta'|^2) for I in thick layers), so it
+		   falls below beta S_loc + theta C_loc where S rises along the
+		   ray. Measured on one step with |eta'| = 0.89 and no
+		   magneto-optical terms, I - (beta + theta) S_loc reached
+		   -0.49 I and I - Bezier3_psi S_loc -0.33 I; the 1-D, 2-D and
+		   3-D FULL_STOKES test cases had negative upward contributions
+		   at every iteration.
+
+		   The bound I_loc / S_loc instead of an exact polarized
+		   diagonal: the larger polarized coefficient of S_loc,
+		   (K^-1)[0][0] in thick layers, inverted a line in B-55, and the
+		   larger exact scalar diagonal converged slower (N-13). Psi is
+		   the preconditioner only: the converged populations do not
+		   depend on it. Psi is 0 where I_loc <= 0 and unchanged where
+		   S_loc <= 0 --                                  -------------- */
+
+	if (S_loc > 0.0 && psi * S_loc > I_loc) return MAX(I_loc, 0.0) / S_loc;
+	return psi;
+}
+/* ------- end ---------------------------- Stokes_psi.c ------------ */
+
 /* --- Largest |K'| dtau below which a DELO step does not amplify the
 	   Stokes vector (B-55). With S = 0 the norm of I cannot grow for a
 	   physical K (|eta| <= 1); measured worst |I_loc| / |I_uw| over
@@ -1060,7 +1092,8 @@ double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
 		   I_loc at the local point from I_uw at the upwind point, given
 		   the reduced propagation matrix K' (StokesK), the source vector
 		   S and their derivatives in tau at both points. Returns the
-		   diagonal of the approximate operator, beta + theta.
+		   diagonal of the approximate operator, beta + theta limited to
+		   I_loc / S_loc of Stokes I (Stokes_psi, B-67).
 
 		   Along the ray dI/dtau = S_eff - I, with S_eff = S - K' I, so
 		   S_eff' = S' - dK' I - K' S + (K'^2 + K') I. The control points
@@ -1108,18 +1141,19 @@ double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
 		   instead --                                     -------------- */
 
 	/* --- The approximate operator stays the scalar beta + theta of the
-		   DELO-Bezier step, which ignores K', as everywhere else. The
-		   exponential step's own coefficient of S_loc in I is the
-		   polarized one, (K^-1)[0][0] in thick layers, above 1 with
-		   dichroism (1.19 measured), and with it the first population
-		   update of the 2-D test case inverted Ca II 866 nm (B-55) -- */
+		   DELO-Bezier step, which ignores K', limited to I_loc / S_loc
+		   (Stokes_psi, B-67). The exponential step's own coefficient of
+		   S_loc in I is the polarized one, (K^-1)[0][0] in thick layers,
+		   above 1 with dichroism (1.19 measured), and with it the first
+		   population update of the 2-D test case inverted Ca II 866 nm
+		   (B-55) --                                      -------------- */
 
 	Bezier3_coeffs(dtau_uw, &alpha, &beta, &gamma, &theta, &eps);
 
 	if (use_exp_step(dtau_uw, K_uw, K_loc, STOKES_XMAX_BEZIER3)) {
 		Stokes_Exp_step(dtau_uw, K_uw, K_loc, S_uw, S_loc, dS_uw, dS_loc, I_uw,
 						I_loc);
-		return beta + theta;
+		return Stokes_psi(beta + theta, I_loc[0], S_loc[0]);
 	}
 
 	m4m(K_uw, K_uw, Ma);  // Ku # Ku
@@ -1152,7 +1186,7 @@ double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
 	}
 	solveLinearFast(M_loc, I_loc);
 
-	return beta + theta;
+	return Stokes_psi(beta + theta, I_loc[0], S_loc[0]);
 }
 /* ------- end ---------------------------- Bezier3_Stokes_step.c --- */
 

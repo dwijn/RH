@@ -48,6 +48,7 @@ void   Svec(int k, double **S, double *Sf);
 void   Bezier3_coeffs(double dt, double *alpha, double *beta,
 					  double *gamma, double *theta, double *eps);
 double Bezier3_psi(double beta, double theta, double S_loc, double C_loc);
+double Stokes_psi(double psi, double I_loc, double S_loc);
 
 void solveLinearFast(double A[4][4], double B[4]);
 
