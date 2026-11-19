@@ -60,8 +60,9 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 	double         S_uw[4], S_loc[4], S_dw[4], dS_uw[4], dS_c[4];
 	double         I_loc[4];
 
-	Stencil  *st;
-	LongChar *lc = NULL;
+	Stencil   *st;
+	LongChar  *lc = NULL;
+	StokesGrid sg = {.nspect = nspect, .chi = chi, .S = S, .I = I};
 
 	/* --- Boundary conditions in row at the top or bottom -- --------- */
 
@@ -160,18 +161,14 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 			st    = &geometry->stencil[mu][local];
 
 			if (l == lc->lstart && lc->Nlc > 0)
-				SolveLongStokes(nspect, lc, local, chi, S, I, I_uw);
-			else {
-				for (n = 0; n < 4; n++)
-					I_uw[n] = Interp_2D(I[n], st, upwind);
-			}
+				SolveLongStokes(&sg, lc, local, I_uw);
+			else
+				Interp_Stokes_2D(&sg, STOKES_INTENSITY, st, upwind, I_uw);
 
 			chi_uw  = Interp_2D(chi, st, upwind);
 			dchi_uw = (chi[local] - chi_uw) / st->ds[upwind];
-			StokesK_2D(nspect, st, upwind, chi_uw, K_uw);
-			for (n = 0; n < 4; n++) {
-				S_uw[n] = Interp_2D(S[n], st, upwind);
-			}
+			StokesK_2D(&sg, st, upwind, chi_uw, K_uw);
+			Interp_Stokes_2D(&sg, STOKES_SOURCE, st, upwind, S_uw);
 			StokesK(nspect, local, chi[local], K_loc);
 			for (n = 0; n < 4; n++) S_loc[n] = S[n][local];
 
@@ -196,7 +193,7 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 
 				chi_dw  = Interp_2D(chi, st, downwind);
 				dchi_dw = (chi_dw - chi[local]) / st->ds[downwind];
-				StokesK_2D(nspect, st, downwind, chi_dw, K_dw);
+				StokesK_2D(&sg, st, downwind, chi_dw, K_dw);
 
 				dchi_c = cent_deriv(st->ds[upwind], st->ds[downwind],
 									chi_uw, chi[local], chi_dw);
@@ -222,8 +219,8 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 				c2      = chi[local] + ds03 * dchi_c;
 				dtau_dw = st->ds[downwind] * (chi[local] + chi_dw + c1 + c2) * 0.25;
 
+				Interp_Stokes_2D(&sg, STOKES_SOURCE, st, downwind, S_dw);
 				for (n = 0; n < 4; n++) {
-					S_dw[n]  = Interp_2D(S[n], st, downwind);
 					dS_uw[n] = (S_loc[n] - S_uw[n]) / dtau_uw;
 
 					for (m = 0; m < 4; m++)

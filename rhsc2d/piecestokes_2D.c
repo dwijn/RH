@@ -52,11 +52,12 @@ extern InputData  input;
 
 /* ------- begin -------------------------- StokesK_2D.c ------------ */
 
-void StokesK_2D(int nspect, Stencil *st, enum direction direction,
+void StokesK_2D(StokesGrid *sg, Stencil *st, enum direction direction,
 				double chi_I, double K[4][4])
 {
 	register int i, j;
 
+	int        nspect = sg->nspect;
 	ActiveSet *as;
 
 	/* --- Return the elements of the reduced 4x4 Stokes
@@ -132,3 +133,18 @@ void StokesK_2D(int nspect, Stencil *st, enum direction direction,
 	}
 }
 /* ------- end ---------------------------- StokesK_2D.c ------------ */
+
+/* ------- begin -------------------------- Interp_Stokes_2D.c ------ */
+
+void Interp_Stokes_2D(StokesGrid *sg, enum stokes_vector v, Stencil *st,
+					  enum direction direction, double out[4])
+{
+	/* --- The source vector (v = STOKES_SOURCE) or the Stokes vector
+		   (STOKES_INTENSITY) of the grid at the up- or downwind point
+		   of stencil st: each component with Interp_2D -- ----------- */
+
+	double **f = (v == STOKES_SOURCE) ? sg->S : sg->I;
+
+	for (int n = 0; n < 4; n++) out[n] = Interp_2D(f[n], st, direction);
+}
+/* ------- end ---------------------------- Interp_Stokes_2D.c ------ */
