@@ -25,13 +25,15 @@
 		  everywhere (also in the boundary cells where the data are
 		  extrapolated), the end values outside the table and order 3 for
 		  a smooth function;
-	   -- pchipTableInit/pchipTableEval (pchip.c, N-32): SciPy's
+	   -- pchipTableInit/pchipTableEval (pchip.c, N-32, N-49): SciPy's
 		  PchipInterpolator on a fixed table, in y and in log x, log y;
 		  the nodes and linear data (log-log: power laws) reproduced; on
 		  random tables with spikes every interval stays between its two
 		  node values, so positive data stay positive; a node changes
 		  the interpolant only within two nodes of it; a table with a
-		  zero falls back to y and stays non-negative; descending tables,
+		  zero stays non-negative and keeps log y on the intervals
+		  between positive nodes (power laws reproduced); descending
+		  tables,
 		  the end values outside the table, and tables of 1 and 2 points.
 
 	   Run with --table to print the measured errors.
@@ -702,6 +704,39 @@ static void test_pchip_bounded(void)
 	CHECK(nloc == 0, "%d values changed by a node more than two nodes away", nloc);
 }
 
+/* --- A table that ends in a zero, as five Mg I bound-free tables do
+	   (N-49): power-law data elsewhere are reproduced in log-log on
+	   every interval between positive nodes (with log y dropped for the
+	   whole table, as before N-49, they were not), and the interval
+	   that touches the zero is interpolated in y, between its two node
+	   values --                                       -------------- */
+
+static void test_pchip_zero_end(void)
+{
+	double     x[7], y[7], xe[301], ye[301], err = 0.0, lo = HUGE_VAL, hi = 0.0;
+	PchipTable pt;
+
+	for (int k = 0; k < 7; k++) {
+		x[k] = 100.0 + 20.0 * k;
+		y[k] = (k == 0) ? 0.0 : 1.0e-21 * pow(x[k] / 120.0, -3.0);
+	}
+	pchipTableInit(&pt, 7, x, y, PCHIP_LOGLOG);
+	for (int n = 0; n < 301; n++) xe[n] = 100.0 + 0.4 * n;
+	pchipTableEval(&pt, 301, xe, ye);
+	for (int n = 0; n < 301; n++) {
+		if (xe[n] >= x[1])
+			err = MAX(err, fabs(ye[n] / (1.0e-21 * pow(xe[n] / 120.0, -3.0)) - 1.0));
+		else {
+			lo = MIN(lo, ye[n]);
+			hi = MAX(hi, ye[n]);
+		}
+	}
+	if (table) printf("pchip, table ending in a zero: power law to %.2e\n", err);
+	CHECK(err < 1e-13, "zero at the end: power law reproduced to %.3g", err);
+	CHECK(lo >= 0.0 && hi <= y[1], "zero at the end: first interval in [%g, %g]", lo, hi);
+	pchipTableFree(&pt);
+}
+
 /* --- Zeros, descending tables, ends, short tables -- -------------- */
 
 static void test_pchip_special(void)
@@ -714,12 +749,20 @@ static void test_pchip_special(void)
 	PchipTable pt, ptd;
 
 	pchipTableInit(&pt, 6, x, y, PCHIP_LOGLOG);
-	CHECK(!pt.logy, "a table with zeros falls back to y (logy = %d)", pt.logy);
+	CHECK(pt.logy && pt.ylin != NULL, "a table with zeros keeps log y (logy = %d)", pt.logy);
 	for (int n = 0; n < 51; n++) xe[n] = 10.0 + n;
 	pchipTableEval(&pt, 51, xe, ye);
 	for (int n = 0; n < 51; n++)
 		if (ye[n] < 0.0) nneg++;
 	CHECK(nneg == 0, "zeros: %d negative values", nneg);
+
+	/* --- Between the two positive nodes 3 and 5 (x = 30, 40), a run
+		   of its own: the power law through them (N-49) -- -------- */
+
+	v = 35.0;
+	pchipTableEval(&pt, 1, &v, &v);
+	CHECK_CLOSE(v, 3.0 * pow(35.0 / 30.0, log(5.0 / 3.0) / log(4.0 / 3.0)), 1e-14, 0.0,
+				"zeros: power law between the positive nodes, %g", v);
 
 	for (int k = 0; k < 6; k++) {
 		xd[k] = x[5 - k];
@@ -770,6 +813,7 @@ int main(int argc, char *argv[])
 	test_pchip_exact();
 	test_pchip_bounded();
 	test_pchip_special();
+	test_pchip_zero_end();
 
 	return check_summary("test_interp");
 }
