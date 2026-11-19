@@ -9,9 +9,9 @@
 /* --- Solves radiative transfer for given atmosphere and model atom
 	   along a ray with arbitrary \mu_x and \mu_y, assuming the atom's
 	   population numbers and angle-averaged radiation field are given.
-	   The equation of transfer is solved with the Feautrier difference
-	   scheme, and interpolation in the horizontal planes is done with
-	   Fourier interpolation.
+	   The equation of transfer is solved by solveSpectrum, with the
+	   short characteristics of the main program (Q-34; this said
+	   Feautrier with Fourier interpolation in the horizontal planes).
 
 	   Expects input file ``ray.input'' containing two lines of the form
 

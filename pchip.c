@@ -29,11 +29,13 @@
 	   temperature and wavelength, so the tables are interpolated in log
 	   x and log y (PCHIP_LOGLOG): a power law between nodes is then
 	   reproduced exactly, and log y keeps the result positive whatever
-	   the slopes. A table with a value <= 0 cannot be interpolated in
-	   log y; it is interpolated in y, where PCHIP still keeps every
-	   interval between its two node values, so non-negative data stay
-	   non-negative. Outside the table the end values are used, as by
-	   Linear and the spline routines.
+	   the slopes. A value <= 0 cannot be interpolated in log y: the
+	   intervals that touch one are interpolated in y, where PCHIP still
+	   keeps every interval between its two node values, so
+	   non-negative data stay non-negative, and every run of positive
+	   nodes stays in log y as a table of its own (N-49; before, one
+	   such value put the whole table in y). Outside the table the end
+	   values are used, as by Linear and the spline routines.
 
 	   The table is copied (transformed, ascending), so the caller's
 	   arrays need not outlive the PchipTable, and evaluation keeps no
@@ -69,6 +71,47 @@ static double endSlope(double h0, double h1, double del0, double del1)
 }
 /* ------- end ---------------------------- endSlope.c -------------- */
 
+/* ------- begin -------------------------- pchipSlopes.c ----------- */
+
+/* --- The PCHIP slopes d of the table x, y (N points, x ascending):
+	   the weighted harmonic mean of the secants inside, zero where they
+	   change sign, endSlope at the ends --          -------------- */
+
+static void pchipSlopes(int N, const double *x, const double *y, double *d)
+{
+	register int k;
+
+	double *h, *del, w1, w2;
+
+	if (N < 2) {
+		if (N == 1) d[0] = 0.0;
+		return;
+	}
+	h   = (double *) malloc((N - 1) * sizeof(double));
+	del = (double *) malloc((N - 1) * sizeof(double));
+	for (k = 0; k < N - 1; k++) {
+		h[k]   = x[k + 1] - x[k];
+		del[k] = (y[k + 1] - y[k]) / h[k];
+	}
+	if (N == 2) {
+		d[0] = d[1] = del[0];
+	} else {
+		for (k = 1; k < N - 1; k++) {
+			if (del[k - 1] * del[k] > 0.0) {
+				w1   = 2.0 * h[k] + h[k - 1];
+				w2   = h[k] + 2.0 * h[k - 1];
+				d[k] = (w1 + w2) / (w1 / del[k - 1] + w2 / del[k]);
+			} else
+				d[k] = 0.0;
+		}
+		d[0]     = endSlope(h[0], h[1], del[0], del[1]);
+		d[N - 1] = endSlope(h[N - 2], h[N - 3], del[N - 2], del[N - 3]);
+	}
+	free(h);
+	free(del);
+}
+/* ------- end ---------------------------- pchipSlopes.c ----------- */
+
 /* ------- begin -------------------------- pchipTableInit.c -------- */
 
 void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
@@ -77,9 +120,8 @@ void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
 	const char   routineName[] = "pchipTableInit";
 	register int k;
 
-	bool_t  ascend;
-	int     kk;
-	double *h, *del, w1, w2;
+	bool_t ascend, mixed = FALSE;
+	int    kk, a;
 
 	if (N < 1) {
 		sprintf(messageStr, "Table needs at least one point (N = %d)", N);
@@ -90,13 +132,17 @@ void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
 	pt->logy = (scale & PCHIP_LOGY) != 0;
 	if (pt->logy) {
 		for (k = 0; k < N; k++)
-			if (!(y[k] > 0.0)) pt->logy = FALSE;
+			if (!(y[k] > 0.0)) mixed = TRUE;
 	}
-	pt->x = (double *) malloc(N * sizeof(double));
-	pt->y = (double *) malloc(N * sizeof(double));
-	pt->d = (double *) calloc(N, sizeof(double));
+	pt->x    = (double *) malloc(N * sizeof(double));
+	pt->y    = (double *) malloc(N * sizeof(double));
+	pt->d    = (double *) calloc(N, sizeof(double));
+	pt->ylin = (mixed) ? (double *) malloc(N * sizeof(double)) : NULL;
+	pt->dlin = (mixed) ? (double *) calloc(N, sizeof(double)) : NULL;
 
-	/* --- Store ascending in x, transformed --         -------------- */
+	/* --- Store ascending in x, transformed. With log y and a node
+		   <= 0 (N-49), y is kept in log y at the positive nodes and as
+		   it is in ylin --                               -------------- */
 
 	ascend = (N == 1 || x[1] > x[0]);
 	for (k = 0; k < N; k++) {
@@ -107,7 +153,8 @@ void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		pt->x[k] = (pt->logx) ? log(x[kk]) : x[kk];
-		pt->y[k] = (pt->logy) ? log(y[kk]) : y[kk];
+		pt->y[k] = (pt->logy && y[kk] > 0.0) ? log(y[kk]) : y[kk];
+		if (mixed) pt->ylin[k] = y[kk];
 	}
 	for (k = 1; k < N; k++) {
 		if (!(pt->x[k] > pt->x[k - 1])) {
@@ -117,30 +164,26 @@ void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 	}
-	if (N == 1) return;
+	if (!mixed) {
+		pchipSlopes(N, pt->x, pt->y, pt->d);
+		return;
+	}
 
-	h   = (double *) malloc((N - 1) * sizeof(double));
-	del = (double *) malloc((N - 1) * sizeof(double));
-	for (k = 0; k < N - 1; k++) {
-		h[k]   = pt->x[k + 1] - pt->x[k];
-		del[k] = (pt->y[k + 1] - pt->y[k]) / h[k];
-	}
-	if (N == 2) {
-		pt->d[0] = pt->d[1] = del[0];
-	} else {
-		for (k = 1; k < N - 1; k++) {
-			if (del[k - 1] * del[k] > 0.0) {
-				w1       = 2.0 * h[k] + h[k - 1];
-				w2       = h[k] + 2.0 * h[k - 1];
-				pt->d[k] = (w1 + w2) / (w1 / del[k - 1] + w2 / del[k]);
-			} else
-				pt->d[k] = 0.0;
+	/* --- Mixed (N-49): the slopes in y over the whole table, for the
+		   intervals that touch a node <= 0, and in log y over each run
+		   of positive nodes, as a table of its own, for the intervals
+		   within it --                                   -------------- */
+
+	pchipSlopes(N, pt->x, pt->ylin, pt->dlin);
+	for (a = 0; a < N;) {
+		if (!(pt->ylin[a] > 0.0)) {
+			a++;
+			continue;
 		}
-		pt->d[0]     = endSlope(h[0], h[1], del[0], del[1]);
-		pt->d[N - 1] = endSlope(h[N - 2], h[N - 3], del[N - 2], del[N - 3]);
+		for (k = a; k + 1 < N && pt->ylin[k + 1] > 0.0; k++);
+		pchipSlopes(k - a + 1, pt->x + a, pt->y + a, pt->d + a);
+		a = k + 1;
 	}
-	free(h);
-	free(del);
 }
 /* ------- end ---------------------------- pchipTableInit.c -------- */
 
@@ -150,37 +193,48 @@ void pchipTableEval(const PchipTable *pt, int N, const double *x, double *y)
 {
 	register int n;
 
-	int    lo, hi, mid, N1 = pt->N - 1;
-	double t, h, s, s2, s3, v;
+	int           lo, hi, mid, N1 = pt->N - 1;
+	bool_t        logv;
+	double        t, h, s, s2, s3, v;
+	const double *yv, *dv;
 
 	for (n = 0; n < N; n++) {
 		t = (pt->logx) ? ((x[n] > 0.0) ? log(x[n]) : -HUGE_VAL) : x[n];
 
-		if (t <= pt->x[0])
-			v = pt->y[0];
-		else if (t >= pt->x[N1])
-			v = pt->y[N1];
-		else {
-			/* --- Interval by bisection: x[lo] <= t < x[lo + 1] -- ---- */
+		/* --- Outside the table the end values; with log y and a node
+			   <= 0, each interval in log y if both its nodes are
+			   positive, else in y (N-49) --              -------------- */
 
-			lo = 0;
-			hi = N1;
-			while (hi - lo > 1) {
-				mid = (lo + hi) / 2;
-				if (pt->x[mid] > t)
-					hi = mid;
-				else
-					lo = mid;
-			}
-			h  = pt->x[lo + 1] - pt->x[lo];
-			s  = (t - pt->x[lo]) / h;
-			s2 = s * s;
-			s3 = s2 * s;
-			v  = (2.0 * s3 - 3.0 * s2 + 1.0) * pt->y[lo] +
-				(s3 - 2.0 * s2 + s) * h * pt->d[lo] +
-				(-2.0 * s3 + 3.0 * s2) * pt->y[lo + 1] + (s3 - s2) * h * pt->d[lo + 1];
+		if (t <= pt->x[0]) {
+			y[n] = (pt->ylin) ? pt->ylin[0] : ((pt->logy) ? exp(pt->y[0]) : pt->y[0]);
+			continue;
+		} else if (t >= pt->x[N1]) {
+			y[n] = (pt->ylin) ? pt->ylin[N1] : ((pt->logy) ? exp(pt->y[N1]) : pt->y[N1]);
+			continue;
 		}
-		y[n] = (pt->logy) ? exp(v) : v;
+
+		/* --- Interval by bisection: x[lo] <= t < x[lo + 1] -- ---- */
+
+		lo = 0;
+		hi = N1;
+		while (hi - lo > 1) {
+			mid = (lo + hi) / 2;
+			if (pt->x[mid] > t)
+				hi = mid;
+			else
+				lo = mid;
+		}
+		logv = pt->logy && (!pt->ylin || (pt->ylin[lo] > 0.0 && pt->ylin[lo + 1] > 0.0));
+		yv   = (logv || !pt->ylin) ? pt->y : pt->ylin;
+		dv   = (logv || !pt->ylin) ? pt->d : pt->dlin;
+
+		h  = pt->x[lo + 1] - pt->x[lo];
+		s  = (t - pt->x[lo]) / h;
+		s2 = s * s;
+		s3 = s2 * s;
+		v  = (2.0 * s3 - 3.0 * s2 + 1.0) * yv[lo] + (s3 - 2.0 * s2 + s) * h * dv[lo] +
+			(-2.0 * s3 + 3.0 * s2) * yv[lo + 1] + (s3 - s2) * h * dv[lo + 1];
+		y[n] = (logv) ? exp(v) : v;
 	}
 }
 /* ------- end ---------------------------- pchipTableEval.c -------- */
@@ -192,7 +246,9 @@ void pchipTableFree(PchipTable *pt)
 	free(pt->x);
 	free(pt->y);
 	free(pt->d);
-	pt->x = pt->y = pt->d = NULL;
-	pt->N                 = 0;
+	free(pt->ylin);
+	free(pt->dlin);
+	pt->x = pt->y = pt->d = pt->ylin = pt->dlin = NULL;
+	pt->N                                       = 0;
 }
 /* ------- end ---------------------------- pchipTableFree.c -------- */
