@@ -247,8 +247,10 @@ inline void Svec(int k, double **S, double *Sf)
 	   at small dt (1e-9 at dt = 0.05, 5e-12 at dt = 0.2, 7e-15 at
 	   dt = 1), so below |dt| = 0.2 the series is used, with as many
 	   terms as a relative error of about 1e-12 needs. It also serves
-	   small negative dt, which interpolated opacities can give in 2-D
-	   and 3-D. For dt > 40 the closed forms are expanded in 1/dt
+	   a small negative dt, which only a negative opacity on the grid
+	   gives (N-40): with chi > 0 on the grid the interpolated opacities
+	   and the Bezier control points of chi are positive, and so is dt
+	   (Q-34). For dt > 40 the closed forms are expanded in 1/dt
 	   (exp(-dt) negligible), so that a huge or infinite dt gives the
 	   limits instead of NaN. Checked against mpmath in
 	   tests/unit/test_formal_1d.c --                 -------------- */
