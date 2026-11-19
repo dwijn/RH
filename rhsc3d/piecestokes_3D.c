@@ -37,8 +37,9 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 
 	int Nz = geometry->Nz, Nplane = geometry->Nplane, quadrant,
 		dl, lstart, lend, dm, mstart, mend, dk, kstart, kend, local;
-	double   I_uw[4], T_uw, Bnu_uw, Bnu, chi_uw, dtau_uw;
-	Stencil *st_uw, *st_dw;
+	double     I_uw[4], T_uw, Bnu_uw, Bnu, chi_uw, dtau_uw;
+	Stencil   *st_uw, *st_dw;
+	StokesGrid sg = {.nspect = nspect, .chi = chi, .S = S, .I = I};
 
 	if (to_observer) {
 
@@ -168,15 +169,14 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 			for (m = mstart; m != mend + dm; m += dm) {
 				for (l = lstart; l != lend + dl; l += dl) {
 					if (st_uw->plane == XZ && m == mstart)
-						SolveLongStokes(geometry, st_uw->longchar, nspect,
-										k, l, m, chi, S, I, I_uw);
-					else {
-						for (n = 0; n < 4; n++)
-							I_uw[n] = Interpolate_3D(I[n], geometry, st_uw, l, m);
-					}
+						SolveLongStokes(geometry, st_uw->longchar, &sg,
+										k, l, m, I_uw);
+					else
+						Interpolate_Stokes_3D(&sg, STOKES_INTENSITY, geometry,
+											  st_uw, l, m, I_uw);
 					if (input.S_interpolation_stokes == DELO_BEZIER3) {
-						Piece_Stokes_Bezier3_3D(geometry, st_uw, st_dw, nspect,
-												k, kend, l, m, I_uw, chi, S, I, Psi);
+						Piece_Stokes_Bezier3_3D(geometry, st_uw, st_dw, &sg,
+												k, kend, l, m, I_uw, Psi);
 					} else {
 						sprintf(messageStr,
 								"Unknown polarization solver: %d",
@@ -192,15 +192,14 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 			for (l = lstart; l != lend + dl; l += dl) {
 				for (m = mstart; m != mend + dm; m += dm) {
 					if (l == lstart)
-						SolveLongStokes(geometry, st_uw->longchar, nspect,
-										k, l, m, chi, S, I, I_uw);
-					else {
-						for (n = 0; n < 4; n++)
-							I_uw[n] = Interpolate_3D(I[n], geometry, st_uw, l, m);
-					}
+						SolveLongStokes(geometry, st_uw->longchar, &sg,
+										k, l, m, I_uw);
+					else
+						Interpolate_Stokes_3D(&sg, STOKES_INTENSITY, geometry,
+											  st_uw, l, m, I_uw);
 					if (input.S_interpolation_stokes == DELO_BEZIER3) {
-						Piece_Stokes_Bezier3_3D(geometry, st_uw, st_dw, nspect,
-												k, kend, l, m, I_uw, chi, S, I, Psi);
+						Piece_Stokes_Bezier3_3D(geometry, st_uw, st_dw, &sg,
+												k, kend, l, m, I_uw, Psi);
 					} else {
 						sprintf(messageStr,
 								"Unknown polarization solver: %d",
@@ -216,11 +215,12 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 
 /* ------- begin -------------------------- StokesK_3D.c ------------ */
 
-void StokesK_3D(int nspect, Geometry *geometry, Stencil *st,
+void StokesK_3D(StokesGrid *sg, Geometry *geometry, Stencil *st,
 				int l, int m, double chi_I, double K[4][4])
 {
 	register int i, j;
 
+	int        nspect = sg->nspect;
 	ActiveSet *as;
 
 	/* --- Return the elements of the reduced 4x4 Stokes
@@ -295,3 +295,19 @@ void StokesK_3D(int nspect, Geometry *geometry, Stencil *st,
 	}
 }
 /* ------- end ---------------------------- StokesK_3D.c ------------ */
+
+/* ------- begin -------------------------- Interpolate_Stokes_3D.c - */
+
+void Interpolate_Stokes_3D(StokesGrid *sg, enum stokes_vector v,
+						   Geometry *geometry, Stencil *st, int l, int m,
+						   double out[4])
+{
+	/* --- The source vector (v = STOKES_SOURCE) or the Stokes vector
+		   (STOKES_INTENSITY) of the grid at the point of stencil st:
+		   each component with Interpolate_3D --         -------------- */
+
+	double **f = (v == STOKES_SOURCE) ? sg->S : sg->I;
+
+	for (int n = 0; n < 4; n++) out[n] = Interpolate_3D(f[n], geometry, st, l, m);
+}
+/* ------- end ---------------------------- Interpolate_Stokes_3D.c - */

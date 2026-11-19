@@ -11,6 +11,8 @@
 
 #include <math.h>
 
+#include "stokesgrid.h"
+
 /* --- Defines structures to contain the angle quadrature and
 	   interpolation mesh for 2-D Cartesian version. -- ------------- */
 
@@ -77,8 +79,10 @@ void   readAtmos(Atmosphere *atmos, Geometry *geometry);
 void   getBoundary(Atmosphere *atmos, Geometry *geometry);
 void   setStencilWeights(Stencil *stencil, enum direction direction,
 						 const double h[3]);
-void   StokesK_2D(int nspect, Stencil *st, enum direction direction,
+void   StokesK_2D(StokesGrid *sg, Stencil *st, enum direction direction,
 				  double chi_I, double K[4][4]);
+void   Interp_Stokes_2D(StokesGrid *sg, enum stokes_vector v, Stencil *st,
+						enum direction direction, double out[4]);
 
 /* --- Interpolation at the up- and downwind points, inline: the
 	   formal solvers call it five times per point with one stencil
@@ -191,8 +195,7 @@ void Piecewise_Hermite_2D(Geometry *geometry, int nspect, int mu,
 
 /* --- Polarized long characteristics (N-41) --       -------------- */
 
-void SolveLongStokes(int nspect, LongChar *lc, int local, double *chi,
-					 double **S, double **I, double *I_uw);
+void SolveLongStokes(StokesGrid *sg, LongChar *lc, int local, double *I_uw);
 
 /* --- Prototypes for cubic Bezier solvers --          -------------- */
 
