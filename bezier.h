@@ -45,8 +45,9 @@ double cent_deriv(double dsup, double dsdn, double chiup,
 				  double chic, double chidn);
 void   Svec(int k, double **S, double *Sf);
 
-void Bezier3_coeffs(double dt, double *alpha, double *beta,
-					double *gamma, double *theta, double *eps);
+void   Bezier3_coeffs(double dt, double *alpha, double *beta,
+					  double *gamma, double *theta, double *eps);
+double Bezier3_psi(double beta, double theta, double S_loc, double C_loc);
 
 void solveLinearFast(double A[4][4], double B[4]);
 

@@ -236,6 +236,6 @@ void Piecewise_Bezier3_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 
 	/* --- Diagonal operator --                          -------------- */
 
-	if (Psi) Psi[local] = beta + theta;
+	if (Psi) Psi[local] = Bezier3_psi(beta, theta, S[local], c1); /* B-66 */
 }
 /* ------- end ---------------------------- Piecewise_Bezier3_3D.c -- */

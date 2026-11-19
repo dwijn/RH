@@ -12,7 +12,8 @@
 	   planes, with long characteristics back to the next layer).
 
 	   Checks: all columns agree; I+ is exact for linear S; convergence
-	   order on a cubic S. -v prints the measured errors.
+	   order on a cubic S; Psi of the Bezier3 solver never above the
+	   weight of S in I (B-66). -v prints the measured errors.
 	   --                                              -------------- */
 
 #include <math.h>
@@ -611,6 +612,70 @@ static void check_cone(bool_t verbose)
 	}
 }
 
+/* --- Psi of the Bezier3 solver never exceeds the weight of S at the
+	   point in I there: I - Psi S >= 0 on every ray (B-66), for both
+	   horizontal interpolations and meshes, with zero incident
+	   radiation: a source function rising steeply outward, one hot top
+	   layer over optically thick layers, and a random one that varies
+	   in x and y too --                               -------------- */
+
+static void check_psi_bound(bool_t verbose)
+{
+	int Nplane = NX * NY;
+
+	input.S_interpolation = S_BEZIER3;
+	for (int i = 0; i < NINTERP; i++) {
+		input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
+		for (int m = 0; m < NMESH; m++) {
+			Slab  *slab   = slabs[i][0][m];
+			int    Nspace = Nplane * slab->Nz;
+			double worst = -1.0, *Psi = malloc(Nspace * sizeof(double));
+
+			atmos.Nspace = Nspace;
+			for (int profile = 0; profile < 3; profile++) {
+				unsigned int seed  = 24680u + profile;
+				double       scale = (profile == 1) ? 1.0e6 : 1.0;
+
+				for (int n = 0; n < Nspace; n++) {
+					double x = (double) (n / Nplane) / (slab->Nz - 1);
+
+					switch (profile) {
+					case 0:
+						slab->S[n] = pow(10.0, 6.0 * (1.0 - x));
+						break;
+					case 1:
+						slab->S[n] = (n < Nplane) ? 1.0e4 : 1.0;
+						break;
+					default:
+						seed       = 1103515245u * seed + 12345u;
+						slab->S[n] = pow(10.0, 4.0 * (seed >> 8) / 16777216.0);
+					}
+					slab->chi[n] *= scale;
+				}
+				for (int mu = 0; mu < NRAYS; mu++)
+					for (int to_obs = 0; to_obs <= 1; to_obs++) {
+						for (int n = 0; n < Nplane; n++)
+							slab->geo.Itop[0][n] = slab->geo.Ibottom[0][n] = 0.0;
+						ShortChar(&slab->geo, 0, mu, to_obs, slab->chi, slab->S,
+								  slab->I, Psi);
+						for (int n = 0; n < Nspace; n++) {
+							if (slab->I[n] <= 0.0) continue;
+							worst = MAX(worst, (Psi[n] * slab->S[n] - slab->I[n]) /
+												   slab->I[n]);
+						}
+					}
+				for (int n = 0; n < Nspace; n++) slab->chi[n] /= scale;
+			}
+			free(Psi);
+			if (verbose)
+				printf("BEZIER3  Psi S - I, %-7s %-8s: max %.2e of I\n",
+					   i ? "bicubic" : "linear", mesh_name[m], worst);
+			CHECK(worst <= 1.0e-12, "BEZIER3, %s, %s: Psi S exceeds I by %.3g of I",
+				  i ? "bicubic" : "linear", mesh_name[m], worst);
+		}
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
@@ -629,6 +694,7 @@ int main(int argc, char *argv[])
 	check_stokes(verbose);
 	check_cone(verbose);
 	check_longchar_positions(verbose);
+	check_psi_bound(verbose);
 
 	return check_summary("test_formal_3d");
 }

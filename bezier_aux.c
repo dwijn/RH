@@ -358,6 +358,49 @@ inline void Bezier3_coeffs(double dt, double *alpha, double *beta,
 }
 /* ------- end ---------------------------- Bezier3_coeffs ---------- */
 
+/* ------- begin -------------------------- Bezier3_psi.c ----------- */
+
+double Bezier3_psi(double beta, double theta, double S_loc, double C_loc)
+{
+	/* --- Diagonal operator of a scalar cubic Bezier step,
+
+		   I_loc = eps I_uw + alpha S_uw + beta S_loc + gamma C_uw
+				   + theta C_loc,
+
+		   with C_loc = S_loc - dtau/3 S'_loc the local control point.
+		   It is the weight of S_loc in I_loc, and the preconditioned
+		   rates (addPreconditionedRates) need I_loc - Psi S_loc >= 0:
+		   otherwise I - Psi eta, and with it the upward rate of the
+		   transition, is negative (B-66). The weights are positive and
+		   the Steffen-limited derivatives keep both control points
+		   between the values they join, so with S >= 0
+
+			 I_loc - (beta + theta) S_loc = eps I_uw + alpha S_uw
+											+ gamma C_uw
+											+ theta (C_loc - S_loc),
+
+		   of which only the last term can be negative: where S rises
+		   along the ray C_loc < S_loc (at the last point of a ray, with
+		   its one-sided derivative, C_loc = (2 S_loc + S_uw) / 3).
+		   beta + theta, which takes C_loc to move one for one with
+		   S_loc, then exceeds the weight of S_loc, and the run stopped
+		   with a negative population from a negative summed rate in
+		   MURaM columns (a 20 kK point above 6.8 kK, H from LTE).
+
+		   Psi = beta + theta min(1, C_loc / S_loc) counts theta C_loc as
+		   part of the weight of S_loc only as far as C_loc <= S_loc,
+		   which gives I_loc >= Psi S_loc on every ray. It is beta +
+		   theta wherever S does not rise along the ray. Psi is the
+		   preconditioner only: the converged populations do not depend
+		   on it. The exact diagonal (N-13), which is larger than beta +
+		   theta, converged slower; this one is smaller --  ---------- */
+
+	if (S_loc > 0.0 && C_loc < S_loc)
+		return beta + theta * MAX(C_loc, 0.0) / S_loc;
+	return beta + theta;
+}
+/* ------- end ---------------------------- Bezier3_psi.c ----------- */
+
 /* --- Largest |K'| dtau below which a DELO step does not amplify the
 	   Stokes vector (B-55). With S = 0 the norm of I cannot grow for a
 	   physical K (|eta| <= 1); measured worst |I_loc| / |I_uw| over

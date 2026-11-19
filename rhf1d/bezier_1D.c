@@ -385,7 +385,7 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 
 		/* --- Diagonal operator --                        -------------- */
 
-		if (Psi) Psi[k] = beta + theta;
+		if (Psi) Psi[k] = Bezier3_psi(beta, theta, S[k], c1); /* B-66 */
 
 		/* --- Re-use downwind quantities for next upwind position -- --- */
 
