@@ -46,11 +46,12 @@
 #include "inputs.h"
 #include "check.h"
 
-/* --- Largest |pol| / I in check_cone: the interpolation keeps every
-	   up- and downwind vector in the cone (B-63); the Bezier control
-	   points of S can still leave it (N-47): 1.023 on "uneven" -- */
+/* --- Largest |pol| / I in check_cone: with the interpolation (B-63)
+	   and the Bezier control points of S (N-47) in the cone, the
+	   solution is in it too: 0.99957 on "uneven" (1.023 before N-47)
+	   --                                              -------------- */
 
-#define CONE_BOUND 1.03
+#define CONE_BOUND (1.0 + 1.0e-12)
 #include "stokes_exact.h"
 
 extern CommandLine commandline;
