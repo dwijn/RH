@@ -132,7 +132,9 @@ def apply_github(text, states):
         id_, old = m.group(2), m.group(4)
         new, prs = states.get(id_, (None, []))
         kind = old.split(" (")[0]
-        if new is None or new == kind or (new == "open" and kind == "in progress"):
+        bare_fixed = new == kind == "fixed" and old == "fixed" and prs
+        if new is None or (new == kind and not bare_fixed) or \
+           (new == "open" and kind == "in progress"):
             return m.group(0)
         if new == "fixed" and prs:
             new = "fixed (" + ", ".join(f"#{n}" for n in prs) + ")"
