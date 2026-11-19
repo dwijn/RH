@@ -717,14 +717,62 @@ static void backgroundOpacities(bool_t write_analyze_output)
 				input.fudgeData);
 		Error(MESSAGE, routineName, messageStr);
 
+		/* --- The table is interpolated with Linear (at least two
+			   wavelengths, strictly monotonic), and each value is the
+			   factor minus 1 for the H-minus, scattering and metal
+			   opacities, so it must be at least -1 (a factor >= 0).
+			   Anything else stops here (B-65): one wavelength made
+			   Linear read past the table, a repeated one divided by
+			   zero, a value below -1 gave a negative opacity -- ----- */
+
 		getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
-		sscanf(inputLine, "%d", &Nfudge);
+		if (sscanf(inputLine, "%d", &Nfudge) != 1 || Nfudge < 2) {
+			sprintf(messageStr,
+					"Opacity fudge file %.200s: the first line must give the number"
+					" of wavelengths, at least 2 (read \"%.40s\")",
+					input.fudgeData, inputLine);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
 		lambda_fudge = (double *) malloc(Nfudge * sizeof(double));
 		fudge        = matrix_double(3, Nfudge);
 		for (n = 0; n < Nfudge; n++) {
 			getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
-			sscanf(inputLine, "%lf %lf %lf %lf", &lambda_fudge[n],
-				   &fudge[0][n], &fudge[1][n], &fudge[2][n]);
+			if (sscanf(inputLine, "%lf %lf %lf %lf", &lambda_fudge[n],
+					   &fudge[0][n], &fudge[1][n], &fudge[2][n]) != 4 ||
+				!isfinite(lambda_fudge[n]) || !isfinite(fudge[0][n]) ||
+				!isfinite(fudge[1][n]) || !isfinite(fudge[2][n])) {
+				sprintf(messageStr,
+						"Opacity fudge file %.200s, wavelength %d of %d: need four"
+						" numbers, wavelength and three factors minus 1 (read \"%.60s\")",
+						input.fudgeData, n + 1, Nfudge, inputLine);
+				Error(ERROR_LEVEL_2, routineName, messageStr);
+			}
+			for (int i = 0; i < 3; i++) {
+				if (fudge[i][n] < -1.0) {
+					sprintf(messageStr,
+							"Opacity fudge file %.200s, wavelength %g nm: value %g"
+							" below -1 (the file gives factor - 1, and the factor"
+							" multiplies an opacity: it must be >= 0)",
+							input.fudgeData, lambda_fudge[n], fudge[i][n]);
+					Error(ERROR_LEVEL_2, routineName, messageStr);
+				}
+			}
+			if (n >= 2 && (lambda_fudge[n] - lambda_fudge[n - 1]) *
+								  (lambda_fudge[1] - lambda_fudge[0]) <=
+							  0.0) {
+				sprintf(messageStr,
+						"Opacity fudge file %.200s: wavelengths must be strictly"
+						" increasing or decreasing (%g nm after %g nm)",
+						input.fudgeData, lambda_fudge[n], lambda_fudge[n - 1]);
+				Error(ERROR_LEVEL_2, routineName, messageStr);
+			}
+		}
+		if (lambda_fudge[1] == lambda_fudge[0]) {
+			sprintf(messageStr,
+					"Opacity fudge file %.200s: wavelengths must be strictly"
+					" increasing or decreasing (%g nm repeated)",
+					input.fudgeData, lambda_fudge[0]);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		for (n = 0; n < 3 * Nfudge; n++) fudge[0][n] += 1.0;
 		fclose(fp_fudge);
