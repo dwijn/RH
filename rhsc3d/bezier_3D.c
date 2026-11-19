@@ -143,6 +143,7 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 							  S_loc, dS_uw, dS_c, I_uw, I_loc);
 	if (Psi) Psi[local] = psi;
 	for (n = 0; n < 4; n++) I[n][local] = I_loc[n];
+	StokesGrid_update_I(sg, local);
 }
 /* ------- end ---------------------------- Piece_Stokes_Bezier3_3D.c */
 

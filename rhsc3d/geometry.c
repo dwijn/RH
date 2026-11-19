@@ -577,13 +577,12 @@ int sascend(const void *vis1, const void *vis2)
 
 /* ------- begin -------------------------- Interpolate_3D.c -------- */
 
-double Interpolate_3D(double *f, Geometry *geometry, Stencil *st,
-					  int l, int m)
+static double interpolate3D(double *f, Geometry *geometry, Stencil *st,
+							int l, int m, bool_t monotonic)
 {
 	register int i, j;
 
 	int    index, offset1, offset2, xbase[NCC], ybase[NCC];
-	bool_t monotonic = TRUE;
 	double value;
 
 	value = 0.0;
@@ -643,6 +642,26 @@ double Interpolate_3D(double *f, Geometry *geometry, Stencil *st,
 	}
 
 	return value;
+}
+
+double Interpolate_3D(double *f, Geometry *geometry, Stencil *st,
+					  int l, int m)
+{
+	/* --- Bicubic in the XY planes, clamped to the range of the four
+		   nodes of the cell (cubicconvol, monotonic), bilinear in the
+		   XZ and YZ planes: never outside the range of the nodes -- -- */
+
+	return interpolate3D(f, geometry, st, l, m, TRUE);
+}
+
+double Interpolate_3D_linear(double *f, Geometry *geometry, Stencil *st,
+							 int l, int m)
+{
+	/* --- The same weights without the clamp: linear in f, with
+		   weights that do not depend on f, for quantities without a
+		   bound (the rapidities and rho' of stokesgrid.h) -- --------- */
+
+	return interpolate3D(f, geometry, st, l, m, FALSE);
 }
 /* ------- end ---------------------------- Interpolate_3D.c -------- */
 

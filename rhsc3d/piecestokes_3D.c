@@ -39,7 +39,7 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 		dl, lstart, lend, dm, mstart, mend, dk, kstart, kend, local;
 	double     I_uw[4], T_uw, Bnu_uw, Bnu, chi_uw, dtau_uw;
 	Stencil   *st_uw, *st_dw;
-	StokesGrid sg = {.nspect = nspect, .chi = chi, .S = S, .I = I};
+	StokesGrid sg;
 
 	if (to_observer) {
 
@@ -137,6 +137,11 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 	dl = (quadrant == 1 || quadrant == 4) ? 1 : -1;
 	dm = (quadrant == 1 || quadrant == 2) ? 1 : -1;
 
+	/* --- Grid arrays of the cone-preserving interpolation (B-63),
+		   with the boundary values of I set -- ------------------------ */
+
+	StokesGrid_init(&sg, nspect, atmos.Nspace, chi, S, I);
+
 	/* --- Figure out in which direction the grids have to be crossed - */
 
 	if (dl == 1) {
@@ -210,13 +215,29 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 			}
 		}
 	}
+	StokesGrid_free(&sg);
 }
 /* ------- end ---------------------------- ShortChar_Stokes.c ------ */
 
-/* ------- begin -------------------------- StokesK_3D.c ------------ */
+/* ------- begin -------------------------- StokesK_3D_convex.c ----- */
 
-void StokesK_3D(StokesGrid *sg, Geometry *geometry, Stencil *st,
-				int l, int m, double chi_I, double K[4][4])
+/* --- Where the interpolation weights are convex and the same for
+	   every quantity (bilinear: the XZ and YZ planes, and every plane
+	   with LINEAR_3D), each component is interpolated on its own as
+	   before: eta' is then a convex combination of the eta' of the
+	   nodes (weights w_i chi_I,i / sum w_j chi_I,j), and S and I of
+	   theirs, inside the cone, and a linear field is reproduced
+	   exactly. Only the bicubic interpolation of the XY planes, whose
+	   weights have negative lobes and whose clamp acts on each
+	   component, goes through the rapidity (stokesgrid.h, B-63) -- */
+
+static inline bool_t convex_weights(Stencil *st)
+{
+	return st->plane != XY || input.interpolate_3D == LINEAR_3D;
+}
+
+static void StokesK_3D_convex(StokesGrid *sg, Geometry *geometry, Stencil *st,
+							  int l, int m, double chi_I, double K[4][4])
 {
 	register int i, j;
 
@@ -294,6 +315,49 @@ void StokesK_3D(StokesGrid *sg, Geometry *geometry, Stencil *st,
 		K[3][2] *= -1.0;
 	}
 }
+/* ------- end ---------------------------- StokesK_3D_convex.c ----- */
+
+/* ------- begin -------------------------- StokesK_3D.c ------------ */
+
+void StokesK_3D(StokesGrid *sg, Geometry *geometry, Stencil *st,
+				int l, int m, double chi_I, double K[4][4])
+{
+	/* --- The reduced 4x4 Stokes propagation matrix K',
+
+			 K' = (chi_c*1 + chi_l*Phi) / chi_I - 1,
+
+		   (Rees, Murphy, & Durrant, 1989, ApJ 339, 1093-1106) at the
+		   point of stencil st, for the wavelength and ray of the grid
+		   sg; chi_I is the interpolated opacity there. With convex
+		   weights from the components (StokesK_3D_convex); otherwise
+		   eta' = (chi_Q, chi_U, chi_V) / chi_I from the rapidity of
+		   the grid, |eta'| < 1 by construction, and rho' with the
+		   same weights (stokesgrid.h, B-63). This is the 3-D short
+		   characteristics version --                  -------------- */
+
+	double w[3], v[4];
+
+	if (convex_weights(st)) {
+		StokesK_3D_convex(sg, geometry, st, l, m, chi_I, K);
+		return;
+	}
+	for (int j = 0; j < 4; j++)
+		for (int i = 0; i < 4; i++) K[j][i] = 0.0;
+	if (!sg->polarizedK) return;
+
+	for (int n = 0; n < 3; n++) w[n] = Interpolate_3D_linear(sg->wK[n], geometry, st, l, m);
+	Stokes_from_rapidity(1.0, w, v);
+	for (int n = 1; n < 4; n++) K[0][n] = K[n][0] = v[n];
+
+	if (sg->magneto_optical) {
+		K[1][2] = Interpolate_3D_linear(sg->rK[0], geometry, st, l, m);
+		K[3][1] = Interpolate_3D_linear(sg->rK[1], geometry, st, l, m);
+		K[2][3] = Interpolate_3D_linear(sg->rK[2], geometry, st, l, m);
+		K[2][1] = -K[1][2];
+		K[1][3] = -K[3][1];
+		K[3][2] = -K[2][3];
+	}
+}
 /* ------- end ---------------------------- StokesK_3D.c ------------ */
 
 /* ------- begin -------------------------- Interpolate_Stokes_3D.c - */
@@ -304,10 +368,20 @@ void Interpolate_Stokes_3D(StokesGrid *sg, enum stokes_vector v,
 {
 	/* --- The source vector (v = STOKES_SOURCE) or the Stokes vector
 		   (STOKES_INTENSITY) of the grid at the point of stencil st:
-		   each component with Interpolate_3D --         -------------- */
+		   with convex weights each component (Interpolate_3D),
+		   otherwise the magnitude with Interpolate_3D and the
+		   polarization from the rapidity of the grid with
+		   Interpolate_3D_linear: inside the cone by construction
+		   either way (stokesgrid.h, B-63) -- ------------------------- */
 
-	double **f = (v == STOKES_SOURCE) ? sg->S : sg->I;
+	double **f  = (v == STOKES_SOURCE) ? sg->S : sg->I,
+		   **wg = (v == STOKES_SOURCE) ? sg->wS : sg->wI, w[3];
 
-	for (int n = 0; n < 4; n++) out[n] = Interpolate_3D(f[n], geometry, st, l, m);
+	if (convex_weights(st)) {
+		for (int n = 0; n < 4; n++) out[n] = Interpolate_3D(f[n], geometry, st, l, m);
+		return;
+	}
+	for (int n = 0; n < 3; n++) w[n] = Interpolate_3D_linear(wg[n], geometry, st, l, m);
+	Stokes_from_rapidity(Interpolate_3D(f[0], geometry, st, l, m), w, out);
 }
 /* ------- end ---------------------------- Interpolate_Stokes_3D.c - */
