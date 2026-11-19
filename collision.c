@@ -113,20 +113,29 @@ void rowcol(int anr, int *row, int *col)
 double fone(double x)
 {
 
-	/* --- Function f_1
+	/* --- Function f_1(x) = e^x E1(x)
 
 	  Ref: Arnaud & Rothenflug, 1985, A&ASS, 60, 425
-		   --                                            -------------- */
 
-	double y;
+	  Above x = 50 the asymptotic series
+	  f_1 = sum_k (-1)^k k! / x^(k+1), summed until the terms drop
+	  below rounding (B-64). Its leading term 1/x alone is not enough:
+	  the AR85-CDI fit cancels f_1 against terms of order x^2
+	  (1 + x - x (2 + x) f_1 = 2/x^2 - 12/x^3 + ...), and 1/x made the
+	  fit 300 to 750 times too large. The terms decrease while k < x,
+	  so above 50 the sum reaches double precision within about 26
+	  terms; below 50, E1 (A&S 5.1.56, 2e-8) leaves that bracket within
+	  3e-4, and the two sides meet to 5e-5 at x = 50 --  ----------- */
 
-	if (x <= 50.0) {
-		y = exp(x) * E1(x);
-	} else {
-		y = 1.0 / x;
+	if (x <= 50.0) return exp(x) * E1(x);
+
+	double term = 1.0 / x, sum = term;
+
+	for (int k = 1; k < 40 && fabs(term) > 1.0E-17 * sum; k++) {
+		term *= -k / x;
+		sum += term;
 	}
-
-	return y;
+	return sum;
 }
 /* ------- end ---------------------------- fone.c ------------------ */
 

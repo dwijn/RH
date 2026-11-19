@@ -992,15 +992,26 @@ bool_t Rayleigh_H2(double lambda, double *scatt)
 		   Astroph., University of Oslo, p. 49
 		   --                                            -------------- */
 
+	/* --- Within the table, log sigma is interpolated linearly in log
+		   lambda: sigma falls as lambda^-4 to lambda^-9 over its four
+		   decades, and a power law between the nodes is exact where
+		   linear interpolation in sigma was up to 14 % too high (N-48)
+		   --                                              -------------- */
+
 	bool_t hunt;
-	double lambda2, sigma_RH2, *nH2;
+	double lambda2, sigma_RH2, *nH2, ln_lambda[N_RAYLEIGH_H2], ln_sigma[N_RAYLEIGH_H2], ln_l;
 
 	nH2 = atmos.H2->n;
 
 	if (lambda >= RAYLEIGH_H2_LIMIT) {
 		if (lambda <= lambdaRH2[N_RAYLEIGH_H2 - 1]) {
-			Linear(N_RAYLEIGH_H2, lambdaRH2, sigma,
-				   1, &lambda, &sigma_RH2, hunt = FALSE);
+			for (k = 0; k < N_RAYLEIGH_H2; k++) {
+				ln_lambda[k] = log(lambdaRH2[k]);
+				ln_sigma[k]  = log(sigma[k]);
+			}
+			ln_l = log(lambda);
+			Linear(N_RAYLEIGH_H2, ln_lambda, ln_sigma, 1, &ln_l, &sigma_RH2, hunt = FALSE);
+			sigma_RH2 = exp(sigma_RH2);
 		} else {
 			lambda2   = 1.0 / SQ(lambda);
 			sigma_RH2 = (a[0] + (a[1] + a[2] * lambda2) * lambda2) * SQ(lambda2);

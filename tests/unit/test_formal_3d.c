@@ -26,6 +26,13 @@
 #include "spectrum.h"
 #include "inputs.h"
 #include "check.h"
+
+/* --- Largest |pol| / I in check_cone: with the interpolation (B-63)
+	   and the Bezier control points of S (N-47) in the cone, the
+	   solution is in it too: 0.99675 (linear) and 0.99630 (bicubic) on
+	   "columns" (1.33 and 1.49 before N-47) --        -------------- */
+
+#define CONE_BOUND (1.0 + 1.0e-12)
 #include "stokes_exact.h"
 
 extern InputData   input;
@@ -540,6 +547,70 @@ static void check_longchar_positions_rays(bool_t verbose, int set,
 	input.interpolate_3D = saved;
 }
 
+/* --- The Stokes cone (B-63), as in test_formal_2d: per column in x
+	   chi_I = CONE_I, chi_Q = CONE_Q (|eta'| <= 0.996, no
+	   magneto-optical terms), the source vector (CONE_I, CONE_Q, 0,
+	   0) / 30, the same in y. Every Stokes vector of the solution must
+	   stay in the cone; with the interpolation of each component on
+	   its own (before B-63) I went down to -4.7e4 here (bicubic on
+	   "columns") --                                   -------------- */
+
+static const double CONE_I[NX] = {27.0, 1.0, 30.0, 200.0}, CONE_Q[NX] = {-26.9, 0.96, 28.8, 20.0};
+
+static void check_cone(bool_t verbose)
+{
+	ActiveSet *as     = &spectrum.as[0];
+	int        Nplane = NX * NY;
+
+	for (int i = 0; i < NINTERP; i++) {
+		input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
+		for (int mesh = 0; mesh < NMESH; mesh++) {
+			Slab    *slab   = slabs[i][1][mesh];
+			int      Nspace = Nplane * slab->Nz;
+			double **Sv = stokes_S[i][mesh], **I = stokes_I[i][mesh], worst = 0.0,
+				   Imin = HUGE_VAL;
+			double *chi = malloc(Nspace * sizeof(double));
+
+			atmos.Nspace = Nspace;
+			as->chi_c    = realloc(as->chi_c, 4 * Nspace * sizeof(double));
+			as->chip_c   = realloc(as->chip_c, 3 * Nspace * sizeof(double));
+			for (int n = 0; n < Nspace; n++) {
+				int l = n % NX;
+
+				chi[n]                    = CONE_I[l];
+				as->chi_c[n]              = CONE_I[l];
+				as->chi_c[Nspace + n]     = CONE_Q[l];
+				as->chi_c[2 * Nspace + n] = 0.0;
+				as->chi_c[3 * Nspace + n] = 0.0;
+				for (int j = 0; j < 3; j++) as->chip_c[j * Nspace + n] = 0.0;
+				Sv[0][n] = CONE_I[l] / 30.0;
+				Sv[1][n] = CONE_Q[l] / 30.0;
+				Sv[2][n] = Sv[3][n] = 0.0;
+			}
+			for (int mu = 0; mu < NRAYS; mu++)
+				for (int to_obs = 0; to_obs <= 1; to_obs++) {
+					for (int n = 0; n < Nplane; n++) {
+						slab->geo.Itop[0][n]    = 0.0;
+						slab->geo.Ibottom[0][n] = 1.0;
+					}
+					ShortChar_Stokes(&slab->geo, 0, mu, to_obs, chi, Sv, I, NULL);
+					for (int n = 0; n < Nspace; n++) {
+						double p = sqrt(SQ(I[1][n]) + SQ(I[2][n]) + SQ(I[3][n]));
+
+						Imin  = MIN(Imin, I[0][n]);
+						worst = MAX(worst, (I[0][n] > 0.0) ? p / I[0][n] : (p > 0.0 ? HUGE_VAL : 0.0));
+					}
+				}
+			free(chi);
+			if (verbose)
+				printf("CONE     %-7s %-8s min I %.3e, max |pol| / I %.6f\n", i ? "bicubic" : "linear",
+					   mesh_name[mesh], Imin, worst);
+			CHECK(Imin >= 0.0 && worst <= CONE_BOUND, "cone, %s, %s: min I %.3g, max |pol| / I %.6g",
+				  i ? "bicubic" : "linear", mesh_name[mesh], Imin, worst);
+		}
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
@@ -556,6 +627,7 @@ int main(int argc, char *argv[])
 
 	for (int n = 0; n < N_METHODS; n++) check_method(&methods[n], verbose);
 	check_stokes(verbose);
+	check_cone(verbose);
 	check_longchar_positions(verbose);
 
 	return check_summary("test_formal_3d");
