@@ -27,6 +27,8 @@
 	   -- the cone: the Bezier control points of S are kept in it
 		  (N-47), so with S and I_uw in the cone I_loc is too, with
 		  K' = 0 and in the exponential step.
+	   -- the approximate operator: I_loc >= Psi S_loc for Stokes I,
+		  with random physical K', S rising along the ray (B-67).
 
 	   -v prints the measured values.
 	   --                                              -------------- */
@@ -423,6 +425,59 @@ static void check_cone(bool_t verbose)
 		  audit, worst0, worstK);
 }
 
+/* --- The approximate operator (B-67): with S, S_uw and I_uw in the
+	   cone, I_loc >= Psi S_loc for Stokes I, so that I - Psi eta in
+	   the preconditioned rates cannot be negative. S_I rises along the
+	   ray by up to 10^3 over a step; K' = 0, or random physical K'
+	   (|eta| up to 0.95) without rho or with |rho| from 0.1 to 10;
+	   dtau from 10^-2 to 30 (the DELO and the exponential step); the
+	   upwind derivatives of 1-D and of 2-D and 3-D, and a one-sided
+	   local one (the last point of a ray). With the scalar beta +
+	   theta, I_loc - Psi S_loc reached -0.62 I_loc; Psi is limited in
+	   18 % of the steps --                            -------------- */
+
+static void check_psi_bound(bool_t verbose)
+{
+	double worst = 0.0, worst_old = 0.0, dKu[4][4] = {{0.0}}, dKc[4][4] = {{0.0}};
+	long   nlim = 0, N = 200000;
+
+	for (long t = 0; t < N; t++) {
+		double dtu = pow(10.0, 3.5 * urand() - 2.0), dtd = pow(10.0, 3.0 * urand() - 2.0),
+			   Ku[4][4], Kl[4][4], Su[4], Sl[4], Sd[4], Iu[4], Il[4], dSu[4], dSc[4];
+		double rise = pow(10.0, 3.0 * urand());
+
+		if (t % 4 == 0) {
+			memset(Ku, 0, sizeof(Ku));
+			memset(Kl, 0, sizeof(Kl));
+		} else {
+			double eta = 0.95 * urand(), rho = (t % 4 == 1) ? 0.0 : pow(10.0, 2.0 * urand() - 1.0);
+			random_K(Ku, eta, rho);
+			memcpy(Kl, Ku, sizeof(Kl));
+		}
+		random_in_cone(Su, 1.0, 0.99);
+		random_in_cone(Sl, rise, 0.99);
+		random_in_cone(Sd, rise * pow(10.0, 2.0 * urand() - 1.0), 0.99);
+		random_in_cone(Iu, pow(10.0, 2.0 * urand() - 1.0), 0.99);
+		cent_deriv_vec(dSc, dtu, dtd, Su, Sl, Sd);
+		for (int n = 0; n < 4; n++) {
+			double sec = (Sl[n] - Su[n]) / dtu;
+			dSu[n]     = (t % 2) ? 2.0 * sec - dSc[n] : sec;
+			if (t % 8 < 2) dSc[n] = sec; /* one-sided: the last point of a ray */
+		}
+		double psi = Bezier3_Stokes_step(dtu, Ku, Kl, dKu, dKc, Su, Sl, dSu, dSc, Iu, Il);
+		double alpha, beta, gamma, theta, eps;
+
+		Bezier3_coeffs(dtu, &alpha, &beta, &gamma, &theta, &eps);
+		if (psi < beta + theta) nlim++;
+		worst     = MAX(worst, (psi * Sl[0] - Il[0]) / fabs(Il[0]));
+		worst_old = MAX(worst_old, ((beta + theta) * Sl[0] - Il[0]) / fabs(Il[0]));
+	}
+	if (verbose)
+		printf("Psi bound: max (Psi S - I) / I %.3g (beta + theta: %.3g), limited in %ld of %ld steps\n",
+			   worst, worst_old, nlim, N);
+	CHECK(worst <= 1.0e-14, "Psi S_loc exceeds I_loc by %.3g of I_loc", worst);
+}
+
 #define CLOSED_BOUND_GRID   1.5e-14
 #define CLOSED_BOUND_DTAU3  1.0e-15
 #define CLOSED_BOUND_CUT    1.0e-14
@@ -565,6 +620,7 @@ int main(int argc, char *argv[])
 	check_thickness_range(verbose);
 	check_no_amplification(verbose);
 	check_cone(verbose);
+	check_psi_bound(verbose);
 	return check_summary("test_stokes_step");
 }
 /* ------- end ---------------------------- test_stokes_step.c ------ */

@@ -439,6 +439,75 @@ static void check_limiter(bool_t verbose)
 		  worst_scalar);
 }
 
+/* --- The approximate operator (B-67): I >= Psi S_I at every point
+	   of every ray, so that I - Psi eta in the preconditioned rates
+	   cannot be negative. S_I rising over six decades outward and
+	   inward, a jump of 10^4 at tau = 1, a random log-uniform
+	   profile; K' = 0, the test's K' and a dichroic one without
+	   magneto-optical terms (|eta'| = 0.94). With the scalar beta +
+	   theta, I - Psi S_I reached -0.29 I with K' = 0 and -0.54 I
+	   with the dichroic K' --                         -------------- */
+
+static void set_profile(Slab *slab, int p, const double e[6])
+{
+	int N = slab->Ndep;
+
+	for (int k = 0; k < N; k++) {
+		double x = (double) k / (N - 1), s;
+		switch (p) {
+		case 0: s = pow(10.0, 6.0 * (1.0 - x)); break;         /* rises outward */
+		case 1: s = pow(10.0, 6.0 * x); break;                 /* rises inward */
+		case 2: s = (slab->tau[k] < 1.0) ? 1.0e4 : 1.0; break; /* jump at tau = 1 */
+		default: s = pow(10.0, 4.0 * drand48()); break;
+		}
+		slab->S[0][k] = s;
+		for (int n = 1; n < 4; n++) slab->S[n][k] = e[n - 1] * s;
+	}
+	for (int mu = 0; mu < NMU; mu++) {
+		geometry.Itop[0][mu]    = 0.0;
+		geometry.Ibottom[0][mu] = slab->S[0][N - 1];
+	}
+}
+
+static void check_psi_bound(bool_t verbose)
+{
+	static const double dichroic[6] = {0.8, 0.0, 0.5, 0.0, 0.0, 0.0};
+	const double       *eset[3]     = {NULL, K_ELEMENTS, dichroic};
+	double              worst       = 0.0, *Psi;
+	Slab                slab;
+
+	slab_init(&slab, 81, FALSE, 0.0);
+	Psi = malloc(slab.Ndep * sizeof(double));
+	for (int s = 0; s < 3; s++) {
+		static const double zero[6] = {0.0};
+		const double       *e       = eset[s] ? eset[s] : zero;
+		ActiveSet          *as      = &spectrum.as[0];
+		int                 N       = slab.Ndep;
+
+		for (int k = 0; k < N; k++) {
+			for (int n = 0; n < 3; n++) as->chi_c[(n + 1) * N + k] = e[n];
+			for (int n = 0; n < 3; n++) as->chip_c[n * N + k] = e[3 + n];
+		}
+		for (int p = 0; p < 4; p++) {
+			double w = 0.0;
+			set_profile(&slab, p, e);
+			for (int mu = 0; mu < NMU; mu++)
+				for (int to_obs = 0; to_obs <= 1; to_obs++) {
+					Piece_Stokes_Bezier3_1D(0, mu, to_obs, slab.chi, slab.S, slab.I, Psi);
+					for (int k = 0; k < N; k++) {
+						double d = Psi[k] * slab.S[0][k] - slab.I[0][k];
+						if (d > 0.0) w = MAX(w, d / fabs(slab.I[0][k]));
+					}
+				}
+			if (verbose) printf("Psi bound: K' set %d, profile %d: max (Psi S - I) / I %.3g\n", s, p, w);
+			worst = MAX(worst, w);
+		}
+	}
+	CHECK(worst <= 1.0e-14, "Psi S_I exceeds I by %.3g of I", worst);
+	free(Psi);
+	slab_free(&slab);
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
@@ -460,6 +529,7 @@ int main(int argc, char *argv[])
 	check_cubic(verbose);
 	check_varying_K(verbose, 3.7);
 	check_limiter(verbose);
+	check_psi_bound(verbose);
 
 	return check_summary("test_formal_stokes");
 }
