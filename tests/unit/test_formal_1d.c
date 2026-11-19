@@ -13,7 +13,9 @@
 	   -- convergence order as the grid is refined, on a cubic S and
 		  on an opacity that varies exponentially with height;
 	   -- the diagonal operator Psi of the linear solvers is the exact
-		  derivative dI(k)/dS(k).
+		  derivative dI(k)/dS(k);
+	   -- Psi of the cubic Bezier solver never exceeds the weight of
+		  S(k) in I(k): I(k) - Psi(k) S(k) >= 0 (B-66).
 	   --                                              -------------- */
 
 #include <math.h>
@@ -375,6 +377,83 @@ static void check_psi(const Method *m, double bound, bool_t verbose)
 		  err, bound);
 }
 
+/* --- The preconditioned rates need I(k) - Psi(k) S(k) >= 0 on every
+	   ray (B-66): Psi must not exceed the weight of S(k) in I(k). With
+	   Psi = beta + theta it did where S rises along the ray, most at
+	   the last point of a ray. Source functions that rise steeply,
+	   one hot top point above a cool layer (as in a MURaM column cut
+	   at the transition region), and random ones, spanning decades,
+	   with zero incident radiation; returns the largest
+	   (Psi S - I) / I --                              -------------- */
+
+static double psi_excess(Slab *slab)
+{
+	double worst = -1.0;
+
+	geometry.vboundary[BOTTOM] = ZERO;
+	for (int mu = 0; mu < NMU; mu++) {
+		for (int to_obs = 0; to_obs <= 1; to_obs++) {
+			Piecewise_Bezier3_1D(0, mu, to_obs, slab->chi, slab->S, slab->I,
+								 slab->Psi);
+			for (int k = 0; k < slab->Ndep; k++) {
+				if (slab->I[k] <= 0.0) continue;
+				worst = MAX(worst, (slab->Psi[k] * slab->S[k] - slab->I[k]) /
+									   slab->I[k]);
+			}
+		}
+	}
+	geometry.vboundary[BOTTOM] = IRRADIATED;
+	return worst;
+}
+
+static void check_psi_bound(bool_t verbose)
+{
+	const int Ndep = 61;
+	Slab      slab;
+
+	for (int exp_chi = 0; exp_chi <= 1; exp_chi++) {
+		slab_init(&slab, Ndep, exp_chi);
+		for (int profile = 0; profile < 5; profile++) {
+			unsigned int seed = 12345u + profile;
+
+			for (int k = 0; k < Ndep; k++) {
+				double x = (double) k / (Ndep - 1);
+
+				switch (profile) {
+				case 0: /* rising outward over 6 decades */
+					slab.S[k] = pow(10.0, 6.0 * (1.0 - x));
+					break;
+				case 1: /* rising inward */
+					slab.S[k] = pow(10.0, 6.0 * x);
+					break;
+				case 2: /* one hot top point, thick (below) */
+					slab.S[k] = (k == 0) ? 1.0e4 : 1.0;
+					break;
+				default: /* random, log-uniform over 4 decades */
+					seed      = 1103515245u * seed + 12345u;
+					slab.S[k] = pow(10.0, 4.0 * (seed >> 8) / 16777216.0);
+				}
+			}
+			/* --- The hot top point in an optically thick line core:
+				   every cell thick, as Ly alpha in the MURaM case -- */
+
+			double scale = (profile == 2) ? 1.0e6 : 1.0;
+
+			for (int k = 0; k < Ndep; k++) slab.chi[k] *= scale;
+			double excess = psi_excess(&slab);
+			for (int k = 0; k < Ndep; k++) slab.chi[k] /= scale;
+
+			if (verbose)
+				printf("BEZIER3 Psi S - I (exp_chi %d, profile %d): max %.2e of I\n",
+					   exp_chi, profile, excess);
+			CHECK(excess <= 1.0e-12,
+				  "BEZIER3: Psi S exceeds I by %.3g of I (exp_chi %d, profile %d)",
+				  excess, exp_chi, profile);
+		}
+		slab_free(&slab);
+	}
+}
+
 /* --- Cubic Bezier integration weights against mpmath, for dt from
 	   1e-8 to 1e3: relative error, absolute for eps = exp(-dt) --- */
 
@@ -424,6 +503,7 @@ int main(int argc, char *argv[])
 	check_psi(&methods[0], 1.0e-14, verbose); /* measured 2e-16 */
 	check_psi(&methods[1], 0.6, verbose);     /* 0.28: approximate */
 	check_psi(&methods[2], 1.0e-13, verbose); /* 1.9e-15 */
+	check_psi_bound(verbose);
 
 	return check_summary("test_formal_1d");
 }

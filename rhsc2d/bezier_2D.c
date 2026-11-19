@@ -490,7 +490,7 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 
 			/* --- Diagonal operator --                    ---------------- */
 
-			if (Psi) Psi[local] = beta + theta;
+			if (Psi) Psi[local] = Bezier3_psi(beta, theta, S[local], c1); /* B-66 */
 		}
 	}
 }

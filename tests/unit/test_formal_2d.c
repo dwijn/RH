@@ -16,7 +16,8 @@
 	   Checks: all columns agree; I+ is exact for linear S (a linear
 	   function of height survives any of the interpolations), and so is
 	   I- on the "layers" mesh; convergence order on a cubic S; Psi of
-	   the linear solver against the response to a unit S.
+	   the linear solver against the response to a unit S; Psi of the
+	   Bezier3 solver never above the weight of S in I (B-66).
 
 	   The stencils of fillMesh, short and long characteristics, on an
 	   uneven mesh: exact for linear fields, and for quadratic ones
@@ -395,6 +396,60 @@ static void check_psi_linear(double bound, bool_t verbose)
 			   layers, columns);
 	CHECK(layers <= bound, "LINEAR, layers: Psi differs from dI/dS by %.3g > %.3g",
 		  layers, bound);
+}
+
+/* --- Psi of the Bezier3 solver never exceeds the weight of S at the
+	   point in I there: I - Psi S >= 0 on every ray (B-66), on all
+	   three meshes, with zero incident radiation, for a source function
+	   that rises steeply outward, one hot top layer over optically
+	   thick layers, and a random one that varies along x too --- */
+
+static void check_psi_bound(bool_t verbose)
+{
+	for (int m = 0; m < NMESH; m++) {
+		Slab  *slab   = slabs[0][m];
+		int    Nspace = NX * slab->Nz;
+		double worst  = -1.0;
+
+		for (int profile = 0; profile < 3; profile++) {
+			unsigned int seed  = 54321u + profile;
+			double       scale = (profile == 1) ? 1.0e6 : 1.0;
+
+			for (int n = 0; n < Nspace; n++) {
+				double x = (double) (n / NX) / (slab->Nz - 1);
+
+				switch (profile) {
+				case 0:
+					slab->S[n] = pow(10.0, 6.0 * (1.0 - x));
+					break;
+				case 1:
+					slab->S[n] = (n < NX) ? 1.0e4 : 1.0;
+					break;
+				default:
+					seed       = 1103515245u * seed + 12345u;
+					slab->S[n] = pow(10.0, 4.0 * (seed >> 8) / 16777216.0);
+				}
+				slab->chi[n] *= scale;
+			}
+			for (int mu = 0; mu < NRAYS; mu++)
+				for (int to_obs = 0; to_obs <= 1; to_obs++) {
+					for (int l = 0; l < NX; l++)
+						slab->geo.Itop[0][l] = slab->geo.Ibottom[0][l] = 0.0;
+					Piecewise_Bezier3_2D(&slab->geo, 0, mu, to_obs, slab->chi,
+										 slab->S, slab->I, slab->Psi);
+					for (int n = 0; n < Nspace; n++) {
+						if (slab->I[n] <= 0.0) continue;
+						worst = MAX(worst, (slab->Psi[n] * slab->S[n] - slab->I[n]) /
+											   slab->I[n]);
+					}
+				}
+			for (int n = 0; n < Nspace; n++) slab->chi[n] /= scale;
+		}
+		if (verbose)
+			printf("BEZIER3  Psi S - I, %s: max %.2e of I\n", mesh_name[m], worst);
+		CHECK(worst <= 1.0e-12, "BEZIER3, %s: Psi S exceeds I by %.3g of I",
+			  mesh_name[m], worst);
+	}
 }
 
 /* --- Polarized: constant K' = kscale K_ELEMENTS in every point,
@@ -873,6 +928,7 @@ int main(int argc, char *argv[])
 
 	for (int n = 0; n < N_METHODS; n++) check_method(&methods[n], verbose);
 	check_psi_linear(1.0e-14, verbose); /* layers: 2.2e-16 */
+	check_psi_bound(verbose);
 	check_interp(verbose);
 	check_stencils(verbose);
 	check_linear_interp(verbose);
