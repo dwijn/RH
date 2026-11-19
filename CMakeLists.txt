@@ -279,6 +279,8 @@ if(Python3_Interpreter_FOUND)
       --rhf1d $<TARGET_FILE:rhf1d>)
   rh_add_e2e(molecules_input molecules_input
       --rhf1d $<TARGET_FILE:rhf1d>)
+  rh_add_e2e(opacity_fudge opacity_fudge
+      --rhf1d $<TARGET_FILE:rhf1d>)
   rh_add_e2e(eddington_2d eddington_2d
       --rhf1d $<TARGET_FILE:rhf1d> --rhsc2d $<TARGET_FILE:rhsc2d>
       --solveray2d $<TARGET_FILE:rhsc2d_solveray>
