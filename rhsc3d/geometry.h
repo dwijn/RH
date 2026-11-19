@@ -73,6 +73,8 @@ bool_t writeFlux(char *fileName);
 void   writeGeometry(Geometry *geometry);
 double Interpolate_3D(double *f, Geometry *geometry, Stencil *st,
 					  int l, int m);
+double Interpolate_3D_linear(double *f, Geometry *geometry, Stencil *st,
+							 int l, int m);
 
 void ShortChar(Geometry *geometry, int nspect, int mu,
 			   bool_t to_observer, double *chi, double *S, double *I,

@@ -62,7 +62,7 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 
 	Stencil   *st;
 	LongChar  *lc = NULL;
-	StokesGrid sg = {.nspect = nspect, .chi = chi, .S = S, .I = I};
+	StokesGrid sg;
 
 	/* --- Boundary conditions in row at the top or bottom -- --------- */
 
@@ -149,6 +149,11 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 		upwind   = UPWIND;
 		downwind = DOWNWIND;
 	}
+	/* --- Grid arrays of the cone-preserving interpolation (B-63),
+		   with the boundary values of I set -- ------------------------ */
+
+	StokesGrid_init(&sg, nspect, atmos.Nspace, chi, S, I);
+
 	/* --- Finally, go through the grid to solve the non-local transfer
 		   equation --                                   -------------- */
 
@@ -242,8 +247,10 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 									  S_loc, dS_uw, dS_c, I_uw, I_loc);
 			if (Psi) Psi[local] = psi;
 			for (n = 0; n < 4; n++) I[n][local] = I_loc[n];
+			StokesGrid_update_I(&sg, local);
 		}
 	}
+	StokesGrid_free(&sg);
 }
 /* ------- end ------------------------- Piece_Stokes_Bezier3_2D.c -- */
 

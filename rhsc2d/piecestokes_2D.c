@@ -50,10 +50,19 @@ extern Atmosphere atmos;
 extern Spectrum   spectrum;
 extern InputData  input;
 
-/* ------- begin -------------------------- StokesK_2D.c ------------ */
+/* ------- begin -------------------------- StokesK_2D_convex.c ----- */
 
-void StokesK_2D(StokesGrid *sg, Stencil *st, enum direction direction,
-				double chi_I, double K[4][4])
+/* --- Where the interpolation is linear (SC_LINEAR: LINEAR_2D, and
+	   the stencils that have no second neighbour), the weights are
+	   convex and the same for every quantity: each component is
+	   interpolated on its own as before, inside the cone (eta' a
+	   convex combination of the eta' of the nodes), and a linear field
+	   is reproduced exactly. The Steffen-limited Bezier interpolation,
+	   whose weights depend on each component, goes through the
+	   rapidity (stokesgrid.h, B-63) --                -------------- */
+
+static void StokesK_2D_convex(StokesGrid *sg, Stencil *st, enum direction direction,
+							  double chi_I, double K[4][4])
 {
 	register int i, j;
 
@@ -132,6 +141,49 @@ void StokesK_2D(StokesGrid *sg, Stencil *st, enum direction direction,
 		K[3][2] *= -1.0;
 	}
 }
+/* ------- end ---------------------------- StokesK_2D_convex.c ----- */
+
+/* ------- begin -------------------------- StokesK_2D.c ------------ */
+
+void StokesK_2D(StokesGrid *sg, Stencil *st, enum direction direction,
+				double chi_I, double K[4][4])
+{
+	/* --- The reduced 4x4 Stokes propagation matrix K',
+
+			 K' = (chi_c*1 + chi_l*Phi) / chi_I - 1,
+
+		   (Rees, Murphy, & Durrant, 1989, ApJ 339, 1093-1106) at the
+		   up- or downwind point of stencil st, for the wavelength and
+		   ray of the grid sg; chi_I is the interpolated opacity there.
+		   With linear interpolation from the components
+		   (StokesK_2D_convex); otherwise eta' = (chi_Q, chi_U, chi_V) /
+		   chi_I from the rapidity of the grid, |eta'| < 1 by
+		   construction, and rho' with the same weights (stokesgrid.h,
+		   B-63). This is the 2-D short characteristics version -- --- */
+
+	double w[3], v[4];
+
+	if (st->order[direction] == SC_LINEAR) {
+		StokesK_2D_convex(sg, st, direction, chi_I, K);
+		return;
+	}
+	for (int j = 0; j < 4; j++)
+		for (int i = 0; i < 4; i++) K[j][i] = 0.0;
+	if (!sg->polarizedK) return;
+
+	for (int n = 0; n < 3; n++) w[n] = Interp_2D_linear(sg->wK[n], st, direction);
+	Stokes_from_rapidity(1.0, w, v);
+	for (int n = 1; n < 4; n++) K[0][n] = K[n][0] = v[n];
+
+	if (sg->magneto_optical) {
+		K[1][2] = Interp_2D_linear(sg->rK[0], st, direction);
+		K[3][1] = Interp_2D_linear(sg->rK[1], st, direction);
+		K[2][3] = Interp_2D_linear(sg->rK[2], st, direction);
+		K[2][1] = -K[1][2];
+		K[1][3] = -K[3][1];
+		K[3][2] = -K[2][3];
+	}
+}
 /* ------- end ---------------------------- StokesK_2D.c ------------ */
 
 /* ------- begin -------------------------- Interp_Stokes_2D.c ------ */
@@ -141,10 +193,20 @@ void Interp_Stokes_2D(StokesGrid *sg, enum stokes_vector v, Stencil *st,
 {
 	/* --- The source vector (v = STOKES_SOURCE) or the Stokes vector
 		   (STOKES_INTENSITY) of the grid at the up- or downwind point
-		   of stencil st: each component with Interp_2D -- ----------- */
+		   of stencil st: with linear interpolation each component,
+		   otherwise the magnitude with Interp_2D and the polarization
+		   from the rapidity of the grid with Interp_2D_linear: inside
+		   the cone by construction either way (stokesgrid.h, B-63)
+		   --                                              -------------- */
 
-	double **f = (v == STOKES_SOURCE) ? sg->S : sg->I;
+	double **f  = (v == STOKES_SOURCE) ? sg->S : sg->I,
+		   **wg = (v == STOKES_SOURCE) ? sg->wS : sg->wI, w[3];
 
-	for (int n = 0; n < 4; n++) out[n] = Interp_2D(f[n], st, direction);
+	if (st->order[direction] == SC_LINEAR) {
+		for (int n = 0; n < 4; n++) out[n] = Interp_2D(f[n], st, direction);
+		return;
+	}
+	for (int n = 0; n < 3; n++) w[n] = Interp_2D_linear(wg[n], st, direction);
+	Stokes_from_rapidity(Interp_2D(f[0], st, direction), w, out);
 }
 /* ------- end ---------------------------- Interp_Stokes_2D.c ------ */

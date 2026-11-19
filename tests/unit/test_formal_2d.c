@@ -45,6 +45,12 @@
 #include "spectrum.h"
 #include "inputs.h"
 #include "check.h"
+
+/* --- Largest |pol| / I in check_cone: the interpolation keeps every
+	   up- and downwind vector in the cone (B-63); the Bezier control
+	   points of S can still leave it (N-47): 1.023 on "uneven" -- */
+
+#define CONE_BOUND 1.03
 #include "stokes_exact.h"
 
 extern CommandLine commandline;
@@ -458,8 +464,13 @@ static void stokes_solve(Slab *slab, double **Sv, double **I, const double s[NPO
 }
 
 /* --- Measured (gcc, x86-64): K' = 0 equal to the unpolarized solver
-	   to 4.6e-16 on all meshes; linear S, I+ exact to 2.9e-13 (layers)
-	   / 1.1e-13 (before the fix of B-26 the emergent vector was
+	   to 4.6e-16 on all meshes; linear S, I+ exact to 2.9e-13 on
+	   "layers". On "columns" and "uneven" the upwind points lie on
+	   columns, where the Bezier interpolation takes the polarization
+	   from the rapidity (B-63), exact only for a constant fraction
+	   (Q / I of the linear solution changes with depth): 1.15e-4 and
+	   1.06e-4 (component by component, before B-63: 1.1e-13;
+	   before the fix of B-26 the emergent vector was
 	   computed with the source vector of a point in the layer below:
 	   error 1.8e-9, and 38% at K' = 0 in the bottom layer of I-);
 	   cubic S on "layers": order 2.80, emergent 3.3e-5 at Nz = 161,
@@ -523,8 +534,8 @@ static void check_stokes(bool_t verbose)
 			CHECK(unpol <= 1.0e-13 && quv == 0.0,
 				  "STOKES, %s, LC %s: K' = 0 differs from unpolarized by %.3g (QUV %.3g)", mn, lcname,
 				  unpol, quv);
-			CHECK(MAX(lin_err, lin_em) <= 1.0e-12, "STOKES, %s, LC %s: linear S, I+ error %.3g",
-				  mn, lcname, MAX(lin_err, lin_em));
+			CHECK(MAX(lin_err, lin_em) <= ((mesh == 0) ? 1.0e-12 : 2.0e-4),
+				  "STOKES, %s, LC %s: linear S, I+ error %.3g", mn, lcname, MAX(lin_err, lin_em));
 		}
 	}
 
@@ -781,6 +792,70 @@ static void check_stencils(bool_t verbose)
 	mesh_free(&geo);
 }
 
+/* --- The Stokes cone (B-63): opacity and polarization that change
+	   strongly from column to column, every grid value physical. Per
+	   column chi_I = CONE_I and chi_Q = CONE_Q (|eta'| <= 0.996, no
+	   magneto-optical terms), and the source vector (CONE_I, CONE_Q,
+	   0, 0) / 30: between the second and third column I rises 30
+	   times while Q / I stays 0.96, and Q has an extremum at the third
+	   column where I has none, so the Steffen-limited Bezier
+	   interpolation of each component on its own puts I on its low
+	   path and Q on its high one (|eta'| 3.46 halfway). Every Stokes
+	   vector of the solution must stay in the cone, I >= |(Q, U,
+	   V)|. With that interpolation (before B-63) I went negative here
+	   (-0.060 on "columns", -3.9 on "uneven") --      -------------- */
+
+static const double CONE_I[NX] = {27.0, 1.0, 30.0, 200.0, 200.0, 27.0},
+					CONE_Q[NX] = {-26.9, 0.96, 28.8, 20.0, 20.0, -26.9};
+
+static void check_cone(bool_t verbose)
+{
+	ActiveSet *as = &spectrum.as[0];
+
+	for (int mesh = 0; mesh < NMESH; mesh++) {
+		Slab    *slab   = slabs[1][mesh];
+		int      Nspace = NX * slab->Nz;
+		double **Sv = stokes_S[1][mesh], **I = stokes_I[1][mesh], worst = 0.0, Imin = HUGE_VAL;
+		double  *chi = malloc(Nspace * sizeof(double));
+
+		atmos.Nspace = Nspace;
+		as->chi_c    = realloc(as->chi_c, 4 * Nspace * sizeof(double));
+		as->chip_c   = realloc(as->chip_c, 3 * Nspace * sizeof(double));
+		for (int n = 0; n < Nspace; n++) {
+			int l = n % NX;
+
+			chi[n]                    = CONE_I[l];
+			as->chi_c[n]              = CONE_I[l];
+			as->chi_c[Nspace + n]     = CONE_Q[l];
+			as->chi_c[2 * Nspace + n] = 0.0;
+			as->chi_c[3 * Nspace + n] = 0.0;
+			for (int i = 0; i < 3; i++) as->chip_c[i * Nspace + n] = 0.0;
+			Sv[0][n] = CONE_I[l] / 30.0;
+			Sv[1][n] = CONE_Q[l] / 30.0;
+			Sv[2][n] = Sv[3][n] = 0.0;
+		}
+		for (int mu = 0; mu < NRAYS; mu++)
+			for (int to_obs = 0; to_obs <= 1; to_obs++) {
+				for (int l = 0; l < NX; l++) {
+					slab->geo.Itop[0][l]    = 0.0;
+					slab->geo.Ibottom[0][l] = 1.0;
+				}
+				Piece_Stokes_Bezier3_2D(&slab->geo, 0, mu, to_obs, chi, Sv, I, NULL);
+				for (int n = 0; n < Nspace; n++) {
+					double p = sqrt(SQ(I[1][n]) + SQ(I[2][n]) + SQ(I[3][n]));
+
+					Imin  = MIN(Imin, I[0][n]);
+					worst = MAX(worst, (I[0][n] > 0.0) ? p / I[0][n] : (p > 0.0 ? HUGE_VAL : 0.0));
+				}
+			}
+		free(chi);
+		if (verbose)
+			printf("CONE     %-8s min I %.3e, max |pol| / I %.6f\n", mesh_name[mesh], Imin, worst);
+		CHECK(Imin >= 0.0 && worst <= CONE_BOUND, "cone, %s: min I %.3g, max |pol| / I %.6g",
+			  mesh_name[mesh], Imin, worst);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
@@ -801,6 +876,7 @@ int main(int argc, char *argv[])
 	check_stencils(verbose);
 	check_linear_interp(verbose);
 	check_stokes(verbose);
+	check_cone(verbose);
 
 	return check_summary("test_formal_2d");
 }
