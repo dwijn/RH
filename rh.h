@@ -153,6 +153,7 @@ typedef struct {
 	int     N;
 	bool_t  logx, logy;
 	double *x, *y, *d;
+	double *ylin, *dlin; /* logy with a node <= 0 (N-49), else NULL */
 } PchipTable;
 
 void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
