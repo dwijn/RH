@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render docs/MODERNIZATION.md as a self-contained HTML page.
 
-usage: make_log_page.py [--sync-md] [--no-github] [IN.md] [OUT.html]
+usage: make_log_page.py [--sync-md | --check] [--no-github] [IN.md] [OUT.html]
 
 The Markdown file is the source of truth; the HTML is what gets published as
 the shared "RH modernization log" page. Severity (high/medium/low) and status
@@ -18,14 +18,22 @@ with "key: value" header lines and a blank line, then the entry text:
 
 The page shows every fragment at the top of the changelog and marks its IDs
 fixed. --sync-md folds the fragments into MODERNIZATION.md (changelog entry,
-status cells) and deletes them; run it on the integration branch now and then.
+status cells) and deletes them. Code pull requests do not edit
+MODERNIZATION.md at all: the row is logged beforehand (docs pull request),
+the code pull request adds the fragment and closes the issue, and after
+merging a docs pull request runs --sync-md. --check writes nothing and exits
+1 when a sync is due (fragments to fold or status cells that GitHub changes).
 
 Status from GitHub: every log ID is an issue on dwijn/RH titled "[ID] ...",
 and the issue state is the authority for the status column. Unless
 --no-github is given, the states are fetched with `gh` and each status cell
 is set to fixed (closed as completed), wontfix (closed as not planned) or
-open (open issue; an "in progress" cell is kept). Cells that change are
-listed. Without a working `gh` the cells are left as they are.
+open (open issue; an "in progress" cell is kept). A cell that becomes fixed
+names the merged pull requests that closed the issue, "fixed (#455)"; a cell
+already fixed, with or without numbers, is kept. In the table of bugs also
+present upstream (a "Fixed here" column), an empty cell ("—") of a closed
+issue gets links to those pull requests. Cells that change are listed.
+Without a working `gh` the cells are left as they are.
 """
 import json
 import subprocess
@@ -38,9 +46,12 @@ import sys
 import markdown
 
 here = os.path.dirname(os.path.abspath(__file__))
-flags = {"--sync-md", "--no-github"}
+flags = {"--sync-md", "--check", "--no-github"}
 args = [a for a in sys.argv[1:] if a not in flags]
 sync_md = "--sync-md" in sys.argv
+check = "--check" in sys.argv
+if sync_md and check:
+    sys.exit("make_log_page.py: --sync-md and --check exclude each other")
 use_github = "--no-github" not in sys.argv
 src = args[0] if len(args) > 0 else os.path.join(here, "MODERNIZATION.md")
 dst = args[1] if len(args) > 1 else os.path.join(here, "MODERNIZATION.html")
@@ -78,49 +89,97 @@ def apply_fragments(text, frags):
 
 
 def github_states(repo="dwijn/RH"):
-    """{ID: status} from the issue states, or None if gh is unavailable."""
+    """{ID: (status, [merged PR numbers that closed it])} from the issue
+    states, or None if gh is unavailable."""
+    def gh_json(*a):
+        return json.loads(subprocess.run(["gh", *a, "-R", repo, "--limit", "1000"],
+                                         capture_output=True, text=True, check=True).stdout)
     try:
-        out = subprocess.run(
-            ["gh", "issue", "list", "-R", repo, "--state", "all", "--limit", "1000",
-             "--json", "title,state,stateReason"],
-            capture_output=True, text=True, check=True).stdout
+        issues = gh_json("issue", "list", "--state", "all", "--json",
+                         "title,state,stateReason,closedByPullRequestsReferences")
+        merged = {p["number"] for p in gh_json("pr", "list", "--state", "merged",
+                                                "--json", "number")}
     except (OSError, subprocess.CalledProcessError) as e:
         print(f"warning: no issue states from GitHub ({e}); status cells unchanged",
               file=sys.stderr)
         return None
     states = {}
-    for i in json.loads(out):
+    for i in issues:
         m = re.match(r"\[([A-Z]+-[0-9]+)\]", i["title"])
         if not m:
             continue
         if i["state"] == "OPEN":
-            states[m.group(1)] = "open"
+            states[m.group(1)] = ("open", [])
+        elif i.get("stateReason") == "NOT_PLANNED":
+            states[m.group(1)] = ("wontfix", [])
         else:
-            states[m.group(1)] = ("wontfix" if i.get("stateReason") == "NOT_PLANNED"
-                                  else "fixed")
+            prs = sorted(p["number"] for p in i.get("closedByPullRequestsReferences") or []
+                         if p["number"] in merged
+                         and p.get("repository", {}).get("name", "RH") == repo.split("/")[1])
+            states[m.group(1)] = ("fixed", prs)
     return states
 
 
+def cells(line):
+    """Split a table row at the pipes that are not escaped (\\|)."""
+    return re.split(r"(?<!\\)\|", line)
+
+
 def apply_github(text, states):
-    """Set the status cell of every issue-table row from its issue state."""
+    """Set the status cell of every issue-table row from its issue state, and
+    fill the empty "Fixed here" cells of the upstream table."""
     def fix(m):
         id_, old = m.group(2), m.group(4)
-        new = states.get(id_)
-        if new is None or new == old or (new == "open" and old == "in progress"):
+        new, prs = states.get(id_, (None, []))
+        kind = old.split(" (")[0]
+        if new is None or new == kind or (new == "open" and kind == "in progress"):
             return m.group(0)
+        if new == "fixed" and prs:
+            new = "fixed (" + ", ".join(f"#{n}" for n in prs) + ")"
         print(f"status {id_}: {old} -> {new}", file=sys.stderr)
         return f"{m.group(1)}{m.group(3)}{new} |"
-    return re.sub(r"^(\| \[?([A-Z]+-[0-9]+)\]?)([^\n]*\| )"
-                  r"(open|fixed|wontfix|in progress) \|$", fix, text, flags=re.M)
+    text = re.sub(r"^(\| \[?([A-Z]+-[0-9]+)\]?)([^\n]*\| )"
+                  r"(open|fixed(?: \([^)|\n]*\))?|wontfix|in progress) \|$", fix, text,
+                  flags=re.M)
+
+    lines, col = text.split("\n"), None
+    for n, line in enumerate(lines):
+        if not line.startswith("|"):
+            col = None
+            continue
+        c = cells(line)
+        names = [x.strip() for x in c]
+        if names[1] == "ID":
+            col = names.index("Fixed here") if "Fixed here" in names else None
+            continue
+        m = re.match(r"\[?([A-Z]+-[0-9]+)\]?", names[1])
+        if col is None or not m or names[col] != "—":
+            continue
+        new, prs = states.get(m.group(1), (None, []))
+        if new != "fixed" or not prs:
+            continue
+        c[col] = " " + ", ".join(f"[#{p}](https://github.com/dwijn/RH/pull/{p})"
+                                 for p in prs) + " "
+        print(f"fixed here {m.group(1)}: — -> " + ", ".join(f"#{p}" for p in prs),
+              file=sys.stderr)
+        lines[n] = "|".join(c)
+    return "\n".join(lines)
 
 
 frags = read_fragments()
-text = open(src).read()
+text = orig = open(src).read()
 if use_github:
     states = github_states()
     if states is not None:
         text = apply_github(text, states)
+github_changed = text != orig
 text = apply_fragments(text, frags)
+if check:
+    due = [f"{len(frags)} fragment(s) to fold"] if frags else []
+    if github_changed:
+        due.append("cells to update from GitHub (listed above)")
+    print("log sync due: " + "; ".join(due) if due else "log in sync")
+    sys.exit(1 if due else 0)
 if sync_md:
     open(src, "w").write(text)
     for f, _, _ in frags:
@@ -144,6 +203,8 @@ def chipify(m):
         return m.group(0)
     return f'<td><span class="chip {cls}">{word}</span></td>'
 body = re.sub(r"<td>(high|medium|low|open|fixed|wontfix|in progress)</td>", chipify, body)
+body = re.sub(r"<td>fixed (\([^<]*\))</td>",
+              lambda m: f'<td><span class="chip st-fixed">fixed</span> {m.group(1)}</td>', body)
 body = re.sub(r"<td>(open — [^<]*)</td>",
               lambda m: f'<td><span class="chip st-open">open</span> {m.group(1)[7:]}</td>', body)
 

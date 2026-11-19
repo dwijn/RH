@@ -100,7 +100,8 @@ def parse_rows():
         if not line.startswith("|"):
             header = None if not line.strip() else header
             continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        # Split at the pipes that are not escaped (\| inside a cell)
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
         if cells[0] == "ID":
             header = cells
             continue

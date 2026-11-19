@@ -869,6 +869,114 @@ Ordered so that every step can be verified against upstream: byte-identical
 
 ## 5. Changelog
 
+### 2026-11-18 — 2-D/3-D polarized solvers interpolate K′, S and I inside the Stokes cone (B-63)
+
+The 2-D and 3-D polarized formal solutions interpolated every Stokes quantity at an up- or downwind point component by component (B-63): K′ (χ_I ≥ |χ_pol|, |η′| ≤ 1), the source vector and the upwind Stokes vector (I ≥ |pol|). With the 3-D XY bicubic (negative lobes, a clamp per component) and the 2-D Steffen-limited Bézier (weights that depend on each component) that leaves the cone. Counted with a diagnostic build on modernize:
+- the 3-D B-63 reproducer had |η′| up to 201 at 1.3×10⁻³ of the upwind points and the upwind I outside the cone at 2.7×10⁻³;
+- the 2-D slabs had |η′| up to 2.4 and the upwind I outside the cone up to 2.4.
+
+Where |η′| > 1 met max|K′|Δτ > 1, the DELO step amplified this into I < 0 at the Ca II H and K cores.
+
+Each vector is now interpolated as a magnitude (I, S_I; the scalar interpolation as before, positive) and the rapidity w = atanh(|p|) p/|p| of its polarization fraction p = (Q, U, V)/I, or of η′ itself. Any interpolated w maps back to |p| < 1. w and ρ′ = ρ/χ_I (no bound) are interpolated with weights that do not depend on the data: the unclamped bicubic in 3-D (`Interpolate_3D_linear`), and Bézier with the unlimited centred derivatives in 2-D (`Interp_2D_linear`). So they turn with the (Q, U) frame (N-26 for these quantities).
+
+- **Grid arrays** (`stokesgrid.c`): made once per formal solution, with one atanh per grid point for S and η′/ρ′ (from `StokesK`). Those of I are updated at each point as the sweep computes it.
+- **Where the old weights are convex and shared by all components:** the 3-D bilinear (the XZ/YZ planes, and every plane with `LINEAR_3D`) and the 2-D linear stencils. These keep the component-wise interpolation, which is already in the cone, frame-independent and exact for linear fields. There the results do not change.
+
+What changes besides:
+- K′ off the convex paths is no longer (interpolated χ_pol)/(interpolated χ_I) but η′ and ρ′ interpolated directly.
+- A linear Stokes vector whose polarization fraction varies is no longer reproduced exactly where the rapidity is used. The 2-D linear-S check on the meshes with upwind points on columns is now 1.15×10⁻⁴ (was 10⁻¹³); the cubic-S order of convergence is unchanged (2.8).
+- Grid values already outside the cone (S_I ≤ 0) get w = 0.
+
+Design note: `docs/solver/stokes-cone.md`.
+
+Tests: `check_cone` in `test_formal_2d` and `test_formal_3d`: columns where χ_I rises 30 times while χ_Q has an extremum (|η′| ≤ 0.996 at the nodes). Before, I went down to −4.7×10⁴ (3-D bicubic) and −3.9 (2-D uneven). Now I ≥ 0, and |pol|/I is at most 1.49; the rest comes from the control points of S (N-47, the next layer).
+
+Measured with the cone counters (`/hao/solar1/dwijn/claude/RH/evidence/t18-cone/`):
+- **3-D reproducer:** no interpolated K′, S or upwind I outside the cone (|η′| at most 0.960, was 201; upwind I at most 0.674, was outside at 2.7×10⁻³), and no step output outside it from inputs inside it. The emergent spectrum has no wavelength with I < 0 or |pol| > I (4 before). The 4×10⁻⁴ grid points with S_I < 0 are gone too: they came from negative I through J into the scattering part of S. Left: 240 control points of S outside the cone (6×10⁻⁷, up to 1.11; N-47). Against `LINEAR_3D` the emergent Q/I and U/I differ by at most 2.1×10⁻² and V/I by 7.6×10⁻², all at the Ca II 854.2 nm core (the old code: 0.22 in Q/I at 396.85 nm); the bicubic-versus-linear difference of I (4.0 at 120 nm) is the same as before.
+- **2-D slabs:** no interpolated K′, upwind I or interior I outside the cone (xs7: 2432 upwind I outside, max 2.42, before; max 0.70 now; |η′| max 0.959).
+
+`run_tests.py` against Q-33: 34 of 38 pass. The four polarized 2-D and 3-D cases change (2d/fieldfree, 2d/lcbezier, 2d/fullstokes, 3d/fieldfree). None of them has a wavelength with I < 0 or |pol| > I, before or after. Old and new differ at the Ca II infrared cores by at most 1.5×10⁻² in I/I, 6.3×10⁻³ in Q/I, 4.9×10⁻³ in U/I and 3.4×10⁻² in V/I, and are as far from `LINEAR_2D` / `LINEAR_3D` as each other (Q/I 5.8 versus 6.0×10⁻³ in 2-D, 6.6 versus 7.2×10⁻³ in 3-D): that is the change of interpolant. `LINEAR_2D` and `LINEAR_3D` runs are byte-identical before and after. The non-Stokes cases and every thread-count comparison are unchanged. Same code upstream.
+
+### 2026-11-18 — AR85-CDI: fone sums the asymptotic series above x = 50 instead of taking 1/x (B-64)
+
+`fone` (`collision.c`) evaluates f₁(x) = eˣE₁(x) for the `AR85-CDI` direct collisional ionization fit of Arnaud & Rothenflug (1985). Above x = I/kT = 50 it returned the leading term of the asymptotic series, 1/x. That is 2 % off in f₁, but the fit cancels f₁ against terms of order x²: the bracket that multiplies the second coefficient B, 1 + x − x(2+x)f₁, is 2/x² − 12/x³ + …, and with f₁ = 1/x it was −1. The fit F(x) was then about −B instead of order 1/x. For the C I ground-term row of `C_I+II_9.atom` (11.3 eV, B = −9.6) F was 299 times too large at x = 51 (2570 K), 382 times at 1990 K and 746 times at 1000 K, with a jump of about 300 at x = 50 (2620 K; 3850 K and 5660 K for the 16.6 and 24.4 eV rows). The ionization rate carries e^−x < 2×10⁻²² there, but the three-body recombination rate (`cdn = cup·n*_i/n*_j`) does not, and had the same factor. Evidence: `/hao/solar1/dwijn/claude/RH/evidence/t17-b64/` (`fone_check.py`: mpmath; `impact.py`).
+
+Above x = 50 `fone` now sums the asymptotic series Σ (−1)ᵏ k!/x^(k+1) until the terms drop below 10⁻¹⁷ of the sum: the terms decrease while k < x, so it takes at most about 26 terms, and f₁ is accurate to rounding. Below 50 it is still eˣE₁(x) with E₁ from Abramowitz & Stegun 5.1.56 (2×10⁻⁸), which leaves the B bracket within 3×10⁻⁴; the two sides meet to 5×10⁻⁵ at x = 50. Supersedes N-43, which logged the 2 % step of f₁ alone.
+
+`test_collision_formulas`: `fone` and the B bracket against mpmath on both sides of x = 50 (x = 50 to 10⁵), and an `AR85-CDI` record with only B = 1 against the series of the bracket, Σ_{m≥2} (−1)ᵐ m!(m−1)/xᵐ, which does not cancel (9 temperatures above x = 50). On the old `fone` 32 checks fail. The `AR85-CDI` record with a negative sum is now zero at every temperature: −1 + x f₁ = −1/x + 2/x² − … < 0 everywhere, where above 50 it was zero to one rounding.
+
+Which results change: only atoms with `AR85-CDI` records, of the shipped ones `C_I+II_9.atom`, below 2620, 3850 and 5660 K. `rhf1d` with C I+II active (H passive): on FALC_82 and FALXCO_80 (Tmin 4500 and 3850 K) the C I and C II populations are unchanged to 10⁻¹¹; the C III ground level changes by up to 2.5 % (at 5480–5580 K, through the 24.4 eV rows). `run_tests.py --exact` is byte-identical (no case has `AR85-CDI`). Same code upstream.
+
+### 2026-11-18 — The opacity fudge table is checked when read (B-65)
+
+`OPACITY_FUDGE` names a table of wavelengths and, for each, three values: the factor minus 1 for the H⁻, the scattering and the metal background opacities. It is interpolated with `Linear` and was read without a check (`background.c`):
+- a table of one wavelength made `Linear` read one element past it;
+- a value below −1 gave a negative factor, so a negative opacity;
+- wavelengths out of order went unnoticed (`Linear` takes the direction from the first two), and a repeated one divided by zero;
+- a line with fewer than four numbers left the rest uninitialized.
+
+Each of these now stops the run with a message naming the file and the offending line or value. The table must have at least two wavelengths, strictly increasing or decreasing, with four finite numbers per line and values ≥ −1. A factor of 0 (value −1) is allowed. This follows the rule that wrong input stops at reading rather than being overridden.
+
+New e2e test `opacity_fudge` (ctest `e2e_opacity_fudge`): the shipped `Atmos/opacity_fudge.input` and a table with factor 0 run; one wavelength, a value of −1.5, wavelengths out of order, a repeated wavelength and a short line each stop with status 70 and the message. On the old binary all five run.
+
+Results unchanged for valid tables (`run_tests.py --exact`). Same code upstream. Found in the interpolation audit (items C4/B11).
+
+### 2026-11-18 — Bézier control points of the polarized source vector kept in the Stokes cone (N-47)
+
+`cent_deriv_vec` limits the derivatives of the source vector one at a time (I and V each on its own, (Q, U) as a pair, N-25). That keeps each component of a Bézier control point between those of the two nodes, but not the vector inside the cone I ≥ |(Q, U, V)|: where S_I has an extremum at a node (derivative 0) and S_Q does not, the Q control point moves while the I one stays (N-47). One DELO step with K′ = 0, nodes at |Q|/I = 0.9 and S_I 30 times higher upwind gave |Q|/I = 2.08. In the runs ≈10⁻⁵ of the control points were outside the cone (2-D slabs, up to 1.04; 3-D 1.4×10⁻⁶, up to 1.22), and with B-63 fixed they are the only ones left.
+
+`cone_control` (`bezier_aux.c`, in `Bezier3_Stokes_step`, so in all geometries and on the long characteristics) checks each control point c = S_node ± Δτ/3 dS. With both nodes in the cone, so is the control point of the secant, a = S_node + (S_other − S_node)/3, and so is every point of the segment from a towards c up to where it leaves the cone (the cone is convex). A control point outside the cone is moved there (the first root of a quadratic in the segment parameter), and the derivative set from it, on copies: the callers pass the derivatives on to the next step. With K′ = 0 the DELO-Bézier step is then a combination of the nodes and control points with weights ≥ 0, so it stays in the cone; the exponential step propagates a cubic S that is in the cone, so it does too. Continuous in the data, the same in any (Q, U) frame, and nothing changes where the control point is in the cone, which includes any linear S.
+
+Tests:
+- `check_cone` in `test_stokes_step`: the audit's case, 2.08 → 0.956; 2×10⁵ random nodes in the cone, 3.2 → 0.991 (K′ = 0); with a random physical K′ in steps thick enough for the exponential step, I < 0 → 0.997.
+- The cone bound of `check_cone` in `test_formal_2d` and `test_formal_3d` is now the cone itself: 0.99957, 0.99675 and 0.99630, where B-63 alone left 1.023, 1.33 and 1.49.
+
+Measured with the cone counters (`/hao/solar1/dwijn/claude/RH/evidence/t18-cone/cone_counts_pr3.txt`): no control point outside the cone in the 3-D reproducer or the 2-D slabs.
+
+`run_tests.py` against B-63: 37 of 38 identical within tolerance; only 2d/fullstokes changes, by at most 3×10⁻⁶ of a Stokes component (the Ca II K core), where a control point of S now stays in the cone. The thread-count comparisons are unchanged. Same code upstream (each component limited on its own).
+
+### 2026-11-18 — Rayleigh scattering by H₂ interpolates its cross-section table in log-log (N-48)
+
+`Rayleigh_H2` (`hydrogen.c`) interpolated the cross-section table of Victor & Dalgarno (1969), 121.57–632.8 nm, linearly in λ and σ. σ falls as λ⁻⁴ to λ⁻⁹ over the table's four decades, so the data are convex and linear interpolation overestimates between the nodes. At the geometric midpoints it was 1.138 times too high between 435.96 and 546.23 nm (1.143 at 497 nm), and 4 to 10 % in most other intervals. log σ is now interpolated linearly in log λ, which is a power law between the nodes: exact at the nodes, positive by construction, and the geometric mean at each geometric midpoint. Above the table the formula of Tarafdar & Vardya (1973) is unchanged; it meets the table at 632.8 nm to 0.3 %.
+
+New unit test `test_rayleigh_h2`: the nodes, the geometric midpoints, σ positive and falling from 121.57 nm to 2 µm, the join at 632.8 nm, zero below the table, and the ratio of linear to log-log at the midpoints (1.138). On the old code 20 checks fail.
+
+Which results change: the background scattering opacity of every run with H₂ between 121.57 and 632.8 nm, by up to 14 % of the H₂ Rayleigh part. That part matters only where H₂ is abundant (cool atmospheres). In `run_tests.py` every case changes, by 1.8×10⁻⁷ to 2×10⁻⁷ of I (largest at 387–388 nm), and by 2.7×10⁻⁶ in the cases with an active H (`1d/twoactive`, `sph/small`, at 177.55 nm); the thread-count comparisons are unchanged. Same code upstream. Evidence: `/hao/solar1/dwijn/claude/RH/evidence/t16-interp-audit/B/rayh2.py` (audit item B3).
+
+### 2026-11-18 — PCHIP in log-log keeps log y on the intervals between positive nodes of a table with a zero (N-49)
+
+`pchipTableInit` (N-32) interpolates collision and bound-free tables in log x and log y. A value ≤ 0 has no log, and one such value put the whole table in y. Five shipped Mg I bound-free tables end in an explicit 0 at the blue edge (`MgI.atom` 11-4; `MgI+II`, `MgI_66`, `MgI_66_b123` 65-0; `MgI_b+MgII` 11-4), so they were interpolated linearly in σ throughout, across resonance dips of 10 times, where log-log reproduces a power law between the nodes. Positive either way.
+
+Now only the intervals that touch a value ≤ 0 are interpolated in y, with the PCHIP slopes of the whole table in y. Each run of positive nodes is interpolated in log y, with the slopes of the run as a table of its own (one-sided at its ends). Outside the table the end values are used, as before. A table whose values are all positive, or one not in log y, is interpolated exactly as before: the same operations, bit for bit.
+
+`test_interp`: a table that ends in a zero reproduces a power law elsewhere to 1.2×10⁻¹⁴, where the old fallback was 8 % off, and its first interval stays between its two node values; in the existing table with zeros the interval between its two positive nodes is the power law through them (10 % off before). On the old code these two checks fail.
+
+Which results change: only tables with a value ≤ 0 that are interpolated in log y; of the shipped data, the five Mg I bound-free tables above, on the wavelengths between their positive nodes. `run_tests.py --exact` is byte-identical (no case uses them). Evidence: `/hao/solar1/dwijn/claude/RH/evidence/t16-interp-audit/B/scanbf.py` (audit item B8).
+
+### 2026-11-18 — 2-D/3-D polarized solvers interpolate S, I and K′ through one function each (results unchanged) (Q-33)
+
+The 2-D and 3-D polarized short and long characteristics interpolated the source vector, the Stokes vector and K′ at each call site, one component at a time: seven places in each geometry, fed by nspect, chi, S and I passed down separately. A `StokesGrid` (new `stokesgrid.h`: nspect, chi_I, S and I of one formal solution on the grid) is now passed down instead (`Piece_Stokes_Bezier3_3D`, `SolveLongStokes` in both geometries; `ShortChar_Stokes` and `Piece_Stokes_Bezier3_2D`, the entry points, keep their signatures). Every interpolation of a Stokes vector goes through `Interpolate_Stokes_3D` / `Interp_Stokes_2D` (`STOKES_SOURCE` or `STOKES_INTENSITY`), and K′ through `StokesK_3D` / `StokesK_2D`, which take the grid. Each component is interpolated as before, so results are unchanged: `run_tests.py --exact` is byte-identical (38/38). This is the base of the cone-preserving interpolation of B-63, which then changes only these functions and the grid (design: `docs/solver/stokes-cone.md`).
+
+### 2026-11-18 — Two stale comments corrected (Bezier3 coefficients, 3-D solveray header) (Q-34)
+
+Found in the interpolation audit:
+- **`bezier_aux.c`, the Taylor coefficients of `Bezier3_coeffs`:** the comment said the series also serves the small negative dt "which interpolated opacities can give in 2-D and 3-D". They cannot. With χ > 0 on the grid, the interpolated opacities (clamped bicubic, Steffen-limited Bézier, bilinear) and the Bézier control points of χ are positive, so dt is too. A negative dt comes only from a negative opacity on the grid (N-40).
+- **The header of `rhsc3d/solveray.c`:** it said the ray is solved with the Feautrier scheme and Fourier interpolation in the horizontal planes. It calls `solveSpectrum`, the short characteristics of the main program.
+
+Comments only; results unchanged (`run_tests.py --exact`).
+
+### 2026-11-17 — molecules.input must list H2 first, exactly; an empty list stops at input (B-62)
+
+RH uses `atmos.H2`, the molecule with ID `H2`, in the background opacities (H2- free-free, Rayleigh scattering by H2), in the collisions of an active CO or H2 and in hydrostatic equilibrium. It also takes `molecules[0]` for H2 in two places: `Background()` keeps `molecules[0]` when it frees the passive molecules, and `Hydrostatic()` decided on `molecules[0]`'s temperature range whether H2 is present at a depth point. `readMolecularModels` (`readmolecule.c`) required the first molecule to be H2, but with a substring test (`strstr(ID, "H2")`), so H2+ or H2O first passed; an empty list was not checked. What that did (FAL-C, `rhf1d/run` inputs; evidence `/hao/solar1/dwijn/claude/RH/evidence/t13-b62/`):
+- H2+ first and no H2, or no molecules: `atmos.H2` is NULL. Every run (not only `HYDROSTATIC = TRUE`) crashed with a segmentation fault in `H2minus_ff`, in the first Background().
+- H2O first, H2 later: `Background()` freed the passive H2, so `atmos.H2` dangled (read afterwards by `COcollisions`/`H2collisions` of an active CO or H2). With `HYDROSTATIC = TRUE`, H2 was switched on and off by H2O's range (1000-6000 K instead of 1000-9000 K): converged nHtot (H_6 and Ca II active, `SOLVE_NE = ITERATION`, `ITER_LIMIT` 1e-3) off by 2.7e-4 at 6180 K on FAL-C, and by 4.5e-4 at 6200 K on FAL-C with T x 0.7.
+
+`readMolecularModels` now stops with a message when the number of molecules is below 1 ("Number of molecules in molecules.input is 0: the list must contain at least H2, as the first molecule") and when the first molecule's ID line is not exactly `H2` ("The first molecule in molecules.input must be H2, not H2O (...)"); this is checked before the model is parsed. After the list is read it also checks that `atmos.H2` (set where the ID inside the file is `H2`, case-sensitive) is `molecules[0]`, which catches an ID written in lower case and a second H2 model. `Background()` now also skips `atmos.H2` explicitly when it frees the passive molecules. `Hydrostatic()` takes the temperature range from `atmos.H2` (the same molecule now; the code says what it means). The log row proposed a check only for `HYDROSTATIC = TRUE`; since every run needs H2, the check is for all runs.
+
+New e2e test `molecules_input` (ctest `e2e_molecules_input`): H2+ first without H2, H2O first, an empty list, and H2 first with its ID written `h2` each stop with status 70 and the message. On the old binary the first and the third end with a segmentation fault and the second runs.
+
+Results unchanged: every shipped `molecules.input` lists H2 first; `run_tests.py --exact` is byte-identical. Same code upstream.
+
 ### 2026-11-17 — atoms.input: initial solutions that a PASSIVE atom would ignore stop the run; a populations file it does not read gives a warning (B-59)
 
 A PASSIVE atom keeps the populations it starts with: LTE, or with `OLD_POPULATIONS` those read from its populations file (`readatom.c`); passive hydrogen takes them from the atmosphere, or LTE with `HYDROGEN_LTE = TRUE` (`distribute_nH`). RH accepted three kinds of input that it then ignored without a message, and the shipped examples used two of them:
