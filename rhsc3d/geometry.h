@@ -11,6 +11,8 @@
 #ifndef __GEOMETRY_H__
 #define __GEOMETRY_H__
 
+#include "stokesgrid.h"
+
 /* --- Defines structures to contain the angle quadrature and
 	   interpolation mesh for 3-D Cartesian version. --  ------------ */
 
@@ -71,6 +73,8 @@ bool_t writeFlux(char *fileName);
 void   writeGeometry(Geometry *geometry);
 double Interpolate_3D(double *f, Geometry *geometry, Stencil *st,
 					  int l, int m);
+double Interpolate_3D_linear(double *f, Geometry *geometry, Stencil *st,
+							 int l, int m);
 
 void ShortChar(Geometry *geometry, int nspect, int mu,
 			   bool_t to_observer, double *chi, double *S, double *I,
@@ -86,20 +90,20 @@ void Piecewise_Bezier3_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 						  double *chi, double *S, double *I, double *Psi);
 
 void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
-							 Stencil *st_dw,
-							 int nspect, int k, int kend, int l, int m,
-							 double *I_uw,
-							 double *chi, double **S, double **I, double *Psi);
+							 Stencil *st_dw, StokesGrid *sg,
+							 int k, int kend, int l, int m,
+							 double *I_uw, double *Psi);
 
 double SolveLong(Geometry *geometry, Longchar *lc, int k, int l, int m,
 				 double *chi, double *S, double *I);
-void   SolveLongStokes(Geometry *geometry, Longchar *lc,
-					   int nspect, int k, int l, int m,
-					   double *chi, double **S, double **I,
-					   double *I_uw);
+void   SolveLongStokes(Geometry *geometry, Longchar *lc, StokesGrid *sg,
+					   int k, int l, int m, double *I_uw);
 
-void StokesK_3D(int nspect, Geometry *geometry, Stencil *st,
+void StokesK_3D(StokesGrid *sg, Geometry *geometry, Stencil *st,
 				int l, int m, double chi_I, double K[4][4]);
+void Interpolate_Stokes_3D(StokesGrid *sg, enum stokes_vector v,
+						   Geometry *geometry, Stencil *st, int l, int m,
+						   double out[4]);
 
 #endif /* !__GEOMETRY_H__ */
 

@@ -24,6 +24,10 @@
 		  where K' fell steeply over an optically long step; the
 		  2-D and 3-D FULL_STOKES runs diverged on that.
 
+	   -- the cone: the Bezier control points of S are kept in it
+		  (N-47), so with S and I_uw in the cone I_loc is too, with
+		  K' = 0 and in the exponential step.
+
 	   -v prints the measured values.
 	   --                                              -------------- */
 
@@ -338,6 +342,87 @@ static void check_no_amplification(bool_t verbose)
 	   paths are 1e-13 off long double (closed 1.2e-13, Taylor
 	   1.5e-13), a limit of the problem, not of either method -- --- */
 
+/* --- The Bezier control points of S stay in the cone (N-47):
+	   source vectors S_uw, S_loc, S_dw and I_uw in the cone, the
+	   derivatives of the 2-D and 3-D solvers (cent_deriv_vec at the
+	   local point, 2 x secant minus it upwind, N-24) and of 1-D (the
+	   secant upwind), K' = 0 (the DELO step a combination of nodes and
+	   control points with weights >= 0) and a random physical K' in a
+	   step thick enough for the exponential one: I_loc stays in the
+	   cone. First the case of the interpolation audit (S_I 30 times
+	   higher upwind, an extremum of S_I at the local point while S_Q
+	   falls monotonically, |Q| / I = 0.9 at the nodes): |Q| / I of
+	   I_loc was 2.08 before N-47; then random nodes with |pol| / I up
+	   to 0.99 (up to 6 before). A linear S (no extremum) is not
+	   changed (check_cubic_exact, test_formal_stokes) -- ---------- */
+
+static double cone_ratio(const double v[4])
+{
+	double p = sqrt(SQ(v[1]) + SQ(v[2]) + SQ(v[3]));
+
+	return (v[0] > 0.0) ? p / v[0] : ((p > 0.0 || v[0] < 0.0) ? HUGE_VAL : 0.0);
+}
+
+static void random_in_cone(double v[4], double I, double pmax)
+{
+	double p = pmax * urand(), th = acos(2.0 * urand() - 1.0), ph = 2.0 * M_PI * urand();
+
+	v[0] = I;
+	v[1] = I * p * sin(th) * cos(ph);
+	v[2] = I * p * sin(th) * sin(ph);
+	v[3] = I * p * cos(th);
+}
+
+static double cone_step(double dtu, double dtd, double Ku[4][4], double Kl[4][4],
+						double Su[4], double Sl[4], double Sd[4], double Iu[4], int upwind)
+{
+	double dSc[4], dSu[4], Il[4], dKu[4][4] = {{0.0}}, dKc[4][4] = {{0.0}};
+
+	cent_deriv_vec(dSc, dtu, dtd, Su, Sl, Sd);
+	for (int n = 0; n < 4; n++) {
+		double sec = (Sl[n] - Su[n]) / dtu;
+		dSu[n]     = upwind ? 2.0 * sec - dSc[n] : sec;
+	}
+	Bezier3_Stokes_step(dtu, Ku, Kl, dKu, dKc, Su, Sl, dSu, dSc, Iu, Il);
+	return cone_ratio(Il);
+}
+
+static void check_cone(bool_t verbose)
+{
+	double Z[4][4] = {{0.0}}, worst0 = 0.0, worstK = 0.0;
+
+	/* --- The case of the audit --                    -------------- */
+
+	double Su[4] = {30.0, 27.0, 0.0, 0.0}, Sl[4] = {1.0, 0.9, 0.0, 0.0},
+		   Sd[4] = {1.5, 0.0, 0.0, 0.0}, Iu[4] = {30.0, 27.0, 0.0, 0.0};
+	double audit = cone_step(3.0, 0.01, Z, Z, Su, Sl, Sd, Iu, 1);
+
+	for (int t = 0; t < 200000; t++) {
+		double dtu = pow(10.0, 3.0 * urand() - 1.5), dtd = pow(10.0, 3.0 * urand() - 2.0),
+			   Ku[4][4], Kl[4][4];
+
+		random_in_cone(Su, pow(30.0, 2.0 * urand() - 1.0), 0.99);
+		random_in_cone(Sl, 1.0, 0.99);
+		random_in_cone(Sd, pow(30.0, 2.0 * urand() - 1.0), 0.99);
+		random_in_cone(Iu, pow(30.0, 2.0 * urand() - 1.0), 0.99);
+		worst0 = MAX(worst0, cone_step(dtu, dtd, Z, Z, Su, Sl, Sd, Iu, t % 2));
+
+		/* --- A physical K' and a step thick enough for the
+			   exponential step (max |K'| dtau > 1) -- ------------ */
+
+		random_K(Ku, 0.95 * urand(), pow(10.0, 2.0 * urand() - 1.0));
+		random_K(Kl, 0.95 * urand(), pow(10.0, 2.0 * urand() - 1.0));
+		dtu    = 2.0 + 30.0 * urand();
+		worstK = MAX(worstK, cone_step(dtu, dtd, Ku, Kl, Su, Sl, Sd, Iu, t % 2));
+	}
+	if (verbose)
+		printf("cone: audit case |pol| / I %.6f; random, K' = 0: %.6f; exponential step: %.6f\n",
+			   audit, worst0, worstK);
+	CHECK(audit <= 1.0 && worst0 <= 1.0 && worstK <= 1.0,
+		  "I_loc leaves the cone: audit case %.4g, random K' = 0 %.4g, exponential step %.4g",
+		  audit, worst0, worstK);
+}
+
 #define CLOSED_BOUND_GRID   1.5e-14
 #define CLOSED_BOUND_DTAU3  1.0e-15
 #define CLOSED_BOUND_CUT    1.0e-14
@@ -479,6 +564,7 @@ int main(int argc, char *argv[])
 	check_thick_limit(verbose);
 	check_thickness_range(verbose);
 	check_no_amplification(verbose);
+	check_cone(verbose);
 	return check_summary("test_stokes_step");
 }
 /* ------- end ---------------------------- test_stokes_step.c ------ */

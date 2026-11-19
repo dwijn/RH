@@ -936,6 +936,70 @@ void Stokes_Exp_step(double dtau, double K_uw[4][4], double K_loc[4][4],
 }
 /* ------- end ---------------------------- Stokes_Exp_step.c ------- */
 
+/* ------- begin -------------------------- cone_control.c ---------- */
+
+static inline bool_t in_cone(const double v[4])
+{
+	return v[0] >= 0.0 && SQ(v[1]) + SQ(v[2]) + SQ(v[3]) <= SQ(v[0]);
+}
+
+static void cone_control(const double S_node[4], const double S_other[4],
+						 double h, double dS[4])
+{
+	/* --- Keep the Bezier control point c = S_node + h dS of the
+		   source vector (h = dtau/3 at the upwind end, -dtau/3 at the
+		   local one) in the cone I >= |(Q, U, V)| (N-47). The Steffen
+		   limit of each derivative keeps each component of c between
+		   those of the two nodes, but not the vector inside the cone:
+		   where S_I has an extremum at the node (derivative 0) and S_Q
+		   does not, the Q control point moves while the I one stays.
+		   With both nodes in the cone, so is a = S_node + (S_other -
+		   S_node) / 3, the control point of the secant (the straight
+		   line), and every point between a and c up to where the
+		   segment leaves the cone (the cone is convex): c moves along
+		   that segment to the cone, and dS = (c - S_node) / h with it.
+		   The step is then a combination with weights >= 0 of the
+		   nodes and control points where K' = 0, and of a physical
+		   cubic S(tau) in the exponential step. Continuous in the data,
+		   the same in any (Q, U) frame, and unchanged where c is in the
+		   cone, as for a linear S --                    -------------- */
+
+	double c[4], a[4], d[4], A, B, C, lambda;
+
+	for (int n = 0; n < 4; n++) c[n] = S_node[n] + h * dS[n];
+	if (in_cone(c) || !in_cone(S_node) || !in_cone(S_other) || h == 0.0) return;
+
+	for (int n = 0; n < 4; n++) {
+		a[n] = S_node[n] + (S_other[n] - S_node[n]) / 3.0;
+		d[n] = c[n] - a[n];
+	}
+
+	/* --- f(lambda) = I^2 - |P|^2 along a + lambda d: f(0) >= 0 > f(1)
+		   or I(1) < 0; the first root in (0, 1] is where the segment
+		   leaves the forward cone (it cannot reach the backward one
+		   without passing the apex, a root) -- ----------------------- */
+
+	A = SQ(d[0]) - SQ(d[1]) - SQ(d[2]) - SQ(d[3]);
+	B = 2.0 * (a[0] * d[0] - a[1] * d[1] - a[2] * d[2] - a[3] * d[3]);
+	C = SQ(a[0]) - SQ(a[1]) - SQ(a[2]) - SQ(a[3]);
+	C = MAX(C, 0.0);
+
+	if (fabs(A) < 1.0e-14 * (fabs(B) + C)) {
+		lambda = (B < 0.0) ? C / -B : 0.0;
+	} else {
+		double disc = MAX(B * B - 4.0 * A * C, 0.0), q = -0.5 * (B + copysign(sqrt(disc), B)),
+			   r1 = (q != 0.0) ? q / A : 0.0, r2 = (q != 0.0) ? C / q : 0.0;
+
+		lambda = 1.0;
+		if (r1 > 0.0) lambda = MIN(lambda, r1);
+		if (r2 > 0.0) lambda = MIN(lambda, r2);
+	}
+	lambda = MIN(MAX(lambda, 0.0), 1.0) * (1.0 - 1.0E-12);
+
+	for (int n = 0; n < 4; n++) dS[n] = (a[n] + lambda * d[n] - S_node[n]) / h;
+}
+/* ------- end ---------------------------- cone_control.c ---------- */
+
 /* ------- begin -------------------------- Bezier3_Stokes_step.c --- */
 
 double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
@@ -982,6 +1046,17 @@ double Bezier3_Stokes_step(double dtau_uw, double K_uw[4][4],
 	double       eps = 0.0, alpha = 0.0, beta = 0.0, gamma = 0.0, theta = 0.0,
 		   dt03;
 	double A[4][4], Ma[4][4], Mb[4][4], Mc[4][4], M_loc[4][4];
+	double dSu[4], dSl[4];
+
+	/* --- Control points of S in the cone (N-47), on copies: the
+		   callers pass the derivatives on to the next step -- ------- */
+
+	memcpy(dSu, dS_uw, sizeof(dSu));
+	memcpy(dSl, dS_loc, sizeof(dSl));
+	cone_control(S_uw, S_loc, dtau_uw / 3.0, dSu);
+	cone_control(S_loc, S_uw, -dtau_uw / 3.0, dSl);
+	dS_uw  = dSu;
+	dS_loc = dSl;
 
 	/* --- Where K' is large over the step the DELO-Bezier control
 		   points amplify the polarization (B-55): the exponential step

@@ -38,10 +38,9 @@ extern char       messageStr[];
 /* ------- begin -------------------------- Piece_Stokes_Bezier3_3D.c */
 
 void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
-							 Stencil *st_dw,
-							 int nspect, int k, int kend, int l, int m,
-							 double *I_uw,
-							 double *chi, double **S, double **I, double *Psi)
+							 Stencil *st_dw, StokesGrid *sg,
+							 int k, int kend, int l, int m,
+							 double *I_uw, double *Psi)
 {
 	/* --- Cubic short-char Bezier Polarization solver.
 		   Coded by J. de la Cruz Rodriguez (ISP-SU 2017).
@@ -60,16 +59,17 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 	double dK_uw[4][4], dK_c[4][4];
 	double I_loc[4];
 
+	int     nspect = sg->nspect;
+	double *chi = sg->chi, **S = sg->S, **I = sg->I;
+
 	local = k * geometry->Nplane + m * geometry->Nx + l;
 
 	/* --- The upwind quantities --                      -------------- */
 
 	chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
 	dchi_uw = (chi[local] - chi_uw) / st_uw->ds;
-	StokesK_3D(nspect, geometry, st_uw, l, m, chi_uw, K_uw);
-	for (n = 0; n < 4; n++) {
-		S_uw[n] = Interpolate_3D(S[n], geometry, st_uw, l, m);
-	}
+	StokesK_3D(sg, geometry, st_uw, l, m, chi_uw, K_uw);
+	Interpolate_Stokes_3D(sg, STOKES_SOURCE, geometry, st_uw, l, m, S_uw);
 	StokesK(nspect, local, chi[local], K_loc);
 	for (n = 0; n < 4; n++) S_loc[n] = S[n][local];
 
@@ -94,7 +94,7 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 
 		chi_dw  = Interpolate_3D(chi, geometry, st_dw, l, m);
 		dchi_dw = (chi_dw - chi[local]) / st_dw->ds;
-		StokesK_3D(nspect, geometry, st_dw, l, m, chi_dw, K_dw);
+		StokesK_3D(sg, geometry, st_dw, l, m, chi_dw, K_dw);
 
 		dchi_c = cent_deriv(st_uw->ds, st_dw->ds,
 							chi_uw, chi[local], chi_dw);
@@ -120,8 +120,8 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 		c2      = chi[local] + ds03 * dchi_c;
 		dtau_dw = st_dw->ds * (chi[local] + chi_dw + c1 + c2) * 0.25;
 
+		Interpolate_Stokes_3D(sg, STOKES_SOURCE, geometry, st_dw, l, m, S_dw);
 		for (n = 0; n < 4; n++) {
-			S_dw[n]  = Interpolate_3D(S[n], geometry, st_dw, l, m);
 			dS_uw[n] = (S_loc[n] - S_uw[n]) / dtau_uw;
 
 			for (p = 0; p < 4; p++)
@@ -143,6 +143,7 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 							  S_loc, dS_uw, dS_c, I_uw, I_loc);
 	if (Psi) Psi[local] = psi;
 	for (n = 0; n < 4; n++) I[n][local] = I_loc[n];
+	StokesGrid_update_I(sg, local);
 }
 /* ------- end ---------------------------- Piece_Stokes_Bezier3_3D.c */
 

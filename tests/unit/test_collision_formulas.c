@@ -20,7 +20,12 @@
 		  AR85-CHP and AR85-CHH report the locations outside their fit
 		  range;
 	   -- the messages are once per record, atom and run (freeRateReports
-		  starts a new run).
+		  starts a new run);
+	   -- fone = e^x E1(x) and the bracket 1 + x - x (2 + x) fone of
+		  AR85-CDI, which cancels to 2/x^2, agree with mpmath on both
+		  sides of the switch to the asymptotic series at x = 50, and an
+		  AR85-CDI record with only that bracket gives the rate of its
+		  series (B-64: fone was 1/x above 50, the bracket -1).
 	   --                                              -------------- */
 
 #include <math.h>
@@ -38,6 +43,7 @@
 #include "check.h"
 
 double summers(int i, int j, double nne, struct Atom *atom);
+double fone(double x);
 
 extern Atmosphere  atmos;
 extern InputData   input;
@@ -322,11 +328,10 @@ int main(int argc, char **argv)
 	}
 
 	/* --- AR85-CDI with a single shell with a < 0: f = a + (-x a) fone(x)
-		   = -1 + x fone(x), negative for x = 11.3 eV / kT <= 50, where
-		   fone = e^x E1(x) < 1/x. Above 50 fone is the asymptote 1/x (Arnaud
-		   & Rothenflug), f is zero to one rounding of either sign (the sign
-		   differs between compilers and libm), and the rate carries
-		   e^-x < 2e-22: there only C >= 0 and negligible -- ------ */
+		   = -1 + x fone(x) = -1/x + 2/x^2 - ..., negative at every x
+		   (fone = e^x E1(x) < 1/x; above x = 50, where fone was 1/x and
+		   f zero to one rounding, it is now the asymptotic series, B-64)
+		   -- -------------------------------------------------------- */
 
 	freeRateReports(&atom);
 	run_logged("AR85-CDI 0 3 1\n 11.3 -1.0 0.0 0.0 0.0\n");
@@ -335,11 +340,64 @@ int main(int argc, char **argv)
 		double x = 11.3 * EV / (KBOLTZMANN * atmos.T[k]), up = atom.C[3 * NLEVEL + 0][k],
 			   dn = atom.C[0 * NLEVEL + 3][k];
 
-		if (x <= 50.0)
-			CHECK(up == 0.0 && dn == 0.0, "AR85-CDI clipped at T = %g", atmos.T[k]);
-		else
-			CHECK(up >= 0.0 && dn >= 0.0 && up < 1e-30 && dn < 1e-30,
-				  "AR85-CDI at T = %g (x = %g > 50): %g %g", atmos.T[k], x, up, dn);
+		CHECK(up == 0.0 && dn == 0.0, "AR85-CDI clipped at T = %g (x = %g)", atmos.T[k], x);
+	}
+
+	/* --- fone and the AR85-CDI bracket 1 + x - x (2 + x) fone, which
+		   the B coefficient multiplies, against mpmath (40 digits). Below
+		   and at 50 fone is e^x E1(x) with E1 from A&S 5.1.56 (2e-8,
+		   which the bracket's cancellation makes up to 3e-4); above, the
+		   series, to rounding (the bracket then to about x eps / (2/x^2),
+		   from the rounding of x (2 + x) fone ~ x^2 / x). The bracket was -1 above 50 with fone = 1/x
+		   (B-64) -- ------------------------------------------------ */
+
+	{
+		static const double ref[][3] = {
+			/* x, fone, 1 + x - x (2 + x) fone */
+			{50.0, 0.01961510993011487, 0.0007141817013370502},
+			{50.5, 0.019424535273652109, 0.00070085572984728783},
+			{51.0, 0.019237629337915531, 0.00068789961432087022},
+			{66.0, 0.014928604980606707, 0.00042084703710112806},
+			{131.0, 0.0075761859933322146, 0.00011143817282542152},
+			{283.0, 0.0035211701140197202, 2.4453739468293606e-5},
+			{1000.0, 0.00099900199402388071, 1.9880715235700394e-6},
+			{1e5, 9.99990000199994e-6, 1.99988000719952e-10}};
+
+		for (size_t n = 0; n < sizeof(ref) / sizeof(ref[0]); n++) {
+			double x = ref[n][0], f = fone(x), br = 1.0 + x - x * (2.0 + x) * f;
+
+			CHECK_CLOSE(f, ref[n][1], (x <= 50.0) ? 2e-8 : 1e-15, 0.0, "fone(%g)", x);
+			if (x <= 1000.0)
+				CHECK_CLOSE(br, ref[n][2], (x <= 50.0) ? 3e-4 : 5e-16 * x * x * x, 0.0, "AR85-CDI bracket at x = %g", x);
+		}
+	}
+
+	/* --- AR85-CDI with b = 1 only: f = 1 + x - x (2 + x) fone(x) > 0.
+		   Above x = 50 (T < 2620 K for 11.3 eV) the rate is checked
+		   against the series of the bracket, sum_m>=2 (-1)^m m! (m-1)
+		   / x^m, which does not cancel; it was -1 there (B-64, rate
+		   zero after the clip) -- ---------------------------------- */
+
+	freeRateReports(&atom);
+	run_logged("AR85-CDI 0 3 1\n 11.3 0.0 1.0 0.0 0.0\n");
+	CHECK(count("negative contribution") == 0, "AR85-CDI bracket: %s", logText);
+	for (int k = 0, nchecked = 0; k < NT; k++) {
+		double x = 11.3 * EV / (KBOLTZMANN * atmos.T[k]), up = atom.C[3 * NLEVEL + 0][k];
+
+		CHECK(up > 0.0 && isfinite(up), "AR85-CDI bracket at T = %g (x = %g): %g", atmos.T[k], x, up);
+		if (x > 50.0) {
+			double br = 0.0, fact = 1.0;
+
+			for (int m = 2; m < 30; m++) {
+				fact *= m;
+				br += ((m % 2) ? -1.0 : 1.0) * fact * (m - 1) / pow(x, m);
+			}
+			double want = atmos.ne[k] * 6.69E-7 / pow(11.3, 1.5) * exp(-x) * sqrt(x) * br * CUBE(CM_TO_M);
+
+			CHECK_CLOSE(up, want, 1e-9, 0.0, "AR85-CDI bracket rate at T = %g (x = %g)", atmos.T[k], x);
+			nchecked++;
+		}
+		if (k == NT - 1) CHECK(nchecked == 9, "AR85-CDI bracket: %d temperatures above x = 50", nchecked);
 	}
 
 	/* --- AR85-CHH, fit range 2e3 to 2e5, c < -exp(-d t4) for

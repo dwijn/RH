@@ -11,6 +11,8 @@
 
 #include <math.h>
 
+#include "stokesgrid.h"
+
 /* --- Defines structures to contain the angle quadrature and
 	   interpolation mesh for 2-D Cartesian version. -- ------------- */
 
@@ -77,8 +79,10 @@ void   readAtmos(Atmosphere *atmos, Geometry *geometry);
 void   getBoundary(Atmosphere *atmos, Geometry *geometry);
 void   setStencilWeights(Stencil *stencil, enum direction direction,
 						 const double h[3]);
-void   StokesK_2D(int nspect, Stencil *st, enum direction direction,
+void   StokesK_2D(StokesGrid *sg, Stencil *st, enum direction direction,
 				  double chi_I, double K[4][4]);
+void   Interp_Stokes_2D(StokesGrid *sg, enum stokes_vector v, Stencil *st,
+						enum direction direction, double out[4]);
 
 /* --- Interpolation at the up- and downwind points, inline: the
 	   formal solvers call it five times per point with one stencil
@@ -171,6 +175,50 @@ static inline double Interp_2D(const double *values, const Stencil *stencil,
 }
 /* ------- end ---------------------------- Interp_2D.c ------------- */
 
+/* ------- begin -------------------------- Interp_2D_linear.c ------ */
+
+static inline double Interp_2D_linear(const double *values, const Stencil *stencil,
+									  enum direction direction)
+{
+	/* --- Interp_2D with the derivatives not limited: the centred
+		   (parabolic) derivatives that Steffen limits, and at an end
+		   without a neighbour the one-sided parabola. Linear in the
+		   values, with weights that do not depend on them, for
+		   quantities without a bound (the rapidities and rho' of
+		   stokesgrid.h, B-63) --                         -------------- */
+
+	const int   *index = stencil->index[direction];
+	const double t = stencil->fraction[direction], y0 = values[index[1]],
+				 y1 = values[index[2]];
+
+	if (stencil->order[direction] == SC_LINEAR) return (1.0 - t) * y0 + t * y1;
+
+	const double *ih = stencil->ih[direction], *a = stencil->a[direction];
+	const double  s    = (y1 - y0) * ih[1];
+	const double  s_up = (index[0] >= 0) ? (y0 - values[index[0]]) * ih[0] : 0.0,
+				 s_dn  = (index[3] >= 0) ? (values[index[3]] - y1) * ih[2] : 0.0;
+	double d0, d1;
+
+	if (index[0] >= 0)
+		d0 = a[0] * s_up + (1.0 - a[0]) * s;
+	else if (index[3] >= 0)
+		d0 = s + (s - s_dn) * (1.0 - a[1]);
+	else
+		d0 = s;
+	if (index[3] >= 0)
+		d1 = a[1] * s + (1.0 - a[1]) * s_dn;
+	else if (index[0] >= 0)
+		d1 = s + (s - s_up) * a[0];
+	else
+		d1 = s;
+
+	const double hc = stencil->hc[direction], c0 = y0 + hc * d0, c1 = y1 - hc * d1,
+				 u = 1.0 - t;
+
+	return u * u * (u * y0 + 3.0 * t * c0) + t * t * (3.0 * u * c1 + t * y1);
+}
+/* ------- end ---------------------------- Interp_2D_linear.c ------ */
+
 /* --- Formal solution related --                      -------------- */
 
 double SolveLong(LongChar *lc, int local, double *chi, double *S,
@@ -191,8 +239,7 @@ void Piecewise_Hermite_2D(Geometry *geometry, int nspect, int mu,
 
 /* --- Polarized long characteristics (N-41) --       -------------- */
 
-void SolveLongStokes(int nspect, LongChar *lc, int local, double *chi,
-					 double **S, double **I, double *I_uw);
+void SolveLongStokes(StokesGrid *sg, LongChar *lc, int local, double *I_uw);
 
 /* --- Prototypes for cubic Bezier solvers --          -------------- */
 
