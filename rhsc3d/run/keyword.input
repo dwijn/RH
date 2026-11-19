@@ -140,6 +140,14 @@
 
 #  HMINUS_BF_DATA = ../../Atoms/Hminus_bf.ecsv
 
+# GAUNT_FF_DATA points to the table of thermally averaged free-free Gaunt
+# factors of van Hoof et al. (2014, MNRAS 444, 420), gauntff.dat of
+# http://data.nublado.org/gauntff/, used for the hydrogen free-free
+# opacity. Type is KEYWORD_DEFAULT.
+# Default value is ../../Atoms/gauntff.dat.
+
+#  GAUNT_FF_DATA = ../../Atoms/gauntff.dat
+
 # Data file with lines in Bob Kurucz's format. Type is KEYWORD_OPTIONAL.
 # When KURUCZ_DATA is set to ``none'' (the default value) no data is read.
 # Solve for electron density if SOLVE_NE is set to true.

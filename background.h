@@ -52,6 +52,8 @@ double chemLastChangeReset(void);
 
 double Gaunt_bf(double lambda, double n_eff, int charge);
 double Gaunt_ff(double lambda, int charge, double T);
+int    Gaunt_ff_readTable(const char *fileName, char *errmsg, size_t len);
+void   Gaunt_ff_freeTable(void);
 void   FMetals(double *Fmetal);
 void   dFMetals(double *dFdne);
 void   Hydrostatic(int NmaxIter, double iterLimit);

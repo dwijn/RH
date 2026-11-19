@@ -259,23 +259,223 @@ double Gaunt_bf(double lambda, double n_eff, int charge)
 
 /* ------- begin -------------------------- Gaunt_ff.c -------------- */
 
+/* --- Thermally averaged free-free Gaunt factor (N-50).
+
+ From: P. A. M. van Hoof, R. J. R. Williams, K. Volk, M. Chatzikos,
+	   G. J. Ferland, M. Lykins, R. L. Porter and Y. Wang (2014),
+	   MNRAS 444, 420: the non-relativistic table <g_ff>(gamma^2, u),
+	   gamma^2 = Z^2 Ry / kT and u = h nu / kT, on a grid of 0.2 dex in
+	   both (log gamma^2 = -6 to 10, log u = -16 to 13; relative
+	   accuracy 1.0E-5). The file is read at run time (keyword
+	   GAUNT_FF_DATA, default Atoms/gauntff.dat, the file of
+	   http://data.nublado.org/gauntff/ unaltered, with its licence).
+
+ ln g is interpolated with four-point Lagrange polynomials in
+ log gamma^2 and log u (bicubic; one-sided stencils at the edges of
+ the table): positive by construction, and within about 5.0E-5 of the
+ table between its nodes. Outside the table, which covers 1.6E-5 K to
+ 1.6E11 K and every wavelength RH uses, the run stops.
+
+ Note: The table is read once in hydrogenPrepare, so that Gaunt_ff
+	   can be called from several threads.
+
+ Replaces the expansion in (h nu / Ry)^1/3 of Seaton (1960), which
+ was used far outside its range and floored at 1: in the mm it gave
+ g = 1 where the table gives 2.2 to 3.5. --        -------------- */
+
+#define GFF_MAGIC    20140210
+#define GFF_MAX_LINE 4096
+
+static int    gff_Ng = 0, gff_Nu = 0;
+static double gff_lg0, gff_lu0, gff_step, *gff_lng = NULL; /* ln g [u][g] */
+
+/* ------- begin -------------------------- gff_weights.c ----------- */
+
+static void gff_weights(double t, double w[4])
+{
+	/* --- Four-point Lagrange weights at t for nodes -1, 0, 1, 2. -- */
+
+	w[0] = -t * (t - 1.0) * (t - 2.0) / 6.0;
+	w[1] = (t + 1.0) * (t - 1.0) * (t - 2.0) / 2.0;
+	w[2] = -(t + 1.0) * t * (t - 2.0) / 2.0;
+	w[3] = (t + 1.0) * t * (t - 1.0) / 6.0;
+}
+/* ------- end ---------------------------- gff_weights.c ----------- */
+
+/* ------- begin -------------------------- gff_stencil.c ----------- */
+
+static int gff_stencil(double x, int N, double w[4])
+{
+	/* --- First node of the four-point stencil around grid
+		   coordinate x (0 <= x <= N - 1), and its weights. -- ---- */
+
+	int i0 = (int) floor(x) - 1;
+
+	if (i0 < 0) i0 = 0;
+	if (i0 > N - 4) i0 = N - 4;
+	gff_weights(x - (i0 + 1), w);
+	return i0;
+}
+/* ------- end ---------------------------- gff_stencil.c ----------- */
+
+/* ------- begin -------------------------- Gaunt_ff_readTable.c ---- */
+
+int Gaunt_ff_readTable(const char *fileName, char *errmsg, size_t len)
+{
+	/* --- Read the thermally averaged table of van Hoof et al. (2014)
+		   (gauntff.dat: comment lines start with '#'; the magic number
+		   20140210; the numbers of points in log gamma^2 and log u;
+		   the first log gamma^2, the first log u, the step in dex;
+		   then the Gaunt factors, one row per log u. A second block
+		   of the same size, the uncertainties, is not read.) Returns
+		   0, or -1 with a message in errmsg. Replaces a table read
+		   before. --                                    -------------- */
+
+	char   line[GFF_MAX_LINE], *p, *end;
+	int    Ng = 0, Nu = 0, n = 0, Ntot = 0, field = 0, lineNo = 0, status = -1;
+	long   magic;
+	double lg0 = 0.0, lu0 = 0.0, step = 0.0, v, *lng = NULL;
+	FILE  *fp;
+
+	if ((fp = fopen(fileName, "r")) == NULL) {
+		snprintf(errmsg, len, "Unable to open free-free Gaunt factor table %s",
+				 fileName);
+		return -1;
+	}
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		lineNo++;
+		if (strchr(line, '\n') == NULL && !feof(fp)) {
+			snprintf(errmsg, len, "%s:%d: line too long", fileName, lineNo);
+			goto done;
+		}
+		if (line[0] == '#') continue;
+		switch (field) {
+		case 0:
+			if (sscanf(line, "%ld", &magic) != 1) continue; /* blank */
+			if (magic != GFF_MAGIC) {
+				snprintf(errmsg, len,
+						 "%s:%d: magic number %ld, expected %d (the thermally "
+						 "averaged table of van Hoof et al. 2014)",
+						 fileName, lineNo, magic, GFF_MAGIC);
+				goto done;
+			}
+			field++;
+			continue;
+		case 1:
+			if (sscanf(line, "%d %d", &Ng, &Nu) != 2 || Ng < 4 || Nu < 4) {
+				snprintf(errmsg, len,
+						 "%s:%d: expected at least 4 x 4 grid points",
+						 fileName, lineNo);
+				goto done;
+			}
+			Ntot = Ng * Nu;
+			lng  = (double *) malloc(Ntot * sizeof(double));
+			field++;
+			continue;
+		case 2:
+		case 3:
+		case 4:
+			if (sscanf(line, "%lf", &v) != 1 || !isfinite(v)) {
+				snprintf(errmsg, len, "%s:%d: expected a number", fileName,
+						 lineNo);
+				goto done;
+			}
+			if (field == 2) lg0 = v;
+			if (field == 3) lu0 = v;
+			if (field == 4) step = v;
+			if (field == 4 && !(step > 0.0)) {
+				snprintf(errmsg, len, "%s:%d: step must be positive",
+						 fileName, lineNo);
+				goto done;
+			}
+			field++;
+			continue;
+		}
+		for (p = line; n < Ntot; p = end) {
+			v = strtod(p, &end);
+			if (end == p) break;
+			if (!(v > 0.0) || !isfinite(v)) {
+				snprintf(errmsg, len,
+						 "%s:%d: Gaunt factors must be positive and finite",
+						 fileName, lineNo);
+				goto done;
+			}
+			lng[n++] = log(v);
+		}
+		if (n == Ntot) break;
+		while (isspace((unsigned char) *p)) p++;
+		if (*p != '\0') {
+			snprintf(errmsg, len, "%s:%d: not a number: %.20s", fileName,
+					 lineNo, p);
+			goto done;
+		}
+	}
+	if (field < 5 || n < Ntot) {
+		snprintf(errmsg, len, "%s: incomplete table (%d of %d Gaunt factors)",
+				 fileName, n, Ntot);
+		goto done;
+	}
+	Gaunt_ff_freeTable();
+	gff_Ng   = Ng;
+	gff_Nu   = Nu;
+	gff_lg0  = lg0;
+	gff_lu0  = lu0;
+	gff_step = step;
+	gff_lng  = lng;
+	lng      = NULL;
+	status   = 0;
+
+done:
+	fclose(fp);
+	free(lng);
+	return status;
+}
+/* ------- end ---------------------------- Gaunt_ff_readTable.c ---- */
+
+/* ------- begin -------------------------- Gaunt_ff_freeTable.c ---- */
+
+void Gaunt_ff_freeTable(void)
+{
+	free(gff_lng);
+	gff_lng = NULL;
+	gff_Ng = gff_Nu = 0;
+}
+/* ------- end ---------------------------- Gaunt_ff_freeTable.c ---- */
+
 double Gaunt_ff(double lambda, int charge, double T)
 {
-	/* --- M. J. Seaton (1960), Rep. Prog. Phys. 23, 313
+	/* --- <g_ff> at lambda [nm] and temperature T [K] for an ion of
+		   charge Z. Needs the table (Gaunt_ff_readTable). -- ----- */
 
-	 Note: There is a problem with this expansion at higher temperatures
-		   (T > 3.0E4 and longer wavelengths (lambda > 2000 nm). Set to
-		   1.0 when the value goes below 1.0 --          -------------- */
+	const char routineName[] = "Gaunt_ff";
+	int        i0, j0, i, j;
+	double     x, y, wg[4], wu[4], sum = 0.0;
 
-	double x, x3, y, gIII;
-
-	x  = ((HPLANCK * CLIGHT) / (lambda * NM_TO_M)) / (E_RYDBERG * SQ(charge));
-	x3 = pow(x, 0.33333333);
-	y  = (2.0 * lambda * NM_TO_M * KBOLTZMANN * T) / (HPLANCK * CLIGHT);
-
-	gIII = 1.0 + 0.1728 * x3 * (1.0 + y) -
-		   0.0496 * SQ(x3) * (1.0 + (1.0 + y) * 0.33333333 * y);
-	return (gIII > 1.0) ? gIII : 1.0;
+	if (gff_lng == NULL) {
+		sprintf(messageStr, "free-free Gaunt factor table not read "
+							"(call hydrogenPrepare first)");
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+	x = (log10(SQ(charge) * E_RYDBERG / (KBOLTZMANN * T)) - gff_lg0) / gff_step;
+	y = (log10(HPLANCK * CLIGHT / (lambda * NM_TO_M * KBOLTZMANN * T)) -
+		 gff_lu0) /
+		gff_step;
+	if (!(x >= 0.0 && x <= gff_Ng - 1 && y >= 0.0 && y <= gff_Nu - 1)) {
+		sprintf(messageStr,
+				"lambda = %g nm, T = %g K, Z = %d outside the free-free "
+				"Gaunt factor table",
+				lambda, T, charge);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+	i0 = gff_stencil(x, gff_Ng, wg);
+	j0 = gff_stencil(y, gff_Nu, wu);
+	for (j = 0; j < 4; j++) {
+		const double *row = gff_lng + (j0 + j) * gff_Ng + i0;
+		double        r   = 0.0;
+		for (i = 0; i < 4; i++) r += wg[i] * row[i];
+		sum += wu[j] * r;
+	}
+	return exp(sum);
 }
 /* ------- end ---------------------------- Gaunt_ff.c -------------- */
 
@@ -1071,6 +1271,9 @@ void hydrogenPrepare(void)
 
 	hydrogenCleanup();
 
+	if (gff_lng == NULL &&
+		Gaunt_ff_readTable(input.GauntFfData, messageStr, MAX_MESSAGE_LENGTH) != 0)
+		Error(ERROR_LEVEL_2, routineName, messageStr);
 	if (Hmbf_lambda == NULL) {
 		if (Hminus_bf_readTable(input.HminusBfData, messageStr,
 								MAX_MESSAGE_LENGTH) != 0)

@@ -154,6 +154,8 @@ void readInput()
 		 KEYWORD_REQUIRED, &input.pfData, setcharValue},
 		{"HMINUS_BF_DATA", "../../Atoms/Hminus_bf.ecsv", FALSE,
 		 KEYWORD_DEFAULT, input.HminusBfData, setcharValue},
+		{"GAUNT_FF_DATA", "../../Atoms/gauntff.dat", FALSE, KEYWORD_DEFAULT,
+		 input.GauntFfData, setcharValue},
 		{"SOLVE_NE", "NONE", FALSE, KEYWORD_DEFAULT, &input.solve_ne,
 		 setnesolution},
 		/* --- ANDERSON in every geometry (S-10, S-11) -- -- */
