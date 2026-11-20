@@ -95,6 +95,17 @@ void workRates(long Nsolved, long Nlu)
 }
 /* ------- end ---------------------------- workRates.c ------------- */
 
+/* ------- begin -------------------------- workBgScatter.c --------- */
+
+void workBgScatter(long Nsolved)
+{
+	/* --- Wavelength solves of the background scattering iteration
+		   (N-51), on top of those of the sweep -- ----- -------------- */
+
+	work.bg_lambda[work.phase] += Nsolved;
+}
+/* ------- end ---------------------------- workBgScatter.c --------- */
+
 /* ------- begin -------------------------- printWork.c ------------- */
 
 void printWork(void)
@@ -126,6 +137,16 @@ void printWork(void)
 			work.calls[WORK_HYDROSTATIC], work.seconds[WORK_HYDROSTATIC],
 			work.seconds[WORK_ITERATION], input.Nthreads);
 	Error(MESSAGE, NULL, messageStr);
+	if (work.bg_lambda[WORK_INITIAL] + work.bg_lambda[WORK_ITERATE] +
+			work.bg_lambda[WORK_FINAL] >
+		0) {
+		sprintf(messageStr,
+				"    Background scattering iteration: initial %ld, iterate %ld,"
+				" final %ld wavelength solves\n",
+				work.bg_lambda[WORK_INITIAL], work.bg_lambda[WORK_ITERATE],
+				work.bg_lambda[WORK_FINAL]);
+		Error(MESSAGE, NULL, messageStr);
+	}
 	if (work.Nrates > 0) {
 		sprintf(messageStr,
 				"    Rate equations %ld solved, %ld of them with LU"

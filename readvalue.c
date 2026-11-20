@@ -624,6 +624,29 @@ void setAndersonCoefficients(char *value, void *pointer)
 }
 /* ------- end ---------------------------- setAndersonCoefficients.c */
 
+/* ------- begin -------------------------- setBgOperator.c --------- */
+
+void setBgOperator(char *value, void *pointer)
+{
+	const char routineName[] = "setBgOperator";
+
+	enum bg_operator op = BG_OPERATOR_TRIDIAGONAL;
+
+	if (!strcmp(value, "TRIDIAGONAL"))
+		op = BG_OPERATOR_TRIDIAGONAL;
+	else if (!strcmp(value, "DIAGONAL"))
+		op = BG_OPERATOR_DIAGONAL;
+	else {
+		sprintf(messageStr,
+				"Invalid value for keyword BACKGROUND_OPERATOR: %s\n"
+				" Valid options are TRIDIAGONAL and DIAGONAL",
+				value);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
+	}
+	memcpy(pointer, &op, sizeof(enum_t));
+}
+/* ------- end ---------------------------- setBgOperator.c --------- */
+
 /* ------- begin -------------------------- setAndersonExtrapolate.c - */
 
 void setAndersonExtrapolate(char *value, void *pointer)

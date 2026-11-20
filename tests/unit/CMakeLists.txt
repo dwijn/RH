@@ -55,6 +55,10 @@ rh_unit_test(test_formal_1d test_formal_1d.c
   ${PROJECT_SOURCE_DIR}/rhf1d/bezier_1D.c
   ${PROJECT_SOURCE_DIR}/rhf1d/feautrier.c
   ${PROJECT_SOURCE_DIR}/rhf1d/project.c)
+rh_unit_test(test_bgscatter test_bgscatter.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/piecewise_1D.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/bezier_1D.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/project.c)
 rh_unit_test(test_formal_2d GEOMETRY rhsc2d TOPOLOGY TWO_D_PLANE
   test_formal_2d.c
   ${PROJECT_SOURCE_DIR}/rhsc2d/piecewise_2D.c

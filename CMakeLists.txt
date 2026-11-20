@@ -157,7 +157,7 @@ check_include_file(execinfo.h RH_HAVE_EXECINFO_H)
 # --- The library -----------------------------------------------------------
 
 add_library(rh STATIC
-  abundance.c accelerate.c anderson.c background.c backgropac_xdr.c barklem.c
+  abundance.c accelerate.c anderson.c background.c bgscatter.c backgropac_xdr.c barklem.c
   bezier_aux.c broad.c brs_xdr.c chemequil.c cocollisions.c collision.c
   cubeconvol.c duplicate.c error.c expint.c expspline.c fillgamma.c
   fixedrate.c fpehandler.c gammafunc.c gaussleg.c getcpu.c getlambda.c

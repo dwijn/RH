@@ -40,11 +40,25 @@ extern char       messageStr[];
 void Piecewise_Linear_1D(int nspect, int mu, bool_t to_obs,
 						 double *chi, double *S, double *I, double *Psi)
 {
+	Piecewise_Linear_1D_tri(nspect, mu, to_obs, chi, S, I, Psi, NULL);
+}
+/* ------- end ---------------------------- Piecewise_Linear_1D.c --- */
+
+/* ------- begin -------------------------- Piecewise_Linear_1D_tri.c */
+
+void Piecewise_Linear_1D_tri(int nspect, int mu, bool_t to_obs,
+							 double *chi, double *S, double *I, double *Psi,
+							 double *Tri)
+{
+	/* --- Tri (N-51): the row of the operator of this ray,
+		   Tri[3k] = dI_k/dS_k-dk (upwind), Tri[3k + 1] = dI_k/dS_k,
+		   Tri[3k + 2] = 0 (no downwind dependence) -- -------------- */
+
 	const char   routineName[] = "Piecewise_Linear_1D";
 	register int k;
 
 	int    k_start, k_end, dk, Ndep = geometry.Ndep;
-	double dtau_uw, dS_uw, I_uw = 0.0, w[2], zmu, Bnu[2];
+	double dtau_uw, dS_uw, I_uw = 0.0, w[2], zmu, Bnu[2], T0 = 0.0;
 
 	zmu = 0.5 / geometry.muz[mu];
 
@@ -104,6 +118,7 @@ void Piecewise_Linear_1D(int nspect, int mu, bool_t to_obs,
 
 	I[k_start] = I_uw;
 	if (Psi) Psi[k_start] = 0.0;
+	if (Tri) Tri[3 * k_start] = Tri[3 * k_start + 1] = Tri[3 * k_start + 2] = 0.0;
 
 	/* --- Solve transfer along ray --                   -------------- */
 
@@ -112,6 +127,11 @@ void Piecewise_Linear_1D(int nspect, int mu, bool_t to_obs,
 
 		I[k] = (1.0 - w[0]) * I_uw + w[0] * S[k] + w[1] * dS_uw;
 		if (Psi) Psi[k] = w[0] - w[1] / dtau_uw;
+		if (Tri) {
+			Tri[3 * k]     = (1.0 - w[0]) * T0 + w[1] / dtau_uw;
+			Tri[3 * k + 1] = T0 = w[0] - w[1] / dtau_uw;
+			Tri[3 * k + 2]      = 0.0;
+		}
 
 		dtau_uw = zmu * (chi[k] + chi[k + dk]) *
 				  fabs(geometry.height[k] - geometry.height[k + dk]);
@@ -122,5 +142,10 @@ void Piecewise_Linear_1D(int nspect, int mu, bool_t to_obs,
 	w2(dtau_uw, w);
 	I[k_end] = (1.0 - w[0]) * I_uw + w[0] * S[k_end] + w[1] * dS_uw;
 	if (Psi) Psi[k_end] = w[0] - w[1] / dtau_uw;
+	if (Tri) {
+		Tri[3 * k_end]     = (1.0 - w[0]) * T0 + w[1] / dtau_uw;
+		Tri[3 * k_end + 1] = w[0] - w[1] / dtau_uw;
+		Tri[3 * k_end + 2] = 0.0;
+	}
 }
-/* ------- end ---------------------------- Piecewise_Linear_1D.c --- */
+/* ------- end ---------------------------- Piecewise_Linear_1D_tri.c */

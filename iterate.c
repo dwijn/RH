@@ -23,6 +23,7 @@
 #include "solver.h"
 #include "inputs.h"
 #include "negtau.h"
+#include "bgscatter.h"
 
 typedef struct {
 	bool_t eval_operator, redistribute;
@@ -434,6 +435,30 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 	sprintf(messageStr, " Spectrum max delta J = %6.4E (lambda#: %d)\n",
 			dJmax, lambda_max);
 	Error(MESSAGE, NULL, messageStr);
+
+	/* --- The background scattering iteration of the sweep (N-51) -- */
+
+	if (bgScatterActive()) {
+		BgScatterStats bs;
+
+		bgScatterStats(&bs, TRUE);
+		if (bs.Niterated > 0) {
+			sprintf(messageStr,
+					"  Background scattering: %ld wavelengths iterated,"
+					" %ld solves%s",
+					bs.Niterated, bs.Nsweeps,
+					(bs.Nunconverged > 0) ? "" : "\n");
+			Error(MESSAGE, NULL, messageStr);
+			if (bs.Nunconverged > 0) {
+				sprintf(messageStr,
+						"; %ld not converged at BACKGROUND_N_MAX_ITER"
+						" (residual up to %.2E)\n",
+						bs.Nunconverged, bs.rmax);
+				Error(MESSAGE, NULL, messageStr);
+			}
+			workBgScatter(bs.Nsweeps);
+		}
+	}
 
 	getCPU(3, TIME_POLL,
 		   (eval_operator) ? "Spectrum & Operator" : "Solve Spectrum");
