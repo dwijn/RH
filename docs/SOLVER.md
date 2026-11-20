@@ -1990,7 +1990,11 @@ slant optical depth was −0.094 (`falc_mgi66`, with the line test on;
 prevent negative opacity, and no case needs it: it went too (S-14). In
 its place a detector in the formal solution (N-40) stops the run with a
 message, or rejects the trial point, where a run of negative optical
-depth goes below −50.
+depth goes below −50. It integrates each interval as the formal solver
+does (B-68): the trapezoid for `S_LINEAR` and Feautrier, the Bézier
+curves for `S_BEZIER3` and the polarized solver. Through a sign change of
+χ the Bézier interval can be negative, and thousands deep in an
+optically thick slant interval, where the trapezoid is positive.
 
 ### S-6 — Analytic residual (Form B), conditional on S-5
 

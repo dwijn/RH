@@ -16,6 +16,7 @@
 #include "spectrum.h"
 #include "error.h"
 #include "negtau.h"
+#include "bezier.h"
 
 /* --- Global variables --                             -------------- */
 
@@ -111,10 +112,90 @@ bool_t negTauCheck(int nspect, int mu, int to_obs, int Ninterval,
 }
 /* ------- end ---------------------------- negTauCheck.c ----------- */
 
+/* ------- begin -------------------------- negTauIntervals.c ------- */
+
+/* --- chi, the path length and the derivative of chi along increasing
+	   k in column c: the Steffen derivative at the inner points, the
+	   secant at the two ends (the 1-D Bezier solvers) -- ---------- */
+
+static double colChi(const double *chi, long Ncol, long c, int k)
+{
+	return chi[(long) k * Ncol + c];
+}
+
+static double colH(const double *z, int k)
+{
+	return fabs(z[k] - z[k + 1]);
+}
+
+static double colDeriv(const double *chi, const double *z, int Nz, long Ncol, long c,
+					   int k)
+{
+	if (k == 0) return (colChi(chi, Ncol, c, 1) - colChi(chi, Ncol, c, 0)) / colH(z, 0);
+	if (k == Nz - 1)
+		return (colChi(chi, Ncol, c, Nz - 1) - colChi(chi, Ncol, c, Nz - 2)) /
+			   colH(z, Nz - 2);
+	return cent_deriv(colH(z, k - 1), colH(z, k), colChi(chi, Ncol, c, k - 1),
+					  colChi(chi, Ncol, c, k), colChi(chi, Ncol, c, k + 1));
+}
+
+void negTauIntervals(enum negtau_quadrature quad, int Nz, long Ncol, long c,
+					 const double *chi, const double *z, double muz, double *dtau)
+{
+	register int k;
+
+	double h, x0, x1, d0, d1, up, down;
+
+	/* --- The optical depths dtau[0 .. Nz - 2] of the intervals of
+		   column c, chi[k * Ncol + c] at height z[k], along a ray with
+		   cosine muz, integrated as quad says (negtau.h). The cubic
+		   does not depend on the direction of the ray; the quadratic
+		   does, and is taken both ways. A Steffen derivative is
+		   homogeneous in the path lengths, so they are taken along the
+		   vertical and the result is scaled by 1 / muz -- ---------- */
+
+	for (k = 0; k < Nz - 1; k++) {
+		h  = colH(z, k);
+		x0 = colChi(chi, Ncol, c, k);
+		x1 = colChi(chi, Ncol, c, k + 1);
+
+		switch (quad) {
+		case NEGTAU_BEZIER3_1D:
+			d0      = colDeriv(chi, z, Nz, Ncol, c, k);
+			d1      = colDeriv(chi, z, Nz, Ncol, c, k + 1);
+			dtau[k] = 0.25 * h * (2.0 * (x0 + x1) + h / 3.0 * (d0 - d1));
+			break;
+
+		case NEGTAU_BEZIER_SC:
+			/* --- Along increasing k the local (downwind) point is
+				   k + 1, along decreasing k it is k; at the end of the
+				   ray the trapezoid --              -------------- */
+
+			up = down = 0.5 * h * (x0 + x1);
+			if (k + 1 < Nz - 1) {
+				d1 = colDeriv(chi, z, Nz, Ncol, c, k + 1);
+				up = h * (0.5 * (x0 + x1) + (x1 - x0) / 6.0 - h * d1 / 6.0);
+			}
+			if (k > 0) {
+				d0   = colDeriv(chi, z, Nz, Ncol, c, k);
+				down = h * (0.5 * (x0 + x1) + (x0 - x1) / 6.0 + h * d0 / 6.0);
+			}
+			dtau[k] = fmin(up, down);
+			break;
+
+		default:
+			dtau[k] = 0.5 * h * (x0 + x1);
+		}
+		dtau[k] /= muz;
+	}
+}
+/* ------- end ---------------------------- negTauIntervals.c ------- */
+
 /* ------- begin -------------------------- negTauColumns.c --------- */
 
 bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
-					 const double *chi, const double *z, double muz)
+					 const double *chi, const double *z, double muz,
+					 enum negtau_quadrature quad)
 {
 	register long c, n;
 	register int  k;
@@ -130,8 +211,12 @@ bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
 		   3-D crosses columns, but the threshold is more than ten times
 		   short of an overflow, and a bound over all columns (each
 		   interval in the column where it is most negative) could stop
-		   a run that would finish. Nothing to do where no total
-		   opacity is negative, the common case: one pass over chi -- */
+		   a run that would finish. The intervals are integrated as
+		   the caller's formal solver does (quad, B-68). Nothing to do
+		   where no total opacity is negative, the common case: one
+		   pass over chi (the Bezier curves keep their control points
+		   between the values at the ends, so they are not negative
+		   either, Q-34) --                              -------------- */
 
 	for (n = 0; n < Nz * Ncol; n++)
 		if (chi[n] < 0.0) break;
@@ -143,9 +228,7 @@ bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
 			if (chi[k * Ncol + c] < 0.0) break;
 		if (k == Nz) continue;
 
-		for (k = 0; k < Nz - 1; k++)
-			dtau[k] = 0.5 * (chi[k * Ncol + c] + chi[(k + 1) * Ncol + c]) *
-					  fabs(z[k] - z[k + 1]) / muz;
+		negTauIntervals(quad, Nz, Ncol, c, chi, z, muz, dtau);
 		tau = negTauRun(Nz - 1, dtau, &kf, &kl);
 		if (tau < taumin) {
 			taumin = tau;
@@ -156,9 +239,7 @@ bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
 		free(dtau);
 		return FALSE;
 	}
-	for (k = 0; k < Nz - 1; k++)
-		dtau[k] = 0.5 * (chi[k * Ncol + cmin] + chi[(k + 1) * Ncol + cmin]) *
-				  fabs(z[k] - z[k + 1]) / muz;
+	negTauIntervals(quad, Nz, Ncol, cmin, chi, z, muz, dtau);
 	negTauCheck(nspect, mu, to_obs, Nz - 1, dtau, (Ncol > 1) ? cmin : -1);
 	free(dtau);
 

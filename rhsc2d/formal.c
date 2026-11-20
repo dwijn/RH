@@ -48,8 +48,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	bool_t initialize, boundbound, polarized_as, polarized_c,
 		PRD_angle_dep, to_obs, solveStokes, angle_dep;
-	int     Nspace = atmos.Nspace, Nrays = atmos.Nrays, muslant;
-	double *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
+	int                    Nspace = atmos.Nspace, Nrays = atmos.Nrays, muslant;
+	enum negtau_quadrature quad, quad_ray;
+	double                *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
 						 dJmax = 0.0, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
 						 *J, *J20 = NULL;
 	ActiveSet *as;
@@ -87,6 +88,13 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	solveStokes = (input.StokesMode == FULL_STOKES &&
 				   (polarized_as || polarized_c || input.backgr_pol));
+
+	/* --- The negative-opacity detector integrates chi as the formal
+		   solver will (B-68): Bezier for S_BEZIER3 and for the
+		   polarized solver (DELO_BEZIER3), trapezoid for S_LINEAR -- */
+
+	quad     = (input.S_interpolation == S_BEZIER3) ? NEGTAU_BEZIER_SC : NEGTAU_LINEAR;
+	quad_ray = (solveStokes) ? NEGTAU_BEZIER_SC : quad;
 
 	/* --- Determine if we have to do angle-dependent opacity and
 		   emissivity --                                 -------------- */
@@ -182,7 +190,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 					S[k]   = as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k];
 				}
 				if (negTauColumns(nspect, mu, to_obs, geometry.Nz, geometry.Nx, chi, geometry.z,
-								  geometry.muz[mu]))
+								  geometry.muz[mu], quad_ray))
 					goto cleanup;
 				if (input.backgr_pol) {
 					for (k = 0; k < Nspace; k++) {
@@ -312,7 +320,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		for (mu = 1, muslant = 0; mu < Nrays; mu++) /* the most slanted ray */
 			if (geometry.muz[mu] < geometry.muz[muslant]) muslant = mu;
 		if (negTauColumns(nspect, muslant, -1, geometry.Nz, geometry.Nx, chi, geometry.z,
-						  geometry.muz[muslant]))
+						  geometry.muz[muslant], quad))
 			goto cleanup;
 		for (k = 0; k < Nspace; k++)
 			S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k]) / chi[k];

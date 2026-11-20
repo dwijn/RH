@@ -36,11 +36,38 @@
 
 #define NEG_TAU_LIMIT -50.0
 
+/* --- How the formal solver of the caller integrates chi over an
+	   interval (B-68): the detector takes the optical depth of each
+	   interval as that solver does, since a Bezier curve through a
+	   sign change of chi can make an interval negative where the
+	   trapezoid is positive.
+
+	   NEGTAU_LINEAR      the trapezoid: piecewise linear solvers and
+						  Feautrier;
+	   NEGTAU_BEZIER3_1D  the cubic Bezier curve of the 1-D solvers
+						  (bezier_1D.c, also Stokes): Steffen
+						  derivatives at the inner points, the secant
+						  at the two ends;
+	   NEGTAU_BEZIER_SC   the quadratic Bezier curve of the 2-D and 3-D
+						  short (and long) characteristics: the Steffen
+						  derivative at the downwind end of the
+						  interval, the trapezoid where that end is
+						  the end of the ray. A column stands for the
+						  ray (see negTauColumns), so both directions
+						  are taken and the smaller kept -- --------- */
+
+enum negtau_quadrature { NEGTAU_LINEAR,
+						 NEGTAU_BEZIER3_1D,
+						 NEGTAU_BEZIER_SC };
+
 double negTauRun(int Ninterval, const double *dtau, int *kfirst, int *klast);
 bool_t negTauCheck(int nspect, int mu, int to_obs, int Ninterval,
 				   const double *dtau, long column);
+void   negTauIntervals(enum negtau_quadrature quad, int Nz, long Ncol, long c,
+					   const double *chi, const double *z, double muz, double *dtau);
 bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
-					 const double *chi, const double *z, double muz);
+					 const double *chi, const double *z, double muz,
+					 enum negtau_quadrature quad);
 
 void   negTauTrial(bool_t trial);
 bool_t negTauInTrial(void);
