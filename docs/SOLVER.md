@@ -293,9 +293,35 @@ Ng and cycles with period `NG_PERIOD` = 3 with Ng (11.8 after 200
 iterations); `FALXCO_80` with H_6_CRD + Ca II and ne converges in 31. The
 magnitude, however, is below 1 in this local toy. If the ne loop actually
 diverges, the cause must lie in nonlocal coupling through the Lyman and
-Balmer radiation field or in the inexact inner solves. **Open:** which one.
-Logging the alternating residuals in the failing case (`1d_shock_h6crd_ne`,
-S-5) answers it.
+Balmer radiation field or in the inexact inner solves.
+
+**Measured** (2026-11-20, evidence `t25-ne-eig`): plain G steps from the
+fixed point of `1d_shock_h6crd_ne`, converged with Anderson to 10⁻⁹.
+- **The eigenvalue.** G′ has one real eigenvalue −1.80 there. Successive
+  steps point in opposite directions (cos −0.99998) and grow by 1.80 per
+  step: a period-2 overshoot.
+- **The mode.** n_p and ne move together, the excited H levels about a
+  third as much, n_1 not at all. It sits at four depths (46, 49–51) in
+  the 4.7–5.8 kK temperature minimum below the shock, where ne is lowest.
+- **Local, not radiative.** Holding J at its fixed-point value leaves
+  −1.80; holding ne gives 0.90–0.96. So the loop is ne ↔ H ionization
+  within one evaluation, not the radiation field. Why its magnitude
+  exceeds the toy's bound of 1 was not analysed.
+- **Where in G.** The SE uses rates and LTE populations from the input
+  ne; ne then follows from charge conservation with the new populations.
+  ne thus lags n_p by one evaluation.
+- **Relaxing ne.** A relaxed update in log, ne ← ne^(1−ω) ne_G^ω, turns
+  the mode's factor into 1 − 2.8ω, unstable above ω ≈ 0.71. Measured:
+  0.93–0.96 at ω = 0.36 and 0.5 (the slow modes that remain), 1.08–1.11
+  at ω = 0.75 (predicted 1.10).
+- **Control.** `1d_falc_solvene` (FAL-C, H_6 + Ca II) contracts at
+  0.93–0.945.
+
+For users: with `SOLVE_NE = ITERATION`, plain iteration (`SOLVER =
+FIXED_POINT` or `NG`) cannot converge such an atmosphere; `ANDERSON` and
+`NEWTON_KRYLOV` can. A relaxed ne update (ω ≈ 0.5) would make plain
+iteration contract near the fixed point. It was neither implemented nor
+tested from the starting point, and is not logged (user, 2026-11-20).
 
 PRD has the same structure with a nonlocal coupling: ρ depends on J, J on
 the populations through the formal solution, the populations on ρ. N-4
