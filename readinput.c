@@ -99,7 +99,10 @@ void readInput()
 		{"I_SUM", "0", FALSE, KEYWORD_REQUIRED, &input.isum, setintValue},
 		{"N_MAX_ITER", "", FALSE, KEYWORD_REQUIRED, &input.NmaxIter,
 		 setintValue},
-		{"ITER_LIMIT", "", FALSE, KEYWORD_REQUIRED, &input.iterLimit,
+		/* --- At least one of the two, see below (N-3) -- ---------- */
+		{"ITER_LIMIT", "0.0", FALSE, KEYWORD_OPTIONAL, &input.iterLimit,
+		 setdoubleValue},
+		{"ERROR_LIMIT", "0.0", FALSE, KEYWORD_OPTIONAL, &input.errorLimit,
 		 setdoubleValue},
 		{"NG_DELAY", "0", FALSE, KEYWORD_OPTIONAL, &input.Ngdelay, setintValue},
 		{"NG_ORDER", "0", FALSE, KEYWORD_OPTIONAL, &input.Ngorder, setintValue},
@@ -490,6 +493,56 @@ void readInput()
 					"%s* keywords without SOLVER = %s; see the"
 					" warnings above.",
 					prefix, solverName(owner));
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
+	}
+
+	/* --- ITER_LIMIT and ERROR_LIMIT (N-3, docs/SOLVER.md). ITER_LIMIT
+		   tests the residual of the populations, ERROR_LIMIT the
+		   estimated error of the state (ANDERSON and NEWTON_KRYLOV
+		   only); with both set, both must pass. Every solver needs
+		   ITER_LIMIT, except that ANDERSON and NEWTON_KRYLOV take
+		   ERROR_LIMIT alone, and then ITER_LIMIT (also the limit of the
+		   background-scattering iterations) takes its value -- ----- */
+
+	input.iterLimit_set = keywordSet(theKeywords, Nkeyword, "ITER_LIMIT");
+	if (keywordSet(theKeywords, Nkeyword, "ERROR_LIMIT")) {
+		if (input.solver != SOLVER_ANDERSON &&
+			input.solver != SOLVER_NEWTON_KRYLOV) {
+			sprintf(messageStr,
+					"ERROR_LIMIT is set, but SOLVER = %s has no error"
+					" estimate. Set SOLVER =\n ANDERSON or NEWTON_KRYLOV, or"
+					" remove the keyword and use ITER_LIMIT.",
+					sname);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
+		if (!(input.errorLimit > 0.0)) {
+			sprintf(messageStr, "ERROR_LIMIT = %g: must be positive.",
+					input.errorLimit);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
+	} else
+		input.errorLimit = 0.0;
+	if (!input.iterLimit_set) {
+		if (input.errorLimit > 0.0) {
+			char value[32];
+
+			input.iterLimit = input.errorLimit;
+			snprintf(value, sizeof(value), "%.6E", input.errorLimit);
+			setKeywordValue(theKeywords, Nkeyword, "ITER_LIMIT", value);
+		} else if (input.solver == SOLVER_ANDERSON ||
+				   input.solver == SOLVER_NEWTON_KRYLOV) {
+			sprintf(messageStr,
+					"SOLVER = %s: set ITER_LIMIT (the residual of the"
+					" populations),\n ERROR_LIMIT (their estimated error, and"
+					" that of rho, ne and J), or both.",
+					sname);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		} else {
+			sprintf(messageStr,
+					"Missing input value for required keyword ITER_LIMIT"
+					" (SOLVER = %s)",
+					sname);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 	}

@@ -127,6 +127,13 @@ typedef struct {
 		NmaxScatter, Nthreads, CR_Nstep;
 	double iterLimit, PRDiterLimit, PRD_damping, metallicity, CR_factor;
 
+	/* --- ERROR_LIMIT (N-3): the estimated error at which ANDERSON and
+		   NEWTON_KRYLOV stop, 0 = not set. Without ITER_LIMIT,
+		   iterLimit takes its value -- ------------------------------ */
+
+	double errorLimit;
+	bool_t iterLimit_set; /* ITER_LIMIT set in the file */
+
 	pthread_attr_t thread_attr;
 } InputData;
 

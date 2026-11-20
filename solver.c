@@ -42,6 +42,7 @@
 	   on G", the two controls of S-5.
 	   --                                              -------------- */
 
+#include <float.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -58,6 +59,7 @@
 #include "background.h"
 #include "anderson.h"
 #include "newton.h"
+#include "mpe.h"
 #include "solver.h"
 
 /* --- Global variables --                             -------------- */
@@ -1017,9 +1019,270 @@ static double printChange(const char *routineName, int niter, const double *x,
 		Error(MESSAGE, NULL, messageStr);
 	}
 	printRhoNe(x, NULL, gx);
+	if (input.errorLimit > 0.0) {
+		for (n = 0; n < Nblocks; n++) {
+			if (blocks[n].kind != BLOCK_J) continue;
+			sprintf(messageStr, " J: delta = %6.4E\n",
+					relChange(x + blockStart[n], gx + blockStart[n], blocks[n].N));
+			Error(MESSAGE, NULL, messageStr);
+		}
+	}
 	return dpopsmax;
 }
 /* ------- end ---------------------------- printChange.c ----------- */
+
+/* ------- begin -------------------------- errorTest.c ------------- */
+
+/* --- ERROR_LIMIT (N-3): the residual r of G at x does not bound the
+	   error of G(x) when G contracts slowly (error ~ r / (1 - lambda)),
+	   and the residual history of ANDERSON and NEWTON_KRYLOV does not
+	   give lambda. Once the residual is small enough, ERROR_STEPS plain
+	   G steps from G(x) are taken, and minimal polynomial extrapolation
+	   (mpe.c) of them, in the logarithms of the populations, rho, ne
+	   and J, estimates the fixed point s; the estimated error is
+	   max |s / G(x) - 1| over those entries. The run stops when it is
+	   below ERROR_LIMIT (and the residual of the populations below
+	   ITER_LIMIT). Otherwise the residual target of the next estimate
+	   is lowered in proportion, 0.8 r ERROR_LIMIT / e, at most 0.8 r.
+
+	   Measured against converged runs (docs/changes/N-3.md): the
+	   estimate is 0.6 to 1.4 times the actual error with 6 steps, in
+	   1-D, 2-D and 3-D, also where plain G is not a contraction at the
+	   solution (1d_shock_h6crd_ne). G is a function of x alone (S-2),
+	   so the steps change nothing the solver carries on with; before
+	   a stop G(x) is evaluated again, so that what G sets besides the
+	   state (Gamma, the radiative rates, the intensities) is that of
+	   the output --                                -------------- */
+
+#define ERROR_STEPS 6
+
+typedef struct {
+	double limit;    /* ERROR_LIMIT, 0: off */
+	double target;   /* residual at which the next estimate is made */
+	double residual; /* r and the estimate of the last one, -1: none */
+	double estimate;
+	int    Nestimate;
+	long   Geval;
+} ErrorTest;
+
+static bool_t errorBlock(enum BlockKind kind)
+{
+	return (kind != BLOCK_J20);
+}
+
+static long errorSize(void)
+{
+	register int n;
+
+	long N = 0;
+
+	for (n = 0; n < Nblocks; n++)
+		if (errorBlock(blocks[n].kind)) N += blocks[n].N;
+	return N;
+}
+
+static void errorTestInit(ErrorTest *t, const char *routineName)
+{
+	t->limit     = input.errorLimit;
+	t->target    = input.errorLimit;
+	t->residual  = -1.0;
+	t->estimate  = -1.0;
+	t->Nestimate = 0;
+	t->Geval     = 0;
+	if (t->limit <= 0.0) return;
+
+	sprintf(messageStr,
+			" -- ERROR_LIMIT = %.2E: the run stops when the estimated error"
+			" of the\n    populations, rho, ne and J is below it%s; each"
+			" estimate takes %d plain G\n    steps (memory %.1f MB)\n",
+			t->limit,
+			(input.iterLimit_set) ? " and the residual of the populations below"
+									" ITER_LIMIT"
+								  : "",
+			ERROR_STEPS,
+			((double) ERROR_STEPS * errorSize() + 2.0 * Nstate) * sizeof(double) /
+				1.0E6);
+	Error(MESSAGE, routineName, messageStr);
+}
+
+/* --- The residual of rho, ne and J (relChange) -- ----------------- */
+
+static double errorResidual(const double *x, const double *gx)
+{
+	register int n;
+
+	double r = 0.0;
+
+	for (n = 0; n < Nblocks; n++)
+		if (blocks[n].kind == BLOCK_RHO || blocks[n].kind == BLOCK_NE ||
+			blocks[n].kind == BLOCK_J)
+			r = MAX(r, relChange(x + blockStart[n], gx + blockStart[n], blocks[n].N));
+	return r;
+}
+
+/* --- log y - log y0 for the entries in the estimate, 0 where either
+	   is not positive. Both logarithms are of positive numbers in
+	   every lane: a vectorizing compiler may evaluate both sides of
+	   the select (FPE traps, as in N-37) --         -------------- */
+
+static void errorLogDiff(const double *y, const double *y0, double *out)
+{
+	register int  n;
+	register long i;
+
+	for (n = 0; n < Nblocks; n++) {
+		if (!errorBlock(blocks[n].kind)) continue;
+		for (i = blockStart[n]; i < blockStart[n + 1]; i++)
+			*out++ = (y[i] > 0.0 && y0[i] > 0.0)
+						 ? log(fmax(y[i], DBL_MIN)) - log(fmax(y0[i], DBL_MIN))
+						 : 0.0;
+	}
+}
+
+static double errorEstimate(ErrorTest *t, const double *gx)
+{
+	register int  j;
+	register long i;
+
+	bool_t  Gok = TRUE;
+	long    N   = errorSize();
+	double *y, *gy, *D[ERROR_STEPS], e = -1.0;
+
+	/* --- ERROR_STEPS plain steps from G(x) as trial points (a step
+		   that fails, N-40, N-8, N-4, gives no estimate instead of
+		   stopping the run). The differences of the logarithms, in
+		   terms of G(x): D_j = log(y_(j+1) / G(x)) - log(y_j / G(x)).
+		   Returns the estimated error of G(x), or -1 -- ------------- */
+
+	y  = (double *) malloc(Nstate * sizeof(double));
+	gy = (double *) malloc(Nstate * sizeof(double));
+	for (j = 0; j < ERROR_STEPS; j++) D[j] = (double *) malloc(N * sizeof(double));
+
+	memcpy(y, gx, Nstate * sizeof(double));
+	for (j = 0; j < ERROR_STEPS && Gok; j++) {
+		negTauReset();
+		negTauTrial(TRUE);
+		Gok = G_eval(y, gy);
+		negTauTrial(FALSE);
+		t->Geval++;
+		if (!Gok) break;
+		errorLogDiff(gy, gx, D[j]);
+		memcpy(y, gy, Nstate * sizeof(double));
+	}
+	negTauReset();
+	if (Gok) {
+		/* --- D[j] holds log(y_(j+1) / G(x)): differences in place -- */
+
+		for (j = ERROR_STEPS - 1; j > 0; j--)
+			for (i = 0; i < N; i++) D[j][i] -= D[j - 1][i];
+		if (mpeExtrapolate(ERROR_STEPS, N, D)) {
+			e = 0.0;
+			for (i = 0; i < N; i++) e = MAX(e, fabs(expm1(D[ERROR_STEPS - 1][i])));
+			if (!isfinite(e)) e = -1.0;
+		}
+	}
+	for (j = 0; j < ERROR_STEPS; j++) free(D[j]);
+	free(y);
+	free(gy);
+	t->Nestimate++;
+
+	return e;
+}
+
+/* --- Whether the run stops at x, with dpopsmax the residual of the
+	   populations: below ITER_LIMIT, and with ERROR_LIMIT an estimated
+	   error below it -- ------------------------------------------ */
+
+static bool_t errorTestStop(ErrorTest *t, const char *routineName, int niter,
+							const double *x, const double *gx, double dpopsmax,
+							double iterLimit)
+{
+	double r, e, *gy;
+
+	if (!(dpopsmax < iterLimit)) return FALSE;
+	if (t->limit <= 0.0) return TRUE;
+	r = MAX(dpopsmax, errorResidual(x, gx));
+	if (!(r < t->target)) return FALSE;
+
+	e           = errorEstimate(t, gx);
+	t->residual = r;
+	t->estimate = e;
+	if (e >= 0.0 && e < t->limit) {
+		sprintf(messageStr,
+				" -- Iteration %d: residual %.2E, estimated error %.2E <"
+				" ERROR_LIMIT\n",
+				niter, r, e);
+		Error(MESSAGE, routineName, messageStr);
+
+		/* --- What G sets besides the state, that of G(x) -- -------- */
+
+		gy = (double *) malloc(Nstate * sizeof(double));
+		G_eval(x, gy);
+		t->Geval++;
+		free(gy);
+		return TRUE;
+	}
+	t->target = (e > 0.0) ? MIN(0.8 * r * t->limit / e, 0.8 * r) : 0.5 * r;
+	if (e >= 0.0)
+		sprintf(messageStr,
+				" -- Iteration %d: residual %.2E, estimated error %.2E >="
+				" ERROR_LIMIT;\n    next estimate at residual %.2E\n",
+				niter, r, e, t->target);
+	else
+		sprintf(messageStr,
+				" -- Iteration %d: residual %.2E, no error estimate (a plain"
+				" step failed,\n    or no finite limit); next estimate at"
+				" residual %.2E\n",
+				niter, r, t->target);
+	Error(MESSAGE, routineName, messageStr);
+	return FALSE;
+}
+
+/* --- The estimated error of the output gx of a run that did not
+	   converge (not after a stop on request) -- ------------------- */
+
+static void errorTestFinal(ErrorTest *t, const double *gx)
+{
+	if (t->limit <= 0.0) return;
+	t->estimate = errorEstimate(t, gx);
+}
+
+/* --- The limits part of the convergence messages -- -------------- */
+
+static void errorTestLimits(const ErrorTest *t, char *s, size_t n, double dpopsmax,
+							double iterLimit, bool_t converged)
+{
+	char est[32];
+
+	if (t->limit <= 0.0) {
+		snprintf(s, n, "max change %.4E %s ITER_LIMIT = %.4E", dpopsmax,
+				 (converged) ? "<" : ">=", iterLimit);
+		return;
+	}
+	if (t->estimate >= 0.0)
+		snprintf(est, sizeof(est), "%.2E %s", t->estimate,
+				 (t->estimate < t->limit) ? "<" : ">=");
+	else
+		snprintf(est, sizeof(est), "unknown,");
+	if (input.iterLimit_set)
+		snprintf(s, n,
+				 "max change %.4E %s ITER_LIMIT = %.4E,\n    estimated error %s"
+				 " ERROR_LIMIT = %.2E",
+				 dpopsmax, (dpopsmax < iterLimit) ? "<" : ">=", iterLimit, est,
+				 t->limit);
+	else
+		snprintf(s, n, "max change %.4E, estimated error %s ERROR_LIMIT = %.2E",
+				 dpopsmax, est, t->limit);
+}
+
+static void errorTestSummary(const ErrorTest *t, const char *routineName)
+{
+	if (t->limit <= 0.0) return;
+	sprintf(messageStr, " -- ERROR_LIMIT: %d error estimate%s, %ld G evaluations\n",
+			t->Nestimate, (t->Nestimate == 1) ? "" : "s", t->Geval);
+	Error(MESSAGE, routineName, messageStr);
+}
+/* ------- end ---------------------------- errorTest.c ------------- */
 
 /* ------- begin -------------------------- iterateAnderson.c ------- */
 
@@ -1044,10 +1307,11 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	const char   routineName[] = "iterateAnderson";
 	register int niter, n;
 
-	bool_t converged = FALSE, stopped = FALSE, Gok;
-	char   what[256];
-	int    m = input.Anderson_depth, Nsolve, delay, t;
-	long   i, Ndamped = 0, Nguardplain = 0, Ncarried = 0, Ncarried_ok = 0,
+	bool_t    converged = FALSE, stopped = FALSE, Gok;
+	char      what[256], limits[256];
+	int       m = input.Anderson_depth, Nsolve, delay, t;
+	ErrorTest et;
+	long      i, Ndamped = 0, Nguardplain = 0, Ncarried = 0, Ncarried_ok = 0,
 			Nbadtrial = 0;
 	double             *x, *gx, *gacc, *u, *gu, *un, *w, *gamma, dpopsmax = 0.0, theta;
 	unsigned char      *valid, *validg;
@@ -1131,6 +1395,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		strcat(messageStr, "\n");
 		Error(MESSAGE, NULL, messageStr);
 	}
+	errorTestInit(&et, routineName);
 
 	niter = 1;
 	while (niter <= NmaxIter) {
@@ -1174,13 +1439,11 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		}
 
 		dpopsmax = printChange(routineName, niter, x, gx);
+		if (errorTestStop(&et, routineName, niter, x, gx, dpopsmax, iterLimit))
+			converged = TRUE;
 		sprintf(messageStr, "Total Iteration %3d", niter);
 		getCPU(2, TIME_POLL, messageStr);
-
-		if (dpopsmax < iterLimit) {
-			converged = TRUE;
-			break;
-		}
+		if (converged) break;
 		/* --- The next point --                          -------------- */
 
 		toVars(x, u, valid);
@@ -1237,14 +1500,14 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	}
 
 	if (converged) {
-		sprintf(messageStr, "\n -- Converged in %d iterations: max change"
-							" %.4E < ITER_LIMIT = %.4E\n",
-				niter, dpopsmax, iterLimit);
+		errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, TRUE);
+		sprintf(messageStr, "\n -- Converged in %d iterations: %s\n", niter, limits);
 		Error(MESSAGE, routineName, messageStr);
 	} else {
 		/* --- The output is G of the last accepted point: the state
 			   arrays may hold the image of a rejected one -- ------- */
 
+		if (!stopped && niter > 1) errorTestFinal(&et, gacc);
 		if (niter > 1) stateScatter(gacc);
 		if (stopped) {
 			sprintf(messageStr, "Stopped on request (STOP_RH) after %d iterations:"
@@ -1252,11 +1515,11 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 								" solution",
 					niter - 1);
 		} else {
-			sprintf(messageStr, "NOT CONVERGED after %d iterations: max change"
-								" %.4E >= ITER_LIMIT = %.4E.\n The output is not a"
-								" converged solution; increase N_MAX_ITER or see what"
-								" limits convergence",
-					niter - 1, dpopsmax, iterLimit);
+			errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, FALSE);
+			sprintf(messageStr, "NOT CONVERGED after %d iterations: %s.\n The output"
+								" is not a converged solution; increase N_MAX_ITER or"
+								" see what limits convergence",
+					niter - 1, limits);
 		}
 		Error(WARNING, routineName, messageStr);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
@@ -1267,6 +1530,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
 			a->Ndropped);
 	Error(MESSAGE, routineName, messageStr);
+	errorTestSummary(&et, routineName);
 	if (Nbadtrial > 0) {
 		sprintf(messageStr,
 				" -- Anderson: %ld of the rejected points were invalid trial points"
@@ -1400,9 +1664,11 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	register int niter;
 
 	bool_t converged = FALSE, stopped = FALSE, accepted, Gok;
+	char   limits[256];
 	int    k = input.Newton_krylov_max, kmax, nback, Nhalve, n, ninf,
 		Nreason[GUARD_NRESULT], Nbadtrial = 0;
-	long i, Neval = 0, Nbase = 0, Nkrylov = 0, Nline = 0, Nplain = 0,
+	ErrorTest et;
+	long      i, Neval = 0, Nbase = 0, Nkrylov = 0, Nline = 0, Nplain = 0,
 			Nguard = 0, Nsteps = 0, Nlost = 0, Nrestore = 0;
 	double *x, *gx, *u, *gu, *r, *d, *xt, *gt, *ut, *gut, *rt, *w;
 	double  dpopsmax = 0.0, rnorm, rnorm_prev = 0.0, eta = 0.0, rtnorm, dinf,
@@ -1467,6 +1733,8 @@ void iterateNewton(int NmaxIter, double iterLimit)
 				Nstate / 1.0E6);
 	Error(MESSAGE, routineName, messageStr);
 
+	errorTestInit(&et, routineName);
+
 	/* --- The first base point --                     -------------- */
 
 	G_eval(x, gx);
@@ -1476,7 +1744,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	niter = 1;
 	for (;;) {
 		dpopsmax = printChange(routineName, niter, x, gx);
-		if (dpopsmax < iterLimit) {
+		if (errorTestStop(&et, routineName, niter, x, gx, dpopsmax, iterLimit)) {
 			converged = TRUE;
 			break;
 		}
@@ -1492,7 +1760,8 @@ void iterateNewton(int NmaxIter, double iterLimit)
 		getCPU(2, TIME_START, NULL);
 		rnorm = residualOf(x, gx, u, gu, valid, validg, r, w);
 		eta   = newtonForcing(Nsteps == 0, eta, rnorm, rnorm_prev,
-							  input.Newton_eta_max, iterLimit);
+							  input.Newton_eta_max,
+                            (et.limit > 0.0) ? MIN(iterLimit, et.target) : iterLimit);
 		kmax  = (int) MIN((long) k, NmaxIter - Neval - 1);
 		for (i = 0; i < Nstate; i++) rt[i] = -r[i];
 		memset(&gres, 0, sizeof(gres));
@@ -1624,13 +1893,19 @@ void iterateNewton(int NmaxIter, double iterLimit)
 		niter++;
 	}
 
-	/* --- The output is G of the last base point -- --------------- */
+	/* --- The output is G of the last base point. After the error
+		   estimate of a run that did not converge, G there again, for
+		   what G sets besides the state -- -------------------------- */
 
+	if (!converged && !stopped && et.limit > 0.0) {
+		errorTestFinal(&et, gx);
+		G_eval(x, gx);
+		et.Geval++;
+	}
 	stateScatter(gx);
 	if (converged) {
-		sprintf(messageStr, "\n -- Converged at base point %d: max change"
-							" %.4E < ITER_LIMIT = %.4E\n",
-				niter, dpopsmax, iterLimit);
+		errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, TRUE);
+		sprintf(messageStr, "\n -- Converged at base point %d: %s\n", niter, limits);
 		Error(MESSAGE, routineName, messageStr);
 	} else {
 		if (stopped) {
@@ -1639,11 +1914,12 @@ void iterateNewton(int NmaxIter, double iterLimit)
 								" converged solution",
 					Neval);
 		} else {
+			errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, FALSE);
 			sprintf(messageStr, "NOT CONVERGED after %ld G evaluations"
-								" (N_MAX_ITER = %d): max change %.4E >= ITER_LIMIT ="
-								" %.4E.\n The output is not a converged solution;"
-								" increase N_MAX_ITER or see what limits convergence",
-					Neval, NmaxIter, dpopsmax, iterLimit);
+								" (N_MAX_ITER = %d): %s.\n The output is not a converged"
+								" solution; increase N_MAX_ITER or see what limits"
+								" convergence",
+					Neval, NmaxIter, limits);
 		}
 		Error(WARNING, routineName, messageStr);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
@@ -1655,6 +1931,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			Neval, Nsteps, Nbase, Nkrylov, Nline, Nlost, Nplain, Nguard,
 			ctx.Ninvalid, Nrestore);
 	Error(MESSAGE, routineName, messageStr);
+	errorTestSummary(&et, routineName);
 	if (ctx.Nbadtrial > 0) {
 		sprintf(messageStr,
 				" -- Newton: %ld Jacobian probes were invalid trial points (negative"
