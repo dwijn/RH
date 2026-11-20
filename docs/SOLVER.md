@@ -340,9 +340,35 @@ understated the error by 1.5 to 20 times, because the residual falls at the
 rate of the accelerated iteration while the error is set by the slow modes of
 G; so the residual of these solvers can understate the error by an order of
 magnitude, and no estimate is printed (nor with Ng, whose iterates are
-accelerated). A reliable one needs G's own contraction (for instance a few
-plain G steps at the end of the run); that is left open. A library caller
-needing a defined accuracy should compare with a run at a smaller `ITER_LIMIT`.
+accelerated). Nor is J tested: with `N_MAX_SCATTER = 2` in the shipped
+keyword files, J at background-scattering wavelengths converges only with the
+main iteration, and on FAL-C with Ca II (the `convergence_report` test case)
+the emergent intensity at 125 nm is 55 % off when the populations stop at
+10⁻⁴.
+
+**`ERROR_LIMIT` (N-3).** With `SOLVER = ANDERSON` or `NEWTON_KRYLOV` the
+optional keyword `ERROR_LIMIT` stops the run on an estimate of the error of
+the output G(x): the largest relative error over the populations, the PRD ρ,
+ne (when in the state) and J (not J20). Once the residual of all of these is
+below a target (at first `ERROR_LIMIT`, and that of the populations below
+`ITER_LIMIT`), six plain G steps are taken from G(x), as trial points, and
+minimal polynomial extrapolation (`mpe.c`) of their logarithms estimates the
+fixed point s; the estimate is max |s/G(x) − 1|. If it is below
+`ERROR_LIMIT` the run stops, after evaluating G(x) once more so that the
+rates and intensities are those of the output. Otherwise the target becomes
+0.8 r·`ERROR_LIMIT`/e (at most 0.8 r) and the solver goes on where it was: G
+is a function of x alone, so the steps change nothing it carries. With both
+keywords both tests must pass; with `ERROR_LIMIT` alone `ITER_LIMIT` takes
+its value (it also limits the background-scattering iterations). The other
+solvers reject `ERROR_LIMIT` and still require `ITER_LIMIT`. A run that
+reaches `N_MAX_ITER` reports the estimated error of its output; the log adds
+`J: delta` per iteration and the number of estimates and their G
+evaluations. Why MPE and not r/(1 − λ) from the plain steps: plain G need
+not contract at the solution (on `1d_shock_h6crd_ne` its residual grows
+1.85× per step while Anderson converges), and MPE extrapolates through that.
+Measured against converged runs (`docs/changes/N-3.md`), six steps give
+0.6–1.4 times the actual error, five down to 0.47 in 2-D and 3-D. A library
+caller that needs a defined accuracy (STIC) sets `ERROR_LIMIT`.
 
 ---
 
@@ -1124,7 +1150,7 @@ part of G.
 
 **Stopping and output.** The change of an evaluation is `MaxChange`'s
 definition on (x_k, G(x_k)), per atom, as in `FIXED_POINT`; the run stops
-below `ITER_LIMIT`. The state left for the final formal solution and the
+below `ITER_LIMIT` (and with `ERROR_LIMIT` on the estimated error, §2.4). The state left for the final formal solution and the
 output is G(x_k) of that evaluation, never an extrapolated point.
 
 **Keywords:** `SOLVER = ANDERSON`, `ANDERSON_DEPTH` (10),
@@ -1234,7 +1260,9 @@ separate one.
    Eisenstat & Walker (1996) choice 2, η_k = γ(‖R_k‖/‖R_{k−1}‖)^α with
    γ = 0.9, α = 2, their safeguard η_k ≥ γη_{k−1}^α when that exceeds 0.1,
    η_k ≤ η_max = `NEWTON_ETA_MAX` (0.9), η_0 = η_max, and against
-   oversolving η_k ≥ ½·`ITER_LIMIT`/‖R_k‖_W (Kelley 1995).
+   oversolving η_k ≥ ½·`ITER_LIMIT`/‖R_k‖_W (Kelley 1995); with
+   `ERROR_LIMIT` the smaller of `ITER_LIMIT` and the residual target of
+   the next error estimate (§2.4) replaces `ITER_LIMIT` there.
 4. **Globalization.** Backtracking on ‖R‖_W: trial u + λδ for
    λ = 1, ½, ¼, ⅛, 1/16, accepted if
    ‖R(u + λδ)‖_W ≤ (1 − 10⁻⁴λ)‖R(u)‖_W. The S-3 guard (finite, no new
@@ -1246,7 +1274,8 @@ separate one.
    the next Newton step, never paid twice.
 5. **Stopping and output.** As every other solver: `MaxChange`'s
    definition on (x_k, G(x_k)) at each base point, per atom, against
-   `ITER_LIMIT` (S-5: 10⁻⁶); ‖F_SE‖ is reported by the S-1 metrics, not
+   `ITER_LIMIT` (S-5: 10⁻⁶), and with `ERROR_LIMIT` the estimated error
+   (§2.4, its G evaluations not counted against `N_MAX_ITER`); ‖F_SE‖ is reported by the S-1 metrics, not
    used to stop (this replaces "stop on ‖F_SE‖" in the first version of
    this item, for like-for-like comparisons in S-5). `N_MAX_ITER` caps G
    evaluations (all of them: base, Krylov, line search), so it bounds the

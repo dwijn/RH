@@ -41,7 +41,8 @@
   I_SUM = -1
 
 # Set number of maximum iterations and convergence limit
-# (both KEYWORD_REQUIRED).
+# (N_MAX_ITER KEYWORD_REQUIRED; ITER_LIMIT too, except that ANDERSON and
+# NEWTON_KRYLOV accept ERROR_LIMIT instead, see below).
 
   N_MAX_ITER = 25
   ITER_LIMIT = 1.0E-2
@@ -57,13 +58,24 @@
 # residual / (1 - c) with c the contraction of the iteration, which is
 # close to 1 when it converges slowly: at c = 0.99 a residual of 1E-3
 # leaves an error of 1E-1. With ANDERSON and NEWTON_KRYLOV the residual
-# can understate the error by an order of magnitude (up to 20 times in
-# the case measured), since the acceleration lowers the residual faster
-# than the error. With FIXED_POINT and NG_ORDER = 0 the log ends with an
-# estimate of c from the last residuals and of the error ("Estimated
-# contraction"); the other solvers print none. For results that matter,
-# check against a run with a smaller ITER_LIMIT. See docs/SOLVER.md
-# section 2.4.
+# can understate the error by one to two orders of magnitude (up to 100
+# times in the cases measured), since the acceleration lowers the
+# residual faster than the error. With FIXED_POINT and NG_ORDER = 0 the
+# log ends with an estimate of c from the last residuals and of the
+# error ("Estimated contraction"); the other solvers print none. J is
+# not tested either: with N_MAX_SCATTER = 2, J at background-scattering
+# wavelengths can be far from converged when the populations are.
+#
+# ERROR_LIMIT (KEYWORD_OPTIONAL; SOLVER = ANDERSON or NEWTON_KRYLOV only)
+# tests the error itself: the run stops when the estimated relative error
+# of the populations, PRD rho, ne (SOLVE_NE = ITERATION) and J is below
+# ERROR_LIMIT, and the residual of the populations below ITER_LIMIT if that
+# is set too (with ERROR_LIMIT alone, ITER_LIMIT takes its value). Each
+# estimate takes 6 plain G steps; it was 0.6 to 1.4 times the actual error
+# in the cases measured. For results that matter, set ERROR_LIMIT. See
+# docs/SOLVER.md section 2.4.
+#
+#  ERROR_LIMIT = 1.0E-3
 
 # Iteration scheme (KEYWORD_DEFAULT): ANDERSON, the default; NG (MALI
 # with Ng acceleration, the default in 2-D and 3-D before S-11);
