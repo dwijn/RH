@@ -81,7 +81,13 @@ void prdhBracket(int nspect, double fac, PRDhBracket *b)
 		   at or above gas at the upper end, so that the last point
 		   added its own intensity twice where v_los = 0, and the
 		   PRDH_LIMIT_MEM code took the points below gas at the lower
-		   end, so that the first point did not add it at all --  ---- */
+		   end, so that the first point did not add it at all.
+
+		   The ends are told by the index, not by prv == gas (N-42): two
+		   grid points within about 1 ulp of each other can shift to the
+		   same gas-frame wavelength, and the comparison then took every
+		   point below (or above) with weight 1. Such an interval is
+		   empty, so its weight is never evaluated --     -------------- */
 
 	const double *lambda = spectrum.lambda;
 	long          N      = spectrum.Nspect;
@@ -90,9 +96,12 @@ void prdhBracket(int nspect, double fac, PRDhBracket *b)
 	b->gas = lambda[nspect] * fac;
 	b->nxt = lambda[MIN(nspect + 1, N - 1)] * fac;
 
-	b->r[0] = (b->prv != b->gas) ? firstIndex(lambda, N, b->prv, TRUE) : 0;
+	b->lo_end = (nspect == 0);
+	b->hi_end = (nspect == N - 1);
+
+	b->r[0] = (b->lo_end) ? 0 : firstIndex(lambda, N, b->prv, TRUE);
 	b->r[1] = firstIndex(lambda, N, b->gas, TRUE);
-	b->r[2] = (b->gas != b->nxt) ? firstIndex(lambda, N, b->nxt, FALSE) : N;
+	b->r[2] = (b->hi_end) ? N : firstIndex(lambda, N, b->nxt, FALSE);
 
 	if (b->r[1] < b->r[0]) b->r[1] = b->r[0];
 	if (b->r[2] < b->r[1]) b->r[2] = b->r[1];
@@ -110,9 +119,9 @@ double prdhWeight(const PRDhBracket *b, long idx)
 	const double *lambda = spectrum.lambda;
 
 	if (idx < b->r[1])
-		return (b->prv != b->gas) ? (lambda[idx] - b->prv) / (b->gas - b->prv) : 1.0;
+		return (b->lo_end) ? 1.0 : (lambda[idx] - b->prv) / (b->gas - b->prv);
 	else
-		return (b->gas != b->nxt) ? 1.0 - (lambda[idx] - b->gas) / (b->nxt - b->gas) : 1.0;
+		return (b->hi_end) ? 1.0 : 1.0 - (lambda[idx] - b->gas) / (b->nxt - b->gas);
 }
 /* ------- end ---------------------------- prdhWeight.c ------------ */
 
