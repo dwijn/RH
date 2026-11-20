@@ -14,13 +14,15 @@ solver_g.py:
  3. Conflicting keywords stop the run at input: an ANDERSON_* keyword with
     SOLVER = FIXED_POINT, NG_ORDER > 0 and NG_DELAY (set at all) with
     SOLVER = ANDERSON, and a map keyword (PRD_ITER_LIMIT) with a message
-    that names ANDERSON; also an invalid ANDERSON_EXTRAPOLATE.
+    that names ANDERSON; also an invalid ANDERSON_EXTRAPOLATE and
+    ANDERSON_SAFEGUARD_WINDOW = 0.
  4. ANDERSON_EXTRAPOLATE (S-11): with depth 0, POPULATIONS and
     POPULATIONS_RHO repeat FIXED_POINT bit for bit as well; POPULATIONS
     extrapolates the Ca II populations only and POPULATIONS_RHO also the
     two rho blocks (start banner); a POPULATIONS_RHO run with PER_BLOCK
     coefficients (three solves) is bit-reproducible;
-    and with ANDERSON_SAFEGUARD = 0.5, which forces rejections, the carried
+    and with ANDERSON_SAFEGUARD = 0.5 and ANDERSON_SAFEGUARD_WINDOW = 1,
+    which force rejections, the carried
     blocks (rho, J) of every point equal those of G at the last accepted
     point bit for bit (the solver's own check, end of the run; it checks
     the packing and the copy of the carried blocks, not G). Without PRD
@@ -119,7 +121,10 @@ for label, kws, want in (
          "ANDERSON_EXTRAPOLATE is set"),
         ("ANDERSON_EXTRAPOLATE = J",
          MAP + [("SOLVER", "ANDERSON"), ("ANDERSON_EXTRAPOLATE", "J")],
-         "Invalid value for keyword ANDERSON_EXTRAPOLATE")):
+         "Invalid value for keyword ANDERSON_EXTRAPOLATE"),
+        ("ANDERSON_SAFEGUARD_WINDOW = 0",
+         MAP + [("SOLVER", "ANDERSON"), ("ANDERSON_SAFEGUARD_WINDOW", "0")],
+         "ANDERSON_SAFEGUARD_WINDOW = 0 (1 .. 100)")):
     d, r = run("validate", kws)
     ok = r.returncode == EXIT_FATAL and want in r.stdout
     ck.report(ok, f"validate {label}: {'stops at input' if ok else 'NOT STOPPED'}"
@@ -129,7 +134,8 @@ for label, kws, want in (
 for setting, want in (("POPULATIONS", (492, 1)), ("POPULATIONS_RHO", (None, 3))):
     d, r = run(f"carry_{setting}", MAP + [("SOLVER", "ANDERSON"),
                                           ("ANDERSON_EXTRAPOLATE", setting),
-                                          ("ANDERSON_SAFEGUARD", "0.5")] +
+                                          ("ANDERSON_SAFEGUARD", "0.5"),
+                                          ("ANDERSON_SAFEGUARD_WINDOW", "1")] +
                SHORT + [("N_MAX_ITER", "15")])
     r.require()
     m = re.search(r"ANDERSON_EXTRAPOLATE = (\w+): (\d+) unknowns in (\d+) blocks", r.stdout)

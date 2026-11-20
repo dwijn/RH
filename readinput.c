@@ -18,6 +18,7 @@
 #include "constant.h"
 #include "statistics.h"
 #include "inputs.h"
+#include "anderson.h"
 #include "error.h"
 
 /* --- Global variables --                             -------------- */
@@ -171,6 +172,8 @@ void readInput()
 		 &input.Anderson_cond_max, setdoubleValue},
 		{"ANDERSON_SAFEGUARD", "1.0", FALSE, KEYWORD_DEFAULT,
 		 &input.Anderson_safeguard, setdoubleValue},
+		{"ANDERSON_SAFEGUARD_WINDOW", "10", FALSE, KEYWORD_DEFAULT,
+		 &input.Anderson_safeguard_window, setintValue},
 		{"ANDERSON_VARIABLES", "LOG", FALSE, KEYWORD_DEFAULT,
 		 &input.Anderson_variables, setSolverVariables},
 		{"ANDERSON_COEFFICIENTS", "GLOBAL", FALSE, KEYWORD_DEFAULT,
@@ -606,14 +609,18 @@ void readInput()
 		if (input.solver == SOLVER_ANDERSON &&
 			(input.Anderson_depth < 0 || input.Anderson_depth > 50 ||
 			 input.Anderson_delay < 0 || !(input.Anderson_cond_max > 1.0) ||
-			 !(input.Anderson_safeguard >= 0.0))) {
+			 !(input.Anderson_safeguard >= 0.0) ||
+			 input.Anderson_safeguard_window < 1 ||
+			 input.Anderson_safeguard_window > ANDERSON_WINDOW_MAX)) {
 			sprintf(messageStr,
 					"SOLVER = ANDERSON: ANDERSON_DEPTH = %d (0 .. 50),"
 					" ANDERSON_DELAY = %d (>= 0),\n ANDERSON_COND_MAX = %g"
-					" (> 1), ANDERSON_SAFEGUARD = %g (>= 0, 0 = off):\n"
+					" (> 1), ANDERSON_SAFEGUARD = %g (>= 0, 0 = off),\n"
+					" ANDERSON_SAFEGUARD_WINDOW = %d (1 .. %d):"
 					" a value is out of range.",
 					input.Anderson_depth, input.Anderson_delay,
-					input.Anderson_cond_max, input.Anderson_safeguard);
+					input.Anderson_cond_max, input.Anderson_safeguard,
+					input.Anderson_safeguard_window, ANDERSON_WINDOW_MAX);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}

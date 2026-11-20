@@ -8,6 +8,10 @@
 #ifndef __ANDERSON_H__
 #define __ANDERSON_H__
 
+/* --- Longest safeguard window (ANDERSON_SAFEGUARD_WINDOW) -- ----- */
+
+#define ANDERSON_WINDOW_MAX 100
+
 typedef struct {
 	long            N;        /* length of the vectors */
 	int             m;        /* depth: at most m difference columns */
@@ -25,19 +29,29 @@ typedef struct {
 
 	int    trial;     /* the last point returned was extrapolated */
 	double fnorm_acc; /* ||W f|| of the newest accepted pair */
+	double fnorm_ref; /* reference of the last safeguard test (S-12) */
+	long   Naccepted; /* pairs accepted since andersonInit */
 	long   Nextrapolated, Nrejected, Nplain, Ndropped;
+
+	/* --- Ring of ||W f|| of the newest accepted pairs: entry
+		   Naccepted - 1 is the newest (S-12) --        -------------- */
+
+	double fnorm_win[ANDERSON_WINDOW_MAX];
 } Anderson;
 
 /* --- Options of andersonStep: the blocks of the vector (start[0] = 0
 	   ... start[Nblock] = N), one coefficient set for all of them or
-	   one per block, the condition limit and the safeguard factor
-	   c (0: off) --                                  -------------- */
+	   one per block, the condition limit, the safeguard factor c (0:
+	   off) and its window M: a trial point is rejected if its ||W f||
+	   exceeds c times the largest of the M newest accepted pairs (M
+	   <= 1: the newest only; S-12) --                 -------------- */
 
 typedef struct {
 	int         Nblock;
 	const long *start;
 	int         per_block;
 	double      cond_max, safeguard;
+	int         window;
 } AndersonOptions;
 
 enum AndersonAction { ANDERSON_PLAIN,
