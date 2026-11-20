@@ -112,7 +112,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 		for (mu = 0; mu < Nrays; mu++)
 			if (negTauColumns(nspect, mu, -1, geometry.rays[mu].Ns, 1, chi,
-							  geometry.rays[mu].s, 1.0))
+							  geometry.rays[mu].s, 1.0, NEGTAU_LINEAR))
 				goto cleanup;
 		for (k = 0; k < Nspace; k++)
 			S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k]) / chi[k];
