@@ -134,7 +134,8 @@ typedef struct {
 	int              bg_NmaxIter, bg_depth;
 	double           bg_iterLimit;
 	enum bg_operator bg_operator;
-	bool_t           bg_NmaxIter_set; /* BACKGROUND_N_MAX_ITER in the file */
+	bool_t           bg_NmaxIter_set;               /* BACKGROUND_N_MAX_ITER in the file */
+	double           bg_linearAlbedo, bg_linearTau; /* N-52 */
 
 	/* --- ERROR_LIMIT (N-3): the estimated error at which ANDERSON and
 		   NEWTON_KRYLOV stop, 0 = not set. Without ITER_LIMIT,

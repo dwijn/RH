@@ -105,6 +105,10 @@ void readInput()
 		 setintValue},
 		{"BACKGROUND_OPERATOR", "TRIDIAGONAL", FALSE, KEYWORD_DEFAULT,
 		 &input.bg_operator, setBgOperator},
+		{"BACKGROUND_LINEAR_ALBEDO", "0.9", FALSE, KEYWORD_DEFAULT,
+		 &input.bg_linearAlbedo, setdoubleValue},
+		{"BACKGROUND_LINEAR_TAU", "1.0", FALSE, KEYWORD_DEFAULT,
+		 &input.bg_linearTau, setdoubleValue},
 
 		{"I_SUM", "0", FALSE, KEYWORD_REQUIRED, &input.isum, setintValue},
 		{"N_MAX_ITER", "", FALSE, KEYWORD_REQUIRED, &input.NmaxIter,
@@ -575,12 +579,16 @@ void readInput()
 		setKeywordValue(theKeywords, Nkeyword, "BACKGROUND_ITER_LIMIT", value);
 	}
 	if (input.bg_NmaxIter < 0 || input.bg_depth < 0 || input.bg_depth > 50 ||
-		(input.bg_NmaxIter > 0 && !(input.bg_iterLimit > 0.0))) {
+		(input.bg_NmaxIter > 0 && !(input.bg_iterLimit > 0.0)) ||
+		!(input.bg_linearAlbedo >= 0.0) || !(input.bg_linearTau >= 0.0)) {
 		sprintf(messageStr,
 				"BACKGROUND_N_MAX_ITER = %d (>= 0, 0 = lambda iteration),"
 				" BACKGROUND_ANDERSON_DEPTH = %d\n (0 .. 50),"
-				" BACKGROUND_ITER_LIMIT = %g (> 0): a value is out of range.",
-				input.bg_NmaxIter, input.bg_depth, input.bg_iterLimit);
+				" BACKGROUND_ITER_LIMIT = %g (> 0),\n"
+				" BACKGROUND_LINEAR_ALBEDO = %g (>= 0, >= 1 = never),"
+				" BACKGROUND_LINEAR_TAU = %g (>= 0): a value is out of range.",
+				input.bg_NmaxIter, input.bg_depth, input.bg_iterLimit,
+				input.bg_linearAlbedo, input.bg_linearTau);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 

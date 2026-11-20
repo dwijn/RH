@@ -51,6 +51,24 @@
 	   3 m + 9 vectors of Nspace doubles, freed at the end --
 	   --                                              -------------- */
 
+/* --- The operator of S_BEZIER3 is not positive (N-52): where the
+	   Steffen limiter takes the downwind slope, I_k has a negative
+	   weight on S_k+1, and with the velocity field the up- and
+	   downgoing rays no longer cancel it in J. Its spectral radius at
+	   strongly scattering wavelengths exceeds 1 and the iteration
+	   diverges there. With S_BEZIER3, a wavelength is therefore solved
+	   with the linear solver, for the whole formal solution, where its
+	   largest albedo below vertical optical depth BACKGROUND_LINEAR_TAU
+	   exceeds BACKGROUND_LINEAR_ALBEDO (bgScatterLinear; the geometry
+	   decides). The choice is made afresh in every sweep that updates
+	   J, as the opacities of the active atoms change; a sweep that does
+	   not keeps the last one. Only those wavelengths iterate the
+	   background scattering; the others keep the cubic Bezier solver
+	   and the lambda iteration, which converges where the albedo is
+	   small. In a MURaM column the switches back to Bezier die out
+	   within the first 20 or so iterations, and a restart picks the
+	   same wavelengths (N-52 evidence) -- --       -------------- */
+
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -79,6 +97,8 @@ extern char      messageStr[];
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static BgScatterStats  stats;   /* since the last bgScatterStats(.., TRUE) */
 static unsigned char  *pending; /* per wavelength: iterate before the sweep */
+static unsigned char  *linear;  /* per wavelength, with S_BEZIER3 (N-52) */
+static long            Nlinear;
 
 /* ------- begin -------------------------- bgScatterActive.c ------- */
 
@@ -126,6 +146,17 @@ void bgScatterSetup(void)
 	if (pending == NULL) {
 		pending = (unsigned char *) malloc(spectrum.Nspect);
 		memset(pending, 1, spectrum.Nspect);
+	}
+
+	if (input.S_interpolation != S_LINEAR && linear == NULL) {
+		linear = (unsigned char *) calloc(spectrum.Nspect, 1);
+		sprintf(messageStr,
+				"  with S_INTERPOLATION = S_BEZIER3: wavelengths whose albedo"
+				" exceeds BACKGROUND_LINEAR_ALBEDO = %.2f\n  below vertical"
+				" optical depth BACKGROUND_LINEAR_TAU = %.2f use S_LINEAR"
+				" (N-52)\n",
+				input.bg_linearAlbedo, input.bg_linearTau);
+		Error(MESSAGE, routineName, messageStr);
 	}
 }
 /* ------- end ---------------------------- bgScatterSetup.c -------- */
@@ -413,10 +444,39 @@ void bgScatterAfter(int nspect, int Nspace, const double *u,
 void bgScatterStats(BgScatterStats *s, int reset)
 {
 	pthread_mutex_lock(&lock);
-	*s = stats;
+	*s         = stats;
+	s->Nlinear = Nlinear;
 	if (reset) memset(&stats, 0, sizeof(stats));
 	pthread_mutex_unlock(&lock);
 }
 /* ------- end ---------------------------- bgScatterStats.c -------- */
+
+/* ------- begin -------------------------- bgScatterLinear.c ------- */
+
+bool_t bgScatterLinear(int nspect, double albedo)
+{
+	bool_t lin;
+
+	/* --- A wavelength is solved by one thread at a time, so its flag
+		   needs no lock; the counts do -- --            -------------- */
+
+	if (linear == NULL) return FALSE;
+	if (albedo < 0.0) return linear[nspect];
+	lin = (albedo > input.bg_linearAlbedo);
+	if (lin != linear[nspect]) {
+		pthread_mutex_lock(&lock);
+		if (lin) {
+			Nlinear++;
+			stats.Nto++;
+		} else {
+			Nlinear--;
+			stats.Nback++;
+		}
+		pthread_mutex_unlock(&lock);
+		linear[nspect] = lin;
+	}
+	return lin;
+}
+/* ------- end ---------------------------- bgScatterLinear.c ------- */
 
 /* ------- end ---------------------------- bgscatter.c ------------- */

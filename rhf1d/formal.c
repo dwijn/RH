@@ -40,16 +40,17 @@ extern char       messageStr[];
 /* ------- begin -------------------------- Piecewise_1D.c ---------- */
 
 /* --- Unpolarized formal solution along one ray with the method chosen
-	   by S_INTERPOLATION --                          -------------- */
+	   by S_INTERPOLATION, or the linear one where lin is set (N-52) - */
 
 static void Piecewise_1D(int nspect, int mu, bool_t to_obs, double *chi,
-						 double *S, double *I, double *Psi, double *Tri)
+						 double *S, double *I, double *Psi, double *Tri,
+						 bool_t lin)
 {
 	const char routineName[] = "Piecewise_1D";
 
 	/* --- Tri: NULL, or the row of the operator of the ray (N-51) -- */
 
-	if (input.S_interpolation == S_LINEAR) {
+	if (lin || input.S_interpolation == S_LINEAR) {
 		Piecewise_Linear_1D_tri(nspect, mu, to_obs, chi, S, I, Psi, Tri);
 	} else if (input.S_interpolation == S_BEZIER3) {
 		Piecewise_Bezier3_1D_tri(nspect, mu, to_obs, chi, S, I, Psi, Tri);
@@ -66,14 +67,41 @@ static void Piecewise_1D(int nspect, int mu, bool_t to_obs, double *chi,
 const char *bgScatterSupported(void)
 {
 	/* --- The background scattering iteration (N-51) needs a positive
-		   operator: the cubic Bezier solver's is not (N-52) -- ----- */
+		   operator: the cubic Bezier solver's is not (N-52), so with
+		   S_BEZIER3 the iterated wavelengths are solved with the linear
+		   solver, unless BACKGROUND_LINEAR_ALBEDO >= 1 turns that off - */
 
-	if (input.S_interpolation != S_LINEAR)
-		return "it needs S_INTERPOLATION = S_LINEAR (the operator of"
-			   " S_BEZIER3 is not positive, N-52)";
+	if (input.S_interpolation != S_LINEAR && input.bg_linearAlbedo >= 1.0)
+		return "with S_INTERPOLATION = S_BEZIER3 it needs"
+			   " BACKGROUND_LINEAR_ALBEDO < 1 (the operator of S_BEZIER3 is"
+			   " not positive, N-52)";
 	return NULL;
 }
 /* ------- end ---------------------------- bgScatterSupported.c ---- */
+
+/* ------- begin -------------------------- maxAlbedo.c ------------- */
+
+static double maxAlbedo(const ActiveSet *as)
+{
+	register int k;
+	double       a = 0.0, tau = 0.0, c, cprev = 0.0;
+
+	/* --- Largest background scattering albedo sca_c / chi below the
+		   vertical optical depth BACKGROUND_LINEAR_TAU (N-52): above it
+		   the photons escape and the lambda iteration converges -- -- */
+
+	for (k = 0; k < atmos.Nspace; k++) {
+		c = as->chi[k] + as->chi_c[k];
+		if (k > 0)
+			tau += 0.5 * (c + cprev) *
+				   fabs(geometry.height[k] - geometry.height[k - 1]);
+		cprev = c;
+		if (tau >= input.bg_linearTau && c > 0.0 && as->sca_c[k] / c > a)
+			a = as->sca_c[k] / c;
+	}
+	return a;
+}
+/* ------- end ---------------------------- maxAlbedo.c ------------- */
 
 /* ------- begin -------------------------- addTri.c ---------------- */
 
@@ -147,7 +175,8 @@ static void bgSweep_1D(void *ctx, const double *u, double *J, double *A,
 					c->S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * u[k]) /
 							  c->chi[k];
 			}
-			Piecewise_1D(c->nspect, mu, to_obs, c->chi, c->S, c->I, NULL, c->Tri);
+			Piecewise_1D(c->nspect, mu, to_obs, c->chi, c->S, c->I, NULL, c->Tri,
+						 TRUE);
 			for (k = 0; k < Nspace; k++) J[k] += wmu * c->I[k];
 			addTri(Nspace, to_obs, wmu, c->Tri, as->sca_c, c->chi, A);
 			if (albedo)
@@ -157,6 +186,30 @@ static void bgSweep_1D(void *ctx, const double *u, double *J, double *A,
 	}
 }
 /* ------- end ---------------------------- bgSweep_1D.c ------------ */
+
+/* ------- begin -------------------------- linearChoice.c ---------- */
+
+/* --- With S_BEZIER3, whether this wavelength is solved with the
+	   linear solver (N-52): where its background scattering albedo
+	   (maxAlbedo) exceeds BACKGROUND_LINEAR_ALBEDO, decided in every
+	   sweep that iterates the background scattering; other formal
+	   solutions keep the last choice (bgScatterLinear). Only those
+	   wavelengths iterate the background scattering (*bg, *Tri) -- */
+
+static bool_t linearChoice(int nspect, bool_t *bg, double **Tri,
+						   const ActiveSet *as)
+{
+	bool_t lin;
+
+	if (input.S_interpolation == S_LINEAR) return FALSE;
+	lin = bgScatterLinear(nspect, (*bg) ? maxAlbedo(as) : -1.0);
+	if (!lin) {
+		*bg  = FALSE;
+		*Tri = NULL;
+	}
+	return lin;
+}
+/* ------- end ---------------------------- linearChoice.c ---------- */
 
 /* ------- begin -------------------------- Formal.c ---------------- */
 
@@ -173,7 +226,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 						 dJmax = 0.0, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
 						 *J, *J20 = NULL, *Abg = NULL, *albedo = NULL, *Tri = NULL,
 						 *Jsrc, *Jstar = NULL;
-	bool_t     bg, pending             = FALSE;
+	bool_t     bg, pending = FALSE, lin = FALSE;
 	BgCtx1D    bgc;
 	ActiveSet *as;
 
@@ -288,6 +341,16 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		bgc.as         = as;
 		pending        = bgScatterPending(nspect);
 	}
+	if (bg && angle_dep && input.S_interpolation != S_LINEAR) {
+
+		/* --- With S_BEZIER3, whether this wavelength is solved and
+			   iterated linear (N-52), from the opacities of the first
+			   ray, before its iteration --              -------------- */
+
+		readBackground(nspect, 0, 0);
+		Opacity(nspect, 0, 0, TRUE);
+		lin = linearChoice(nspect, &bg, &Tri, as);
+	}
 	if (bg && pending && angle_dep) {
 		Jstar = (double *) malloc(Nspace * sizeof(double));
 		bgScatterBefore(nspect, Nspace, Jdag, Jstar, bgSweep_1D, &bgc);
@@ -327,6 +390,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 				if (initialize || boundbound)
 					Opacity(nspect, mu, to_obs, initialize);
+				if (initialize) lin = linearChoice(nspect, &bg, &Tri, as);
 
 				if (eval_operator) addtoCoupling(nspect);
 				for (k = 0; k < Nspace; k++) {
@@ -385,7 +449,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 					/* --- Intensity only --                     -------------- */
 
-					Piecewise_1D(nspect, mu, to_obs, chi, S, I, Psi, Tri);
+					Piecewise_1D(nspect, mu, to_obs, chi, S, I, Psi, Tri, lin);
 				}
 
 				if (Psi) {
@@ -452,6 +516,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 		readBackground(nspect, 0, 0);
 		Opacity(nspect, 0, 0, initialize = TRUE);
+		lin = linearChoice(nspect, &bg, &Tri, as);
 		if (eval_operator) addtoCoupling(nspect);
 
 		for (k = 0; k < Nspace; k++) chi[k] = as->chi[k] + as->chi_c[k];
@@ -471,7 +536,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		for (mu = 0; mu < Nrays; mu++) {
 			wmu = 0.5 * geometry.wmu[mu];
 			for (to_obs = 0; to_obs <= 1; to_obs++) {
-				Piecewise_1D(nspect, mu, to_obs, chi, S, I, Psi, Tri);
+				Piecewise_1D(nspect, mu, to_obs, chi, S, I, Psi, Tri, lin);
 
 				if (Psi) {
 					for (k = 0; k < Nspace; k++) Psi[k] /= chi[k];
