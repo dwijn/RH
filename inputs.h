@@ -116,6 +116,7 @@ typedef struct {
 	enum anderson_coefficients Anderson_coefficients;
 	enum anderson_extrapolate  Anderson_extrapolate;
 	int                        Anderson_depth, Anderson_delay;
+	int                        Anderson_safeguard_window;
 	double                     Anderson_cond_max, Anderson_safeguard;
 
 	enum solver_variables Newton_variables;

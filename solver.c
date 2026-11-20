@@ -1345,20 +1345,22 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	opt.per_block = (input.Anderson_coefficients == ANDERSON_PER_BLOCK);
 	opt.cond_max  = input.Anderson_cond_max;
 	opt.safeguard = input.Anderson_safeguard;
+	opt.window    = input.Anderson_safeguard_window;
 	delay         = MAX(input.Anderson_delay, 2);
 
 	sprintf(messageStr,
 			"\n -- SOLVER = ANDERSON: %ld unknowns in %d blocks; PRD"
 			" sub-iterations per G: %d;\n    ANDERSON_DEPTH = %d,"
 			" ANDERSON_DELAY = %d, ANDERSON_COND_MAX = %.1E,\n"
-			"    ANDERSON_SAFEGUARD = %g, ANDERSON_VARIABLES = %s,"
+			"    ANDERSON_SAFEGUARD = %g, ANDERSON_SAFEGUARD_WINDOW = %d,\n"
+			"    ANDERSON_VARIABLES = %s,"
 			" ANDERSON_COEFFICIENTS = %s,\n    ANDERSON_EXTRAPOLATE = %s%s:"
 			" %ld unknowns in %d blocks extrapolated;\n    memory: history"
 			" and variables %.1f MB, x, G(x) and G at the last accepted"
 			" point %.1f MB\n",
 			Nstate, Nblocks, (atmos.NPRDactive > 0) ? input.PRD_NmaxIter : 0, m,
 			input.Anderson_delay, input.Anderson_cond_max,
-			input.Anderson_safeguard,
+			input.Anderson_safeguard, input.Anderson_safeguard_window,
 			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
 			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
 			extrapolateName[input.Anderson_extrapolate],
@@ -1458,7 +1460,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 					"  Anderson: point rejected, |f|_W %.3E > %g x %.3E;"
 					" plain step from the last accepted point\n",
 					andersonNorm(Npacked, u, gu, valid, w), opt.safeguard,
-					a->fnorm_acc);
+					a->fnorm_ref);
 			Error(MESSAGE, NULL, messageStr);
 			memcpy(x, gacc, Nstate * sizeof(double));
 			break;

@@ -1135,8 +1135,11 @@ part of G.
   #342, to be merged with this change): an Anderson trial point is
   rejected, a Newton trial halves λ, and anywhere else the run stops
   with a message.
-- After the evaluation: accept if ‖f_{k+1}‖_W ≤ c‖f_k‖_W with
-  c = `ANDERSON_SAFEGUARD` (default 1; 0 turns it off). Otherwise take the
+- After the evaluation: accept if ‖f_{k+1}‖_W ≤ c·max ‖f_j‖_W over the
+  M newest accepted pairs, with c = `ANDERSON_SAFEGUARD` (default 1; 0
+  turns it off) and M = `ANDERSON_SAFEGUARD_WINDOW` (default 10 since
+  S-12; 1 is the original test against the newest pair only). The window
+  outlives restarts of the history. Otherwise take the
   plain step G(x_k), already computed, and restart the history from the
   last accepted pair (x_k, g_k). The wasted evaluation counts in the work
   totals; rejections are logged and counted. If c = 1 rejects often on
@@ -1144,7 +1147,10 @@ part of G.
   (2020) replaces it (decided with the numbers). At m = 5, S-5 found
   few rejections on the easy controls, 27 of 215 points on `t5750_h6` and
   78 of 282 on `shock_h6`, where Anderson then does worse than plain G
-  (S-5 Results); the envelope is now S-12.
+  (S-5 Results); the envelope is now S-12. S-12 chose the window
+  instead (2026-11-20): with M = 1 a slow mode that needs a long history
+  is cut off by restarts, since c = 1 assumes that G contracts in the
+  W-norm (in the linear case |f(x_{k+1})| ≤ ‖G′‖·|f(x_k)|).
 - Negative radiative rates (the GTH → LU fallback of N-31) are counted
   per run and reported as an S-3 metric, not used as a guard.
 
@@ -1155,7 +1161,8 @@ output is G(x_k) of that evaluation, never an extrapolated point.
 
 **Keywords:** `SOLVER = ANDERSON`, `ANDERSON_DEPTH` (10),
 `ANDERSON_DELAY` (from the scan), `ANDERSON_COND_MAX` (10⁸),
-`ANDERSON_SAFEGUARD` (1), `ANDERSON_VARIABLES` (`LOG` | `RELATIVE`),
+`ANDERSON_SAFEGUARD` (1), `ANDERSON_SAFEGUARD_WINDOW` (10, 1 … 100; S-12),
+`ANDERSON_VARIABLES` (`LOG` | `RELATIVE`),
 `ANDERSON_COEFFICIENTS` (`GLOBAL` | `PER_BLOCK`), and since S-11
 `ANDERSON_EXTRAPOLATE` (`ALL` | `POPULATIONS` | `POPULATIONS_RHO`); all
 printed at the start of the run with the memory, (3m + 10)·N doubles and
@@ -1194,7 +1201,8 @@ these details fixed in the code:
   only; the history keeps them until they slide out (at most m
   iterations). With `PER_BLOCK` each block's solve leaves out its own.
 - The safeguard compares ‖f‖_W of the new evaluation (over the entries
-  valid in it) with that of the newest accepted pair. Convergence is
+  valid in it) with that of the newest accepted pair (since S-12: with
+  the largest of the M newest). Convergence is
   tested first: an evaluation below `ITER_LIMIT` ends the run even if
   the safeguard would have rejected its point.
 - A run that stops without converging writes G of the last accepted
@@ -1586,9 +1594,9 @@ Findings:
   replaces Anderson as the recommendation only if it wins in wall time;
   the expectation is in S-4.
 
-**Open:** N-36 (the two ne formulations). The envelope safeguard on
-`shock_h6` (S-12) moved to the wishlist in the step-4 triage of
-2026-11-14; multi-D is settled by S-11. The inversion guard is S-13 (below);
+**Open:** N-36 (the two ne formulations). The safeguard on `shock_h6`
+(S-12) moved to the wishlist in the step-4 triage of 2026-11-14 and was
+settled by the window (`ANDERSON_SAFEGUARD_WINDOW`) on 2026-11-20; multi-D is settled by S-11. The inversion guard is S-13 (below);
 it no longer tests inversions (S-14).
 
 ### Anderson as the default solver (design for the S-5 decision)

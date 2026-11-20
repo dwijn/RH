@@ -18,6 +18,11 @@
 		  rejected, the next point is the image of the last accepted
 		  pair exactly, the history restarts from that pair, and the
 		  counters are right; with the safeguard off it is accepted;
+	   -- the safeguard window (S-12): a trial point whose residual is
+		  below an older accepted one but above the newest is rejected
+		  with window 1 and accepted with window 3, also after a
+		  restart (the window outlives the history), and the
+		  reference is that older norm exactly;
 	   -- damping (theta = 1 repeats the step, theta = 0 gives g) and
 		  abandoning (plain step, history restarted);
 	   -- masked entries take g's value exactly and do not change the
@@ -73,7 +78,7 @@ static void G_nonlinear(const double *x, double *g, long n)
 static void runLinear(int m, int K, double x[][N], double cond_max)
 {
 	long            start[2] = {0, N};
-	AndersonOptions opt      = {1, start, 0, cond_max, 0.0};
+	AndersonOptions opt      = {1, start, 0, cond_max, 0.0, 1};
 	double          w[N], g[N], gamma[KMAX + 1];
 	AndersonSolve   info[1];
 	Anderson       *a = andersonInit(N, m);
@@ -187,7 +192,7 @@ static void testWalkerNi(void)
 static void testPlain(void)
 {
 	long            start[2] = {0, N};
-	AndersonOptions opt      = {1, start, 0, 1.0E8, 1.0};
+	AndersonOptions opt      = {1, start, 0, 1.0E8, 1.0, 1};
 	double          x[N], y[N], z[N], g[N], w[N], gamma[5];
 	AndersonSolve   info[1];
 	Anderson       *a0 = andersonInit(N, 0), *a5 = andersonInit(N, 5);
@@ -269,7 +274,7 @@ static void testCollinear(void)
 static void testSafeguard(void)
 {
 	long            start[2] = {0, N};
-	AndersonOptions opt      = {1, start, 0, 1.0E8, 1.0};
+	AndersonOptions opt      = {1, start, 0, 1.0E8, 1.0, 1};
 	double          u[N], g[N], w[N], un[N], g2[N], gamma[4];
 	AndersonSolve   info[1];
 	Anderson       *a;
@@ -325,6 +330,70 @@ static void testSafeguard(void)
 			andersonAbandon(a, ud);
 			CHECK(!memcmp(ud, g_new, sizeof(ud)) && a->Npairs == 1 && !a->trial,
 				  "abandon: pairs %d", a->Npairs);
+		}
+		andersonFree(a);
+	}
+}
+
+/* --- One evaluation with residual f = scale * (unit vector of a random
+	   direction in ||W .||): g = u + f --            -------------- */
+
+static enum AndersonAction stepScaled(Anderson *a, const AndersonOptions *opt,
+									  double *u, double scale, const double *w,
+									  double *un, double *gamma, AndersonSolve *info)
+{
+	double g[N], f[N], z[N], norm;
+
+	for (int i = 0; i < N; i++) {
+		f[i] = urand() - 0.5;
+		z[i] = 0.0;
+	}
+	norm = andersonNorm(N, z, f, NULL, w);
+	for (int i = 0; i < N; i++) g[i] = u[i] + scale * f[i] / norm;
+	enum AndersonAction act = andersonStep(a, opt, u, g, NULL, w, 1, un, gamma, info);
+	memcpy(u, un, N * sizeof(double));
+	return act;
+}
+
+static void testSafeguardWindow(void)
+{
+	long            start[2] = {0, N};
+	AndersonOptions opt      = {1, start, 0, 1.0E8, 1.0, 1};
+	double          u[N], w[N], un[N], gamma[4], F0 = 0.0;
+	AndersonSolve   info[1];
+	Anderson       *a;
+
+	for (int i = 0; i < N; i++) w[i] = 1.0;
+	for (int M = 1; M <= 3; M += 2) {
+		enum AndersonAction act[5];
+
+		opt.window = M;
+		a          = andersonInit(N, 4);
+		for (int i = 0; i < N; i++) u[i] = urand();
+
+		/* --- Residuals 1, 0.1, then a trial at 2 (rejected with any
+			   window), 0.05 after the restart, a trial at 0.5 -- ---- */
+
+		act[0] = stepScaled(a, &opt, u, 1.0, w, un, gamma, info);
+		F0     = a->fnorm_acc;
+		act[1] = stepScaled(a, &opt, u, 0.1, w, un, gamma, info);
+		act[2] = stepScaled(a, &opt, u, 2.0, w, un, gamma, info);
+		act[3] = stepScaled(a, &opt, u, 0.05, w, un, gamma, info);
+		act[4] = stepScaled(a, &opt, u, 0.5, w, un, gamma, info);
+
+		CHECK(act[0] == ANDERSON_PLAIN && act[1] == ANDERSON_EXTRAPOLATED &&
+				  act[2] == ANDERSON_REJECTED && act[3] == ANDERSON_EXTRAPOLATED,
+			  "window %d: actions %d %d %d %d", M, act[0], act[1], act[2], act[3]);
+		if (M == 1) {
+			CHECK(act[4] == ANDERSON_REJECTED && a->Nrejected == 2,
+				  "window 1: trial at 0.5 not rejected (%d, rejected %ld)", act[4],
+				  a->Nrejected);
+		} else {
+			CHECK(act[4] != ANDERSON_REJECTED && a->Nrejected == 1,
+				  "window 3: trial at 0.5 rejected (%d, rejected %ld)", act[4],
+				  a->Nrejected);
+			CHECK(a->fnorm_ref == F0, "window 3: reference %.17g, not %.17g",
+				  a->fnorm_ref, F0);
 		}
 		andersonFree(a);
 	}
@@ -392,7 +461,7 @@ static void testPerBlock(void)
 	enum { NB = 12,
 		   H  = 6 };
 	long            start[3] = {0, H, NB}, s1[2] = {0, H};
-	AndersonOptions opt = {2, start, 1, 1.0E8, 0.0}, o1 = {1, s1, 0, 1.0E8, 0.0};
+	AndersonOptions opt = {2, start, 1, 1.0E8, 0.0, 1}, o1 = {1, s1, 0, 1.0E8, 0.0, 1};
 	double          x[NB], xa[H], xb[H], g[NB], ga[H], gb[H], w[NB], gamma[6],
 		gam1[3];
 	AndersonSolve info[2], i1[1];
@@ -448,6 +517,7 @@ int main(void)
 	testPlain();
 	testCollinear();
 	testSafeguard();
+	testSafeguardWindow();
 	testMask();
 	testPerBlock();
 	return check_summary("test_anderson");

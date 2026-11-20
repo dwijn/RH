@@ -43,6 +43,8 @@
 
 #include "anderson.h"
 
+#define MAX_D(a, b) (((a) > (b)) ? (a) : (b))
+
 /* ------- begin -------------------------- pairIndex.c ------------- */
 
 static int pairIndex(const Anderson *a, int j)
@@ -376,8 +378,9 @@ enum AndersonAction andersonStep(Anderson *a, const AndersonOptions *opt,
 
 	/* --- One iteration, given the newest evaluation g = G(u):
 
-		   1. If u was an extrapolated point and ||W f|| grew by more
-			  than the factor c over the newest accepted pair: reject
+		   1. If u was an extrapolated point and ||W f|| exceeds c
+			  times the largest ||W f|| of the M = opt->window newest
+			  accepted pairs (S-12; M <= 1: the newest only): reject
 			  it. The history restarts from that accepted pair, and
 			  u_next is its image (the plain step, already computed;
 			  the caller should copy that in its own variables).
@@ -388,14 +391,29 @@ enum AndersonAction andersonStep(Anderson *a, const AndersonOptions *opt,
 		   gamma needs m * Nblock and info Nblock entries (one with
 		   GLOBAL coefficients) --                       -------------- */
 
-	if (a->trial && opt->safeguard > 0.0 &&
-		!(fnorm <= opt->safeguard * a->fnorm_acc)) {
-		andersonRejectTrial(a);
-		memcpy(u_next, a->g[a->newest], a->N * sizeof(double));
-		return ANDERSON_REJECTED;
+	if (a->trial && opt->safeguard > 0.0) {
+		int  M = (opt->window < 1)                     ? 1
+				 : (opt->window > ANDERSON_WINDOW_MAX) ? ANDERSON_WINDOW_MAX
+													   : opt->window;
+		long j, n = (a->Naccepted < M) ? a->Naccepted : M;
+
+		/* --- The window survives restarts: the norms of pairs that
+			   left the history still bound the next ones -- ------- */
+
+		a->fnorm_ref = a->fnorm_acc;
+		for (j = 0; j < n; j++)
+			a->fnorm_ref = MAX_D(a->fnorm_ref,
+								 a->fnorm_win[(a->Naccepted - 1 - j) % ANDERSON_WINDOW_MAX]);
+		if (!(fnorm <= opt->safeguard * a->fnorm_ref)) {
+			andersonRejectTrial(a);
+			memcpy(u_next, a->g[a->newest], a->N * sizeof(double));
+			return ANDERSON_REJECTED;
+		}
 	}
 	andersonPush(a, u, g, valid);
-	a->fnorm_acc = fnorm;
+	a->fnorm_acc                                     = fnorm;
+	a->fnorm_win[a->Naccepted % ANDERSON_WINDOW_MAX] = fnorm;
+	a->Naccepted++;
 
 	if (extrapolate && andersonNcols(a) > 0 &&
 		solveAll(a, opt, w, gamma, info, 1.0, u_next) > 0) {
