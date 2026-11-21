@@ -1112,6 +1112,11 @@ void readMolecularModels(void)
 			element->mol_index = (int *)
 				realloc(element->mol_index, element->Nmolecule * sizeof(int));
 	}
+	/* --- Report when the atmosphere leaves the temperature range of the
+		   OH and CH bound-free tables (N-53) --       -------------- */
+
+	OHCH_bf_check();
+
 	/* --- Allocate memory for H^- --                    -------------- */
 
 	atmos.nHmin = (double *) malloc(atmos.Nspace * sizeof(double));

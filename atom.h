@@ -237,6 +237,7 @@ void Iterate(int NmaxIter, double iterLimit);
 
 void   readAtomicModels(void);
 void   readMolecularModels(void);
+void   OHCH_bf_check(void);
 void   statEquil(Atom *atom, int isum);
 double updatePopulations(int niter);
 

@@ -101,4 +101,5 @@ rh_unit_test(test_zeeman test_zeeman.c
   ${PROJECT_SOURCE_DIR}/rhf1d/bezier_1D.c
   ${PROJECT_SOURCE_DIR}/rhf1d/piecewise_1D.c)
 rh_unit_test(test_ltepops test_ltepops.c)
+rh_unit_test(test_ohchbf_range test_ohchbf_range.c)
 rh_unit_test(test_molecule_range test_molecule_range.c)
