@@ -195,19 +195,10 @@ f(x) - L(x) = \tfrac12 f''(\xi)\,(x-x_0)(x-x_1),\qquad
 \end{equation}
 since $|(x-x_0)(x-x_1)|\le h^2/4$: second order.
 
-\paragraph{Cubic splines.} The natural cubic spline has $S''=0$ at both
-ends. For $\sin x$ on $[0,\pi]$, where $f''=0$ at the ends, the boundary
-conditions are exact and the spline converges at fourth order
-everywhere. For $\e^x$ they are wrong by $O(1)$ in $S''$, which costs
-$O(h^2)$ in $S$ near the ends, decaying into the interior: fourth order
-in the interior, second overall. The test checks both, and the spline
-against the solution of its defining conditions computed with
-\code{mpmath}.
-
 \paragraph{Exponential splines.} Between nodes the exponential spline
 with tension $\sigma$ satisfies $y'''' - \sigma^2y'' = 0$, with basis
-$\{1,x,\e^{\sigma x},\e^{-\sigma x}\}$. It tends to the cubic spline for
-$\sigma\to0$ and to linear interpolation for $\sigma\to\infty$; the test
+$\{1,x,\e^{\sigma x},\e^{-\sigma x}\}$. It tends to the natural cubic spline
+(computed with \code{mpmath}) for $\sigma\to0$ and to linear interpolation for $\sigma\to\infty$; the test
 checks both limits and two tensions against \code{mpmath}.
 
 \paragraph{Cubic convolution.} The kernel of \citet{1981ITASS..29.1153K}
