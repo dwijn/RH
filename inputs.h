@@ -39,6 +39,8 @@ enum solver_type { SOLVER_NG,
 				   SOLVER_NEWTON_KRYLOV };
 enum solver_variables { VARIABLES_LOG,
 						VARIABLES_RELATIVE };
+enum bg_operator { BG_OPERATOR_DIAGONAL,
+				   BG_OPERATOR_TRIDIAGONAL }; /* N-51 */
 enum anderson_coefficients { ANDERSON_GLOBAL,
 							 ANDERSON_PER_BLOCK };
 enum anderson_extrapolate { EXTRAPOLATE_ALL,
@@ -128,6 +130,12 @@ typedef struct {
 		NmaxScatter, Nthreads, CR_Nstep;
 	double iterLimit, PRDiterLimit, PRD_damping, metallicity, CR_factor;
 
+	/* --- Background scattering per wavelength (N-51, bgscatter.c) -- */
+	int              bg_NmaxIter, bg_depth;
+	double           bg_iterLimit;
+	enum bg_operator bg_operator;
+	bool_t           bg_NmaxIter_set; /* BACKGROUND_N_MAX_ITER in the file */
+
 	/* --- ERROR_LIMIT (N-3): the estimated error at which ANDERSON and
 		   NEWTON_KRYLOV stop, 0 = not set. Without ITER_LIMIT,
 		   iterLimit takes its value -- ------------------------------ */
@@ -160,6 +168,7 @@ void setThreadValue(char *value, void *pointer);
 
 void        setSolverVariables(char *value, void *pointer);
 void        setAndersonCoefficients(char *value, void *pointer);
+void        setBgOperator(char *value, void *pointer);
 void        setAndersonExtrapolate(char *value, void *pointer);
 const char *solverName(enum solver_type solver);
 

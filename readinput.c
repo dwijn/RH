@@ -96,6 +96,15 @@ void readInput()
 
 		{"N_MAX_SCATTER", "5", FALSE, KEYWORD_OPTIONAL, &input.NmaxScatter,
 		 setintValue},
+		/* --- Background scattering per wavelength (N-51) -- -- */
+		{"BACKGROUND_N_MAX_ITER", "50", FALSE, KEYWORD_DEFAULT, &input.bg_NmaxIter,
+		 setintValue},
+		{"BACKGROUND_ITER_LIMIT", "0.0", FALSE, KEYWORD_DEFAULT,
+		 &input.bg_iterLimit, setdoubleValue},
+		{"BACKGROUND_ANDERSON_DEPTH", "3", FALSE, KEYWORD_DEFAULT, &input.bg_depth,
+		 setintValue},
+		{"BACKGROUND_OPERATOR", "TRIDIAGONAL", FALSE, KEYWORD_DEFAULT,
+		 &input.bg_operator, setBgOperator},
 
 		{"I_SUM", "0", FALSE, KEYWORD_REQUIRED, &input.isum, setintValue},
 		{"N_MAX_ITER", "", FALSE, KEYWORD_REQUIRED, &input.NmaxIter,
@@ -548,6 +557,31 @@ void readInput()
 					sname);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
+	}
+
+	/* --- Background scattering at each wavelength (N-51, bgscatter.c):
+		   BACKGROUND_ITER_LIMIT defaults to a tenth of ERROR_LIMIT, or
+		   of ITER_LIMIT without it, so that the J it leaves is well
+		   inside what the solver tests -- ---------------- */
+
+	input.bg_NmaxIter_set =
+		keywordSet(theKeywords, Nkeyword, "BACKGROUND_N_MAX_ITER");
+	if (!keywordSet(theKeywords, Nkeyword, "BACKGROUND_ITER_LIMIT")) {
+		char value[32];
+
+		input.bg_iterLimit =
+			0.1 * ((input.errorLimit > 0.0) ? input.errorLimit : input.iterLimit);
+		snprintf(value, sizeof(value), "%.6E", input.bg_iterLimit);
+		setKeywordValue(theKeywords, Nkeyword, "BACKGROUND_ITER_LIMIT", value);
+	}
+	if (input.bg_NmaxIter < 0 || input.bg_depth < 0 || input.bg_depth > 50 ||
+		(input.bg_NmaxIter > 0 && !(input.bg_iterLimit > 0.0))) {
+		sprintf(messageStr,
+				"BACKGROUND_N_MAX_ITER = %d (>= 0, 0 = lambda iteration),"
+				" BACKGROUND_ANDERSON_DEPTH = %d\n (0 .. 50),"
+				" BACKGROUND_ITER_LIMIT = %g (> 0): a value is out of range.",
+				input.bg_NmaxIter, input.bg_depth, input.bg_iterLimit);
+		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
 	/* --- SOLVER = FIXED_POINT, ANDERSON and NEWTON_KRYLOV iterate the

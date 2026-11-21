@@ -21,6 +21,7 @@
 #include "error.h"
 #include "background.h"
 #include "inputs.h"
+#include "bgscatter.h"
 #include "negtau.h"
 #include "constant.h"
 #include "statistics.h"
@@ -38,6 +39,16 @@ extern Geometry   geometry;
 extern Spectrum   spectrum;
 extern InputData  input;
 extern char       messageStr[];
+
+/* ------- begin -------------------------- bgScatterSupported.c ---- */
+
+const char *bgScatterSupported(void)
+{
+	/* --- The background scattering iteration (N-51) is 1-D only -- */
+
+	return "it is implemented in 1-D (rhf1d) only";
+}
+/* ------- end ---------------------------- bgScatterSupported.c ---- */
 
 /* ------- begin -------------------------- Formal.c ---------------- */
 
