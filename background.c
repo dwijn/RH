@@ -1001,7 +1001,7 @@ static void backgroundOpacities(bool_t write_analyze_output)
 	   populations only. ntotal starts from its initial value (abundance
 	   times nHtot), not from an earlier call; the chemical equilibrium
 	   takes the neutral fractions of active atoms from their
-	   populations and does a fixed number of Newton steps; the
+	   populations and is converged to rounding (N-61); the
 	   populations of active atoms are not rescaled. Analysis output
 	   (brs.out, metals.out, molecules.out) only if asked -- ------- */
 
