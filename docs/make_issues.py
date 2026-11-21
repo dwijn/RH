@@ -53,7 +53,7 @@ for ids, step in [
     ("B-10 B-11 M-1 M-2 M-3 M-4 M-5 M-6 M-7 M-8 M-9", 6),
     ("B-41 B-12 B-14 T-1 T-2 T-3 Q-4 Q-5 Q-6 Q-7 Q-8 Q-9 Q-16 Q-19 Q-30 P-11", 7),
     # Not planned work: the wishlist (section 3.7) has its own option
-    ("F-1 F-2 F-3 F-4 F-5 S-6 S-7 S-8 S-9 S-12 N-14 N-12 N-30 F-6 F-7 N-9 F-8 N-46 N-15 N-26 F-9 F-10 B-58 N-57 N-58 N-59 N-60 B-70", "Wishlist"),
+    ("F-1 F-2 F-3 F-4 F-5 S-6 S-7 S-8 S-9 S-12 N-14 N-12 N-30 F-6 F-7 N-9 F-8 N-46 N-15 N-26 F-9 F-10 B-58 N-57 N-58 N-59 N-60 B-70 N-63", "Wishlist"),
 ]:
     for i in ids.split():
         STEP[i] = step
@@ -77,7 +77,7 @@ def step_label(step):
 NOT_UPSTREAM = {"M-3", "M-9", "P-5", "Q-2", "Q-12", "B-39", "N-33", "Q-21", "Q-22",
                 "N-36", "B-46", "B-47", "Q-23", "Q-28", "P-19", "N-42", "Q-31", "Q-32",
                 "Q-33", "N-49", "Q-34", "B-68",
-                "N-56", "Q-35"}
+                "N-56", "Q-35", "N-63"}
 
 
 def gh(*args, json_out=False, check=True):
