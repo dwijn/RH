@@ -1,7 +1,7 @@
 /* ------- file: -------------------------- test_interp.c -----------
 
 	   Table look-up and interpolation: hunt.c (Hunt, Locate), linear.c
-	   (Linear), expspline.c (exponential splines) and cubeconvol.c (cubic convolution).
+	   (Linear), cubeconvol.c (cubic convolution) and pchip.c (pchip).
 
 	   -- Hunt, Locate: the bracketing index i with table[i] <= value <
 		  table[i+1] for all values at, between, below and above the
@@ -10,12 +10,6 @@
 	   -- Linear: exact for linear data, the end
 		  values outside the table, error of at most h^2 max|f''|/8 and
 		  order 2 for a smooth function;
-	   -- exp_splineCoef/exp_splineEval: exact for linear data and the
-		  exponential spline (two tensions) against the solution of its
-		  defining conditions with mpmath (kernels_reference.h, from
-		  make_kernels_reference.py), the same for a descending table,
-		  the limits of small tension (the natural cubic spline, as a
-		  mpmath reference solution) and large tension (Linear);
 	   -- cc_kernel, cubeconvol: the kernel's partition of unity and
 		  reproduction of quadratics, exact for biquadratic data
 		  everywhere (also in the boundary cells where the data are
@@ -254,126 +248,6 @@ static void test_unity_tau(void)
 
 		CHECK(heightAtUnityTau(3, td, zz, &z1) == TAU_NOT_INCREASING, "repeated tau");
 		CHECK(heightAtUnityTau(4, te, zz, &z1) == TAU_NOT_INCREASING, "decreasing tau");
-	}
-}
-
-/* --- Cubic splines -- --------------------------------------------- */
-
-/* --- The exponential spline keeps static state (issue T-3) and a
-	   pointer to the table, so the coefficients are always set just
-	   before the evaluation, with the table still alive -- ------ */
-
-static double max_rel_err(int n, const double *got, const double *want, double scale)
-{
-	double m = 0.0;
-
-	for (int k = 0; k < n; k++) m = MAX(m, fabs(got[k] - want[k]) / scale);
-	return m;
-}
-
-static void test_spline_linear_data(void)
-{
-	enum { N = 12,
-		   M = 40 };
-	double x[N], y[N], xd[N], yd[N], xe[M], ye[M];
-
-	for (int k = 0; k < N; k++) {
-		x[k]          = 0.5 + 0.1 * k * k + 0.2 * k;
-		y[k]          = 5.0 - 2.0 * x[k];
-		xd[N - 1 - k] = x[k];
-		yd[N - 1 - k] = y[k];
-	}
-	for (int k = 0; k < M; k++) xe[k] = x[0] - 0.3 + (x[N - 1] - x[0] + 0.6) * k / (M - 1.0);
-
-	for (int kind = 1; kind < 3; kind++) {     /* exp 0.7, exp 4 */
-		for (int desc = 0; desc < 2; desc++) { /* ascending, descending */
-			for (int hunt = 0; hunt < 2; hunt++) {
-				double *xt = desc ? xd : x, *yt = desc ? yd : y, maxerr = 0.0;
-
-				exp_splineCoef(N, xt, yt, (kind == 1) ? 0.7 : 4.0);
-				exp_splineEval(M, xe, ye, hunt);
-				for (int k = 0; k < M; k++) {
-					double xc = MIN(MAX(xe[k], x[0]), x[N - 1]);
-
-					maxerr = MAX(maxerr, fabs(ye[k] - (5.0 - 2.0 * xc)));
-				}
-				CHECK(maxerr < 8e-15, "kind %d, desc %d, hunt %d: max error %.3g", kind, desc, hunt, maxerr);
-				if (table && !hunt && !desc)
-					printf("spline kind %d, linear data: max error %.2e\n", kind, maxerr);
-			}
-		}
-	}
-}
-
-/* --- Measured (gcc, x86-64), relative to max |y| = e: 1.6e-16 for all
-	   (the error of the evaluation, 1 ulp of y); bound 4e-16. Linear data
-	   (above): 3.6e-15 for y up to 25, bound 8e-15 --              - */
-
-static void test_spline_reference(void)
-{
-	double xr[SPLINE_REF_N], yr[SPLINE_REF_N], ye[SPLINE_REF_NE], scale = exp(1.0);
-
-	for (int desc = 0; desc < 2; desc++) {
-		for (int k = 0; k < SPLINE_REF_N; k++) {
-			xr[k] = desc ? spline_ref_x[SPLINE_REF_N - 1 - k] : spline_ref_x[k];
-			yr[k] = desc ? spline_ref_y[SPLINE_REF_N - 1 - k] : spline_ref_y[k];
-		}
-		for (int hunt = 0; hunt < 2; hunt++) {
-			double err;
-
-			for (int it = 0; it < EXPSPLINE_REF_NT; it++) {
-				exp_splineCoef(SPLINE_REF_N, xr, yr, expspline_ref_tension[it]);
-				exp_splineEval(SPLINE_REF_NE, (double *) spline_ref_xe, ye, hunt);
-				err = max_rel_err(SPLINE_REF_NE, ye, expspline_ref_y[it], scale);
-				CHECK(err < 4e-16, "exp spline, tension %g, desc %d, hunt %d: error %.3g",
-					  expspline_ref_tension[it], desc, hunt, err);
-				if (table)
-					printf("exp spline, tension %g, desc %d hunt %d: max error %.2e\n",
-						   expspline_ref_tension[it], desc, hunt, err);
-			}
-		}
-	}
-}
-
-/* --- Small tension: the cubic spline, the difference O(sigma^2).
-	   Large tension: piecewise linear interpolation, the difference
-	   decreasing with tension. Measured (relative to e): 3.4e-8 at
-	   tension 0.01, and 1.4e-2, 6.0e-3, 1.2e-3 against Linear for
-	   tensions 2, 10, 50; bounds twice that -- */
-
-static void test_spline_limits(void)
-{
-	double        ys[SPLINE_REF_NE], yl[SPLINE_REF_NE];
-	const double *yc = spline_ref_natural;
-	double        e  = exp(1.0);
-
-	Linear(SPLINE_REF_N, (double *) spline_ref_x, (double *) spline_ref_y,
-		   SPLINE_REF_NE, (double *) spline_ref_xe, yl, FALSE);
-
-	exp_splineCoef(SPLINE_REF_N, (double *) spline_ref_x, (double *) spline_ref_y, 1e-2);
-	exp_splineEval(SPLINE_REF_NE, (double *) spline_ref_xe, ys, FALSE);
-	{
-		double d = max_rel_err(SPLINE_REF_NE, ys, yc, e);
-
-		CHECK(d < 7e-8, "small tension: difference from the cubic spline %.3g", d);
-		if (table) printf("tension 1e-2 vs cubic spline: %.2e\n", d);
-	}
-	{
-		static const double tension[3] = {2.0, 10.0, 50.0};
-		static const double bound[3]   = {3e-2, 1.2e-2, 2.5e-3};
-		double              prev       = 1.0;
-
-		for (int it = 0; it < 3; it++) {
-			double d;
-
-			exp_splineCoef(SPLINE_REF_N, (double *) spline_ref_x, (double *) spline_ref_y, tension[it]);
-			exp_splineEval(SPLINE_REF_NE, (double *) spline_ref_xe, ys, FALSE);
-			d = max_rel_err(SPLINE_REF_NE, ys, yl, e);
-			CHECK(d < bound[it] && d < prev, "tension %g: difference from linear %.3g (bound %.3g, previous %.3g)",
-				  tension[it], d, bound[it], prev);
-			if (table) printf("tension %g vs linear: %.2e\n", tension[it], d);
-			prev = d;
-		}
 	}
 }
 
@@ -718,9 +592,6 @@ int main(int argc, char *argv[])
 	test_hunt_locate();
 	test_linear();
 	test_unity_tau();
-	test_spline_linear_data();
-	test_spline_reference();
-	test_spline_limits();
 	test_cc_kernel();
 	test_cubeconvol_exact();
 	test_cubeconvol_order();

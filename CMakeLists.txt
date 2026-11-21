@@ -159,7 +159,7 @@ check_include_file(execinfo.h RH_HAVE_EXECINFO_H)
 add_library(rh STATIC
   abundance.c accelerate.c anderson.c background.c bgscatter.c backgropac_xdr.c barklem.c
   bezier_aux.c broad.c brs_xdr.c chemequil.c cocollisions.c collision.c
-  cubeconvol.c duplicate.c error.c expint.c expspline.c fillgamma.c
+  cubeconvol.c duplicate.c error.c expint.c fillgamma.c
   fixedrate.c fpehandler.c gammafunc.c gaussleg.c getcpu.c getlambda.c
   getline.c giigen.c gth.c h2collisions.c hunt.c hydrogen.c
   initial_xdr.c initscatter.c iterate.c kurucz.c linear.c ltepops.c
