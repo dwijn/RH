@@ -9,7 +9,9 @@
 		  shift, also at both ends of the grid; with no shift each
 		  wavelength gives weight 1 to itself and nothing to the others
 		  (before P-17 the last point got 2 from the table and the
-		  first 0 with PRDH_LIMIT_MEM).
+		  first 0 with PRDH_LIMIT_MEM). Also where two grid points 1
+		  ulp apart shift to the same wavelength (N-42: before, the
+		  upper one took every point below it with weight 1).
 	   3. addJgasRay gives the same Jgas to the bit from the table
 		  (initPRDhTables) and with PRDH_LIMIT_MEM, with locations at
 		  rest among moving ones; at rest Jgas = J.
@@ -75,16 +77,16 @@ static void check_brackets(void)
 			/* --- Membership: a point is in the first range exactly
 				   when the scan of the old code over the whole grid
 				   takes it, with the edge rule of P-17 (<= gas at the
-				   lower end, > gas at the upper end), and likewise
-				   for the second --                         ------------ */
+				   lower end, > gas at the upper end; the ends by
+				   index, N-42), and likewise for the second -- ----- */
 
 			for (idx = 0; idx < N; idx++) {
 				const double *lambda = spectrum.lambda;
 				double        prv = b.prv, gas = b.gas, nxt = b.nxt;
-				int           in1  = (prv != gas) ? (lambda[idx] > prv && lambda[idx] <= gas)
-												  : (lambda[idx] <= gas);
-				int           in2  = (gas != nxt) ? (lambda[idx] > gas && lambda[idx] < nxt)
-												  : (lambda[idx] > gas);
+				int           in1  = (la != 0) ? (lambda[idx] > prv && lambda[idx] <= gas)
+											   : (lambda[idx] <= gas);
+				int           in2  = (la != N - 1) ? (lambda[idx] > gas && lambda[idx] < nxt)
+												   : (lambda[idx] > gas);
 				int           got1 = (idx >= b.r[0] && idx < b.r[1]);
 				int           got2 = (idx >= b.r[1] && idx < b.r[2]);
 
@@ -125,6 +127,46 @@ static void check_partition(void)
 		if (fac == 1.0)
 			CHECK(W[0] == 1.0 && W[N - 1] == 1.0, "no shift: first %g, last %g", W[0], W[N - 1]);
 	}
+	free(W);
+}
+
+/* --- N-42: grid points n0 and n0 + 1 one ulp apart, and a shift
+	   that maps both to the same gas-frame wavelength --  --------- */
+
+static void check_collapse(void)
+{
+	const int   N = 300, n0 = 150;
+	int         t, la, found = 0;
+	long        idx;
+	double     *W, fac = 1.0, maxdev;
+	PRDhBracket b;
+
+	W = (double *) malloc(N * sizeof(double));
+	makeGrid(N);
+	spectrum.lambda[n0 + 1] = nextafter(spectrum.lambda[n0], 1e300);
+	CHECK(spectrum.lambda[n0 + 1] < spectrum.lambda[n0 + 2], "grid not sorted");
+
+	for (t = 1; t <= 10000 && !found; t++) {
+		fac   = 1.0 - 1e-7 * t;
+		found = (spectrum.lambda[n0] * fac == spectrum.lambda[n0 + 1] * fac);
+	}
+	CHECK(found, "no shift maps the pair to one wavelength");
+
+	memset(W, 0, N * sizeof(double));
+	for (la = 0; la < N; la++) {
+		prdhBracket(la, fac, &b);
+		for (idx = b.r[0]; idx < b.r[2]; idx++) W[idx] += prdhWeight(&b, idx);
+
+		/* --- The collapsed interval is empty from both sides -- --- */
+
+		if (la == n0)
+			CHECK(b.r[2] == b.r[1], "fac %.9f: la %d takes [%ld %ld) above", fac, la, b.r[1], b.r[2]);
+		if (la == n0 + 1)
+			CHECK(b.r[1] == b.r[0], "fac %.9f: la %d takes [%ld %ld) below", fac, la, b.r[0], b.r[1]);
+	}
+	maxdev = 0.0;
+	for (idx = 0; idx < N; idx++) maxdev = fmax(maxdev, fabs(W[idx] - 1.0));
+	CHECK(maxdev <= 4e-15, "fac %.9f: total weights differ from 1 by %.2e", fac, maxdev);
 	free(W);
 }
 
@@ -215,6 +257,7 @@ int main(void)
 	srand(1);
 	check_brackets();
 	check_partition();
+	check_collapse();
 	check_jgas();
 	check_rho();
 	return check_summary("test_prdh");

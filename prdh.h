@@ -20,13 +20,15 @@
 	   the factor fac, contributes to: the gas-frame wavelengths of its
 	   neighbours and of itself are prv, gas and nxt; the points in
 	   (prv, gas] are r[0] <= idx < r[1] and those in (gas, nxt) are
-	   r[1] <= idx < r[2]. At the ends of the grid, where a neighbour
-	   is the point itself, all points below (or above) are taken with
-	   weight 1 (constant extrapolation) --           -------------- */
+	   r[1] <= idx < r[2]. At the ends of the grid (lo_end: nspect is
+	   the first point, hi_end: the last), where a neighbour is the
+	   point itself, all points below (or above) are taken with weight 1
+	   (constant extrapolation) --                     -------------- */
 
 typedef struct {
 	long   r[3];
 	double prv, gas, nxt;
+	bool_t lo_end, hi_end;
 } PRDhBracket;
 
 double prdhShift(int mu, int to_obs, int k);
