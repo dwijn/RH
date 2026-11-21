@@ -195,12 +195,6 @@ f(x) - L(x) = \tfrac12 f''(\xi)\,(x-x_0)(x-x_1),\qquad
 \end{equation}
 since $|(x-x_0)(x-x_1)|\le h^2/4$: second order.
 
-\paragraph{Exponential splines.} Between nodes the exponential spline
-with tension $\sigma$ satisfies $y'''' - \sigma^2y'' = 0$, with basis
-$\{1,x,\e^{\sigma x},\e^{-\sigma x}\}$. It tends to the natural cubic spline
-(computed with \code{mpmath}) for $\sigma\to0$ and to linear interpolation for $\sigma\to\infty$; the test
-checks both limits and two tensions against \code{mpmath}.
-
 \paragraph{Cubic convolution.} The kernel of \citet{1981ITASS..29.1153K}
 \begin{equation}
 u(s) = \begin{cases}

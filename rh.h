@@ -149,10 +149,6 @@ void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
 void pchipTableEval(const PchipTable *pt, int N, const double *x, double *y);
 void pchipTableFree(PchipTable *pt);
 
-void exp_splineCoef(int Ntable, double *xtable, double *ytable,
-					double tension);
-void exp_splineEval(int N, double *x, double *y, bool_t hunt);
-
 void   cc_kernel(double s, double *u);
 double cubeconvol(int Nx, int Ny, double *f, double x, double y);
 
