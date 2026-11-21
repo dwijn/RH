@@ -1,0 +1,22 @@
+ids: N-53
+date: 2026-11-20
+title: OH and CH bound-free opacity is held at the edge of the table below 2000 K and above 9000 K instead of being set to 0
+
+`OH_bf_opac` and `CH_bf_opac` (`ohchbf.c`, Kurucz, van Dishoeck & Tarafdar 1987 tables) interpolate log σ bilinearly over a temperature grid of 15 nodes from 2000 to 9000 K (500 K steps) and an energy grid (OH 2.1 to 15 eV, CH 0.1 to 10.5 eV). For T outside 2000 to 9000 K the opacity and emissivity were set to 0. OH and CH exist from 1000 K (the range of their fits), and some models have cool chromospheric pockets below 2000 K, so their bound-free opacity was missing exactly where the molecules are most abundant.
+
+**The fix** (N-53 policy: a table outside its range must not return 0 for a physically nonzero quantity).
+- **Temperature:** log σ is held at its value at the nearest edge temperature (T clamped to [2000, 9000] K for the table lookup). The Planck factors (stimulated emission, emissivity) use the actual T.
+- **Energy:** unchanged. Outside the energy grid the routine returns FALSE (zero opacity). Measured on the tables, this is a good reading at both ends: the peak is log σ = −17.1 (OH) and −16.5 (CH) [cm²]; at the low end (OH below 2.1 eV, λ > 590 nm; CH below 0.1 eV) log σ has fallen to −31 to −24 (OH, 2000 to 9000 K) and −38 (CH), at the high end (OH above 15 eV, λ < 83 nm; CH above 10.5 eV, λ < 118 nm) it is −25.4 to −23.2 (OH) and −24.5 to −22.7 (CH), 6 to 8 orders below the peak. At the high end it is the end of the data and not a physical zero, but nothing is extrapolated.
+- **Message:** `OHCH_bf_check`, called once from `readMolecularModels`, prints one WARNING per molecule (OH, CH) when any depth point is outside 2000 to 9000 K, with the number of points and the atmosphere's T range.
+- **Limit of "held at the edge":** σ depends on T (OH, 2.1 eV: log σ −30.9 at 2000 K, −24.4 at 9000 K; in the UV, 130 to 400 nm, |Δ log σ| from 2000 to 2500 K has a median of 0.2 for OH and 0.12 for CH, up to 1.5 and 0.6), and falls with falling T, so holding the 2000 K value overestimates σ below 2000 K by an unknown amount. The table has no data there and no known T dependence to extend, so this is the agreed policy and not a measured result.
+
+**Measured** (FAL-C with the temperature minimum lowered to 1500 K, `FALC_cool1500.atmos`, made by `mk_cool.py`; chemical equilibrium converged, which needs more than the default 10 iterations in `ChemicalEquilibrium`, see below):
+- χ_OH,bf at depth points of T = 1974, 1500 and 1966 K, λ = 160 nm: 0 before, 7.5×10⁻⁷, 4.0×10⁻⁹ and 9.7×10⁻⁷ m⁻¹ now (3137 K for comparison: 6.4×10⁻⁷ m⁻¹); CH: 0 before, 1.6×10⁻¹⁶ to 3.8×10⁻¹⁶ m⁻¹ now at the same points (CH is much rarer).
+- Emergent intensity: changes by up to 18 % at 158 nm, 0.17 % at 202 nm and 0 above 400 nm (Tmin = 1000 K: 7 % and 0.03 %).
+- FAL-C itself (T ≥ 4170 K, OH and CH have no molecules above 9000 K): byte-identical emergent intensity.
+
+**Results.** Unchanged for every atmosphere with 2000 K ≤ T ≤ 9000 K at all points where OH or CH exist; `run_tests.py` (tolerance mode against a build of `modernize`, 4b665de): 26 of 26 pass and every comparison with the baseline is exactly 0 (all cases have T ≥ 4170 K where OH and CH exist, and the OH and CH densities are 0 above 9000 K). Atmospheres with T < 2000 K in pockets change in the UV (label `changes-results` applies to them, not to the regression cases).
+
+**Depends on the chemical equilibrium converging at cool T (not changed here).** `ChemicalEquilibrium` has only `N_MAX_CHEM_ITER` = 10 Newton iterations; at 1500 K it does not converge and gives negative or absurd n(OH), n(CH) (CH −8×10¹⁵ m⁻³), so with the default builds the new OH and CH bound-free opacity at those points is garbage (emergent I changes by 100 % in the 1500 K pocket). With `N_MAX_CHEM_ITER` = 100 it converges. That limit exists without this change (it only had no visible effect because the opacity was 0 there) and should be fixed before cool pockets are modelled.
+
+Tests: new unit test `test_ohchbf_range` (κ at T below 2000 K and above 9000 K equals the edge value, continuous across both edges, positive and finite; η = χ B_ν; FALSE outside the energy range).
