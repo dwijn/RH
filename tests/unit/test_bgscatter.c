@@ -373,6 +373,37 @@ static void check_before_after(void)
 	free(u);
 }
 
+/* --- With S_BEZIER3, the choice of the linear solver per wavelength
+	   (N-52): above the threshold only, decided afresh, and a query
+	   (albedo < 0) keeps the last choice -- --       -------------- */
+
+static void check_linear_choice(void)
+{
+	BgScatterStats st;
+
+	commandline.logfile   = stderr; /* bgScatterSetup's message */
+	spectrum.Nspect       = 4;
+	input.S_interpolation = S_BEZIER3;
+	input.bg_NmaxIter     = 50;
+	input.bg_linearAlbedo = 0.9;
+	input.bg_linearTau    = 1.0;
+	bgScatterSetup();
+
+	CHECK(!bgScatterLinear(0, -1.0), "query set the flag");
+	CHECK(!bgScatterLinear(0, 0.9), "albedo = threshold chose linear");
+	CHECK(bgScatterLinear(0, 0.95), "albedo 0.95 > 0.9 did not choose linear");
+	CHECK(bgScatterLinear(0, -1.0), "a query lost the choice");
+	CHECK(!bgScatterLinear(1, -1.0), "wavelength 1 chose linear");
+	bgScatterStats(&st, TRUE);
+	CHECK(st.Nlinear == 1 && st.Nto == 1 && st.Nback == 0,
+		  "linear %ld, +%ld -%ld, not 1, +1 -0", st.Nlinear, st.Nto, st.Nback);
+	CHECK(!bgScatterLinear(0, 0.1), "albedo 0.1 kept the linear solver");
+	CHECK(!bgScatterLinear(0, -1.0), "a query lost the switch back");
+	bgScatterStats(&st, TRUE);
+	CHECK(st.Nlinear == 0 && st.Nto == 0 && st.Nback == 1,
+		  "linear %ld, +%ld -%ld, not 0, +0 -1", st.Nlinear, st.Nto, st.Nback);
+}
+
 int main(void)
 {
 	gauss3();
@@ -395,6 +426,7 @@ int main(void)
 	check_iterate(1.0e-4, BG_OPERATOR_DIAGONAL, 3, 750);
 	check_iterate(1.0e-6, BG_OPERATOR_TRIDIAGONAL, 0, 145);
 	check_before_after();
+	check_linear_choice();
 
 	return check_summary("test_bgscatter");
 }

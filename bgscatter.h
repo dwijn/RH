@@ -26,6 +26,9 @@ typedef struct {
 	long   Nsweeps;      /* formal solutions of a wavelength it took */
 	long   Nunconverged; /* stopped at BACKGROUND_N_MAX_ITER */
 	double rmax;         /* largest final residual of those */
+	long   Nto, Nback;   /* switches to the linear solver and back */
+	long   Nlinear;      /* wavelengths solved linear now (N-52;
+							not reset) */
 } BgScatterStats;
 
 int  bgScatterActive(void);
@@ -53,6 +56,11 @@ void   bgScatterBefore(int nspect, int Nspace, const double *Jdag,
 					   double *Jstar, BgSweep sweep, void *ctx);
 void   bgScatterAfter(int nspect, int Nspace, const double *u,
 					  const double *Jfs, const double *A, const double *albedo);
+/* --- With S_BEZIER3, whether wavelength nspect is solved with the
+	   linear solver (N-52): where albedo exceeds
+	   BACKGROUND_LINEAR_ALBEDO; albedo < 0 keeps the last choice - */
+
+bool_t bgScatterLinear(int nspect, double albedo);
 
 #endif /* !__BGSCATTER_H__ */
 

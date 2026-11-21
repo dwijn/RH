@@ -32,8 +32,8 @@
 
   N_MAX_SCATTER = 2
 
-# Background scattering at each wavelength (KEYWORD_DEFAULT; 1-D with
-# S_INTERPOLATION = S_LINEAR only, N-51). The scattering part of the
+# Background scattering at each wavelength (KEYWORD_DEFAULT; 1-D only,
+# N-51). The scattering part of the
 # background (electrons, Rayleigh, and with RLK_SCATTER the Kurucz lines)
 # is otherwise a lambda iteration, one step per formal solution, which
 # never converges for lines with a small photon destruction probability.
@@ -44,13 +44,20 @@
 # BACKGROUND_ANDERSON_DEPTH, until the relative change of J is below
 # BACKGROUND_ITER_LIMIT (default: 0.1 x ERROR_LIMIT, or 0.1 x ITER_LIMIT
 # without it) or after BACKGROUND_N_MAX_ITER solves (0: the lambda
-# iteration). With S_BEZIER3 (the default) it is off: the cubic Bezier
-# operator is not positive and the iteration diverges (N-52).
+# iteration). With S_BEZIER3 (the default) the cubic Bezier operator is
+# not positive and the iteration would diverge (N-52): a wavelength is
+# instead solved with the linear solver, and iterated, in every sweep in
+# which its largest scattering albedo below vertical optical depth
+# BACKGROUND_LINEAR_TAU exceeds BACKGROUND_LINEAR_ALBEDO; the others keep
+# the Bezier solver and the lambda iteration (BACKGROUND_LINEAR_ALBEDO >= 1:
+# none, the iteration is off).
 #
 #  BACKGROUND_N_MAX_ITER = 50
 #  BACKGROUND_ANDERSON_DEPTH = 3
 #  BACKGROUND_OPERATOR = TRIDIAGONAL
 #  BACKGROUND_ITER_LIMIT = 1.0E-4
+#  BACKGROUND_LINEAR_ALBEDO = 0.9
+#  BACKGROUND_LINEAR_TAU = 1.0
 
 # Row of statistical equilibrium equation that is to be eliminated
 # to enforce particle conservation (KEYWORD_REQUIRED). If set to -1
