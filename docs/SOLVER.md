@@ -175,6 +175,39 @@ that any reference computed with it embodies:
   H_6 + Ca II: 3.7×10⁻⁸ between a fresh and a restarted run, both
   converged to 10⁻⁹). The first `Background()` call also solves ne from
   scratch, ignoring the ne of the atmosphere file and of an earlier run.
+  (Changed by N-36: the setup call now always takes `nstar`, later calls
+  the populations; see the next paragraph.)
+
+**When the chemical equilibrium is computed** (current code, checked
+2026-11-20; for the manual). `Background()` solves it at every point after
+ne and the LTE populations (`chemequil.c`), unless `NON_ICE` reads the
+molecular densities from `MOLECULAR_CONCENTRATION_FILE`. It runs:
+
+| Situation | When | Neutral fraction of an active atom |
+|---|---|---|
+| Setup of `rhf1d`, `rhsc2d`, `rhsc3d`, `rhsphere`, the `gcheck_*` programs | once, before `initSolution()` | LTE (`nstar`): the populations are not set yet |
+| `solveray` (equilibria only when static, the full background when moving or Stokes), `chartflow` (equilibria only), `backgrcontr` (via `backgrOpac()`) | once, before any populations are read | LTE (`nstar`) |
+| `SOLVE_NE = NONE` or `ONCE` | at setup only | LTE, for the whole run |
+| `SOLVE_NE = ITERATION`, `SOLVER = NG` | also after every iteration (`iterate.c`), with the full background | the current populations |
+| `SOLVE_NE = ITERATION`, `FIXED_POINT`, `ANDERSON`, `NEWTON_KRYLOV` | at the start of every G evaluation (trial points and finite-difference probes included), and once for the final state (`BackgroundOfState()`) | the populations of the state x |
+
+Two consequences, kept as they are (user, 2026-11-20):
+
+- **Without `SOLVE_NE = ITERATION` the molecules and H⁻ see LTE neutral
+  fractions only**, also of an active H with NLTE populations: H₂, CO,
+  H₂O and the rest are computed once, from `nstar`. Close to LTE in the
+  photosphere; in a cool chromospheric pocket, where the H neutral fraction
+  can be far from LTE, the molecular densities are those of LTE hydrogen.
+- **`HYDROSTATIC` (only with `SOLVER = NG`) does not solve the chemical
+  equilibrium again.** `Hydrostatic()` carries H₂ in its own Newton system,
+  with Φ(H₂) = n(H₂)/n(H)² from the last chemical equilibrium, and keeps H⁻
+  and the hydrogen in other molecules at the fraction of nHtot that the
+  last chemical equilibrium found (N-44). It then sets the new nHtot, scales
+  the H populations, and sets `ntotal` of every other atom to abundance ×
+  nHtot, which includes the nuclei bound in molecules. The densities of
+  the other molecules (CO, H₂O, ...) stay at the old nHtot. The next
+  `Background()` corrects all of this, and that call only happens with
+  `SOLVE_NE = ITERATION`; otherwise the run keeps these values to the end.
 
 ### 2.2 RH's Ng is Anderson acceleration
 
