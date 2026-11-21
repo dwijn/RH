@@ -162,6 +162,120 @@ void getLambda(AtomicLine *line)
 }
 /* ------- end ---------------------------- getLambda.c ------------- */
 
+/* ------- begin -------------------------- asymmetricBlends.c ------ */
+
+/* --- N-55: a symmetric line (the default in a static, unpolarized
+	   atmosphere) has a grid at lambda >= lambda0 only (getLambda), and
+	   SortLambda enters it in the active set only there. Another
+	   transition with wavelengths in its blue half sees none of its
+	   opacity there, and the PRD fold assumes J(-q) = J(+q). This makes
+	   every symmetric line of an active atom asymmetric whose blue half,
+	   [2 lambda0 - lambda_last, lambda0), contains a wavelength of
+	   another transition: lines and continua of the active atoms, lines
+	   of the active molecules, or one of extra[0 .. Nextra-1] (the
+	   wavelength table and the reference wavelength). The new grid has
+	   the same half grid on both sides (Nlambda = 2 x the half), so the
+	   red half is unchanged. Repeated until nothing changes, because the
+	   new blue half of a line can fall in the blue half of another.
+	   Lines that nothing overlaps stay symmetric. Returns the number of
+	   lines made asymmetric --                         -------------- */
+
+static bool_t inBlueHalf(double lambda, double lo, double hi)
+{
+	return (lambda >= lo && lambda < hi);
+}
+
+static bool_t blueHalfOverlap(const AtomicLine *line, const double *extra,
+							  int Nextra)
+{
+	int    n, kr, la;
+	double lo = 2.0 * line->lambda0 - line->lambda[line->Nlambda - 1],
+		   hi = line->lambda0 - 1.0E-10; /* SortLambda's duplicate limit */
+
+	for (la = 0; la < Nextra; la++)
+		if (inBlueHalf(extra[la], lo, hi)) return TRUE;
+
+	for (n = 0; n < atmos.Natom; n++) {
+		Atom *atom = &atmos.atoms[n];
+
+		if (!atom->active) continue;
+		for (kr = 0; kr < atom->Ncont; kr++) {
+			AtomicContinuum *cont = &atom->continuum[kr];
+
+			/* --- As SortLambda: the edge, and points beyond it at the
+				   edge (CMO) --                               ---------- */
+
+			if (inBlueHalf(cont->lambda0, lo, hi)) return TRUE;
+			for (la = 0; la < cont->Nlambda; la++)
+				if (inBlueHalf(MIN(cont->lambda[la], cont->lambda0), lo, hi))
+					return TRUE;
+		}
+		for (kr = 0; kr < atom->Nline; kr++) {
+			const AtomicLine *other = &atom->line[kr];
+
+			if (other == line) continue;
+			for (la = 0; la < other->Nlambda; la++)
+				if (inBlueHalf(other->lambda[la], lo, hi)) return TRUE;
+		}
+	}
+	for (n = 0; n < atmos.Nmolecule; n++) {
+		Molecule *molecule = &atmos.molecules[n];
+
+		if (!molecule->active) continue;
+		for (kr = 0; kr < molecule->Nrt; kr++) {
+			const MolecularLine *mrt = &molecule->mrt[kr];
+
+			for (la = 0; la < mrt->Nlambda; la++)
+				if (inBlueHalf(mrt->lambda[la], lo, hi)) return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+int asymmetricBlends(const double *extra, int Nextra)
+{
+	const char routineName[] = "asymmetricBlends";
+	int        n, kr, Nchanged = 0;
+	bool_t     changed;
+
+	do {
+		changed = FALSE;
+		for (n = 0; n < atmos.Natom; n++) {
+			Atom *atom = &atmos.atoms[n];
+
+			if (!atom->active) continue;
+			for (kr = 0; kr < atom->Nline; kr++) {
+				AtomicLine *line = &atom->line[kr];
+
+				if (!line->symmetric || !blueHalfOverlap(line, extra, Nextra))
+					continue;
+
+				/* --- getLambda gives a symmetric line an odd number N of
+					   points on the red half; an asymmetric one with
+					   Nlambda = 2N gets the same N points on each
+					   side --                                ------------ */
+
+				line->Nlambda   = 2 * line->Nlambda;
+				line->symmetric = FALSE;
+				free(line->lambda);
+				getLambda(line);
+
+				sprintf(messageStr,
+						" -- Line %3d -> %3d of atom %2s (%.4f nm): other"
+						" transitions have wavelengths in its blue half;"
+						" full profile (N-55)\n",
+						line->j, line->i, atom->ID, line->lambda0);
+				Error(MESSAGE, routineName, messageStr);
+				Nchanged++;
+				changed = TRUE;
+			}
+		}
+	} while (changed);
+
+	return Nchanged;
+}
+/* ------- end ---------------------------- asymmetricBlends.c ------ */
+
 /* ------- begin -------------------------- getLambdaCont.c --------- */
 
 void getLambdaCont(AtomicContinuum *continuum, double lambdamin)
