@@ -447,8 +447,15 @@ double partfunction(struct Molecule *molecule, double T)
 
 	double pf = 0.0, t;
 
-	if (T < molecule->Tmin || T > molecule->Tmax)
-		return pf;
+	/* --- Outside the range of the fit hold the partition function at
+		   its value at the nearest edge of [Tmin, Tmax] (N-53). The
+		   caller reports the number of depth points outside the range
+		   once per molecule (checkMoleculeTrange) --  ---------------- */
+
+	if (T < molecule->Tmin)
+		T = molecule->Tmin;
+	else if (T > molecule->Tmax)
+		T = molecule->Tmax;
 
 	/* --- Evaluate polynomial in temperature for partition function -- */
 
@@ -503,6 +510,93 @@ double partfunction(struct Molecule *molecule, double T)
 
 /* ------- begin -------------------------- equilconstant.c --------- */
 
+/* --- ln of the equilibrium constant [SI] from the fit, evaluated
+	   without regard to the range [Tmin, Tmax] of the fit. Used only for
+	   the extrapolation outside that range, see equilconstant. -- ----- */
+
+static double lnEquilConstant(struct Molecule *molecule, double T)
+{
+	register int i;
+
+	int    mk;
+	double kT, t, lneqc = 0.0, theta;
+
+	switch (molecule->fit) {
+	case KURUCZ_70:
+	case KURUCZ_85:
+		t  = (molecule->fit == KURUCZ_85) ? T * 1.0E-4 : T;
+		kT = KBOLTZMANN * T;
+		mk = molecule->Nnuclei - 1 - molecule->charge;
+
+		lneqc = molecule->eqc_coef[0];
+		for (i = 1; i < molecule->Neqc; i++)
+			lneqc = lneqc * t + molecule->eqc_coef[i];
+		lneqc += molecule->Ediss / kT - 1.5 * mk * log(T) +
+				 mk * 3.0 * log(CM_TO_M);
+		break;
+
+	case IRWIN_81:
+	case SAUVAL_TATUM_84:
+		theta = THETA0 / T;
+		t     = log10(theta);
+		kT    = KBOLTZMANN * T;
+
+		lneqc = molecule->eqc_coef[0];
+		for (i = 1; i < molecule->Neqc; i++)
+			lneqc = lneqc * t + molecule->eqc_coef[i];
+		lneqc = log(10.0) * ((molecule->Ediss / EV) * theta - lneqc) + log(kT);
+		break;
+
+	case TSUJI_73:
+		theta = THETA0 / T;
+		kT    = KBOLTZMANN * T;
+
+		lneqc = molecule->eqc_coef[0];
+		for (i = 1; i < molecule->Neqc; i++)
+			lneqc = lneqc * theta + molecule->eqc_coef[i];
+		lneqc = 2.0 * log(kT) - log(10.0) * lneqc +
+				(molecule->Nnuclei - 1) * log(CUBE(CM_TO_M) / ERG_TO_JOULE);
+		break;
+
+	default:
+		sprintf(messageStr,
+				"Unknown method for calculation of equilibrium constant\n"
+				"for molecule %s: %d",
+				molecule->ID, molecule->fit);
+		Error(ERROR_LEVEL_2, "lnEquilConstant", messageStr);
+	}
+	return lneqc;
+}
+/* ------- end ---------------------------- lnEquilConstant -------- */
+
+/* --- Outside [Tmin, Tmax] ln K is extrapolated linearly in
+	   theta = 5040/T from the nearer edge, using ln K and d lnK / d theta
+	   at the edge (van 't Hoff: ln K is close to linear in 1/T, with
+	   the dissociation energy as slope). The slope is a centred
+	   difference over +-0.1 percent of theta_edge: the fits are smooth
+	   (polynomials in T, ln T or log theta), so the truncation error is
+	   negligible and no per-fit analytic derivative is needed. The
+	   result is capped at ln K = 700 to stay below the double range
+	   (N-53) --                                     ----------------- */
+
+static double extrapolatedEquilConstant(struct Molecule *molecule, double T)
+{
+	double Tedge, theta, theta_edge, dtheta, lnK_edge, slope, lnK;
+
+	Tedge      = (T < molecule->Tmin) ? molecule->Tmin : molecule->Tmax;
+	theta      = THETA0 / T;
+	theta_edge = THETA0 / Tedge;
+	dtheta     = 1.0E-3 * theta_edge;
+
+	lnK_edge = lnEquilConstant(molecule, Tedge);
+	slope    = (lnEquilConstant(molecule, THETA0 / (theta_edge + dtheta)) -
+             lnEquilConstant(molecule, THETA0 / (theta_edge - dtheta))) /
+			(2.0 * dtheta);
+
+	lnK = lnK_edge + slope * (theta - theta_edge);
+	return exp(MIN(lnK, 700.0));
+}
+
 double equilconstant(struct Molecule *molecule, double T)
 {
 	register int i;
@@ -511,7 +605,7 @@ double equilconstant(struct Molecule *molecule, double T)
 	double kT, t, eqc = 0.0, theta, cgs_to_SI = 1.0;
 
 	if (T < molecule->Tmin || T > molecule->Tmax)
-		return eqc;
+		return extrapolatedEquilConstant(molecule, T);
 
 	/* --- Evaluate polynomial in temperature for equilibrium constant.
 		   Constant should have units of [m^3,6,9, etc] -- ------------ */

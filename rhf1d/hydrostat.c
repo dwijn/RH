@@ -41,7 +41,7 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 	const char   routineName[] = "Hydrostatic";
 	register int k, n, m, i;
 
-	bool_t  Debeye, quiet, H2present;
+	bool_t  Debeye, quiet;
 	int     niter, Ngdelay, Ngperiod, Ngorder, Nhse;
 	double *n_k, **dfdn, C1, C2, C3, beta, Phi_H, Phi_H2, *F, *dFdne, *f,
 		dnmax = 0.0, nHtot_old, *np, *nH2, fH;
@@ -69,13 +69,11 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 
 	for (k = 0; k < atmos.Nspace; k++) {
 
-		if (atmos.T[k] >= atmos.H2->Tmin && atmos.T[k] <= atmos.H2->Tmax) {
-			H2present = TRUE;
-			Nhse      = 5;
-		} else {
-			H2present = FALSE;
-			Nhse      = 4;
-		}
+		/* --- H2 is part of the system at all temperatures: outside its
+			   fit range the equilibrium constant is extrapolated, so nH2
+			   is small but nonzero (N-53) --              -------------- */
+
+		Nhse = 5;
 		f    = (double *) malloc(Nhse * sizeof(double));
 		n_k  = (double *) malloc(Nhse * sizeof(double));
 		dfdn = matrix_double(Nhse, Nhse);
@@ -91,10 +89,10 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 		/* --- Starting solution:
 			   Note: n_k[0] is the amount of neutral atomic hydrogen. -- */
 
-		n_k[0] = atmos.H->ntotal[k] - np[k];
-		n_k[1] = atmos.ne[k];
-		n_k[2] = np[k];
-		if (H2present) n_k[3] = nH2[k];
+		n_k[0]        = atmos.H->ntotal[k] - np[k];
+		n_k[1]        = atmos.ne[k];
+		n_k[2]        = np[k];
+		n_k[3]        = nH2[k];
 		n_k[Nhse - 1] = atmos.nHtot[k];
 
 		Phi_H = n_k[0] / (n_k[1] * n_k[2]);
@@ -102,7 +100,7 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 		/* --- H2 forms from neutral atomic hydrogen, as in the chemical
 			   equilibrium: n_H2 = Phi_H2 n_H^2 (N-44) --  -------------- */
 
-		if (H2present) Phi_H2 = n_k[3] / SQ(n_k[0]);
+		Phi_H2 = n_k[3] / SQ(n_k[0]);
 
 		/* --- Fraction fH of nHtot in atomic hydrogen, protons and H2.
 			   Each H2 molecule holds two hydrogen nuclei. The rest (H-
@@ -146,16 +144,14 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 			dfdn[2][2] = dfdn[2][0] = 1.0;
 			dfdn[2][Nhse - 1]       = -fH;
 
-			if (H2present) {
-				f[2] += 2.0 * n_k[3];
-				dfdn[2][3] = 2.0;
+			f[2] += 2.0 * n_k[3];
+			dfdn[2][3] = 2.0;
 
-				/* --- Row for H2 equilibrium --               -------------- */
+			/* --- Row for H2 equilibrium --                 -------------- */
 
-				f[3]       = -SQ(n_k[0]) * Phi_H2 + n_k[3];
-				dfdn[3][0] = -2.0 * n_k[0] * Phi_H2;
-				dfdn[3][3] = 1.0;
-			}
+			f[3]       = -SQ(n_k[0]) * Phi_H2 + n_k[3];
+			dfdn[3][0] = -2.0 * n_k[0] * Phi_H2;
+			dfdn[3][3] = 1.0;
 
 			/* --- Row for hydrogen ionization --            -------------- */
 
@@ -202,10 +198,7 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 		np[k]              = n_k[2];
 		atmos.nHtot[k]     = n_k[Nhse - 1];
 
-		if (H2present)
-			nH2[k] = n_k[3];
-		else
-			nH2[k] = 0.0;
+		nH2[k] = n_k[3];
 
 		/* --- Adjust Non-LTE hydrogen level popultions -- -------------- */
 
