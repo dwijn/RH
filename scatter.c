@@ -129,7 +129,8 @@ static void prdInflow(Atom *atom, AtomicLine *PRDline, AtomicLine **XRD,
 	   of each location's block (line->prd_block).
 
 	   W is kept in a scratch file per line in single precision (the
-	   dot product is accumulated in double). The file holds one block
+	   dot product is accumulated in double and divided by the sum of
+	   the stored weights of the row, N-56). The file holds one block
 	   per location; workers handle contiguous ranges of locations and
 	   read or write their blocks in windows of several MB.
 	   --                                              -------------- */
@@ -379,7 +380,7 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 	int          Np, m0, len, m;
 	long         pos;
 	double       q_emit, q0, qN, *q_abs, *qp = NULL, *qu = NULL, *gw = NULL, *W, *J_k,
-								   gnorm, g, scatInt;
+								   gnorm, g, scatInt, wsum;
 	prdw_t   *wbuf;
 	PRDWindow win;
 
@@ -437,11 +438,17 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 			}
 
 			/* --- The integral: a dot product with J on the line's
-				   grid, accumulated in double --            -------------- */
+				   grid, accumulated in double, divided by the sum of
+				   the stored weights: the row is 1 to double
+				   rounding, not to that of prdw_t (N-56) -- -------------- */
 
 			scatInt = 0.0;
-			for (m = 0; m < len; m++) scatInt += (double) wbuf[pos + m] * J_k[m0 + m];
-			PRDline->rho_prd[la][k] += g * scatInt;
+			wsum    = 0.0;
+			for (m = 0; m < len; m++) {
+				scatInt += (double) wbuf[pos + m] * J_k[m0 + m];
+				wsum += (double) wbuf[pos + m];
+			}
+			PRDline->rho_prd[la][k] += g * scatInt / wsum;
 			pos += len;
 		}
 		if (pos != job->blocksize[k]) prdBlockError(routineName, k, pos, job->blocksize[k]);
@@ -653,7 +660,7 @@ static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
 	int          Nl   = line->Nlambda, k, la, mu, mup, to_obs, d, lap, lamu, Np, m, *m0, *len,
 		Nrow;
 	long   pos, start;
-	double v_emit, v0, vN, *vp = NULL, *v_abs, *rii = NULL, *W, norm, wmup, s,
+	double v_emit, v0, vN, *vp = NULL, *v_abs, *rii = NULL, *W, norm, wmup, s, wsum,
 						   *I_d, phi;
 	prdw_t   *wbuf;
 	PRDWindow win;
@@ -717,11 +724,16 @@ static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
 					/* --- Sum over absorption directions of the dot
 						   products with the intensity --     -------------- */
 
-					s = 0.0;
+					s    = 0.0;
+					wsum = 0.0;
 					for (d = 0, start = pos; d < job->Ndir; start += len[d], d++) {
 						I_d = job->Iall + ((size_t) k * job->Ndir + d) * Nl;
-						for (m = 0; m < len[d]; m++) s += (double) wbuf[start + m] * I_d[m0[d] + m];
+						for (m = 0; m < len[d]; m++) {
+							s += (double) wbuf[start + m] * I_d[m0[d] + m];
+							wsum += (double) wbuf[start + m];
+						}
 					}
+					s /= wsum; /* the row sums to 1 in double (N-56) */
 					line->rho_prd[lamu][k] = (1.0 + job->g[k] * s) / job->denom[k];
 					pos += Nrow;
 				}
