@@ -352,6 +352,7 @@ bool_t OH_bf_opac(double lambda, double *chi, double *eta)
 	if (Eev < EOH[0] || Eev > EOH[NEOH - 1]) return FALSE;
 
 	Hunt(NEOH, EOH, Eev, &index);
+	if (index > NEOH - 2) index = NEOH - 2; /* the last node: fraction 1 */
 	e_index = (double) index +
 			  (Eev - EOH[index]) / (EOH[index + 1] - EOH[index]);
 
@@ -366,6 +367,7 @@ bool_t OH_bf_opac(double lambda, double *chi, double *eta)
 		Tk = MIN(MAX(atmos.T[k], TOH[0]), TOH[NTOH - 1]);
 
 		Hunt(NTOH, TOH, Tk, &index2);
+		if (index2 > NTOH - 2) index2 = NTOH - 2; /* the last node: fraction 1 */
 		t_index = (double) index2 +
 				  (Tk - TOH[index2]) / (TOH[index2 + 1] - TOH[index2]);
 
@@ -630,6 +632,7 @@ bool_t CH_bf_opac(double lambda, double *chi, double *eta)
 	if (Eev < ECH[0] || Eev > ECH[NECH - 1]) return FALSE;
 
 	Hunt(NECH, ECH, Eev, &index);
+	if (index > NECH - 2) index = NECH - 2; /* the last node: fraction 1 */
 	e_index = (double) index +
 			  (Eev - ECH[index]) / (ECH[index + 1] - ECH[index]);
 
@@ -644,6 +647,7 @@ bool_t CH_bf_opac(double lambda, double *chi, double *eta)
 		Tk = MIN(MAX(atmos.T[k], TCH[0]), TCH[NTCH - 1]);
 
 		Hunt(NTCH, TCH, Tk, &index2);
+		if (index2 > NTCH - 2) index2 = NTCH - 2; /* the last node: fraction 1 */
 		t_index = (double) index2 +
 				  (Tk - TCH[index2]) / (TCH[index2 + 1] - TCH[index2]);
 
