@@ -355,6 +355,32 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 				molecule->pf[k] = partfunction(molecule, atmos.T[k]);
 		}
 	}
+	/* --- Report once per molecule when the atmosphere leaves the range
+		   of the partition function and equilibrium constant fits (N-53):
+		   the partition function is held at its edge value and
+		   ln K is extrapolated linearly in 5040/T --  -------------- */
+
+	{
+		int    Nout = 0;
+		double Tlo = atmos.T[0], Thi = atmos.T[0];
+
+		for (k = 0; k < atmos.Nspace; k++) {
+			if (atmos.T[k] < molecule->Tmin || atmos.T[k] > molecule->Tmax)
+				Nout++;
+			Tlo = MIN(Tlo, atmos.T[k]);
+			Thi = MAX(Thi, atmos.T[k]);
+		}
+		if (Nout > 0) {
+			sprintf(messageStr,
+					"Molecule %s: %d of %d depth points have T outside the fit "
+					"range [%.0f, %.0f] K (atmosphere T = %.0f - %.0f K).\n"
+					" Partition function held at the edge value, equilibrium "
+					"constant extrapolated linearly in 5040/T.",
+					molecule->ID, Nout, atmos.Nspace, molecule->Tmin,
+					molecule->Tmax, Tlo, Thi);
+			Error(WARNING, routineName, messageStr);
+		}
+	}
 	/* --- Get wavelength grid for each line if active -- ------------- */
 
 	if (molecule->active) {

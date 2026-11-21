@@ -222,10 +222,52 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 }
 /* ------- end ------------------------- Piece_Stokes_Bezier3_1D.c -- */
 
+/* ------- begin ----------------------- steffenCoef.c -------------- */
+
+static void steffenCoef(double odx, double dx, double yu, double y0,
+						double yd, double c[3])
+{
+	/* --- The coefficients of the Steffen (1990) derivative of
+		   cent_deriv on (yu, y0, yd): on each branch of its limiter
+		   the derivative is linear in the three values, y' = c[0] yu
+		   + c[1] y0 + c[2] yd (N-51, tridiagonal operator). The branch
+		   is chosen as cent_deriv chooses it --        -------------- */
+
+	const double S0 = (yd - y0) / dx;
+	const double Su = (y0 - yu) / odx;
+	const double P0 = fabs((Su * dx + S0 * odx) / (odx + dx)) * 0.5;
+	const double m  = fmin(fabs(Su), fmin(fabs(S0), P0));
+
+	c[0] = c[1] = c[2] = 0.0;
+	if (signFortran(S0) + signFortran(Su) == 0.0) return;
+	if (m == fabs(Su)) { /* y' = 2 Su */
+		c[0] = -2.0 / odx;
+		c[1] = 2.0 / odx;
+	} else if (m == fabs(S0)) { /* y' = 2 S0 */
+		c[1] = -2.0 / dx;
+		c[2] = 2.0 / dx;
+	} else { /* y' = (Su dx + S0 odx) / (odx + dx) */
+		c[0] = -(dx / odx) / (odx + dx);
+		c[2] = (odx / dx) / (odx + dx);
+		c[1] = -c[0] - c[2];
+	}
+}
+/* ------- end ------------------------- steffenCoef.c -------------- */
+
 /* ------- begin ----------------------- Piecewise_Bezier3_1D.c ----- */
 
 void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 						  double *chi, double *S, double *I, double *Psi)
+{
+	Piecewise_Bezier3_1D_tri(nspect, mu, to_obs, chi, S, I, Psi, NULL);
+}
+/* ------- end ------------------------- Piecewise_Bezier3_1D.c ----- */
+
+/* ------- begin ----------------------- Piecewise_Bezier3_1D_tri.c - */
+
+void Piecewise_Bezier3_1D_tri(int nspect, int mu, bool_t to_obs,
+							  double *chi, double *S, double *I, double *Psi,
+							  double *Tri)
 {
 
 	/* --- Cubic Bezier solver for unpolarized light
@@ -247,6 +289,15 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 	double dtau_uw, dtau_dw = 0.0, I_upw = 0.0, c1, c2, zmu, Bnu[2];
 	double dsup, dsdn, dt03, eps = 0, alpha = 0, beta = 0, gamma = 0, theta = 0;
 	double dS_up, dS_c, dchi_up, dchi_c, dchi_dn = 0.0, dsdn2;
+
+	/* --- Tri (N-51): with it, the exact row of the operator of this
+		   ray, Tri[3k] = dI_k/dS_k-dk (upwind), Tri[3k + 1] = dI_k/dS_k
+		   (not limited as Psi is, B-66), Tri[3k + 2] = dI_k/dS_k+dk.
+		   cSc and cSup are the coefficients of dS_c and dS_up on
+		   (S_k-dk, S_k, S_k+dk) of their own centre; T0, Tp those of
+		   the upwind point --                          -------------- */
+
+	double cSc[3] = {0.0, 0.0, 0.0}, cSup[3], T0 = 0.0, Tp = 0.0;
 
 	zmu = 1.0 / geometry.muz[mu];
 
@@ -306,6 +357,7 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 
 	I[k_start] = I_upw;
 	if (Psi) Psi[k_start] = 0.0;
+	if (Tri) Tri[3 * k_start] = Tri[3 * k_start + 1] = Tri[3 * k_start + 2] = 0.0;
 
 	/* --- Set variables for first iteration to allow simple
 		   shift for all next iterations --              -------------- */
@@ -328,7 +380,10 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 
 	/* --- dS/dtau at upwind point --                    -------------- */
 
-	dS_up = (S[k] - S[k - dk]) / dtau_uw;
+	dS_up   = (S[k] - S[k - dk]) / dtau_uw;
+	cSup[0] = 0.0;
+	cSup[1] = -1.0 / dtau_uw;
+	cSup[2] = 1.0 / dtau_uw;
 
 	/* --- Solve transfer along ray --                   -------------- */
 
@@ -363,9 +418,13 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 			/* --- dS/dt at central point --                -------------- */
 
 			dS_c = cent_deriv(dtau_uw, dtau_dw, S[k - dk], S[k], S[k + dk]);
+			if (Tri) steffenCoef(dtau_uw, dtau_dw, S[k - dk], S[k], S[k + dk], cSc);
 
 		} else {
-			dS_c = (S[k] - S[k - dk]) / dtau_uw;
+			dS_c   = (S[k] - S[k - dk]) / dtau_uw;
+			cSc[0] = -1.0 / dtau_uw;
+			cSc[1] = 1.0 / dtau_uw;
+			cSc[2] = 0.0;
 		}
 
 		/* --- Compute interpolation parameters --         -------------- */
@@ -387,6 +446,27 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 
 		if (Psi) Psi[k] = Bezier3_psi(beta, theta, S[k], c1); /* B-66 */
 
+		/* --- Row of the operator: I_k depends on S_k-dk, S_k, S_k+dk
+			   directly, through c1 (dS_c) and c2 (dS_up, centred on
+			   k - dk), and through I_upw on S_k-dk, S_k -- ------ */
+
+		if (Tri) {
+			double Tm_k, T0_k, Tp_k;
+
+			Tm_k = eps * T0 + alpha - theta * dt03 * cSc[0] +
+				   gamma * (1.0 + dt03 * cSup[1]);
+			T0_k = eps * Tp + beta + theta * (1.0 - dt03 * cSc[1]) +
+				   gamma * dt03 * cSup[2];
+			Tp_k = -theta * dt03 * cSc[2];
+
+			Tri[3 * k]     = Tm_k;
+			Tri[3 * k + 1] = T0_k;
+			Tri[3 * k + 2] = Tp_k;
+			T0             = T0_k;
+			Tp             = Tp_k;
+			memcpy(cSup, cSc, sizeof(cSup));
+		}
+
 		/* --- Re-use downwind quantities for next upwind position -- --- */
 
 		I_upw   = I[k];
@@ -397,4 +477,4 @@ void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 		dS_up   = dS_c;
 	}
 }
-/* ------- end ---------------------------- Piecewise_Bezier3_1D.c -- */
+/* ------- end ---------------------------- Piecewise_Bezier3_1D_tri.c */

@@ -11,18 +11,19 @@
 
 /* --- Include file for background opacities and emissivities. -- --- */
 
-/* --- Maximum number of iterations and minimum accuracy for chemical
-	   equilibrium calculations --                     -------------- */
+/* --- Chemical equilibrium (N-61): the largest number of Newton steps,
+	   and the relative residual of the conservation equations below
+	   which one more full step ends the iteration (the result is then
+	   converged to rounding). A location that does not converge stops
+	   the run or invalidates a trial point --          -------------- */
 
-#define N_MAX_CHEM_ITER 10
-#define CHEM_ITER_LIMIT 1.0E-3
+#define N_MAX_CHEM_ITER 100
+#define CHEM_ITER_LIMIT 1.0E-12
 
-/* --- Fixed numbers of Newton steps in the map G with ne in the state
-	   (S-2b): chemical equilibrium from complete dissociation, and the
-	   electron density from the ne of the state --     -------------- */
+/* --- Fixed number of Newton steps for the electron density in the
+	   map G with ne in the state (S-2b), from the ne of the state -- */
 
-#define N_CHEM_ITER_OF_STATE 20
-#define N_NE_ITER_OF_STATE   10
+#define N_NE_ITER_OF_STATE 10
 
 /* --- Power of two by which emissivities are multiplied in the
 	   (single-precision) background file, see backgroundIO in readj.c */
@@ -45,8 +46,24 @@ struct Linelist {
 
 /* --- Associated function prototypes --               -------------- */
 
-void   ChemicalEquilibrium(int NmaxIter, double iterLimit);
-void   ChemicalEquilibriumOfState(int Niter);
+void ChemicalEquilibrium(int NmaxIter, double iterLimit);
+void ChemicalEquilibriumOfState(int NmaxIter, double iterLimit);
+
+/* --- The chemical equilibrium of one location in log densities of the
+	   free nuclei (N-61, chemequil.c): Nn nuclei, Ns species with
+	   stoichiometry nu[s][0 .. Nn-1] and ln c_s in lnc[s] (-HUGE_VAL:
+	   absent); n, g, du, ut, sc and H are work space (Ns, Nn, Nn, Nn,
+	   Nn, Nn x Nn). chemSolve returns the number of Newton steps, with
+	   n the densities of the solution u, or -1 if not converged in
+	   maxIter --                                       -------------- */
+
+typedef struct {
+	int      Nn, Ns;
+	double **nu, *lnc, *n, *g, *du, *ut, *sc, **H;
+} ChemSystem;
+
+int    chemSolve(ChemSystem *cs, const double *a, double *u, int maxIter, double tol,
+				 double *res, double *step);
 void   BackgroundOfState(bool_t write_analyze_output);
 double chemLastChangeReset(void);
 

@@ -43,10 +43,14 @@ rh_unit_test(test_collision_formulas test_collision_formulas.c)
 rh_unit_test(test_background test_background.c
   ${PROJECT_SOURCE_DIR}/rhf1d/project.c)
 rh_unit_test(test_hminus_bf test_hminus_bf.c)
+rh_unit_test(test_chemequil test_chemequil.c)
 target_compile_definitions(test_hminus_bf PRIVATE
   RH_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 rh_unit_test(test_hminus_ff test_hminus_ff.c)
 rh_unit_test(test_rayleigh_h2 test_rayleigh_h2.c)
+rh_unit_test(test_h2ff test_h2ff.c)
+target_compile_definitions(test_h2ff PRIVATE
+  RH_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 rh_unit_test(test_gaunt_ff test_gaunt_ff.c)
 target_compile_definitions(test_gaunt_ff PRIVATE
   RH_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
@@ -54,6 +58,10 @@ rh_unit_test(test_formal_1d test_formal_1d.c
   ${PROJECT_SOURCE_DIR}/rhf1d/piecewise_1D.c
   ${PROJECT_SOURCE_DIR}/rhf1d/bezier_1D.c
   ${PROJECT_SOURCE_DIR}/rhf1d/feautrier.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/project.c)
+rh_unit_test(test_bgscatter test_bgscatter.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/piecewise_1D.c
+  ${PROJECT_SOURCE_DIR}/rhf1d/bezier_1D.c
   ${PROJECT_SOURCE_DIR}/rhf1d/project.c)
 rh_unit_test(test_formal_2d GEOMETRY rhsc2d TOPOLOGY TWO_D_PLANE
   test_formal_2d.c
@@ -94,3 +102,4 @@ rh_unit_test(test_zeeman test_zeeman.c
   ${PROJECT_SOURCE_DIR}/rhf1d/piecewise_1D.c)
 rh_unit_test(test_ltepops test_ltepops.c)
 rh_unit_test(test_ohchbf_range test_ohchbf_range.c)
+rh_unit_test(test_molecule_range test_molecule_range.c)

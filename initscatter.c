@@ -14,6 +14,7 @@
 #include "error.h"
 #include "statistics.h"
 #include "inputs.h"
+#include "bgscatter.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -55,6 +56,11 @@ void initScatter()
 			}
 		}
 	}
+	/* --- Whether the background scattering is iterated at each
+		   wavelength (N-51) --                         -------------- */
+
+	bgScatterSetup();
+
 	/* --- Iterate the scattering in the background. Only iterate
 		   when we are also planning to do main iterations -- --------- */
 

@@ -246,9 +246,8 @@ void convertScales(Atmosphere *atmos, Geometry *geometry)
 {
 	register int k;
 
-	bool_t     hunt;
 	int        ref_index, Nradius = geometry->Nradius;
-	double    *rho, *r, *cmass, *tau_ref, r_zero, unity;
+	double    *rho, *r, *cmass, *tau_ref, r_zero;
 	ActiveSet *as;
 
 	/* --- Convert between different depth scales --       ------------ */
@@ -305,8 +304,8 @@ void convertScales(Atmosphere *atmos, Geometry *geometry)
 	free_as(ref_index, FALSE);
 
 	if ((geometry->scale == COLUMN_MASS) || (geometry->scale == TAU500)) {
-		unity = 1.0;
-		Linear(Nradius, tau_ref, r, 1, &unity, &r_zero, hunt = FALSE);
+		r_zero = zeroPointAtUnityTau("convertScales", atmos->ID, Nradius,
+									 tau_ref, r);
 		for (k = 0; k < Nradius; k++) r[k] = r[k] - r_zero;
 	}
 	free(rho);

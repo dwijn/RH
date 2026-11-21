@@ -157,7 +157,7 @@ check_include_file(execinfo.h RH_HAVE_EXECINFO_H)
 # --- The library -----------------------------------------------------------
 
 add_library(rh STATIC
-  abundance.c accelerate.c anderson.c background.c backgropac_xdr.c barklem.c
+  abundance.c accelerate.c anderson.c background.c bgscatter.c backgropac_xdr.c barklem.c
   bezier_aux.c broad.c brs_xdr.c chemequil.c cocollisions.c collision.c
   cubeconvol.c duplicate.c error.c expint.c expspline.c fillgamma.c
   fixedrate.c fpehandler.c gammafunc.c gaussleg.c getcpu.c getlambda.c
@@ -167,7 +167,7 @@ add_library(rh STATIC
   opacity.c options.c order.c parallel.c parse.c paschen.c pchip.c planck.c
   pops_xdr.c profile.c radrate_xdr.c rayleigh.c readatom.c readb_xdr.c
   prdfold.c prdh.c prdrho.c readinput.c readj.c readmolecule.c readvalue.c redistribute.c scatter.c
-  solvene.c solver.c gchecks.c sortlambda.c spline.c statequil.c stokesgrid.c stokesopac.c stopreq.c
+  solvene.c solver.c gchecks.c sortlambda.c statequil.c stokesgrid.c stokesopac.c stopreq.c
   thomson.c vacuumtoair.c voigt.c w3.c wigner.c work.c writeatmos_xdr.c
   writeatom_xdr.c writecoll_xdr.c writedamp_xdr.c writeinput_xdr.c
   writemetal_xdr.c writemolec_xdr.c writeopac_xdr.c writespect_xdr.c
