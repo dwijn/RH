@@ -983,8 +983,13 @@ acceptance items of S-2 and S-2b pass.
   initial value (abundance × nHtot) so that nothing from an earlier call
   is used, computes LTE quantities and collision rates, runs
   `ChemicalEquilibriumOfState()` (neutral fractions of active atoms from
-  x's populations, decided 2026-11-07; 20 Newton steps from complete
-  dissociation; populations of x not rescaled) and the opacities. After
+  x's populations, decided 2026-11-07; from complete dissociation;
+  populations of x not rescaled) and the opacities. Since N-61 the
+  chemical equilibrium is Newton in the log densities of the free nuclei
+  (a convex problem) and stops one full step after the relative residual
+  falls below 10⁻¹², so that the exit is at rounding level and G stays a
+  function of x; before, it was 20 Newton steps on the densities, which
+  did not converge below about 2000 K. After
   steps 1–4 `Solve_ne_OfState()` does 10 Newton steps from x.ne. Both end
   at rounding level (last steps 2×10⁻¹⁶). Keyword `BACKGROUND_DOUBLE`.
   The final state's background is recomputed, with analysis output, for

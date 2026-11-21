@@ -14,19 +14,22 @@
 #include "atom.h"
 #include "atmos.h"
 #include "background.h"
-#include "accelerate.h"
 #include "constant.h"
 #include "error.h"
 #include "statistics.h"
 #include "inputs.h"
+#include "negtau.h"
 
 #define COMMENT_CHAR "#"
 
-/* --- Acceleration parameters --                      -------------- */
+/* --- Solver of the equilibrium (N-61, see below): the largest change
+	   of a log density in one Newton step, the relative residual below
+	   which full Newton steps are taken without a line search, and the
+	   regularization of the scaled Hessian --        -------------- */
 
-#define NG_CHEM_DELAY  0
-#define NG_CHEM_ORDER  0
-#define NG_CHEM_PERIOD 0
+#define CHEM_STEP_MAX   30.0
+#define CHEM_FULL_STEPS 1.0E-3
+#define CHEM_REGULARIZE 1.0E-12
 
 /* --- Evaluate chemical equilibrium for set of molecules and the complete
 	   and sufficient set of their constituent nuclei.
@@ -70,22 +73,37 @@
 	   atmos->nHtot. The total number not in molecules or H- (i.e. the
 	   neutral atoms plus the protons is stored in atmos->H.ntotal.
 
- Note: Although the partial derivatives matrix df is mostly constant
-	   we have to refill it every iteration since the LU-decomposition
-	   used in the matrix inversion routine uses the matrix as scratch
-	   space. An alternative would be to copy the matrix before inversion.
+ Solution (N-61): the unknowns are the logarithms u_i = ln n_i of the
+	   densities of the free nuclei only. Every other species s (H-,
+	   each molecule) follows from them by the Saha equation, and so does
+	   every free nucleus itself:
 
+		n_s(u) = c_s exp(Sum_i nu_si u_i),
 
- Note: The following order is used for the number densities in the
-	   Newton-Raphson scheme:
+	   with nu_si the number of nuclei i in s, c_s = 1 for a free nucleus,
+	   c = ne fn0_H PhiHmin for H-, and c_m = Phi_m Prod_i fn0_i^nu_mi /
+	   ne^charge for molecule m. The conservation equations are then the
+	   gradient of the strictly convex function
 
-		 [nH, n_nuclei[1..Nnuclei-1], n_molecules[0..atmos->Nmolecules]]
+		F(u) = Sum_s n_s(u) - Sum_i a_i u_i,       a_i = A_i nHtot,
 
-	  The equations in the Newton-Raphson scheme are ordered as follows:
-
-		- equations for number conservation of nucleus[0..Nnucl-1]
-		- Saha equations for molecules[0..atmos->Nmolecules]
-
+	   whose Hessian Sum_s n_s nu_s nu_s^T is positive definite (every
+	   free nucleus contributes n_i e_i e_i^T). The equilibrium is the
+	   unique minimum of F, and Newton's method with a line search on F
+	   converges from any starting point; the densities are positive by
+	   construction. The start is everything dissociated (u_i = ln a_i);
+	   far from the solution the step is capped, shortened until F
+	   decreases enough (Armijo) or lengthened while F keeps decreasing
+	   (from the dissociated start at low temperature the Newton step on
+	   an exponential is short). Once the residual max |g_i| / a_i is
+	   below iterLimit, one more full Newton step is taken, so that the
+	   result is converged to rounding whatever the number of steps (the
+	   map G stays a function of its state, S-2b). The old Newton
+	   iteration on the densities themselves (no damping, 10 steps, only
+	   a warning) left negative molecular densities below about 2000 K.
+	   A point that does not converge in NmaxIter steps invalidates a
+	   trial point of the solvers (negTauInvalid) and stops the run
+	   otherwise.
 	   --                                              -------------- */
 
 /* --- Function prototypes --                          -------------- */
@@ -96,9 +114,9 @@ extern Atmosphere atmos;
 extern InputData  input;
 extern char       messageStr[];
 
-/* --- Largest change in the last Newton step of the chemical
-	   equilibrium of state (ChemicalEquilibriumOfState), over all
-	   points, since the last chemLastChangeReset() --  -------------- */
+/* --- Largest change of a log density in the last Newton step of the
+	   chemical equilibrium of state (ChemicalEquilibriumOfState), over
+	   all points, since the last chemLastChangeReset() -- ---------- */
 
 static double chemLastChange = 0.0;
 
@@ -123,28 +141,173 @@ void ChemicalEquilibrium(int NmaxIter, double iterLimit)
 /* --- For the map G with ne in the state (S-2b, docs/SOLVER.md): a
 	   function of the state only. The neutral fraction of an active
 	   atom comes from its populations (normalized by their sum, not by
-	   ntotal of an earlier call), the Newton iteration always does
-	   Niter steps (no early exit), and the populations of active atoms
-	   are not rescaled in place: only ntotal and the LTE populations
-	   follow the new equilibrium --                    -------------- */
+	   ntotal of an earlier call), the equilibrium is converged to
+	   rounding (N-61), and the populations of active atoms are not
+	   rescaled in place: only ntotal and the LTE populations follow the
+	   new equilibrium --                               -------------- */
 
-void ChemicalEquilibriumOfState(int Niter)
+void ChemicalEquilibriumOfState(int NmaxIter, double iterLimit)
 {
-	chemicalEquilibrium(Niter, 0.0, TRUE);
+	chemicalEquilibrium(NmaxIter, iterLimit, TRUE);
 }
+
+/* ------- begin -------------------------- chemSolve.c ------------- */
+
+/* --- The equilibrium of one location in log densities of the free
+	   nuclei (N-61, see the header). Species s = 0 .. Ns-1 with
+	   stoichiometry nu[s][0 .. Nn-1] and ln c_s in lnc[s] (-HUGE_VAL
+	   for an absent species: an equilibrium constant or neutral fraction
+	   of 0). On return u holds the solution, *res the relative residual
+	   before the last step and *step the largest change of a log
+	   density in it; returns the number of steps, or -1 if not
+	   converged in maxIter --                         -------------- */
+
+static double chemF(ChemSystem *cs, const double *a, const double *u)
+{
+	int    s, i;
+	double F = 0.0, e;
+
+	for (s = 0; s < cs->Ns; s++) {
+		if (cs->lnc[s] == -HUGE_VAL) continue;
+		e = cs->lnc[s];
+		for (i = 0; i < cs->Nn; i++) e += cs->nu[s][i] * u[i];
+		F += exp(e);
+	}
+	for (i = 0; i < cs->Nn; i++) F -= a[i] * u[i];
+	return isfinite(F) ? F : HUGE_VAL;
+}
+
+int chemSolve(ChemSystem *cs, const double *a, double *u, int maxIter,
+			  double tol, double *res, double *step)
+{
+	int    Nn = cs->Nn, s, i, j, l, it;
+	double r, e, dmax, t, tmax, F0, F1, F2, slope, sum;
+
+	for (it = 0; it <= maxIter; it++) {
+
+		/* --- Densities, gradient (the conservation residual) and the
+			   Hessian of F --                            -------------- */
+
+		for (i = 0; i < Nn; i++) {
+			cs->g[i] = -a[i];
+			for (j = 0; j < Nn; j++) cs->H[i][j] = 0.0;
+		}
+		for (s = 0; s < cs->Ns; s++) {
+			if (cs->lnc[s] == -HUGE_VAL) {
+				cs->n[s] = 0.0;
+				continue;
+			}
+			e = cs->lnc[s];
+			for (i = 0; i < Nn; i++) e += cs->nu[s][i] * u[i];
+			cs->n[s] = exp(e);
+			for (i = 0; i < Nn; i++) {
+				if (cs->nu[s][i] == 0.0) continue;
+				cs->g[i] += cs->nu[s][i] * cs->n[s];
+				for (j = 0; j < Nn; j++) cs->H[i][j] += cs->n[s] * cs->nu[s][i] * cs->nu[s][j];
+			}
+		}
+		r = 0.0;
+		for (i = 0; i < Nn; i++) r = MAX(r, fabs(cs->g[i]) / a[i]);
+		if (!isfinite(r)) return -1;
+		*res = r;
+		if (it == maxIter && r >= tol) return -1;
+
+		/* --- Newton step: Cholesky of the Hessian scaled to unit
+			   diagonal, with a small regularization (one species can
+			   dominate several nuclei far from the solution) -- ---- */
+
+		for (i = 0; i < Nn; i++) cs->sc[i] = 1.0 / sqrt(MAX(cs->H[i][i], 1.0E-300));
+		for (i = 0; i < Nn; i++) {
+			for (j = 0; j < Nn; j++) cs->H[i][j] *= cs->sc[i] * cs->sc[j];
+			cs->H[i][i] += CHEM_REGULARIZE;
+		}
+		for (j = 0; j < Nn; j++) {
+			sum = cs->H[j][j];
+			for (l = 0; l < j; l++) sum -= SQ(cs->H[j][l]);
+			if (!(sum > 0.0)) return -1;
+			cs->H[j][j] = sqrt(sum);
+			for (i = j + 1; i < Nn; i++) {
+				sum = cs->H[i][j];
+				for (l = 0; l < j; l++) sum -= cs->H[i][l] * cs->H[j][l];
+				cs->H[i][j] = sum / cs->H[j][j];
+			}
+		}
+		for (i = 0; i < Nn; i++) {
+			sum = -cs->g[i] * cs->sc[i];
+			for (l = 0; l < i; l++) sum -= cs->H[i][l] * cs->du[l];
+			cs->du[i] = sum / cs->H[i][i];
+		}
+		for (i = Nn - 1; i >= 0; i--) {
+			sum = cs->du[i];
+			for (l = i + 1; l < Nn; l++) sum -= cs->H[l][i] * cs->du[l];
+			cs->du[i] = sum / cs->H[i][i];
+		}
+		dmax = 0.0;
+		for (i = 0; i < Nn; i++) {
+			cs->du[i] *= cs->sc[i];
+			dmax = MAX(dmax, fabs(cs->du[i]));
+		}
+
+		/* --- Converged: one more full step takes the solution to
+			   rounding --                                -------------- */
+
+		if (r < tol || r < CHEM_FULL_STEPS) {
+			for (i = 0; i < Nn; i++) u[i] += cs->du[i];
+			*step = dmax;
+			if (r < tol) {
+				for (s = 0; s < cs->Ns; s++) {
+					if (cs->lnc[s] == -HUGE_VAL) continue;
+					e = cs->lnc[s];
+					for (i = 0; i < Nn; i++) e += cs->nu[s][i] * u[i];
+					cs->n[s] = exp(e);
+				}
+				return it + 1;
+			}
+			continue;
+		}
+
+		/* --- Far from the solution: capped step, Armijo backtracking
+			   on F, or doubling while F decreases -- ------------ */
+
+		slope = 0.0;
+		for (i = 0; i < Nn; i++) slope += cs->g[i] * cs->du[i];
+		tmax = CHEM_STEP_MAX / dmax;
+		t    = MIN(1.0, tmax);
+		F0   = chemF(cs, a, u);
+		for (i = 0; i < Nn; i++) cs->ut[i] = u[i] + t * cs->du[i];
+		F1 = chemF(cs, a, cs->ut);
+		if (F1 <= F0 + 1.0E-4 * t * slope) {
+			while (2.0 * t <= tmax) {
+				for (i = 0; i < Nn; i++) cs->ut[i] = u[i] + 2.0 * t * cs->du[i];
+				F2 = chemF(cs, a, cs->ut);
+				if (!(F2 < F1)) break;
+				t *= 2.0;
+				F1 = F2;
+			}
+		} else {
+			while (F1 > F0 + 1.0E-4 * t * slope && t > 1.0E-12) {
+				t *= 0.5;
+				for (i = 0; i < Nn; i++) cs->ut[i] = u[i] + t * cs->du[i];
+				F1 = chemF(cs, a, cs->ut);
+			}
+		}
+		for (i = 0; i < Nn; i++) u[i] += t * cs->du[i];
+		*step = t * dmax;
+	}
+	return -1;
+}
+/* ------- end ---------------------------- chemSolve.c ------------- */
 
 static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 {
 	const char   routineName[] = "ChemicalEquilibrium";
 	register int k, i, j, nu, pass;
 
-	char   tmpStr[13];
-	bool_t quiet;
-	int    Nequation, **nucl_index, niter, Nnuclei, Ngdelay, Ngperiod,
-		Ngorder, Nmaxstage;
-	double *f, *a, *n, **df, *Phi, PhiHmin, fHmin, CI, dnmax = 0.0, sum,
-													   *fn0, fraction, saha, *fjk = NULL, *dfjk = NULL;
-	struct Ng *Ngn;
+	char    tmpStr[13];
+	int     Nequation, **nucl_index, niter, Nnuclei, Nmaxstage, s;
+	double *a, *n, *u, *Phi, PhiHmin, fHmin, CI, res = 0.0, step = 0.0, sum, lnc,
+												 *fn0, fraction, *fjk = NULL, *dfjk = NULL;
+	ChemSystem cs;
 	Atom      *atom;
 	Molecule  *molecule;
 	Element  **nuclei;
@@ -220,21 +383,38 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	/* --- Allocate temporary storage space.
 		   Quantities for the Newton Raphson --          -------------- */
 
-	f  = (double *) malloc(Nequation * sizeof(double));
-	n  = (double *) calloc(Nequation, sizeof(double));
-	df = matrix_double(Nequation, Nequation);
-	a  = (double *) calloc(Nequation, sizeof(double));
+	n = (double *) calloc(Nequation, sizeof(double));
+	a = (double *) calloc(Nequation, sizeof(double));
+	u = (double *) calloc(Nnuclei, sizeof(double));
+
+	/* --- Species of the log-density solver: the free nuclei, H- and
+		   the molecules, with their stoichiometry (N-61) -- -------- */
+
+	cs.Nn  = Nnuclei;
+	cs.Ns  = Nnuclei + 1 + atmos.Nmolecule;
+	cs.nu  = matrix_double(cs.Ns, Nnuclei);
+	cs.H   = matrix_double(Nnuclei, Nnuclei);
+	cs.lnc = (double *) malloc(cs.Ns * sizeof(double));
+	cs.n   = (double *) malloc(cs.Ns * sizeof(double));
+	cs.g   = (double *) malloc(Nnuclei * sizeof(double));
+	cs.du  = (double *) malloc(Nnuclei * sizeof(double));
+	cs.ut  = (double *) malloc(Nnuclei * sizeof(double));
+	cs.sc  = (double *) malloc(Nnuclei * sizeof(double));
+	for (s = 0; s < cs.Ns; s++)
+		for (i = 0; i < Nnuclei; i++) cs.nu[s][i] = 0.0;
+	for (i = 0; i < Nnuclei; i++) cs.nu[i][i] = 1.0;
+	cs.nu[Nnuclei][0] = 1.0; /* H- */
+	for (i = 0; i < atmos.Nmolecule; i++) {
+		molecule = &atmos.molecules[i];
+		for (j = 0; j < molecule->Nelement; j++)
+			cs.nu[Nnuclei + 1 + i][nucl_index[i][j]] += molecule->pt_count[j];
+	}
 
 	/* --- Equilibrium constant for each molecule, and neutral
 		   fraction for each nucleus --                  -------------- */
 
 	Phi = (double *) malloc(atmos.Nmolecule * sizeof(double));
 	fn0 = (double *) malloc(Nnuclei * sizeof(double));
-
-	/* --- Initialize structure for Ng convergence acceleration -- ---- */
-
-	Ngn = NgInit(Nequation, Ngdelay = NG_CHEM_DELAY,
-				 Ngorder = NG_CHEM_ORDER, Ngperiod = NG_CHEM_PERIOD, n);
 
 	/* --- Go through spatial grid and solve (local) equations -- ----- */
 
@@ -294,85 +474,45 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 		for (i = 0; i < atmos.Nmolecule; i++)
 			Phi[i] = equilconstant(&atmos.molecules[i], atmos.T[k]);
 
-		/* --- Initial solution of atomic number densities, and
-			   the molecules. Assume everything is dissociated -- ------- */
+		/* --- ln c of every species at this location: 0 for a free
+			   nucleus, H- from the neutral hydrogen density, a molecule
+			   from its equilibrium constant, the neutral fractions of
+			   its nuclei and its charge (N-61) --       -------------- */
 
-		for (i = 0; i < Nnuclei; i++) n[i] = a[i];
-		for (i = 0; i < atmos.Nmolecule; i++) n[Nnuclei + i] = 0.0;
-
-		/* --- Reset counter in Ng structure, store initial solution - -- */
-
-		Ngn->count = 1;
-		for (i = 0; i < Nequation; i++) Ngn->previous[0][i] = n[i];
-
-		/* --- Iterate to convergence, with maximum number NmaxIter -- -- */
-
-		niter = 1;
-		while (niter <= NmaxIter) {
-			for (i = 0; i < Nequation; i++) {
-				f[i] = n[i] - a[i];
-				for (j = 0; j < Nequation; j++) df[i][j] = 0.0;
-				df[i][i] = 1.0;
+		for (i = 0; i < Nnuclei; i++) cs.lnc[i] = 0.0;
+		cs.lnc[Nnuclei] = (fHmin > 0.0) ? log(fHmin) : -HUGE_VAL;
+		for (i = 0; i < atmos.Nmolecule; i++) {
+			molecule = &atmos.molecules[i];
+			lnc      = (Phi[i] > 0.0) ? log(Phi[i]) : -HUGE_VAL;
+			if (molecule->charge != 0 && lnc != -HUGE_VAL)
+				lnc = (atmos.ne[k] > 0.0) ? lnc - molecule->charge * log(atmos.ne[k]) : -HUGE_VAL;
+			for (j = 0; j < molecule->Nelement && lnc != -HUGE_VAL; j++) {
+				nu  = nucl_index[i][j];
+				lnc = (fn0[nu] > 0.0) ? lnc + molecule->pt_count[j] * log(fn0[nu])
+									  : -HUGE_VAL;
 			}
-			/* --- Add nHminus to the H number conservation equation -- --- */
-
-			f[0] += fHmin * n[0];
-			df[0][0] += fHmin;
-
-			/* --- Fill in the rest of the population matrix f[] and its
-				   derivative df[][] --                      -------------- */
-
-			for (i = 0; i < atmos.Nmolecule; i++) {
-				molecule = &atmos.molecules[i];
-				saha     = Phi[i];
-				for (j = 0; j < molecule->Nelement; j++) {
-					nu = nucl_index[i][j];
-					saha *= pow(fn0[nu] * n[nu], molecule->pt_count[j]);
-
-					/* --- Contributions to equation of conservation for the
-							   nuclei in this molecule --            -------------- */
-
-					f[nu] += molecule->pt_count[j] * n[Nnuclei + i];
-				}
-				/* --- Saha equation for this molecule --      -------------- */
-
-				saha /= pow(atmos.ne[k], molecule->charge);
-				f[Nnuclei + i] -= saha;
-
-				/* --- Fill the derivatives matrix --          -------------- */
-
-				for (j = 0; j < molecule->Nelement; j++) {
-					nu = nucl_index[i][j];
-					df[nu][Nnuclei + i] += molecule->pt_count[j];
-					df[Nnuclei + i][nu] = -saha * (molecule->pt_count[j] / n[nu]);
-				}
-			}
-			/* --- Solve linearized equations --             -------------- */
-
-			SolveLinearEq(Nequation, df, f, TRUE);
-			for (i = 0; i < Nequation; i++) n[i] -= f[i];
-
-			/* --- Check convergence and accelerate if appropriate -- ----- */
-
-			Accelerate(Ngn, n);
-			sprintf(messageStr,
-					"\n%s-- Chemical equilibrium: depth %3.3d, iteration %d",
-					(niter == 1) ? "\n" : "", k, niter);
-
-			if ((dnmax = MaxChange(Ngn, messageStr, quiet = TRUE)) <= iterLimit &&
-				!ofState)
-				break;
-			niter++;
+			cs.lnc[Nnuclei + 1 + i] = lnc;
 		}
-		if (ofState) {
-			chemLastChange = MAX(chemLastChange, dnmax);
-		} else if (dnmax > iterLimit) {
-			sprintf(messageStr, "Iteration not converged:\n"
-								" temperature: %6.1f [K], \n"
-								" density: %9.3E [m^-3],\n dnmax: %9.3E\n",
-					atmos.T[k], atmos.nHtot[k], dnmax);
-			Error(WARNING, "ChemicalEquilibrium", messageStr);
+
+		/* --- Start from everything dissociated, solve --  ------------ */
+
+		for (i = 0; i < Nnuclei; i++) u[i] = log(a[i]);
+		niter = chemSolve(&cs, a, u, NmaxIter, iterLimit, &res, &step);
+		if (niter < 0) {
+			snprintf(messageStr, MAX_MESSAGE_LENGTH,
+					 "\n  Chemical equilibrium did not converge in %d Newton"
+					 " steps at location %d: T = %.1f K, nHtot = %.4E m^-3,"
+					 " ne = %.4E m^-3, relative residual %.3E",
+					 NmaxIter, k, atmos.T[k], atmos.nHtot[k], atmos.ne[k], res);
+			if (negTauInTrial()) {
+				negTauInvalid(messageStr + 3);
+			} else
+				Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
+		for (i = 0; i < Nnuclei; i++) n[i] = cs.n[i];
+		for (i = 0; i < atmos.Nmolecule; i++) n[Nnuclei + i] = cs.n[Nnuclei + 1 + i];
+		if (ofState) chemLastChange = MAX(chemLastChange, step);
+
 		/* --- Store population numbers nuclei --          -------------- */
 
 		for (i = 0; i < Nnuclei; i++) {
@@ -419,14 +559,20 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 
 	/* --- Clean up --                                   -------------- */
 
-	free(f);
 	free(n);
 	free(a);
+	free(u);
 	free(Phi);
 	free(fn0);
-	freeMatrix((void **) df);
+	freeMatrix((void **) cs.nu);
+	freeMatrix((void **) cs.H);
+	free(cs.lnc);
+	free(cs.n);
+	free(cs.g);
+	free(cs.du);
+	free(cs.ut);
+	free(cs.sc);
 
-	NgFree(Ngn);
 	free(nuclei);
 	for (i = 0; i < atmos.Nmolecule; i++) free(nucl_index[i]);
 	free(nucl_index);
