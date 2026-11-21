@@ -1,8 +1,7 @@
 /* ------- file: -------------------------- test_interp.c -----------
 
 	   Table look-up and interpolation: hunt.c (Hunt, Locate), linear.c
-	   (Linear), spline.c, expspline.c (natural cubic and
-	   exponential splines) and cubeconvol.c (cubic convolution).
+	   (Linear), expspline.c (exponential splines) and cubeconvol.c (cubic convolution).
 
 	   -- Hunt, Locate: the bracketing index i with table[i] <= value <
 		  table[i+1] for all values at, between, below and above the
@@ -11,15 +10,12 @@
 	   -- Linear: exact for linear data, the end
 		  values outside the table, error of at most h^2 max|f''|/8 and
 		  order 2 for a smooth function;
-	   -- splineCoef/splineEval, exp_splineCoef/exp_splineEval: exact for
-		  linear data, the natural cubic spline and the exponential
-		  spline (two tensions) against the solution of their defining
-		  conditions with mpmath (kernels_reference.h, from
+	   -- exp_splineCoef/exp_splineEval: exact for linear data and the
+		  exponential spline (two tensions) against the solution of its
+		  defining conditions with mpmath (kernels_reference.h, from
 		  make_kernels_reference.py), the same for a descending table,
-		  order 4 for sin(x) on [0, pi] (f'' = 0 at both ends, as the
-		  natural boundary conditions assume), order 4 in the interior
-		  but only 2 overall for exp(x), the limits of small and large
-		  tension;
+		  the limits of small tension (the natural cubic spline, as a
+		  mpmath reference solution) and large tension (Linear);
 	   -- cc_kernel, cubeconvol: the kernel's partition of unity and
 		  reproduction of quadratics, exact for biquadratic data
 		  everywhere (also in the boundary cells where the data are
@@ -204,9 +200,9 @@ static void test_linear(void)
 
 /* --- Cubic splines -- --------------------------------------------- */
 
-/* --- Both splines keep static state (issue T-3) and pointers to the
-	   table, so the coefficients are always set just before the
-	   evaluation, with the table still alive -- ----------------- */
+/* --- The exponential spline keeps static state (issue T-3) and a
+	   pointer to the table, so the coefficients are always set just
+	   before the evaluation, with the table still alive -- ------ */
 
 static double max_rel_err(int n, const double *got, const double *want, double scale)
 {
@@ -230,18 +226,13 @@ static void test_spline_linear_data(void)
 	}
 	for (int k = 0; k < M; k++) xe[k] = x[0] - 0.3 + (x[N - 1] - x[0] + 0.6) * k / (M - 1.0);
 
-	for (int kind = 0; kind < 3; kind++) {     /* cubic, exp 0.7, exp 4 */
+	for (int kind = 1; kind < 3; kind++) {     /* exp 0.7, exp 4 */
 		for (int desc = 0; desc < 2; desc++) { /* ascending, descending */
 			for (int hunt = 0; hunt < 2; hunt++) {
 				double *xt = desc ? xd : x, *yt = desc ? yd : y, maxerr = 0.0;
 
-				if (kind == 0) {
-					splineCoef(N, xt, yt);
-					splineEval(M, xe, ye, hunt);
-				} else {
-					exp_splineCoef(N, xt, yt, (kind == 1) ? 0.7 : 4.0);
-					exp_splineEval(M, xe, ye, hunt);
-				}
+				exp_splineCoef(N, xt, yt, (kind == 1) ? 0.7 : 4.0);
+				exp_splineEval(M, xe, ye, hunt);
 				for (int k = 0; k < M; k++) {
 					double xc = MIN(MAX(xe[k], x[0]), x[N - 1]);
 
@@ -271,12 +262,6 @@ static void test_spline_reference(void)
 		for (int hunt = 0; hunt < 2; hunt++) {
 			double err;
 
-			splineCoef(SPLINE_REF_N, xr, yr);
-			splineEval(SPLINE_REF_NE, (double *) spline_ref_xe, ye, hunt);
-			err = max_rel_err(SPLINE_REF_NE, ye, spline_ref_natural, scale);
-			CHECK(err < 4e-16, "natural spline, desc %d, hunt %d: error %.3g", desc, hunt, err);
-			if (table) printf("natural spline, desc %d hunt %d: max error %.2e\n", desc, hunt, err);
-
 			for (int it = 0; it < EXPSPLINE_REF_NT; it++) {
 				exp_splineCoef(SPLINE_REF_N, xr, yr, expspline_ref_tension[it]);
 				exp_splineEval(SPLINE_REF_NE, (double *) spline_ref_xe, ye, hunt);
@@ -289,133 +274,6 @@ static void test_spline_reference(void)
 			}
 		}
 	}
-
-	/* --- The spline passes through the nodes, and is constant (the
-		   end value) outside the table -- ------------------------ */
-
-	{
-		double xo[4] = {spline_ref_x[0] - 1.0, spline_ref_x[0], spline_ref_x[SPLINE_REF_N - 1],
-						spline_ref_x[SPLINE_REF_N - 1] + 5.0},
-			   yo[4];
-
-		splineCoef(SPLINE_REF_N, (double *) spline_ref_x, (double *) spline_ref_y);
-		splineEval(SPLINE_REF_N, (double *) spline_ref_x, ye, FALSE);
-		for (int k = 1; k < SPLINE_REF_N - 1; k++)
-			CHECK_CLOSE(ye[k], spline_ref_y[k], 1e-15, 0.0, "node %d", k);
-		splineEval(4, xo, yo, TRUE);
-		CHECK(yo[0] == spline_ref_y[0] && yo[1] == spline_ref_y[0] &&
-				  yo[2] == spline_ref_y[SPLINE_REF_N - 1] && yo[3] == spline_ref_y[SPLINE_REF_N - 1],
-			  "end values: %g %g %g %g", yo[0], yo[1], yo[2], yo[3]);
-	}
-}
-
-/* --- The reentrant spline (SplineTable) is bit-identical to the
-	   splineCoef/splineEval pair, for ascending and descending tables,
-	   with Hunt and Locate, with points outside the table, and when
-	   evaluated one point at a time -- ------------------------------- */
-
-static void test_spline_table(void)
-{
-	enum { N = 17,
-		   M = 61 };
-	double x[N], y[N], xd[N], yd[N], xe[M], ye[M], yt[M];
-	int    nbad = 0;
-
-	for (int k = 0; k < N; k++) {
-		x[k]          = 3.0 + 0.37 * k + 0.05 * k * k;
-		y[k]          = sin(0.7 * x[k]) + 0.1 * x[k];
-		xd[N - 1 - k] = x[k];
-		yd[N - 1 - k] = y[k];
-	}
-	for (int k = 0; k < M; k++) xe[k] = x[0] - 1.0 + (x[N - 1] - x[0] + 2.0) * k / (M - 1.0);
-	xe[5] = x[3];
-	xe[6] = x[0];
-	xe[7] = x[N - 1];
-
-	for (int desc = 0; desc < 2; desc++) {
-		for (int hunt = 0; hunt < 2; hunt++) {
-			double     *xt = desc ? xd : x, *yt_ = desc ? yd : y;
-			SplineTable st;
-
-			splineCoef(N, xt, yt_);
-			splineEval(M, xe, ye, hunt);
-
-			splineTableInit(&st, N, xt, yt_);
-			splineTableEval(&st, M, xe, yt, hunt);
-			nbad += (memcmp(ye, yt, sizeof(ye)) != 0);
-
-			/* --- one point at a time, as Metal_bf uses it -- --------- */
-
-			for (int k = 0; k < M; k++) {
-				double y1, y2;
-
-				splineCoef(N, xt, yt_);
-				splineEval(1, &xe[k], &y1, FALSE);
-				splineTableEval(&st, 1, &xe[k], &y2, FALSE);
-				nbad += (memcmp(&y1, &y2, sizeof(double)) != 0);
-			}
-			splineTableFree(&st);
-			CHECK(st.M == NULL, "desc %d, hunt %d: table freed", desc, hunt);
-		}
-	}
-	CHECK(nbad == 0, "reentrant spline differs from splineCoef/splineEval in %d cases", nbad);
-}
-
-/* --- Order of convergence of the natural spline -- ---------------- */
-
-static double spline_error(int n, double (*f)(double), double x0, double x1, bool_t one_point)
-{
-	double xs[130], ys[130], xe[1000], ye[1000], err = 0.0;
-	int    ne = 1000;
-
-	for (int k = 0; k < n; k++) {
-		xs[k] = x0 + (x1 - x0) * k / (n - 1.0);
-		ys[k] = f(xs[k]);
-	}
-	if (one_point) {
-		/* --- the middle of the cell just below the center of the
-			   interval: the same position in the cell for every n -- */
-
-		xe[0] = x0 + (x1 - x0) * (0.5 - 0.5 / (n - 1.0));
-		ne    = 1;
-	} else {
-		for (int k = 0; k < ne; k++) xe[k] = x0 + (x1 - x0) * (k + 0.5) / ne;
-	}
-	splineCoef(n, xs, ys);
-	splineEval(ne, xe, ye, TRUE);
-	for (int k = 0; k < ne; k++) err = MAX(err, fabs(ye[k] - f(xe[k])));
-	return err;
-}
-
-/* --- sin(x) on [0, pi] has f'' = 0 at both ends, as the natural
-	   boundary conditions assume, so the error is O(h^4) everywhere
-	   (ratio 16). For exp(x) on [0, 1] the natural conditions are wrong
-	   by O(1) at the ends: the maximum error is O(h^2) (ratio 4) and,
-	   because the effect decays by a factor of 3.7 per interval,
-	   O(h^4) away from the ends. Measured ratios: see --table --  - */
-
-static void test_spline_order(void)
-{
-	double prev = 0.0, prev_point = 0.0, prev_exp = 0.0;
-
-	for (int n = 9; n <= 129; n = 2 * n - 1) {
-		double e_sin = spline_error(n, sin, 0.0, acos(-1.0), FALSE);
-		double e_exp = spline_error(n, exp, 0.0, 1.0, FALSE);
-		double e_pt  = spline_error(n, exp, 0.0, 1.0, TRUE);
-
-		if (table)
-			printf("spline n = %3d: sin %.3e, exp %.3e, exp at one point %.3e\n",
-				   n, e_sin, e_exp, e_pt);
-		if (prev > 0.0) {
-			CHECK(prev / e_sin > 14.0 && prev / e_sin < 17.0, "sin, n = %d: error ratio %.3g, want ~16", n, prev / e_sin);
-			CHECK(prev_exp / e_exp > 3.7 && prev_exp / e_exp < 4.3, "exp, n = %d: error ratio %.3g, want ~4", n, prev_exp / e_exp);
-			CHECK(n < 33 || (prev_point / e_pt > 13.0 && prev_point / e_pt < 19.0),
-				  "exp at one point, n = %d: error ratio %.3g, want ~16", n, prev_point / e_pt);
-		}
-		prev       = e_sin;
-		prev_exp   = e_exp;
-		prev_point = e_pt;
-	}
 }
 
 /* --- Small tension: the cubic spline, the difference O(sigma^2).
@@ -426,11 +284,10 @@ static void test_spline_order(void)
 
 static void test_spline_limits(void)
 {
-	double ys[SPLINE_REF_NE], yl[SPLINE_REF_NE], yc[SPLINE_REF_NE];
-	double e = exp(1.0);
+	double        ys[SPLINE_REF_NE], yl[SPLINE_REF_NE];
+	const double *yc = spline_ref_natural;
+	double        e  = exp(1.0);
 
-	splineCoef(SPLINE_REF_N, (double *) spline_ref_x, (double *) spline_ref_y);
-	splineEval(SPLINE_REF_NE, (double *) spline_ref_xe, yc, FALSE);
 	Linear(SPLINE_REF_N, (double *) spline_ref_x, (double *) spline_ref_y,
 		   SPLINE_REF_NE, (double *) spline_ref_xe, yl, FALSE);
 
@@ -803,8 +660,6 @@ int main(int argc, char *argv[])
 	test_linear();
 	test_spline_linear_data();
 	test_spline_reference();
-	test_spline_table();
-	test_spline_order();
 	test_spline_limits();
 	test_cc_kernel();
 	test_cubeconvol_exact();

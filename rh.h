@@ -120,26 +120,6 @@ void Locate(int n, double *array, double value, int *theIndex);
 void Linear(int Ntable, double *xtable, double *ytable,
 			int N, double *x, double *y, bool_t hunt);
 
-void splineCoef(int Ntable, double *xtable, double *ytable);
-void splineEval(int N, double *x, double *y, bool_t hunt);
-
-/* --- Reentrant cubic spline: the coefficients are kept in a caller-owned
-	   SplineTable, and the evaluation keeps no state. Bit-identical to
-	   splineCoef + splineEval. The table x, y is not copied. -- ----- */
-
-typedef struct {
-	bool_t        ascend;
-	int           N;
-	double        xmin, xmax;
-	const double *x, *y;
-	double       *M;
-} SplineTable;
-
-void splineTableInit(SplineTable *st, int Ntable, double *xtable, double *ytable);
-void splineTableFree(SplineTable *st);
-void splineTableEval(const SplineTable *st, int N, double *x, double *y,
-					 bool_t hunt);
-
 /* --- Monotone piecewise cubic Hermite interpolation (pchip.c, N-32),
 	   optionally in log x and log y. The table is copied; evaluation
 	   keeps no state. -- --------------------------------------------- */
