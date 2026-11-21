@@ -250,6 +250,7 @@ void   freeAtomicLine(AtomicLine *line);
 void   freeAtomicContinuum(AtomicContinuum *continuum);
 void   getfjk(Element *element, double ne, int k, double *fjk, double *dfjk);
 void   getLambda(AtomicLine *line);
+int    asymmetricBlends(const double *extra, int Nextra);
 void   getLambdaCont(AtomicContinuum *continuum, double lambdamin);
 double getwlambda_line(AtomicLine *line, int la);
 double getwlambda_cont(AtomicContinuum *continuum, int la);

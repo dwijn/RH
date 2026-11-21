@@ -89,6 +89,19 @@ void SortLambda()
 
 	Nspectrum = (atmos.lambda_ref > 0.0) ? Nwave + 1 : Nwave;
 
+	/* --- Symmetric lines with wavelengths of other transitions, of
+		   the table or the reference wavelength in their blue half get
+		   full profiles (N-55) --                       -------------- */
+
+	if (atmos.Natom > 0) {
+		double *extra = (double *) malloc((Nwave + 1) * sizeof(double));
+
+		for (kr = 0; kr < Nwave; kr++) extra[kr] = wavetable[kr];
+		if (atmos.lambda_ref > 0.0) extra[Nwave] = atmos.lambda_ref;
+		asymmetricBlends(extra, Nspectrum);
+		free(extra);
+	}
+
 	/* --- Go through the active atoms to collect number of wavelengths
 		   for the lines and continua treated in detail -- ------------ */
 
