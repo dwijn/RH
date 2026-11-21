@@ -41,6 +41,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdatomic.h>
 
 #include "rh.h"
 #include "atom.h"
@@ -907,7 +908,8 @@ bool_t Hminus_ff(double lambda, double *chi)
 #define NFF_H2    19
 #define NTHETA_H2 8
 
-static double *H2mff_theta_index = NULL;
+static double     *H2mff_theta_index = NULL;
+static atomic_flag H2mff_beyond_told = ATOMIC_FLAG_INIT;
 
 static double thetaFF_H2m[NTHETA_H2] = {
 	0.5, 0.8, 1.0, 1.2, 1.6, 2.0, 2.8, 3.6};
@@ -919,6 +921,7 @@ static void H2minus_ff_prepare(void)
 	int    index = 0;
 	double theta;
 
+	atomic_flag_clear(&H2mff_beyond_told);
 	H2mff_theta_index = (double *) malloc(atmos.Nspace * sizeof(double));
 	for (k = 0; k < atmos.Nspace; k++) {
 		theta = THETA0 / atmos.T[k];
@@ -949,7 +952,14 @@ bool_t H2minus_ff(double lambda, double *chi)
 		   The fractional indices for atmospheric temperatures into
 		   the theta table are stored in H2mff_theta_index by
 		   hydrogenPrepare, so that this routine only reads them and
-		   can be called from several threads. --      -------------- */
+		   can be called from several threads.
+
+		   Beyond the last tabulated wavelength kappa is extended as
+		   lambda^2 at each theta: the fitted exponent between the last
+		   two columns is 1.987 to 2.004 over theta = 0.5 to 3.6
+		   (N-53). A message is written once per run. The zero
+		   row at lambda = 0 interpolates linearly below 350.5 nm and is
+		   left as it is. --                           -------------- */
 
 	static double lambdaFF[NFF_H2] = {
 		0.0, 350.5, 414.2, 506.3, 569.6, 650.9, 759.4, 911.3,
@@ -1016,10 +1026,7 @@ bool_t H2minus_ff(double lambda, double *chi)
 		1.26e+02, 1.38e+02, 1.47e+02};
 
 	int    Nspace = atmos.Nspace, index = 0;
-	double pe, lambda_index, kappa, *nH2;
-
-	if (lambda >= lambdaFF[NFF_H2 - 1])
-		return FALSE;
+	double pe, lambda_index, kappa, *nH2, scale = 1.0;
 
 	if (H2mff_theta_index == NULL) {
 		sprintf(messageStr, "Index table not set up "
@@ -1027,9 +1034,21 @@ bool_t H2minus_ff(double lambda, double *chi)
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
-	Hunt(NFF_H2, lambdaFF, lambda, &index);
-	lambda_index = index + (lambda - lambdaFF[index]) /
-							   (lambdaFF[index + 1] - lambdaFF[index]);
+	if (lambda >= lambdaFF[NFF_H2 - 1]) {
+		lambda_index = NFF_H2 - 1;
+		scale        = SQ(lambda / lambdaFF[NFF_H2 - 1]);
+		if (lambda > lambdaFF[NFF_H2 - 1] && !atomic_flag_test_and_set(&H2mff_beyond_told)) {
+			sprintf(messageStr,
+					"H2- free-free table ends at %.1f nm: kappa extended as lambda^2 "
+					"beyond it (first at %.1f nm; message once per run)",
+					lambdaFF[NFF_H2 - 1], lambda);
+			Error(WARNING, routineName, messageStr);
+		}
+	} else {
+		Hunt(NFF_H2, lambdaFF, lambda, &index);
+		lambda_index = index + (lambda - lambdaFF[index]) /
+								   (lambdaFF[index + 1] - lambdaFF[index]);
+	}
 
 	nH2 = atmos.H2->n;
 	for (k = 0; k < Nspace; k++) {
@@ -1037,7 +1056,7 @@ bool_t H2minus_ff(double lambda, double *chi)
 			pe     = atmos.ne[k] * KBOLTZMANN * atmos.T[k];
 			kappa  = bilinear(NTHETA_H2, NFF_H2, kappaFF,
 							  H2mff_theta_index[k], lambda_index);
-			chi[k] = (nH2[k] * 1.0E-29) * pe * kappa;
+			chi[k] = (nH2[k] * 1.0E-29) * pe * (scale * kappa);
 		} else
 			chi[k] = 0.0;
 	}
@@ -1050,7 +1069,8 @@ bool_t H2minus_ff(double lambda, double *chi)
 #define NFF_H2P   15
 #define NTEMP_H2P 10
 
-static double *H2pff_temp_index = NULL;
+static double     *H2pff_temp_index  = NULL;
+static atomic_flag H2pff_beyond_told = ATOMIC_FLAG_INIT;
 
 static double tempFF_H2p[NTEMP_H2P] = {
 	2.5E+03, 3.0E+03, 3.5E+03, 4.0E+03, 5.0E+03,
@@ -1063,6 +1083,7 @@ static void H2plus_ff_prepare(void)
 	int    index = 0;
 	double T;
 
+	atomic_flag_clear(&H2pff_beyond_told);
 	H2pff_temp_index = (double *) malloc(atmos.Nspace * sizeof(double));
 	for (k = 0; k < atmos.Nspace; k++) {
 		T = atmos.T[k];
@@ -1096,7 +1117,13 @@ bool_t H2plus_ff(double lambda, double *chi)
 		   The fractional indices for atmospheric temperatures into
 		   the temperature table are stored in H2pff_temp_index by
 		   hydrogenPrepare, so that this routine only reads them and
-		   can be called from several threads. --      -------------- */
+		   can be called from several threads.
+
+		   Beyond the last tabulated wavelength the last column is
+		   held (kappa is flat or falling there, so no power law
+		   applies). A message is written once per run (N-53). The
+		   zero row at lambda = 0 interpolates linearly below 384.6 nm
+		   and is left as it is. --                    -------------- */
 
 	static double lambdaFF[NFF_H2P] = {
 		0.0, 384.6, 555.6, 833.3, 1111.1, 1428.6, 1666.7,
@@ -1137,18 +1164,26 @@ bool_t H2plus_ff(double lambda, double *chi)
 	int    Nspace = atmos.Nspace, index = 0;
 	double lambda_index, kappa, *np;
 
-	if (lambda >= lambdaFF[NFF_H2P - 1])
-		return FALSE;
-
 	if (H2pff_temp_index == NULL) {
 		sprintf(messageStr, "Index table not set up "
 							"(call hydrogenPrepare first)");
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
-	Hunt(NFF_H2P, lambdaFF, lambda, &index);
-	lambda_index = index + (lambda - lambdaFF[index]) /
-							   (lambdaFF[index + 1] - lambdaFF[index]);
+	if (lambda >= lambdaFF[NFF_H2P - 1]) {
+		lambda_index = NFF_H2P - 1;
+		if (lambda > lambdaFF[NFF_H2P - 1] && !atomic_flag_test_and_set(&H2pff_beyond_told)) {
+			sprintf(messageStr,
+					"H2+ free-free table ends at %.1f nm: last column held beyond it "
+					"(first at %.1f nm; message once per run)",
+					lambdaFF[NFF_H2P - 1], lambda);
+			Error(WARNING, routineName, messageStr);
+		}
+	} else {
+		Hunt(NFF_H2P, lambdaFF, lambda, &index);
+		lambda_index = index + (lambda - lambdaFF[index]) /
+								   (lambdaFF[index + 1] - lambdaFF[index]);
+	}
 
 	np = atmos.H->n[atmos.H->Nlevel - 1];
 	for (k = 0; k < Nspace; k++) {

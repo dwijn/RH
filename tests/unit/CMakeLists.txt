@@ -47,6 +47,9 @@ target_compile_definitions(test_hminus_bf PRIVATE
   RH_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 rh_unit_test(test_hminus_ff test_hminus_ff.c)
 rh_unit_test(test_rayleigh_h2 test_rayleigh_h2.c)
+rh_unit_test(test_h2ff test_h2ff.c)
+target_compile_definitions(test_h2ff PRIVATE
+  RH_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 rh_unit_test(test_gaunt_ff test_gaunt_ff.c)
 target_compile_definitions(test_gaunt_ff PRIVATE
   RH_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
