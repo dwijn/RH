@@ -130,5 +130,13 @@ int main(void)
 
 	CHECK(asymmetricBlends(extra, 2) == 0, "a second call changes lines");
 
+	for (kr = 0; kr < NLINE; kr++) {
+		free(lines[kr].lambda);
+		free(lines[kr].c_shift);
+	}
+	free(passive.lambda);
+	free(passive.c_shift);
+	free(cont.lambda);
+
 	return check_summary("test_blends");
 }
