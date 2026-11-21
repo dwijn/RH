@@ -198,6 +198,65 @@ static void test_linear(void)
 	}
 }
 
+/* --- heightAtUnityTau (N-54): z at tau_ref = 1, linear in ln tau --- */
+
+static void test_unity_tau(void)
+{
+	/* z = a + b ln tau is reproduced exactly (a table that is linear in
+	   tau would be off by up to a few percent of the step) */
+
+	double tau[6] = {1e-3, 1e-2, 0.1, 0.5, 3.0, 40.0}, z[6], z1;
+	int    k, st;
+
+	for (k = 0; k < 6; k++) z[k] = 7.0 - 2.5 * log(tau[k]);
+	st = heightAtUnityTau(6, tau, z, &z1);
+	CHECK(st == TAU_UNITY_OK, "log-linear table: status %d", st);
+	CHECK_CLOSE(z1, 7.0, 1e-13, 1e-13, "log-linear table: z1 = %.15g", z1);
+
+	/* a node at exactly 1, first and last */
+
+	tau[3] = 1.0;
+	for (k = 0; k < 6; k++) z[k] = k;
+	st = heightAtUnityTau(6, tau, z, &z1);
+	CHECK(st == TAU_UNITY_OK && z1 == 3.0, "node at 1: status %d, z1 = %g", st, z1);
+	st = heightAtUnityTau(4, tau, z, &z1);
+	CHECK(st == TAU_UNITY_OK && z1 == 3.0, "last node at 1: status %d, z1 = %g", st, z1);
+	tau[0] = 1.0;
+	tau[1] = 2.0;
+	st     = heightAtUnityTau(2, tau, z, &z1);
+	CHECK(st == TAU_UNITY_OK && z1 == 0.0, "first node at 1: status %d, z1 = %g", st, z1);
+
+	/* a zero at the top is skipped; 1 between the first two positive
+	   points; ln 0 never enters */
+
+	{
+		double t0[4] = {0.0, 0.25, 4.0, 9.0}, z0[4] = {10.0, 6.0, 2.0, 0.0};
+
+		st = heightAtUnityTau(4, t0, z0, &z1);
+		CHECK(st == TAU_UNITY_OK && fabs(z1 - 4.0) < 1e-13, "zero at top: status %d, z1 = %g", st, z1);
+	}
+
+	/* not bracketed: 1 below or above the table, and between a zero and
+	   the first positive point */
+
+	{
+		double ta[3] = {2.0, 3.0, 4.0}, tb[3] = {0.1, 0.2, 0.5}, tc[3] = {0.0, 2.0, 3.0}, zz[3] = {2, 1, 0};
+
+		CHECK(heightAtUnityTau(3, ta, zz, &z1) == TAU_NOT_BRACKETED, "tau > 1 everywhere");
+		CHECK(heightAtUnityTau(3, tb, zz, &z1) == TAU_NOT_BRACKETED, "tau < 1 everywhere");
+		CHECK(heightAtUnityTau(3, tc, zz, &z1) == TAU_NOT_BRACKETED, "zero, then tau > 1");
+	}
+
+	/* not strictly increasing: a repeat, a decrease */
+
+	{
+		double td[3] = {0.5, 0.5, 2.0}, te[4] = {0.1, 0.5, 0.4, 2.0}, zz[4] = {3, 2, 1, 0};
+
+		CHECK(heightAtUnityTau(3, td, zz, &z1) == TAU_NOT_INCREASING, "repeated tau");
+		CHECK(heightAtUnityTau(4, te, zz, &z1) == TAU_NOT_INCREASING, "decreasing tau");
+	}
+}
+
 /* --- Cubic splines -- --------------------------------------------- */
 
 /* --- The exponential spline keeps static state (issue T-3) and a
@@ -658,6 +717,7 @@ int main(int argc, char *argv[])
 
 	test_hunt_locate();
 	test_linear();
+	test_unity_tau();
 	test_spline_linear_data();
 	test_spline_reference();
 	test_spline_limits();

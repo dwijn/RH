@@ -120,6 +120,14 @@ void Locate(int n, double *array, double value, int *theIndex);
 void Linear(int Ntable, double *xtable, double *ytable,
 			int N, double *x, double *y, bool_t hunt);
 
+enum tau_unity_status { TAU_UNITY_OK,
+						TAU_NOT_INCREASING,
+						TAU_NOT_BRACKETED };
+
+int    heightAtUnityTau(int N, const double *tau_ref, const double *z, double *z1);
+double zeroPointAtUnityTau(const char *routineName, const char *atmosID,
+						   int N, const double *tau_ref, const double *z);
+
 /* --- Monotone piecewise cubic Hermite interpolation (pchip.c, N-32),
 	   optionally in log x and log y. The table is copied; evaluation
 	   keeps no state. -- --------------------------------------------- */
