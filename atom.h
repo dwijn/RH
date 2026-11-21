@@ -73,6 +73,12 @@ struct AtomicLine {
 		Aji, Bji, Bij, *Rij, *Rji, *wphi, *Qelast, Grad, cvdWaals[4],
 		cStark, qcore, qwing, **rho_prd, *c_shift, *c_fraction, **frac;
 
+	/* --- Wavelength integration weights (nm) on the merged grid where
+		   they differ from the trapezoid; NULL otherwise (N-62,
+		   mirrorQuadrature) --                         -------------- */
+
+	double *wquad;
+
 	/* --- Absorption profiles (and the Stokes and magneto-optical
 		   profiles), stored in single precision: they are by far the
 		   largest arrays in angle-dependent runs (M-1). They are
@@ -103,6 +109,7 @@ typedef struct {
 	bool_t          hydrogenic;
 	int             i, j, Nlambda, Nblue;
 	double          lambda0, *lambda, isotope_frac, alpha0, *alpha, *Rij, *Rji;
+	double         *wquad; /* as in AtomicLine (N-62) */
 	Atom           *atom;
 	pthread_mutex_t rate_lock;
 	double        **Rij_thread, **Rji_thread;
@@ -118,7 +125,8 @@ typedef struct {
 	double    lambda0, *lambda, isotope_frac, Ei, Ej, gi, gj, Si, Sj,
 		Omegai, Omegaj, *wphi, g_Lande_eff,
 		Grad, qcore, qwing, Aji, Bji, Bij;
-	float          **phi; /* Absorption profile, single precision (M-1) */
+	double          *wquad; /* as in AtomicLine (N-62) */
+	float          **phi;   /* Absorption profile, single precision (M-1) */
 	Molecule        *molecule;
 	ZeemanMultiplet *zm;
 } MolecularLine;
@@ -251,6 +259,7 @@ void   freeAtomicContinuum(AtomicContinuum *continuum);
 void   getfjk(Element *element, double ne, int k, double *fjk, double *dfjk);
 void   getLambda(AtomicLine *line);
 int    asymmetricBlends(const double *extra, int Nextra);
+int    mirrorQuadrature(void);
 void   getLambdaCont(AtomicContinuum *continuum, double lambdamin);
 double getwlambda_line(AtomicLine *line, int la);
 double getwlambda_cont(AtomicContinuum *continuum, int la);

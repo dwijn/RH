@@ -687,6 +687,7 @@ void initAtomicLine(AtomicLine *line)
 	line->Nxrd                                      = 0;
 	line->lambda0 = line->isotope_frac = line->g_Lande_eff = 0.0;
 	line->lambda                                           = NULL;
+	line->wquad                                            = NULL;
 	line->Aji = line->Bji = line->Bij = 0.0;
 	line->Rij = line->Rji = NULL;
 	line->Rij_thread = line->Rji_thread = NULL;
@@ -717,6 +718,7 @@ void initAtomicContinuum(AtomicContinuum *continuum)
 	continuum->Nlambda = continuum->Nblue = 0;
 	continuum->lambda0 = continuum->isotope_frac = 0.0;
 	continuum->lambda                            = NULL;
+	continuum->wquad                             = NULL;
 	continuum->alpha0                            = 0.0;
 	continuum->alpha = continuum->Rij = continuum->Rji = NULL;
 	continuum->Rij_thread = continuum->Rji_thread = NULL;
@@ -806,6 +808,7 @@ void freeAtomicLine(AtomicLine *line)
 
 		freeMatrix((void **) line->phi);
 		free(line->wphi);
+		free(line->wquad);
 		if (line->polarizable) {
 			freeMatrix((void **) line->phi_Q);
 			freeMatrix((void **) line->phi_U);
@@ -847,6 +850,7 @@ void freeAtomicContinuum(AtomicContinuum *continuum)
 	if (atom->active) {
 		free(continuum->Rij);
 		free(continuum->Rji);
+		free(continuum->wquad);
 		if (continuum->Rij_thread != NULL) {
 			freeMatrix((void **) continuum->Rij_thread);
 			freeMatrix((void **) continuum->Rji_thread);
