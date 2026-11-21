@@ -1019,7 +1019,7 @@ void BackgroundOfState(bool_t write_analyze_output)
 			atom->ntotal[k] = atom->abundance * atmos.nHtot[k];
 	}
 	SetLTEQuantities();
-	ChemicalEquilibriumOfState(N_CHEM_ITER_OF_STATE);
+	ChemicalEquilibriumOfState(N_MAX_CHEM_ITER, CHEM_ITER_LIMIT);
 	backgroundOpacities(write_analyze_output);
 	workAdd(WORK_BACKGROUND, wallClock() - t_start);
 }
