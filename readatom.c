@@ -819,10 +819,6 @@ void freeAtomicLine(AtomicLine *line)
 				freeMatrix((void **) line->psi_V);
 			}
 		}
-		if (line->Ncomponent > 0) {
-			free(line->c_shift);
-			free(line->c_fraction);
-		}
 		if (line->PRD) {
 			free(line->Qelast);
 			freeMatrix((void **) line->rho_prd);
@@ -836,6 +832,11 @@ void freeAtomicLine(AtomicLine *line)
 			freeZeeman(line->zm);
 		}
 	}
+	/* --- readAtom allocates the components of every line, active or
+		   passive (B-72) --                           -------------- */
+
+	free(line->c_shift);
+	free(line->c_fraction);
 }
 /* ------- end ---------------------------- freeAtomicLine.c -------- */
 
@@ -856,7 +857,12 @@ void freeAtomicContinuum(AtomicContinuum *continuum)
 			freeMatrix((void **) continuum->Rji_thread);
 		}
 	}
-	if (!continuum->hydrogenic) free(continuum->alpha);
+	/* --- alpha is the continuum's own array, hydrogenic or not;
+		   lambda too, except in an active atom, where SortLambda points
+		   it into the spectrum (B-72) --              -------------- */
+
+	free(continuum->alpha);
+	if (!atom->active) free(continuum->lambda);
 	if (continuum->bftable.x) pchipTableFree(&continuum->bftable);
 }
 /* ------- end ---------------------------- freeAtomicContinuum.c --- */

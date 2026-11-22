@@ -972,7 +972,10 @@ bool_t RLKdet_level(char *label, RLK_level *level)
 			length = strlen(words[count - 1]);
 			Nread  = sscanf(words[count - 1] + length - 2, "%d%1s",
 							&multiplicity, orbit);
-			if (Nread != 2 || !isupper(orbit[0])) return FALSE;
+			if (Nread != 2 || !isupper(orbit[0])) {
+				free(words);
+				return FALSE;
+			}
 
 			level->L = getOrbital(orbit[0]);
 			level->S = (multiplicity - 1) / 2.0;
@@ -986,8 +989,10 @@ bool_t RLKdet_level(char *label, RLK_level *level)
 
 			level->cpl = LS_COUPLING;
 			return TRUE;
-		} else
+		} else {
+			free(words); /* B-72 */
 			return FALSE;
+		}
 	} else {
 
 		/* --- Check for presence of any of three allowed delimiters -- - */

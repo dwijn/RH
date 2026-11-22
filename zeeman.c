@@ -88,9 +88,14 @@ char **getWords(char *label, char *separator, int *count)
 
 	/* --- Get the separate words that constitute the label -- -------- */
 
+	/* --- At most (length + 1) / 2 words, and the NULL that ends the
+		   scan: length / 2 + 2 entries (length / 2 + 1 overflowed for
+		   an empty label and for single-letter words, B-72) -- ----- */
+
 	*count      = 1;
-	theWords    = (char **) malloc((length / 2 + 1) * sizeof(char *));
+	theWords    = (char **) malloc((length / 2 + 2) * sizeof(char *));
 	theWords[0] = strtok(label, separator);
+	if (theWords[0] == NULL) return theWords;
 	while ((theWords[*count] = strtok(NULL, separator)))
 		*count += 1;
 
