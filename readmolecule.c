@@ -501,6 +501,7 @@ void initMolLine(MolecularLine *mrt, enum type line_type)
 	mrt->lambda                      = NULL;
 	mrt->phi                         = NULL;
 	mrt->wphi                        = NULL;
+	mrt->wquad                       = NULL;
 	mrt->Ei = mrt->Ej = mrt->gi = mrt->gj = 0.0;
 	mrt->Grad = mrt->qwing = mrt->qcore = 0.0;
 	mrt->Aji = mrt->Bji = mrt->Bij = 0.0;
@@ -523,6 +524,7 @@ void freeMolLine(MolecularLine *mrt)
 	if (molecule->active) {
 		freeMatrix((void **) mrt->phi);
 		free(mrt->phi);
+		free(mrt->wquad);
 	}
 
 	if (atmos.Stokes &&

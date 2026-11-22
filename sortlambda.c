@@ -567,6 +567,11 @@ void SortLambda()
 		}
 	}
 
+	/* --- Transitions that span the blue half of a symmetric line
+		   integrate across it with the red half mirrored (N-62) -- */
+
+	mirrorQuadrature();
+
 	getCPU(2, TIME_POLL, "SortLambda");
 }
 /* ------- end ---------------------------- SortLambda.c ------------ */

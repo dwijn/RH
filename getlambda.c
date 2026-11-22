@@ -276,6 +276,245 @@ int asymmetricBlends(const double *extra, int Nextra)
 }
 /* ------- end ---------------------------- asymmetricBlends.c ------ */
 
+/* ------- begin -------------------------- mirrorQuadrature.c ------ */
+
+/* --- N-62: a symmetric line A has wavelengths on its red half only,
+	   and after asymmetricBlends no other wavelength falls in its blue
+	   half. A transition T whose range spans A then has an interval
+	   [lambda_b, lambda0] in its grid, lambda_b the first point blueward
+	   of A's blue half, and the trapezoid takes J linear across it:
+	   across the whole blue half of A's absorption profile. Instead
+	   that interval is integrated with A's red half mirrored, J(lambda0
+	   - d) = J(lambda0 + d), the assumption that makes A symmetric in
+	   the first place: a node at v = 2 lambda0 - lambda_r for every grid
+	   point lambda_r of A's red half, then the trapezoid from the last
+	   of them to lambda_b. The weight of node v goes to point r, where J
+	   is known, scaled by the ratio of T's integrand without J at v and
+	   at lambda_r (contRatio, lineRatio). The upward and downward rates
+	   of T use the same weights, so detailed balance holds node by
+	   node. The wavelengths and the formal solutions do not change.
+
+	   Sets ->wquad of every transition of the active atoms and
+	   molecules that spans the blue half of a symmetric line; the
+	   weights of the other transitions stay the trapezoid. Call at the
+	   end of SortLambda, when the transitions point into the merged
+	   grid and the continua have their cross sections on it. Returns
+	   the number of (T, A) pairs --                   -------------- */
+
+typedef double (*IntegrandRatio)(const void *T, int b, int r, double v);
+
+typedef struct {
+	int            Nblue, Nlambda;
+	const double  *lambda;
+	double       **wquad;
+	IntegrandRatio ratio;
+	const void    *T;
+} QuadTransition;
+
+typedef struct {
+	int Nblue, Nlambda; /* center at Nblue, red half to Nblue + Nlambda - 1 */
+} SymmetricLine;
+
+/* --- Continuum: the rate weight is wlambda / lambda and Vij = alpha,
+	   with alpha linear across [lambda_b, lambda0] (b, b + 1) -- ---- */
+
+static double contRatio(const void *T, int b, int r, double v)
+{
+	const AtomicContinuum *c = (const AtomicContinuum *) T;
+	const double          *L = c->lambda;
+	double                 alpha_v;
+
+	if (c->alpha[r] <= 0.0) return 0.0;
+	alpha_v = c->alpha[b] + (v - L[b]) / (L[b + 1] - L[b]) * (c->alpha[b + 1] - c->alpha[b]);
+
+	return (alpha_v / v) / (c->alpha[r] / L[r]);
+}
+
+/* --- Line: T has no points in A's blue half, so A lies in the far
+	   wing of T, where the profile goes as 1 / (lambda - lambda0_T)^2.
+	   Its ratio does not depend on depth, as the weights must not -- */
+
+static double lineRatio(double lambda0_T, double lambda_r, double v)
+{
+	double dr = lambda_r - lambda0_T, dv = v - lambda0_T;
+
+	if (dr * dv <= 0.0) return 1.0;
+	return SQ(dr / dv);
+}
+
+static double atomicLineRatio(const void *T, int b, int r, double v)
+{
+	const AtomicLine *line = (const AtomicLine *) T;
+
+	(void) b;
+	return lineRatio(line->lambda0, line->lambda[r], v);
+}
+
+static double molLineRatio(const void *T, int b, int r, double v)
+{
+	const MolecularLine *mrt = (const MolecularLine *) T;
+
+	(void) b;
+	return lineRatio(mrt->lambda0, mrt->lambda[r], v);
+}
+
+static int mirrorTransition(QuadTransition *T, const SymmetricLine *A, int NA)
+{
+	int           a, m, r, b, i0, rlast, Ngap = 0, N = T->Nlambda;
+	const double *L = T->lambda;
+	double       *w, *gap, x, s, s_prev, h;
+	int           idx_prev;
+
+	free(*T->wquad);
+	*T->wquad = NULL;
+
+	/* --- The intervals [b, b + 1] that end at the center of a
+		   symmetric line inside T's range --        -------------- */
+
+	gap = (double *) calloc(N, sizeof(double));
+	for (a = 0; a < NA; a++) {
+		i0 = A[a].Nblue - T->Nblue;
+		if (i0 >= 1 && i0 <= N - 1) {
+			gap[i0 - 1] = 1.0;
+			Ngap++;
+		}
+	}
+	if (Ngap == 0) {
+		free(gap);
+		return 0;
+	}
+
+	/* --- Trapezoid over the other intervals --      -------------- */
+
+	w = (double *) calloc(N, sizeof(double));
+	for (m = 0; m < N - 1; m++) {
+		if (gap[m]) continue;
+		h = L[m + 1] - L[m];
+		w[m] += 0.5 * h;
+		w[m + 1] += 0.5 * h;
+	}
+
+	/* --- The mirrored red half of A across each gap -- ------------ */
+
+	for (a = 0; a < NA; a++) {
+		i0 = A[a].Nblue - T->Nblue;
+		if (i0 < 1 || i0 > N - 1) continue;
+		b     = i0 - 1;
+		rlast = MIN(A[a].Nblue + A[a].Nlambda - 1 - T->Nblue, N - 1);
+
+		x        = L[i0];
+		idx_prev = i0;
+		s_prev   = 1.0;
+		for (r = i0 + 1; r <= rlast; r++) {
+			double v = 2.0 * L[i0] - L[r];
+
+			if (v <= L[b]) break;
+			s = T->ratio(T->T, b, r, v);
+			h = x - v;
+			w[idx_prev] += 0.5 * h * s_prev;
+			w[r] += 0.5 * h * s;
+			x        = v;
+			idx_prev = r;
+			s_prev   = s;
+		}
+		h = x - L[b];
+		w[idx_prev] += 0.5 * h * s_prev;
+		w[b] += 0.5 * h;
+	}
+	free(gap);
+	*T->wquad = w;
+
+	return Ngap;
+}
+
+int mirrorQuadrature(void)
+{
+	const char     routineName[] = "mirrorQuadrature";
+	int            n, kr, NA = 0, NT = 0, Npair = 0, Nmax = 0, Ngap;
+	SymmetricLine *A;
+	QuadTransition T;
+
+	for (n = 0; n < atmos.Nactiveatom; n++) Nmax += atmos.activeatoms[n]->Nline;
+	for (n = 0; n < atmos.Nactivemol; n++) Nmax += atmos.activemols[n]->Nrt;
+	if (Nmax == 0) return 0;
+
+	A = (SymmetricLine *) malloc(Nmax * sizeof(SymmetricLine));
+	for (n = 0; n < atmos.Nactiveatom; n++) {
+		Atom *atom = atmos.activeatoms[n];
+
+		for (kr = 0; kr < atom->Nline; kr++) {
+			AtomicLine *line = &atom->line[kr];
+
+			if (!line->symmetric) continue;
+			A[NA].Nblue   = line->Nblue;
+			A[NA].Nlambda = line->Nlambda;
+			NA++;
+		}
+	}
+	for (n = 0; n < atmos.Nactivemol; n++) {
+		Molecule *molecule = atmos.activemols[n];
+
+		for (kr = 0; kr < molecule->Nrt; kr++) {
+			MolecularLine *mrt = &molecule->mrt[kr];
+
+			if (!mrt->symmetric) continue;
+			A[NA].Nblue   = mrt->Nblue;
+			A[NA].Nlambda = mrt->Nlambda;
+			NA++;
+		}
+	}
+
+	if (NA > 0) {
+		for (n = 0; n < atmos.Nactiveatom; n++) {
+			Atom *atom = atmos.activeatoms[n];
+
+			for (kr = 0; kr < atom->Nline; kr++) {
+				AtomicLine *line = &atom->line[kr];
+
+				T    = (QuadTransition) {line->Nblue, line->Nlambda, line->lambda,
+										 &line->wquad, atomicLineRatio, line};
+				Ngap = mirrorTransition(&T, A, NA);
+				Npair += Ngap;
+				NT += (Ngap > 0);
+			}
+			for (kr = 0; kr < atom->Ncont; kr++) {
+				AtomicContinuum *cont = &atom->continuum[kr];
+
+				T    = (QuadTransition) {cont->Nblue, cont->Nlambda, cont->lambda,
+										 &cont->wquad, contRatio, cont};
+				Ngap = mirrorTransition(&T, A, NA);
+				Npair += Ngap;
+				NT += (Ngap > 0);
+			}
+		}
+		for (n = 0; n < atmos.Nactivemol; n++) {
+			Molecule *molecule = atmos.activemols[n];
+
+			for (kr = 0; kr < molecule->Nrt; kr++) {
+				MolecularLine *mrt = &molecule->mrt[kr];
+
+				T    = (QuadTransition) {mrt->Nblue, mrt->Nlambda, mrt->lambda,
+										 &mrt->wquad, molLineRatio, mrt};
+				Ngap = mirrorTransition(&T, A, NA);
+				Npair += Ngap;
+				NT += (Ngap > 0);
+			}
+		}
+	}
+	free(A);
+
+	if (Npair > 0) {
+		sprintf(messageStr,
+				" -- %d transitions span the blue half of symmetric lines"
+				" (%d pairs): integrated there with the red half mirrored"
+				" (N-62)\n",
+				NT, Npair);
+		Error(MESSAGE, routineName, messageStr);
+	}
+	return Npair;
+}
+/* ------- end ---------------------------- mirrorQuadrature.c ------ */
+
 /* ------- begin -------------------------- getLambdaCont.c --------- */
 
 void getLambdaCont(AtomicContinuum *continuum, double lambdamin)
@@ -307,7 +546,9 @@ double getwlambda_line(AtomicLine *line, int la)
 	Dopplerwidth = CLIGHT / line->lambda0;
 	if (line->symmetric) Dopplerwidth *= 2.0;
 
-	if (la == 0)
+	if (line->wquad)
+		wlambda = line->wquad[la];
+	else if (la == 0)
 		wlambda = 0.5 * (line->lambda[la + 1] - line->lambda[la]);
 	else if (la == line->Nlambda - 1)
 		wlambda = 0.5 * (line->lambda[la] - line->lambda[la - 1]);
@@ -324,7 +565,9 @@ double getwlambda_cont(AtomicContinuum *continuum, int la)
 {
 	double wlambda = 0.0;
 
-	if (la == 0)
+	if (continuum->wquad)
+		wlambda = continuum->wquad[la];
+	else if (la == 0)
 		wlambda = 0.5 * (continuum->lambda[la + 1] - continuum->lambda[la]);
 	else if (la == continuum->Nlambda - 1)
 		wlambda = 0.5 * (continuum->lambda[la] - continuum->lambda[la - 1]);
@@ -344,7 +587,9 @@ double getwlambda_mrt(MolecularLine *mrt, int la)
 	Dopplerwidth = CLIGHT / mrt->lambda0;
 	if (mrt->symmetric) Dopplerwidth *= 2.0;
 
-	if (la == 0)
+	if (mrt->wquad)
+		wlambda = mrt->wquad[la];
+	else if (la == 0)
 		wlambda = 0.5 * (mrt->lambda[la + 1] - mrt->lambda[la]);
 	else if (la == mrt->Nlambda - 1)
 		wlambda = 0.5 * (mrt->lambda[la] - mrt->lambda[la - 1]);
