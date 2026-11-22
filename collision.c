@@ -646,6 +646,94 @@ static void rateCheckReport(const RateCheck *rc, Atom *atom,
 		Error(WARNING, "CollisionRate", msg);
 	}
 }
+/* --- Tables (OMEGA, CE, CI, CP, CH0, CH+, CH) hold their end value
+	   outside their temperature range. How often that happens is
+	   counted per table type over the records of an atom, and one line
+	   per type is reported once per atom and run (N-53 d) -- ------- */
+
+#define NTABLE_TYPES 7
+
+static const char *const tableKeyword[NTABLE_TYPES] = {
+	"OMEGA", "CE", "CI", "CP", "CH0", "CH+", "CH"};
+
+typedef struct {
+	long   Nrec, Nout, Nbelow, Nabove, Npoints;
+	double Ttab[2], Tatm[2];
+} TableRange;
+
+static int tableType(const char *keyword)
+{
+	int n;
+
+	for (n = 0; n < NTABLE_TYPES; n++)
+		if (!strcmp(keyword, tableKeyword[n])) return n;
+	return -1;
+}
+
+/* --- Count the locations of the atmosphere outside the table grid
+	   T[0..N-1] (ascending) for one record -- --------------------- */
+
+static void tableRangeCount(TableRange *tr, const double *T, int N, long Nspace)
+{
+	long   k, nlo = 0, nhi = 0;
+	double Tlo = HUGE_VAL, Thi = 0.0;
+
+	tr->Nrec++;
+	for (k = 0; k < Nspace; k++) {
+		if (atmos.T[k] < T[0]) {
+			nlo++;
+			Tlo = MIN(Tlo, atmos.T[k]);
+			Thi = MAX(Thi, atmos.T[k]);
+		} else if (atmos.T[k] > T[N - 1]) {
+			nhi++;
+			Tlo = MIN(Tlo, atmos.T[k]);
+			Thi = MAX(Thi, atmos.T[k]);
+		}
+	}
+	if (nlo + nhi == 0) return;
+
+	if (tr->Nout == 0) {
+		tr->Ttab[0] = T[0];
+		tr->Ttab[1] = T[N - 1];
+		tr->Tatm[0] = Tlo;
+		tr->Tatm[1] = Thi;
+	} else {
+		tr->Ttab[0] = MIN(tr->Ttab[0], T[0]);
+		tr->Ttab[1] = MAX(tr->Ttab[1], T[N - 1]);
+		tr->Tatm[0] = MIN(tr->Tatm[0], Tlo);
+		tr->Tatm[1] = MAX(tr->Tatm[1], Thi);
+	}
+	tr->Nout++;
+	if (nlo > 0) tr->Nbelow++;
+	if (nhi > 0) tr->Nabove++;
+	tr->Npoints += nlo + nhi;
+}
+
+static void tableRangeReport(const TableRange *tr, Atom *atom, int type, long Nspace)
+{
+	char        msg[MAX_MESSAGE_LENGTH];
+	const char *rule;
+
+	if (tr->Nout == 0 || !firstReport(atom, tableKeyword[type], 0, 0, "table range"))
+		return;
+	if (type == 1)
+		rule = "the end value of C is held, so the effective collision"
+			   " strength grows as T and the rate as sqrt(T)";
+	else if (type == 0)
+		rule = "the collision strength is held";
+	else
+		rule = "the end value is held";
+	snprintf(msg, sizeof(msg),
+			 "Atom %s: %ld of %ld %s tables are used outside their temperature"
+			 " range (%ld below, %ld above; %ld table-locations of %ld; table"
+			 " grids span T = %g to %g K, atmosphere outside them at T = %g to"
+			 " %g K); %s",
+			 atom->ID, tr->Nout, tr->Nrec, tableKeyword[type], tr->Nbelow,
+			 tr->Nabove, tr->Npoints, tr->Nrec * Nspace, tr->Ttab[0], tr->Ttab[1],
+			 tr->Tatm[0], tr->Tatm[1], rule);
+	Error(WARNING, "CollisionRate", msg);
+}
+
 /* ------- end ---------------------------- RateCheck.c ----------- */
 
 /* ------- begin -------------------------- CollisionRate.c --------- */
@@ -666,6 +754,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 	double     dE, C0, *T, *coeff, *C, Cdown, Cup, gij, *np, xj, fac, fxj;
 	PchipTable ctable;
 	RateCheck  rc;
+	TableRange tabrange[NTABLE_TYPES];
 
 	int      Ncoef = 0, Nrow = 0;
 	double **cdi = NULL, **badi = NULL;
@@ -675,6 +764,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 
 	getCPU(3, TIME_START, NULL);
 
+	memset(tabrange, 0, sizeof(tabrange));
 	C0 = ((E_RYDBERG / sqrt(M_ELECTRON)) * PI * SQ(RBOHR)) *
 		 sqrt(8.0 / (PI * KBOLTZMANN));
 
@@ -980,6 +1070,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			pchipTableInit(&ctable, Nitem, T, coeff, PCHIP_LOGLOG);
 			pchipTableEval(&ctable, Nspace, atmos.T, C);
 			pchipTableFree(&ctable);
+			tableRangeCount(&tabrange[tableType(keyword)], T, Nitem, Nspace);
 		}
 
 		if (!strcmp(keyword, "OMEGA")) {
@@ -1278,6 +1369,9 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 		sprintf(messageStr, "Reached end of datafile before all data was read");
 		Error(ERROR_LEVEL_1, routineName, messageStr);
 	}
+	for (n = 0; n < NTABLE_TYPES; n++)
+		tableRangeReport(&tabrange[n], atom, n, Nspace);
+
 	/* --- Clean up --                                   -------------- */
 
 	free(C);
