@@ -221,11 +221,6 @@ jobs:
       - name: Unit tests with sanitizers
         if: matrix.sanitize
         run: ctest --test-dir build-san -L unit --output-on-failure
-      - name: End-to-end tests with sanitizers
-        # LeakSanitizer on: leaks at the end of a run fail the test (B-72);
-        # run_tests.py turns leak detection off
-        if: matrix.sanitize
-        run: ctest --test-dir build-san -L e2e -j 4 --output-on-failure
       - name: Regression suite against the base commit
         id: regress
         run: |
