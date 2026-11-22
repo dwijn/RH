@@ -22,8 +22,8 @@
 
 #define COMMENT_CHAR "#"
 
-#define NTEMP       6
-#define N_MAX_LEVEL 11
+#define NTEMP       15
+#define N_MAX_LEVEL 20
 
 #define H_ABUNDANCE 1.0
 #define H_WEIGHT    1.00790
@@ -70,10 +70,24 @@ int main(int argc, char *argv[])
 		 "H I 8K 2KO          ",
 		 "H I 9L 2LE          ",
 		 "H I 10M 2MO         ",
+		 "H I 11N 2NE         ",
+		 "H I 12O 2OO         ",
+		 "H I 13Q 2QE         ",
+		 "H I 14R 2RO         ",
+		 "H I 15T 2TE         ",
+		 "H I 16U 2UO         ",
+		 "H I 17V 2VE         ",
+		 "H I 18W 2WO         ",
+		 "H I 19X 2XE         ",
 		 "H II                "};
 
+	/* --- Up to 10^6 K, transition-region temperatures (N-53 d); the
+		   first six are the grid of the tables before --  ----------- */
+
 	int    Ntemp       = NTEMP, Nlevel;
-	double temp[NTEMP] = {3.0E+3, 5.0E+3, 7.0E+3, 1.0E+4, 2.0E+4, 3.0E+4};
+	double temp[NTEMP] = {3.0E+3, 5.0E+3, 7.0E+3, 1.0E+4, 2.0E+4,
+						  3.0E+4, 5.0E+4, 7.0E+4, 1.0E+5, 1.5E+5,
+						  2.0E+5, 3.0E+5, 5.0E+5, 7.0E+5, 1.0E+6};
 	Atom   H;
 
 	commandline.quiet   = FALSE;
@@ -115,7 +129,7 @@ int main(int argc, char *argv[])
 		H.E[i]     = E_Rydberg * (1.0 - 1.0 / SQ((double) (i + 1)));
 		H.stage[i] = 0;
 	}
-	strcpy(H.label[H.Nlevel - 1], labels[H.Nlevel - 1]);
+	strcpy(H.label[H.Nlevel - 1], labels[N_MAX_LEVEL - 1]); /* H II */
 	H.g[H.Nlevel - 1]     = 1.0;
 	H.E[H.Nlevel - 1]     = E_Rydberg;
 	H.stage[H.Nlevel - 1] = 1;
