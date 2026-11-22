@@ -459,15 +459,7 @@ void initSolution(void)
 			   H2 collisions for which chemical equilibrium needs to be
 			   established first --                        -------------- */
 
-		if (strstr(molecule->ID, "CO"))
-			COcollisions(molecule);
-		else if (strstr(molecule->ID, "H2"))
-			H2collisions(molecule);
-		else {
-			sprintf(messageStr, "Collisions for molecule %s not implemented\n",
-					molecule->ID);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
-		}
+		COcollisions(molecule); /* only CO can be active (readMolecule, B-69) */
 	}
 }
 /* ------- end ---------------------------- initSolution.c ---------- */
