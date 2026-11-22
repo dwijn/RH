@@ -161,7 +161,7 @@ add_library(rh STATIC
   bezier_aux.c broad.c brs_xdr.c chemequil.c cocollisions.c collision.c
   cubeconvol.c duplicate.c error.c expint.c fillgamma.c
   fixedrate.c fpehandler.c gammafunc.c gaussleg.c getcpu.c getlambda.c
-  getline.c giigen.c gth.c h2collisions.c hunt.c hydrogen.c
+  getline.c giigen.c gth.c hunt.c hydrogen.c
   initial_xdr.c initscatter.c iterate.c kurucz.c linear.c ltepops.c
   ludcmp.c matrix.c maxchange.c metal.c molzeeman.c mpe.c negtau.c nemetals.c newton.c ohchbf.c
   opacity.c options.c order.c parallel.c parse.c paschen.c pchip.c planck.c
@@ -278,6 +278,8 @@ if(Python3_Interpreter_FOUND)
   rh_add_e2e(passive_atoms passive_atoms
       --rhf1d $<TARGET_FILE:rhf1d>)
   rh_add_e2e(molecules_input molecules_input
+      --rhf1d $<TARGET_FILE:rhf1d>)
+  rh_add_e2e(active_molecules active_molecules
       --rhf1d $<TARGET_FILE:rhf1d>)
   rh_add_e2e(opacity_fudge opacity_fudge
       --rhf1d $<TARGET_FILE:rhf1d>)

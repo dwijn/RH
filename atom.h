@@ -314,7 +314,6 @@ bool_t determinate_abo(char *label, int *l);
 void statEquilMolecule(Molecule *molecule, int isum);
 
 void   COcollisions(Molecule *molecule);
-void   H2collisions(Molecule *molecule);
 void   MolecularDamping(MolecularLine *mrt, double *adamp);
 double equilconstant(Molecule *molecule, double T);
 void   freeMolecule(Molecule *molecule);

@@ -250,6 +250,16 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 		qsort(molecule->mrt, molecule->Nrt, sizeof(MolecularLine), mrt_ascend);
 
 	if (active) {
+		/* --- Collisional rates exist only for CO (cocollisions.c);
+			   IDs compared exactly (B-69) --              -------------- */
+
+		if (strcmp(molecule->ID, "CO") != 0) {
+			sprintf(messageStr,
+					" Molecule %s cannot be active: collisional rates exist only for CO\n"
+					" (Ayres & Wiedemann 1989). Make it PASSIVE in molecules.input\n",
+					molecule->ID);
+			Error(ERROR_LEVEL_2, routineName, messageStr);
+		}
 		if (molecule->Nrt == 0) {
 			sprintf(messageStr, " No lines specified for active molecule %s\n",
 					molecule->ID);

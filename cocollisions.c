@@ -12,7 +12,14 @@
 	   where C_ul = Omega_ul * n_pert, and n_pert is the number density
 	   of perturbers [m^-3].
 
-  See: Ayres, T.R., Wiedemann, G., 1989, ApJ 338, 1033
+  See: Ayres, T.R., Wiedemann, G., 1989, ApJ 338, 1033 (AW89), checked
+	   against the paper (B-69): the Landau-Teller form is their eq. (18)
+	   and (19), the constants A, B their Table 2 (H and H2: Glass &
+	   Kironde 1982; He: Millikan 1964), the electron rate the formula of
+	   their Appendix IV (after Thompson 1973; valid at low temperatures),
+	   and OMEGA0 the harmonic constant of their eq. (3), which with the
+	   rigid rotor reproduces the term values for v < 4 (CO's 1-0 band is
+	   at 2143 cm^-1).
 	   --                                              -------------- */
 
 #include <stdlib.h>
@@ -56,7 +63,7 @@ void COcollisions(struct Molecule *molecule)
 
 	double hcomega_k, *beta, C_0;
 
-	if (!strstr(molecule->ID, "CO")) {
+	if (strcmp(molecule->ID, "CO") != 0) {
 		sprintf(messageStr, "Molecule is not CO: %s\n", molecule->ID);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
