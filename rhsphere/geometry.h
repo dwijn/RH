@@ -57,7 +57,8 @@ void   addtoRates_sphere(int nspect, Ray *ray, double *P,
 						 bool_t redistribute);
 void   convertScales(Atmosphere *atmos, Geometry *geometry);
 double Feautrier(int nspect, int mu, double *chi, double *S,
-				 enum FeautrierOrder F_order, double *P, double *Psi);
+				 enum FeautrierOrder F_order, double *P, double *Psi,
+				 double *Tri);
 void   getRays(Geometry *geometry);
 void   getBoundary(Geometry *geometry);
 void   readAtmos(Atmosphere *atmos, Geometry *geometry);

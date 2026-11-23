@@ -49,6 +49,11 @@ const char *bgScatterSupported(void)
 	return NULL;
 }
 
+bool_t bgScatterLinearFallback(void)
+{
+	return input.S_interpolation != S_LINEAR;
+}
+
 #define NMU 3
 static double mus[NMU], wmus[NMU];
 

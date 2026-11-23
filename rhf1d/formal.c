@@ -79,6 +79,14 @@ const char *bgScatterSupported(void)
 }
 /* ------- end ---------------------------- bgScatterSupported.c ---- */
 
+/* ------- begin -------------------------- bgScatterLinearFallback.c */
+
+bool_t bgScatterLinearFallback(void)
+{
+	return input.S_interpolation != S_LINEAR;
+}
+/* ------- end ---------------------------- bgScatterLinearFallback.c */
+
 /* ------- begin -------------------------- maxAlbedo.c ------------- */
 
 static double maxAlbedo(const ActiveSet *as)

@@ -40,11 +40,88 @@ extern char       messageStr[];
 
 const char *bgScatterSupported(void)
 {
-	/* --- The background scattering iteration (N-51) is 1-D only -- */
+	/* --- The Feautrier operator is positive (an M-matrix, see
+		   feautrier.c), so the background scattering iteration (N-51)
+		   needs no fallback here -- --                 -------------- */
 
-	return "it is implemented in 1-D (rhf1d) only";
+	return NULL;
 }
 /* ------- end ---------------------------- bgScatterSupported.c ---- */
+
+/* ------- begin -------------------------- bgScatterLinearFallback.c */
+
+bool_t bgScatterLinearFallback(void)
+{
+	return FALSE;
+}
+/* ------- end ---------------------------- bgScatterLinearFallback.c */
+
+/* ------- begin -------------------------- addTri_sphere.c --------- */
+
+static void addTri_sphere(const Ray *ray, const double *Tri,
+						  const double *sca_c, const double *chi, double *A,
+						  double *albedo)
+{
+	register int k;
+
+	double w;
+
+	/* --- Add the rows of the operator of one ray (Tri[3k + i] =
+		   dP_k / dS_k-1+i, Feautrier) to A[3k + i] = dJ_k / du_k-1+i,
+		   with S_j = ... + sca_c,j u_j / chi_j (N-51), and its weight
+		   of sca_c / chi to the angle-averaged albedo (if not NULL). The ray passes
+		   the shells 0 .. Ns - 1 -- --                  -------------- */
+
+	for (k = 0; k < ray->Ns; k++) {
+		w = ray->wmu[k];
+		if (k > 0) A[3 * k] += w * Tri[3 * k] * sca_c[k - 1] / chi[k - 1];
+		A[3 * k + 1] += w * Tri[3 * k + 1] * sca_c[k] / chi[k];
+		if (k < ray->Ns - 1)
+			A[3 * k + 2] += w * Tri[3 * k + 2] * sca_c[k + 1] / chi[k + 1];
+		if (albedo) albedo[k] += w * sca_c[k] / chi[k];
+	}
+}
+/* ------- end ---------------------------- addTri_sphere.c --------- */
+
+/* ------- begin -------------------------- bgSweep_sphere.c -------- */
+
+/* --- One formal solution of all rays at nspect for the background
+	   scattering iteration (N-51), with the background scattering
+	   source sca_c u and the opacities already in as and chi (the
+	   spherical case is angle independent): J, the tridiagonal A of
+	   dJ/du and, if not NULL, the angle average of sca_c / chi; no
+	   rates, no output --                                       -------------- */
+
+typedef struct {
+	int        nspect;
+	double    *chi, *S, *P, *Tri;
+	ActiveSet *as;
+} BgCtxSphere;
+
+static void bgSweep_sphere(void *ctx, const double *u, double *J, double *A,
+						   double *albedo)
+{
+	register int k, mu;
+
+	BgCtxSphere *c      = (BgCtxSphere *) ctx;
+	ActiveSet   *as     = c->as;
+	int          Nspace = atmos.Nspace;
+	Ray         *ray;
+
+	for (k = 0; k < Nspace; k++) {
+		J[k]    = 0.0;
+		c->S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * u[k]) / c->chi[k];
+		if (albedo) albedo[k] = 0.0;
+	}
+	for (k = 0; k < 3 * Nspace; k++) A[k] = 0.0;
+	for (mu = 0; mu < atmos.Nrays; mu++) {
+		ray = geometry.rays + mu;
+		Feautrier(c->nspect, mu, c->chi, c->S, STANDARD, c->P, NULL, c->Tri);
+		for (k = 0; k < ray->Ns; k++) J[k] += c->P[k] * ray->wmu[k];
+		addTri_sphere(ray, c->Tri, as->sca_c, c->chi, A, albedo);
+	}
+}
+/* ------- end ---------------------------- bgSweep_sphere.c -------- */
 
 /* ------- begin -------------------------- Formal.c ---------------- */
 
@@ -53,12 +130,15 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	const char   routineName[] = "Formal";
 	register int k, mu;
 
-	bool_t              initialize, boundbound, PRD_angle_dep, polarized;
+	bool_t initialize, boundbound, PRD_angle_dep, polarized, bg,
+		pending = FALSE;
 	enum FeautrierOrder F_order;
 	int                 Nspace = atmos.Nspace, Nrays = atmos.Nrays;
-	double             *I, *chi, *S, *Psi, *Jdag, dJ, dJmax = 0.0, *J;
-	ActiveSet          *as;
-	Ray                *ray;
+	double             *I, *chi, *S, *Psi, *Jdag, dJ, dJmax = 0.0, *J, *Abg = NULL,
+										  *albedo = NULL, *Tri = NULL, *Jsrc = NULL, *Jstar = NULL;
+	ActiveSet  *as;
+	Ray        *ray;
+	BgCtxSphere bgc;
 
 	/* --- Retrieve active set as of transitions at wavelength nspect - */
 
@@ -84,6 +164,16 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	S = (double *) malloc(Nspace * sizeof(double));
 	I = (double *) malloc(Nspace * sizeof(double));
+
+	/* --- Iterate the background scattering at this wavelength (N-51):
+		   with the tridiagonal of dJ/du from every ray -- ---------- */
+
+	bg = (spectrum.updateJ && bgScatterActive());
+	if (bg) {
+		Abg    = (double *) calloc(7 * Nspace, sizeof(double));
+		albedo = Abg + 3 * Nspace;
+		Tri    = albedo + Nspace;
+	}
 
 	/* --- Store current mean intensities, initialize new ones to zero- */
 
@@ -124,14 +214,34 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 			if (negTauColumns(nspect, mu, -1, geometry.rays[mu].Ns, 1, chi,
 							  geometry.rays[mu].s, 1.0, NEGTAU_LINEAR))
 				goto cleanup;
+		/* --- The background scattering source: from Jdag, or, where
+			   the previous sweep found that the background scattering
+			   at this wavelength still needs it, from J iterated with
+			   the populations fixed (N-51), so that J, the rates and
+			   the emergent intensity all come from the same formal
+			   solution --                              -------------- */
+
+		Jsrc = Jdag;
+		if (bg && (pending = bgScatterPending(nspect))) {
+			bgc.nspect = nspect;
+			bgc.chi    = chi;
+			bgc.S      = S;
+			bgc.P      = I;
+			bgc.Tri    = Tri;
+			bgc.as     = as;
+			Jstar      = (double *) malloc(Nspace * sizeof(double));
+			bgScatterBefore(nspect, Nspace, Jdag, Jstar, bgSweep_sphere, &bgc);
+			Jsrc = Jstar;
+		}
 		for (k = 0; k < Nspace; k++)
-			S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k]) / chi[k];
+			S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jsrc[k]) / chi[k];
 
 		for (mu = 0; mu < Nrays; mu++) {
 			spectrum.I[nspect][mu] =
-				Feautrier(nspect, mu, chi, S, F_order = STANDARD, I, Psi);
+				Feautrier(nspect, mu, chi, S, F_order = STANDARD, I, Psi, Tri);
 
 			ray = geometry.rays + mu;
+			if (bg) addTri_sphere(ray, Tri, as->sca_c, chi, Abg, albedo);
 			if (eval_operator) {
 				for (k = 0; k < ray->Ns; k++) Psi[k] /= chi[k];
 				addtoGamma_sphere(nspect, ray, I, Psi);
@@ -157,6 +267,10 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 				dJ = (Jdag[k] != 0.0) ? 1.0 : 0.0;
 			dJmax = MAX(dJmax, dJ);
 		}
+		/* --- Whether the next sweep iterates the background
+			   scattering at this wavelength first (N-51) -- -------- */
+
+		if (bg && !pending) bgScatterAfter(nspect, Nspace, Jsrc, J, Abg, albedo);
 		if (input.limit_memory) writeJlambda(nspect, J);
 	}
 	/* --- Clean up; the formal solution of this wavelength stops here
@@ -170,6 +284,8 @@ cleanup:
 
 	free(chi);
 	free(Jdag);
+	free(Jstar);
+	free(Abg);
 	free(I);
 	free(S);
 	if (eval_operator) free(Psi);
