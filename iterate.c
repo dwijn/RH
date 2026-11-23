@@ -466,7 +466,7 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 			if (bs.Nunconverged > 0) {
 				sprintf(messageStr,
 						"; %ld not converged at BACKGROUND_N_MAX_ITER"
-						" (residual up to %.2E)\n",
+						" (estimated error up to %.2E)\n",
 						bs.Nunconverged, bs.rmax);
 				Error(MESSAGE, NULL, messageStr);
 			}

@@ -25,21 +25,22 @@
 	   iteration. bgScatterIterate repeats it, with the caller's sweep
 	   function for the formal solutions, accelerated by Anderson
 	   (anderson.c, depth BACKGROUND_ANDERSON_DEPTH, 0 for plain
-	   Jacobi), until the largest |g - u| / g is below
-	   BACKGROUND_ITER_LIMIT or after BACKGROUND_N_MAX_ITER sweeps.
+	   Jacobi), until the error of J estimated from the step is below
+	   BACKGROUND_ITER_LIMIT (N-66, below) or after
+	   BACKGROUND_N_MAX_ITER sweeps.
 
 	   The iteration runs before the main sweep of a wavelength
 	   (bgScatterBefore), from the J of the previous sweep, and the
 	   main sweep starts from the iterated J*. J, the rates of the
 	   active atoms, Jgas of hybrid PRD and the emergent intensity then
 	   all come from that one formal solution, J = Lambda[S(J*)], which
-	   differs from J* by about BACKGROUND_ITER_LIMIT. Every wavelength
-	   is iterated first in the first sweep, and after that while the
-	   iteration still does something: after a main sweep from the
-	   plain J (bgScatterAfter), where the Jacobi step would change J by
-	   more than BACKGROUND_ITER_LIMIT times the scattering albedo, the
-	   next sweep iterates first; where the iteration from J needed no
-	   step, the next sweep does not. The cost is one more formal
+	   is within about BACKGROUND_ITER_LIMIT of the solution. Every
+	   wavelength is iterated first in the first sweep, and after that
+	   while the iteration still does something: after a main sweep from
+	   the plain J (bgScatterAfter), where the error estimated from the
+	   Jacobi step exceeds BACKGROUND_ITER_LIMIT, the next sweep
+	   iterates first; where the iteration from J needed no step, the
+	   next sweep does not. The cost is one more formal
 	   solution per wavelength iterated. BACKGROUND_N_MAX_ITER = 0
 	   gives the plain lambda iteration of before.
 
@@ -48,8 +49,39 @@
 	   value J_fs, or g, instead.
 
 	   Memory: per wavelength being iterated (and per thread), about
-	   3 m + 9 vectors of Nspace doubles, freed at the end --
-	   --                                              -------------- */
+	   3 m + 9 + 4 KAPPA_PAIRS vectors of Nspace doubles, freed at the
+	   end --                                          -------------- */
+
+/* --- The stopping test (N-66). A small step is not a small error:
+	   with M the Jacobian of the step map g(u), the error of g is
+	   M (I - M)^-1 (g - u), of order rho / (1 - rho) times the step,
+	   rho the spectral radius of M. In the core of a strong scattering
+	   line rho is up to 0.999, and a test on the step alone left
+	   errors of 170-400 times the limit. The iteration therefore stops
+	   where F max |g - u| / g <= BACKGROUND_ITER_LIMIT, with
+
+		 F = min(max(kappa, 1), a / (1 - a)):
+
+	   kappa, the secant estimate of ||(I - M)^-1||, from the last
+	   KAPPA_PAIRS evaluated pairs (u_i, g_i). At fixed populations the
+	   map is affine, so the differences du_i = u_i - u_new and df_i =
+	   (g_i - u_i) - (g_new - u_new) obey df_i = (M - I) du_i, and
+	   1 / kappa is the smallest singular value of M - I on the span of
+	   the du_i, in the weights of the iteration (1 / J at its start).
+	   It underestimates the norm where that span misses the slowest
+	   mode; Anderson's own history (m + 1 pairs) is too short for it.
+	   a, the largest albedo: the iteration solves with the linear
+	   short characteristics (also with S_BEZIER3, N-52), where
+	   Lambda sigma >= 0 and the step is a regular splitting of
+	   I - Lambda sigma, so that rho <= ||Lambda sigma||_inf <= a.
+	   kappa is computed only once the step is below the limit, and is
+	   kept per wavelength as the largest so far: a warm start takes a
+	   few steps only, whose span misses the slowest mode. The first
+	   check of bgScatterIterate and bgScatterAfter use it, or a / (1 -
+	   a) where there is none yet. MURaM column of N-65 with the populations frozen: the
+	   largest error of J is then 0.4-0.6 times the limit for limits
+	   from 1e-3 to 1e-8 (the step alone: 170-400 times), for 12 %
+	   more formal solutions in the first sweep (N-66 evidence) -- */
 
 /* --- The operator of S_BEZIER3 is not positive (N-52): where the
 	   Steffen limiter takes the downwind slope, I_k has a negative
@@ -72,6 +104,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <float.h>
 #include <pthread.h>
 
 #include "rh.h"
@@ -91,13 +124,15 @@ extern InputData input;
 extern Spectrum  spectrum;
 extern char      messageStr[];
 
-#define L_MAX    0.9999
-#define COND_MAX 1.0E+08 /* as ANDERSON_COND_MAX */
+#define L_MAX       0.9999
+#define COND_MAX    1.0E+08 /* as ANDERSON_COND_MAX */
+#define KAPPA_PAIRS 10      /* evaluated pairs for kappa (N-66) */
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static BgScatterStats  stats;   /* since the last bgScatterStats(.., TRUE) */
 static unsigned char  *pending; /* per wavelength: iterate before the sweep */
 static unsigned char  *linear;  /* per wavelength, with S_BEZIER3 (N-52) */
+static float          *kappa;   /* per wavelength: the last kappa, 0: none */
 static long            Nlinear;
 
 /* ------- begin -------------------------- bgScatterActive.c ------- */
@@ -146,6 +181,7 @@ void bgScatterSetup(void)
 	if (pending == NULL) {
 		pending = (unsigned char *) malloc(spectrum.Nspect);
 		memset(pending, 1, spectrum.Nspect);
+		kappa = (float *) calloc(spectrum.Nspect, sizeof(float));
 	}
 
 	if (input.S_interpolation != S_LINEAR && linear == NULL) {
@@ -257,14 +293,13 @@ static void precondStep(int N, const double *u, const double *Jfs,
 
 /* ------- begin -------------------------- relChange.c ------------- */
 
-static double relChange(int N, const double *u, const double *g,
-						const double *albedo)
+static double relChange(int N, const double *u, const double *g)
 {
 	register int k;
 
 	double r = 0.0, d;
 
-	/* --- Largest |g - u| / g, weighted by albedo if given. g = 0 where
+	/* --- Largest |g - u| / g. g = 0 where
 		   every emissivity underflowed (far EUV) counts as no change,
 		   as in Formal -- ---                          -------------- */
 
@@ -273,24 +308,165 @@ static double relChange(int N, const double *u, const double *g,
 			d = fabs(1.0 - u[k] / g[k]);
 		else
 			d = (u[k] != 0.0) ? 1.0 : 0.0;
-		if (albedo) d *= albedo[k];
 		if (d > r) r = d;
 	}
 	return r;
 }
 /* ------- end ---------------------------- relChange.c ------------- */
 
+/* ------- begin -------------------------- maxAlbedo.c ------------- */
+
+static double maxAlbedo(int N, const double *albedo)
+{
+	register int k;
+
+	double a = 0.0;
+
+	for (k = 0; k < N; k++)
+		if (albedo[k] > a) a = albedo[k];
+	return a;
+}
+/* ------- end ---------------------------- maxAlbedo.c ------------- */
+
+/* ------- begin -------------------------- errFactor.c ------------- */
+
+static double errFactor(double kap, double amax)
+{
+	double bound = amax / fmax(1.0 - amax, DBL_MIN); /* no select (SIGFPE, N-37) */
+
+	/* --- F of the stopping test: the error of J is about F times the
+		   relative step. kap <= 0: no estimate yet -- -------------- */
+
+	if (!(kap > 0.0)) return bound;
+	return fmin(fmax(kap, 1.0), bound);
+}
+/* ------- end ---------------------------- errFactor.c ------------- */
+
+/* ------- begin -------------------------- secantKappa.c ----------- */
+
+static double secantKappa(int N, int Npairs, int inew, const double *hu,
+						  const double *hf, const double *w, double *work)
+{
+	register int k;
+
+	int    i, j, l, q = 0, it;
+	double C[KAPPA_PAIRS * KAPPA_PAIRS], L[KAPPA_PAIRS * KAPPA_PAIRS],
+		x[KAPPA_PAIRS], y[KAPPA_PAIRS], c, n0, nrm, lam = 0.0, *Q = work,
+													*B = work + KAPPA_PAIRS * N, *d, *e;
+
+	/* --- The estimate kappa of ||(I - M)^-1|| from the pairs held,
+		   hu[i N ...] the iterate u_i and hf[i N ...] its step g_i -
+		   u_i, i = inew the newest (see the stopping test above).
+		   Gram-Schmidt on the weighted du_i (Q), with the same column
+		   operations on the df_i (B = (M - I) Q), dropping a du_i
+		   that is (nearly) in the span of the earlier ones; then the
+		   smallest eigenvalue of B^T B by inverse iteration. Returns
+		   0 without differences, and a huge kappa where B^T B is not
+		   positive definite in floating point. work: 2 KAPPA_PAIRS N
+		   doubles --                                   -------------- */
+
+	for (i = 0; i < Npairs; i++) {
+		if (i == inew) continue;
+		d  = Q + (long) q * N;
+		e  = B + (long) q * N;
+		n0 = 0.0;
+		for (k = 0; k < N; k++) {
+			d[k] = (hu[(long) i * N + k] - hu[(long) inew * N + k]) * w[k];
+			e[k] = (hf[(long) i * N + k] - hf[(long) inew * N + k]) * w[k];
+			n0 += d[k] * d[k];
+		}
+		if (!(n0 > 0.0)) continue;
+		for (l = 0; l < q; l++) {
+			c = 0.0;
+			for (k = 0; k < N; k++) c += Q[(long) l * N + k] * d[k];
+			for (k = 0; k < N; k++) {
+				d[k] -= c * Q[(long) l * N + k];
+				e[k] -= c * B[(long) l * N + k];
+			}
+		}
+		nrm = 0.0;
+		for (k = 0; k < N; k++) nrm += d[k] * d[k];
+		if (!(nrm > 1.0E-16 * n0)) continue;
+		nrm = sqrt(nrm);
+		for (k = 0; k < N; k++) {
+			d[k] /= nrm;
+			e[k] /= nrm;
+		}
+		q++;
+	}
+	if (q == 0) return 0.0;
+
+	for (i = 0; i < q; i++) {
+		for (j = 0; j <= i; j++) {
+			c = 0.0;
+			for (k = 0; k < N; k++) c += B[(long) i * N + k] * B[(long) j * N + k];
+			C[i * q + j] = C[j * q + i] = c;
+		}
+	}
+	for (j = 0; j < q; j++) {
+		c = C[j * q + j];
+		for (l = 0; l < j; l++) c -= L[j * q + l] * L[j * q + l];
+		if (!(c > 0.0)) return 1.0E+30;
+		L[j * q + j] = sqrt(c);
+		for (i = j + 1; i < q; i++) {
+			c = C[i * q + j];
+			for (l = 0; l < j; l++) c -= L[i * q + l] * L[j * q + l];
+			L[i * q + j] = c / L[j * q + j];
+		}
+	}
+	for (i = 0; i < q; i++) x[i] = 1.0;
+	for (it = 0; it < 50; it++) {
+		for (i = 0; i < q; i++) {
+			c = x[i];
+			for (l = 0; l < i; l++) c -= L[i * q + l] * y[l];
+			y[i] = c / L[i * q + i];
+		}
+		for (i = q - 1; i >= 0; i--) {
+			c = y[i];
+			for (l = i + 1; l < q; l++) c -= L[l * q + i] * x[l];
+			x[i] = c / L[i * q + i];
+		}
+		nrm = 0.0;
+		for (i = 0; i < q; i++) nrm += x[i] * x[i];
+		nrm = sqrt(nrm);
+		for (i = 0; i < q; i++) x[i] /= nrm;
+		lam = 1.0 / nrm;
+	}
+	return 1.0 / sqrt(fmax(lam, 1.0E-60));
+}
+/* ------- end ---------------------------- secantKappa.c ----------- */
+
+/* ------- begin -------------------------- pushPair.c -------------- */
+
+static void pushPair(int N, int *Npairs, int *inew, const double *u,
+					 const double *g, double *hu, double *hf)
+{
+	register int k;
+
+	/* --- A ring of the last KAPPA_PAIRS evaluated pairs -- ------- */
+
+	*inew = (*Npairs == 0) ? 0 : (*inew + 1) % KAPPA_PAIRS;
+	if (*Npairs < KAPPA_PAIRS) (*Npairs)++;
+	for (k = 0; k < N; k++) {
+		hu[(long) *inew * N + k] = u[k];
+		hf[(long) *inew * N + k] = g[k] - u[k];
+	}
+}
+/* ------- end ---------------------------- pushPair.c -------------- */
+
 /* ------- begin -------------------------- bgScatterIterate.c ------ */
 
 int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 					 const double *A, const double *albedo, double *J,
-					 BgSweep sweep, void *ctx)
+					 double *kap, BgSweep sweep, void *ctx)
 {
 	register int k;
 
-	int                 m = input.bg_depth, niter = 0, converged = FALSE;
-	long                start[2] = {0, Nspace};
-	double             *u, *g, *un, *Jn, *An, *w, *gamma, *work, r;
+	int m = input.bg_depth, niter = 0, converged = FALSE,
+		Npairs = 0, inew = 0, fresh = FALSE;
+	long    start[2] = {0, Nspace};
+	double *u, *g, *un, *Jn, *An, *w, *gamma, *work, *hu, *hf, r,
+		amax, kn = 0.0;
 	enum AndersonAction action;
 	AndersonOptions     opt;
 	AndersonSolve       info;
@@ -299,26 +475,31 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 	/* --- Jdag: the J the main sweep started from; Jfs: its formal
 		   solution; A: the tridiagonal of dJ/du, A[3k + i] = dJ_k/
 		   du_k-1+i; albedo: the angle average of sca_c / chi. J (may
-		   be Jfs) gets the result -- --                  -------------- */
+		   be Jfs) gets the result. kap: in, the last kappa of this
+		   wavelength (<= 0: none); out, the new one (N-66) -- ---- */
 
 	u    = (double *) malloc(6 * Nspace * sizeof(double));
 	g    = u + Nspace;
 	work = g + Nspace;
 	memcpy(u, Jdag, Nspace * sizeof(double));
 	precondStep(Nspace, u, Jfs, A, g, work);
+	amax = maxAlbedo(Nspace, albedo);
+	r    = relChange(Nspace, u, g);
 
-	/* --- Nothing to iterate where the scattering cannot change J by
-		   more than the limit --                       -------------- */
+	/* --- Nothing to iterate where the error estimated from the step,
+		   with the last kappa, is below the limit -- -------------- */
 
-	if (relChange(Nspace, u, g, albedo) <= input.bg_iterLimit) {
+	if (errFactor(*kap, amax) * r <= input.bg_iterLimit) {
 		memcpy(J, g, Nspace * sizeof(double));
 		free(u);
 		return 0;
 	}
-	un    = (double *) malloc(6 * Nspace * sizeof(double));
+	un    = (double *) malloc((6 + 4 * KAPPA_PAIRS) * Nspace * sizeof(double));
 	Jn    = un + Nspace;
 	An    = Jn + Nspace;
 	w     = An + 3 * Nspace;
+	hu    = w + Nspace;
+	hf    = hu + KAPPA_PAIRS * Nspace;
 	gamma = (double *) calloc((m > 0) ? m : 1, sizeof(double));
 	for (k = 0; k < Nspace; k++) w[k] = (g[k] > 0.0) ? 1.0 / g[k] : 0.0;
 	if (m > 0) {
@@ -330,11 +511,26 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 		opt.safeguard = 1.0;
 		opt.window    = 1; /* the newest accepted pair, as before S-12 */
 	}
-	r = relChange(Nspace, u, g, NULL);
+	pushPair(Nspace, &Npairs, &inew, u, g, hu, hf);
 	for (;;) {
+
+		/* --- Converged where the step is below the limit and the
+			   error estimated from it too (kappa only then: work in
+			   hf + KAPPA_PAIRS Nspace onwards). kappa never falls
+			   below the last one of this wavelength: from a J close
+			   to the solution the iteration takes a few steps only,
+			   and the span of so few differences misses the slowest
+			   mode -- --                                -------------- */
+
 		if (r <= input.bg_iterLimit) {
-			converged = TRUE;
-			break;
+			kn    = fmax(secantKappa(Nspace, Npairs, inew, hu, hf, w,
+									 hf + KAPPA_PAIRS * Nspace),
+						 *kap);
+			fresh = TRUE;
+			if (errFactor(kn, amax) * r <= input.bg_iterLimit) {
+				converged = TRUE;
+				break;
+			}
 		}
 		if (niter >= input.bg_NmaxIter) break;
 
@@ -354,8 +550,15 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 		sweep(ctx, u, Jn, An, NULL);
 		precondStep(Nspace, u, Jn, An, g, work);
 		niter++;
-		r = relChange(Nspace, u, g, NULL);
+		r = relChange(Nspace, u, g);
+		pushPair(Nspace, &Npairs, &inew, u, g, hu, hf);
+		fresh = FALSE;
 	}
+	if (!fresh)
+		kn = fmax(secantKappa(Nspace, Npairs, inew, hu, hf, w,
+							  hf + KAPPA_PAIRS * Nspace),
+				  *kap);
+	if (kn > 0.0) *kap = kn;
 	memcpy(J, g, Nspace * sizeof(double));
 
 	pthread_mutex_lock(&lock);
@@ -363,6 +566,7 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 	stats.Nsweeps += niter;
 	if (!converged) {
 		stats.Nunconverged++;
+		r *= errFactor(kn, amax);
 		if (r > stats.rmax) stats.rmax = r;
 	}
 	pthread_mutex_unlock(&lock);
@@ -391,20 +595,22 @@ void bgScatterBefore(int nspect, int Nspace, const double *Jdag,
 	register int k;
 
 	int     niter;
-	double *Jfs, *A, *albedo;
+	double *Jfs, *A, *albedo, kap = kappa[nspect];
 
 	/* --- One formal solution from Jdag, the iteration from there to
 		   J*, the source of the main sweep. A wavelength the scattering
 		   no longer changes by more than the limit is not iterated
 		   first in the next sweep (J* is then the Jacobi step g). A
 		   wavelength is solved by one thread at a time, so its flag
-		   needs no lock --                              -------------- */
+		   and kappa need no lock --                     -------------- */
 
 	Jfs    = (double *) malloc(5 * Nspace * sizeof(double));
 	A      = Jfs + Nspace;
 	albedo = A + 3 * Nspace;
 	sweep(ctx, Jdag, Jfs, A, albedo);
-	niter = bgScatterIterate(Nspace, Jdag, Jfs, A, albedo, Jstar, sweep, ctx);
+	niter         = bgScatterIterate(Nspace, Jdag, Jfs, A, albedo, Jstar, &kap,
+									 sweep, ctx);
+	kappa[nspect] = (float) kap;
 	if (niter == 0) pending[nspect] = 0;
 
 	/* --- Opacities negative enough to overflow are caught by the main
@@ -433,7 +639,9 @@ void bgScatterAfter(int nspect, int Nspace, const double *u,
 	if (pending == NULL) return;
 	g = (double *) malloc(5 * Nspace * sizeof(double)); /* g, work */
 	precondStep(Nspace, u, Jfs, A, g, g + Nspace);
-	if (relChange(Nspace, u, g, albedo) > input.bg_iterLimit)
+	if (errFactor(kappa[nspect], maxAlbedo(Nspace, albedo)) *
+			relChange(Nspace, u, g) >
+		input.bg_iterLimit)
 		pending[nspect] = 1;
 	free(g);
 }

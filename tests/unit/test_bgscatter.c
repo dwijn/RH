@@ -16,7 +16,10 @@
 		  the tridiagonal and the diagonal operator, eps = 1e-4 and
 		  1e-6, within the solves recorded below;
 	   -- BACKGROUND_N_MAX_ITER bounds the solves, and the result then
-		  is still positive.
+		  is still positive;
+	   -- BACKGROUND_ITER_LIMIT bounds the error of J, not only the
+		  last step (N-66): from J = 0, limits 1e-3 to 1e-7, eps 1e-4
+		  and 1e-6, every operator.
 	   --                                              -------------- */
 
 #include <math.h>
@@ -268,7 +271,7 @@ static void check_iterate(double eps, enum bg_operator op, int depth,
 	double *Lam = malloc(N * N * sizeof(double)), *Jx = malloc(N * sizeof(double)),
 		   *Jdag = calloc(N, sizeof(double)), *Jfs = malloc(N * sizeof(double)),
 		   *A = malloc(3 * N * sizeof(double)), *alb = malloc(N * sizeof(double)),
-		   *J = malloc(N * sizeof(double)), err = 0.0;
+		   *J = malloc(N * sizeof(double)), err = 0.0, kap;
 	BgScatterStats st;
 
 	slab_init(&s, N, eps, FALSE);
@@ -281,7 +284,8 @@ static void check_iterate(double eps, enum bg_operator op, int depth,
 
 	bgScatterStats(&st, TRUE);
 	sweep(&s, Jdag, Jfs, A, NULL);
-	bgScatterIterate(N, Jdag, Jfs, A, alb, J, sweep, &s);
+	kap = 0.0;
+	bgScatterIterate(N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
 	bgScatterStats(&st, TRUE);
 	for (int k = 0; k < N; k++) err = fmax(err, fabs(J[k] / Jx[k] - 1.0));
 
@@ -300,7 +304,8 @@ static void check_iterate(double eps, enum bg_operator op, int depth,
 	/* --- BACKGROUND_N_MAX_ITER bounds the work; J stays positive -- */
 
 	input.bg_NmaxIter = 3;
-	bgScatterIterate(N, Jdag, Jfs, A, alb, J, sweep, &s);
+	kap               = 0.0;
+	bgScatterIterate(N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
 	bgScatterStats(&st, TRUE);
 	CHECK(st.Nsweeps == 3 && st.Nunconverged == 1, "N_MAX_ITER = 3: %ld solves",
 		  st.Nsweeps);
@@ -314,6 +319,126 @@ static void check_iterate(double eps, enum bg_operator op, int depth,
 	free(A);
 	free(alb);
 	free(J);
+}
+
+/* --- The limit bounds the error (N-66). The step alone did not:
+	   stopping on the step, 10 of these 12 cases failed, the diagonal
+	   operator at eps = 1e-6 and limit 1e-3 with an error 41 times the
+	   limit --                                        -------------- */
+
+static void check_error_bound(double eps, enum bg_operator op, int depth)
+{
+	Slab    s;
+	int     N   = 64;
+	double *Lam = malloc(N * N * sizeof(double)), *Jx = malloc(N * sizeof(double)),
+		   *Jdag = calloc(N, sizeof(double)), *Jfs = malloc(N * sizeof(double)),
+		   *A = malloc(3 * N * sizeof(double)), *alb = malloc(N * sizeof(double)),
+		   *J = malloc(N * sizeof(double)), err, kap;
+	BgScatterStats st;
+
+	slab_init(&s, N, eps, FALSE);
+	exact(&s, Jx, Lam);
+	input.bg_operator = op;
+	input.bg_depth    = depth;
+	input.bg_NmaxIter = 5000;
+	for (int k = 0; k < N; k++) alb[k] = 1.0 - eps;
+
+	for (double tol = 1.0e-3; tol > 1.0e-8; tol *= 0.01) {
+		input.bg_iterLimit = tol;
+		kap                = 0.0;
+		bgScatterStats(&st, TRUE);
+		sweep(&s, Jdag, Jfs, A, NULL);
+		bgScatterIterate(N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
+		bgScatterStats(&st, TRUE);
+		err = 0.0;
+		for (int k = 0; k < N; k++) err = fmax(err, fabs(J[k] / Jx[k] - 1.0));
+		CHECK(st.Nunconverged == 0 && err <= tol,
+			  "%s depth %d eps %.0e limit %.0e: relative error %.2e after %ld"
+			  " solves%s",
+			  (op == BG_OPERATOR_TRIDIAGONAL) ? "TRIDIAGONAL" : "DIAGONAL", depth,
+			  eps, tol, err, st.Nsweeps, st.Nunconverged ? " (not converged)" : "");
+		if (getenv("RH_TEST_VERBOSE"))
+			fprintf(stderr, "  %s depth %d eps %.0e limit %.0e: %ld solves, error"
+							" %.2e, kappa %.3g\n",
+					(op == BG_OPERATOR_TRIDIAGONAL) ? "TRIDIAGONAL" : "DIAGONAL",
+					depth, eps, tol, st.Nsweeps, err, kap);
+	}
+	slab_free(&s);
+	free(Lam);
+	free(Jx);
+	free(Jdag);
+	free(Jfs);
+	free(A);
+	free(alb);
+	free(J);
+}
+
+/* --- From the solution of a nearby problem (the populations of the
+	   next iteration: eps 5 % larger) the iteration takes a few steps,
+	   and the error stays below the limit. kappa from those steps
+	   alone is 3-5 times too small with the tridiagonal operator
+	   (RH_TEST_VERBOSE); the slab is forgiving enough that the error
+	   still meets the limit without the last kappa, unlike the MURaM
+	   column of N-66 (Mn II 257.68 nm off by 3e-2 at limit 1e-4) -- */
+
+static double warm_error(double eps, enum bg_operator op, double tol,
+						 int keep, double *kap_out)
+{
+	Slab    s;
+	int     N   = 64;
+	double *Lam = malloc(N * N * sizeof(double)), *Jx = malloc(N * sizeof(double)),
+		   *J0 = calloc(N, sizeof(double)), *J1 = malloc(N * sizeof(double)),
+		   *Jfs = malloc(N * sizeof(double)), *A = malloc(3 * N * sizeof(double)),
+		   *alb = malloc(N * sizeof(double)), *J = malloc(N * sizeof(double)),
+		   err = 0.0, kap = 0.0;
+
+	slab_init(&s, N, eps, FALSE);
+	input.bg_operator  = op;
+	input.bg_depth     = 3;
+	input.bg_NmaxIter  = 5000;
+	input.bg_iterLimit = tol;
+	for (int k = 0; k < N; k++) alb[k] = 1.0 - eps;
+	sweep(&s, J0, Jfs, A, NULL);
+	bgScatterIterate(N, J0, Jfs, A, alb, J1, &kap, sweep, &s);
+
+	s.eps *= 1.05;
+	exact(&s, Jx, Lam);
+	for (int k = 0; k < N; k++) alb[k] = 1.0 - s.eps;
+	if (!keep) kap = 0.0;
+	sweep(&s, J1, Jfs, A, NULL);
+	bgScatterIterate(N, J1, Jfs, A, alb, J, &kap, sweep, &s);
+	for (int k = 0; k < N; k++) err = fmax(err, fabs(J[k] / Jx[k] - 1.0));
+	*kap_out = kap;
+
+	slab_free(&s);
+	free(Lam);
+	free(Jx);
+	free(J0);
+	free(J1);
+	free(Jfs);
+	free(A);
+	free(alb);
+	free(J);
+	return err;
+}
+
+static void check_warm_start(double eps, enum bg_operator op)
+{
+	double kap, kap0, err, err0;
+
+	for (double tol = 1.0e-3; tol > 1.0e-8; tol *= 0.01) {
+		err  = warm_error(eps, op, tol, TRUE, &kap);
+		err0 = warm_error(eps, op, tol, FALSE, &kap0);
+		CHECK(err <= tol, "%s eps %.0e limit %.0e: warm start off by %.2e",
+			  (op == BG_OPERATOR_TRIDIAGONAL) ? "TRIDIAGONAL" : "DIAGONAL", eps,
+			  tol, err);
+		if (getenv("RH_TEST_VERBOSE"))
+			fprintf(stderr,
+					"  warm %s eps %.0e limit %.0e: error %.2e (kappa %.3g);"
+					" without the last kappa %.2e (kappa %.3g)\n",
+					(op == BG_OPERATOR_TRIDIAGONAL) ? "TRIDIAGONAL" : "DIAGONAL", eps,
+					tol, err, kap, err0, kap0);
+	}
 }
 
 /* --- Iterate before the main sweep: the first sweep iterates every
@@ -418,13 +543,21 @@ int main(void)
 	check_tri_linear(1.0e-4);
 	check_tri_bezier();
 
-	/* --- Solves to 1e-10, limit about 1.5 x the measured: 23, 36,
-		   494 (the diagonal operator) and 95 (no Anderson) -- ------ */
+	/* --- Solves to 1e-10, limit about 1.5 x the measured: 24, 66,
+		   520 (the diagonal operator) and 152 (no Anderson); with the
+		   test on the step alone (before N-66) 23, 36, 494, 95 -- -- */
 
 	check_iterate(1.0e-4, BG_OPERATOR_TRIDIAGONAL, 3, 35);
-	check_iterate(1.0e-6, BG_OPERATOR_TRIDIAGONAL, 3, 55);
-	check_iterate(1.0e-4, BG_OPERATOR_DIAGONAL, 3, 750);
-	check_iterate(1.0e-6, BG_OPERATOR_TRIDIAGONAL, 0, 145);
+	check_iterate(1.0e-6, BG_OPERATOR_TRIDIAGONAL, 3, 100);
+	check_iterate(1.0e-4, BG_OPERATOR_DIAGONAL, 3, 780);
+	check_iterate(1.0e-6, BG_OPERATOR_TRIDIAGONAL, 0, 230);
+	check_error_bound(1.0e-4, BG_OPERATOR_TRIDIAGONAL, 3);
+	check_error_bound(1.0e-6, BG_OPERATOR_TRIDIAGONAL, 3);
+	check_error_bound(1.0e-6, BG_OPERATOR_DIAGONAL, 3);
+	check_error_bound(1.0e-6, BG_OPERATOR_TRIDIAGONAL, 0);
+	check_warm_start(1.0e-4, BG_OPERATOR_TRIDIAGONAL);
+	check_warm_start(1.0e-6, BG_OPERATOR_TRIDIAGONAL);
+	check_warm_start(1.0e-6, BG_OPERATOR_DIAGONAL);
 	check_before_after();
 	check_linear_choice();
 
