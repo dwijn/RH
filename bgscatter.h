@@ -25,7 +25,7 @@ typedef struct {
 	long   Niterated;    /* wavelengths that needed the iteration */
 	long   Nsweeps;      /* formal solutions of a wavelength it took */
 	long   Nunconverged; /* stopped at BACKGROUND_N_MAX_ITER */
-	double rmax;         /* largest final residual of those */
+	double rmax;         /* largest estimated error of those (N-66) */
 	long   Nto, Nback;   /* switches to the linear solver and back */
 	long   Nlinear;      /* wavelengths solved linear now (N-52;
 							not reset) */
@@ -41,7 +41,7 @@ void bgScatterSetup(void);
 const char *bgScatterSupported(void);
 int         bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 							 const double *A, const double *albedo, double *J,
-							 BgSweep sweep, void *ctx);
+							 double *kappa, BgSweep sweep, void *ctx);
 void        bgScatterStats(BgScatterStats *s, int reset);
 
 /* --- Iterate before the main sweep (N-51): bgScatterPending says

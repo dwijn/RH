@@ -41,7 +41,8 @@
 # is iterated with the populations fixed before its formal solution: a
 # step with the tridiagonal (or diagonal) operator, accelerated by
 # Anderson of depth
-# BACKGROUND_ANDERSON_DEPTH, until the relative change of J is below
+# BACKGROUND_ANDERSON_DEPTH, until the relative error of J, estimated
+# from the last step and the contraction of the iteration (N-66), is below
 # BACKGROUND_ITER_LIMIT (default: 0.1 x the smaller of ITER_LIMIT and
 # ERROR_LIMIT; with SOLVER = NEWTON_KRYLOV at most NEWTON_NOISE) or
 # after BACKGROUND_N_MAX_ITER solves (0: the lambda
