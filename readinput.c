@@ -21,6 +21,11 @@
 #include "anderson.h"
 #include "error.h"
 
+/* --- BACKGROUND_ITER_LIMIT by default, times min(ITER_LIMIT,
+	   ERROR_LIMIT) (N-65) --                         -------------- */
+
+#define BG_LIMIT_FACTOR 0.1
+
 /* --- Global variables --                             -------------- */
 
 extern enum Topology topology;
@@ -564,17 +569,27 @@ void readInput()
 	}
 
 	/* --- Background scattering at each wavelength (N-51, bgscatter.c):
-		   BACKGROUND_ITER_LIMIT defaults to a tenth of ERROR_LIMIT, or
-		   of ITER_LIMIT without it, so that the J it leaves is well
-		   inside what the solver tests -- ---------------- */
+		   BACKGROUND_ITER_LIMIT defaults to BG_LIMIT_FACTOR times the
+		   tighter of ITER_LIMIT and ERROR_LIMIT, so that the J it leaves
+		   is well inside what the solver tests; ERROR_LIMIT alone used
+		   to set it, which loosened it when ERROR_LIMIT was added
+		   (N-65). With NEWTON_KRYLOV at most NEWTON_NOISE: the finite
+		   differences of Newton assume G that smooth, and an inner
+		   iteration that stops on a limit makes G noisy at that level
+		   (N-65, N-66) -- --                             -------------- */
 
 	input.bg_NmaxIter_set =
 		keywordSet(theKeywords, Nkeyword, "BACKGROUND_N_MAX_ITER");
 	if (!keywordSet(theKeywords, Nkeyword, "BACKGROUND_ITER_LIMIT")) {
-		char value[32];
+		char   value[32];
+		double target = input.iterLimit;
 
-		input.bg_iterLimit =
-			0.1 * ((input.errorLimit > 0.0) ? input.errorLimit : input.iterLimit);
+		if (input.errorLimit > 0.0 && !(target > 0.0 && target <= input.errorLimit))
+			target = input.errorLimit;
+		input.bg_iterLimit = BG_LIMIT_FACTOR * target;
+		if (input.solver == SOLVER_NEWTON_KRYLOV &&
+			input.Newton_noise < input.bg_iterLimit)
+			input.bg_iterLimit = input.Newton_noise;
 		snprintf(value, sizeof(value), "%.6E", input.bg_iterLimit);
 		setKeywordValue(theKeywords, Nkeyword, "BACKGROUND_ITER_LIMIT", value);
 	}

@@ -42,8 +42,9 @@
 # step with the tridiagonal (or diagonal) operator, accelerated by
 # Anderson of depth
 # BACKGROUND_ANDERSON_DEPTH, until the relative change of J is below
-# BACKGROUND_ITER_LIMIT (default: 0.1 x ERROR_LIMIT, or 0.1 x ITER_LIMIT
-# without it) or after BACKGROUND_N_MAX_ITER solves (0: the lambda
+# BACKGROUND_ITER_LIMIT (default: 0.1 x the smaller of ITER_LIMIT and
+# ERROR_LIMIT; with SOLVER = NEWTON_KRYLOV at most NEWTON_NOISE) or
+# after BACKGROUND_N_MAX_ITER solves (0: the lambda
 # iteration). With S_BEZIER3 (the default) the cubic Bezier operator is
 # not positive and the iteration would diverge (N-52): a wavelength is
 # instead solved with the linear solver, and iterated, in every sweep in
