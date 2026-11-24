@@ -8,12 +8,6 @@ rh_program(rhsc2d_gcheck gcheck INSTALL_NAME gcheck_2d
   anglequad.c bezier_2D.c formal.c gcheck.c geometry.c readatmos_xdr.c
   piecewise_2D.c piecestokes_2D.c solvelong.c project.c rii.c
   writegeom_xdr.c writeflux_xdr.c)
-rh_program(rhsc2d_solve2d solve2d INSTALL_NAME solve2d
-  anglequad.c bezier_2D.c iter_2d.c geometry.c piecewise_2D.c
-  piecestokes_2D.c solve2d.c solvelong.c project.c)
-rh_program(rhsc2d_formal2d formal2d INSTALL_NAME formal2d
-  anglequad.c bezier_2D.c formal2d.c geometry.c piecewise_2D.c
-  piecestokes_2D.c solvelong.c project.c)
 rh_program(rhsc2d_solveray solveray INSTALL_NAME solveray_2d
   anglequad.c bezier_2D.c formal.c geometry.c rii.c readatmos_xdr.c
   solveray.c piecewise_2D.c piecestokes_2D.c solvelong.c project.c)
