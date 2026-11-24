@@ -59,7 +59,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 2
       - name: docs/MODERNIZATION.md unchanged
@@ -73,7 +73,7 @@ jobs:
     name: code format (clang-format)
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: clang-format
         run: pip install clang-format==19.1.7
       - name: Check formatting
@@ -92,7 +92,7 @@ jobs:
           - { os: ubuntu-26.04, cc: clang }
           - { os: macos-26, cc: clang }       # Apple silicon
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libtirpc-dev ninja-build
@@ -133,7 +133,7 @@ jobs:
       contents: read
       pull-requests: read   # labels of the merged pull request on push
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 2
       # The label "changes-results" on the pull request. A push to modernize
@@ -178,11 +178,11 @@ jobs:
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "Base commit: $sha" >> "$GITHUB_STEP_SUMMARY"
       - name: Base RH
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.base.outputs.sha }}
           path: base
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Dependencies (Linux)
@@ -263,7 +263,7 @@ jobs:
           fi
       - name: Upstream RH
         if: ${{ !cancelled() && steps.drift.outputs.run == 'true' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ env.UPSTREAM_REPO }}
           ref: ${{ env.UPSTREAM_REF }}
@@ -284,7 +284,7 @@ jobs:
           exit 0
       - name: Keep logs of failed runs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: failed-runs-${{ matrix.os }}
           path: ${{ runner.temp }}/rh-tests/failed
