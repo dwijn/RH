@@ -26,6 +26,15 @@
 
 #define BG_LIMIT_FACTOR 0.1
 
+/* --- ANGLE_SET = SET_EDDINGTON (one ray at muz = 1/sqrt(3)) exists in
+	   1-D plane geometry only; the columnwise solver of 2-D was retired
+	   (Q-41) --                                        -------------- */
+
+#define EDDINGTON_1D_ONLY                                                \
+	"ANGLE_SET = SET_EDDINGTON is available in 1-D plane geometry only"  \
+	" (Q-41):\n use another angle set, or run the columns one by one in" \
+	" 1-D"
+
 /* --- Global variables --                             -------------- */
 
 extern enum Topology topology;
@@ -43,27 +52,6 @@ static bool_t keywordSet(const Keyword *theKeywords, int Nkeyword,
 						 const char *name);
 static void   setKeywordValue(Keyword *theKeywords, int Nkeyword,
 							  const char *name, const char *value);
-static void   setEddingtonNrays(const char *geometryName);
-
-/* ------- begin -------------------------- setEddingtonNrays.c ------ */
-
-/* --- SET_EDDINGTON is one ray at muz = 1/sqrt(3): NRAYS is set to 1, with
-	   a warning when the input gave another value (1-D and 2-D) -- --- */
-
-static void setEddingtonNrays(const char *geometryName)
-{
-	const char routineName[] = "readInput";
-
-	if (atmos.Nrays != 0 && atmos.Nrays != 1) {
-		sprintf(messageStr,
-				"Ignoring value of NRAYS in %s geometry when SET_EDDINGTON is"
-				" specified.\n Setting NRAYS = 1 and muz = 1/sqrt(3)",
-				geometryName);
-		Error(WARNING, routineName, messageStr);
-	}
-	atmos.Nrays = 1;
-}
-/* ------- end ---------------------------- setEddingtonNrays.c ------ */
 
 /* ------- begin -------------------------- readInput.c ------------- */
 
@@ -330,7 +318,16 @@ void readInput()
 				break;
 
 			case SET_EDDINGTON:
-				setEddingtonNrays("1-D plane");
+
+				/* --- One ray at muz = 1/sqrt(3) --         -------------- */
+
+				if (atmos.Nrays != 0 && atmos.Nrays != 1) {
+					Error(WARNING, routineName,
+						  "Ignoring value of NRAYS in 1-D plane geometry when"
+						  " SET_EDDINGTON is specified.\n Setting NRAYS = 1 and"
+						  " muz = 1/sqrt(3)");
+				}
+				atmos.Nrays = 1;
 				break;
 
 			default:
@@ -351,16 +348,8 @@ void readInput()
 		break;
 
 	case TWO_D_PLANE:
-		if (atmos.angleSet.set == SET_EDDINGTON) {
-
-			/* --- Each column is solved on its own (Feautrier_2D) with one
-				   ray at muz = 1/sqrt(3). What needs angle-dependent opacity
-				   has no solver there (B-57); checkEddington() refuses it
-				   once the atoms, the atmosphere and the background are
-				   known --                                  ---------- */
-
-			setEddingtonNrays("2-D plane");
-		}
+		if (atmos.angleSet.set == SET_EDDINGTON)
+			Error(ERROR_LEVEL_2, routineName, EDDINGTON_1D_ONLY);
 		break;
 
 	case THREE_D_PLANE:
@@ -368,10 +357,7 @@ void readInput()
 			Error(ERROR_LEVEL_2, routineName,
 				  "Must set keyword ANGLE_SET in multi-D plane geometry");
 		if (atmos.angleSet.set == SET_EDDINGTON)
-			Error(ERROR_LEVEL_2, routineName,
-				  "ANGLE_SET = SET_EDDINGTON is not available in 3-D plane"
-				  " geometry (there is no 3-D Eddington solver); it is"
-				  " implemented in 1-D and 2-D");
+			Error(ERROR_LEVEL_2, routineName, EDDINGTON_1D_ONLY);
 		if (atmos.Nrays > 0)
 			Error(WARNING, routineName,
 				  "Ignoring value of keyword NRAYS in multi-D plane geometry");
