@@ -1,8 +1,8 @@
 /* ------- file: -------------------------- test_formal_sphere.c ----
 
-	   Spherical formal solution (rhsphere/feautrier.c along the rays of
-	   rhsphere/geometry.c getRays) in a shell of constant opacity chi
-	   and constant source function S = B(T), where the intensities
+	   Spherical formal solution (src/geometry/sphere/feautrier.c along
+	   the rays of src/geometry/sphere/geometry.c getRays) in a shell of
+	   constant opacity chi and constant source function S = B(T), where the intensities
 	   along every ray are known in closed form. A ray with impact
 	   parameter p has path coordinate s = sqrt(r^2 - p^2) (r from the
 	   center), s0 at the outer radius:

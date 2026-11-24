@@ -1,6 +1,6 @@
 /* ------- file: -------------------------- test_formal_stokes.c ----
 
-	   Polarized 1-D formal solver (rhf1d/bezier_1D.c,
+	   Polarized 1-D formal solver (src/geometry/plane1d/bezier_1D.c,
 	   Piece_Stokes_Bezier3_1D, DELO-Bezier) on slabs with known
 	   solutions.
 

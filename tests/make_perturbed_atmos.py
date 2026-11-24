@@ -102,7 +102,7 @@ vy = np.broadcast_to(vy, shape)
 
 be = lambda arr: np.ascontiguousarray(arr, ">f8").tobytes()
 with open(a.dst, "wb") as f:
-    if three_d:     # rhsc3d/readatmos_xdr.c: Nx Ny Nz NHydr, bc[2], dx dy z ...
+    if three_d:     # src/geometry/cart3d/readatmos_xdr.c: Nx Ny Nz NHydr, bc[2], dx dy z ...
         f.write(struct.pack(">4i", nx, ny, Nz, NH))
         f.write(struct.pack(">2i", *bc[1:]))
         f.write(struct.pack(">2d", a.dx, a.dx))
@@ -113,7 +113,7 @@ with open(a.dst, "wb") as f:
             f.write(be(tr(q)))
         for n in range(NH):
             f.write(be(tr(nHp[n])))
-    else:           # rhsc2d/readatmos_xdr.c: Nx Nz NHydr, bc[3], dx[Nx], z ...
+    else:           # src/geometry/cart2d/readatmos_xdr.c: Nx Nz NHydr, bc[3], dx[Nx], z ...
         f.write(struct.pack(">3i", nx, Nz, NH))
         f.write(struct.pack(">3i", *bc))
         f.write(be(np.full(nx, a.dx)))

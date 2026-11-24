@@ -5,7 +5,7 @@ usage: make_tiled_2d_atmos.py IN.atmos OUT.atmos NCOLS
 
 Only used to get a grid large enough for memory-scaling checks from the
 small atmosphere shipped in Atmos/. Handles the layout read by
-rhsc2d/readatmos_xdr.c when no irradiated boundary data trails the file.
+src/geometry/cart2d/readatmos_xdr.c when no irradiated boundary data trails the file.
 2-D arrays are stored with x fastest (index k*Nx + l), i.e. as [Nz][Nx].
 """
 import struct

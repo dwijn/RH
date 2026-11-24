@@ -157,7 +157,9 @@ check_include_file(execinfo.h RH_HAVE_EXECINFO_H)
 # --- The library -----------------------------------------------------------
 # Sources by directory, src/<dir>/<name>.c (layout: docs/LIBRARY.md §6.2,
 # Q-40). The shared headers are in src/include, the others next to their
-# sources; every directory is on the include path.
+# sources. Every directory is on the public include path, as the repository
+# root was before the move; separating the public headers (rh.h of the
+# API) from the internal ones is a later phase of the library track.
 
 set(RH_SRC ${PROJECT_SOURCE_DIR}/src)
 set(rh_runtime error fpehandler getcpu matrix parallel stopreq work)

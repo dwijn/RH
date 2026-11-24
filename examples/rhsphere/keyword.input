@@ -137,7 +137,7 @@
 # until the estimated relative error of J is below BACKGROUND_ITER_LIMIT
 # (default: 0.1 x the smaller of ITER_LIMIT and ERROR_LIMIT), or after
 # BACKGROUND_N_MAX_ITER solves (0: the lambda iteration of before). See
-# rhf1d/run/keyword.input.
+# examples/rhf1d/keyword.input.
 #
 #  BACKGROUND_N_MAX_ITER = 50
 #  BACKGROUND_ANDERSON_DEPTH = 3

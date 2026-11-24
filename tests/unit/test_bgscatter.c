@@ -110,7 +110,8 @@ static void slab_free(Slab *s)
 }
 
 /* --- The sweep of bgScatterIterate: S = eps + (1 - eps) u, J and
-	   A[3k + i] = dJ_k / du_k-1+i, as in rhf1d/formal.c -- -------- */
+	   A[3k + i] = dJ_k / du_k-1+i, as in src/geometry/plane1d/formal.c
+	   --                                              -------------- */
 
 static void sweep(void *ctx, const double *u, double *J, double *A,
 				  double *albedo)

@@ -24,7 +24,8 @@ def template(src, geom):
     examples/rhf1d since the source layout of Q-40, rhf1d/run in older
     trees (a baseline or reference tree of run_stress.py)."""
     d = os.path.join(src, "examples", geom)
-    return d if os.path.isdir(d) else os.path.join(src, geom, "run")
+    old = os.path.join(src, geom, "run")
+    return old if not os.path.isdir(d) and os.path.isdir(old) else d
 
 
 def _remove(d):

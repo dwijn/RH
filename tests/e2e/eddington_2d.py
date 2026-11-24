@@ -100,7 +100,7 @@ def read_I(d, Nx):
     return read_spectrum(os.path.join(d, "spectrum.out"), Nx)
 
 
-# --- 2-D atmosphere files: the layout read by rhsc2d/readatmos_xdr.c
+# --- 2-D atmosphere files: the layout read by src/geometry/cart2d/readatmos_xdr.c
 #     (see tests/make_tiled_2d_atmos.py): Nx, Nz, NH, three boundary
 #     codes, dx[Nx], z[Nz], then T, ne, vturb, vx, vz (each [Nz][Nx]) and
 #     nH[NH][Nz][Nx]; big-endian

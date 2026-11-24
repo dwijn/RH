@@ -47,7 +47,7 @@ PRO make2dslab, IRRAD=irrad
 ;; --- Read the radiation field from a 1-D model
 
     spawn, 'pwd', /NOSHELL, current_dir
-    data_dir = '~/src/rh/rhf1d/run/'
+    data_dir = '~/src/rh/examples/rhf1d/'
     cd, data_dir
 
 @files.common

@@ -1,8 +1,8 @@
 /* ------- file: -------------------------- test_zeeman.c -----------
 
 	   Zeeman splitting (zeeman.c) and the polarized absorption and
-	   magneto-optical profiles (profile.c, with rhf1d/project.c for the
-	   angles) of fictional lines, against expressions derived from
+	   magneto-optical profiles (profile.c, with
+	   src/geometry/plane1d/project.c for the angles) of fictional lines, against expressions derived from
 	   first principles (docs/unit-tests, section "Zeeman effect").
 
 	   Line configurations (lower -> upper level):
