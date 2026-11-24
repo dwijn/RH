@@ -5,9 +5,10 @@
 # request carries the label "changes-results" (an intended change of
 # results: then the differences are only reported). A second comparison with upstream RH
 # (c95bdf6) reports how far the results have drifted from it; it never
-# fails, but differences there need an explanation in the log. On a pull
-# request it runs only with that label or when the comparison with the base
-# fails: otherwise the results match the base, and so does their drift (Q-27).
+# fails, but differences there need an explanation in the log. It is a job of
+# its own (drift), on Linux only, run on pushes, manual runs and pull requests
+# with that label: otherwise the results match the base, and so does their
+# drift (Q-27, Q-37).
 
 name: CI
 
@@ -245,34 +246,47 @@ jobs:
             exit $?
           fi
           exit $rc
-      # The drift from upstream changes only when the results do: on a pull
-      # request without the label that passes the comparison with the base,
-      # it is the base's drift. Pushes and manual runs always report it.
-      - name: Drift from upstream needed?
-        id: drift
-        if: ${{ !cancelled() && (steps.regress.outcome == 'success' || steps.regress.outcome == 'failure') }}
-        run: |
-          if [ "${{ github.event_name }}" != pull_request ] || [ "$CHANGES_RESULTS" = true ] ||
-             [ "${{ steps.regress.outcome }}" = failure ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            { echo "### Against upstream RH (report only)"
-              echo "Not run: the results match the base commit, so the drift is the base's."
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+      - name: Keep logs of failed runs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: failed-runs-${{ matrix.os }}
+          path: ${{ runner.temp }}/rh-tests/failed
+          if-no-files-found: ignore
+
+  # The drift from upstream, in parallel with the regression jobs (Q-37). It
+  # changes only when the results do: on a pull request without the label
+  # that passes the comparison with the base, it is the base's drift, and one
+  # that fails without the label fails anyway (adding the label reruns CI).
+  # Linux only: the drift is a property of the code, and the macOS numbers
+  # differ from these only by clang's FMA contraction on arm64 (~1e-10); the
+  # macOS regression job still compares each change with its base there.
+  drift:
+    name: drift from upstream (report only)
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'changes-results')
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
       - name: Upstream RH
-        if: ${{ !cancelled() && steps.drift.outputs.run == 'true' }}
         uses: actions/checkout@v7
         with:
           repository: ${{ env.UPSTREAM_REPO }}
           ref: ${{ env.UPSTREAM_REF }}
           path: upstream
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y libtirpc-dev ninja-build time
+          pip install numpy
+      - name: Build
+        run: |
+          cmake -B build -G Ninja -DCMAKE_C_COMPILER=gcc
+          cmake --build build
       - name: Build upstream
-        if: ${{ !cancelled() && steps.drift.outputs.run == 'true' }}
-        run: CC=${{ matrix.cc }} tests/build_upstream.sh upstream
-      - name: Drift from upstream (report only)
-        if: ${{ !cancelled() && steps.drift.outputs.run == 'true' }}
+        run: CC=gcc tests/build_upstream.sh upstream
+      - name: Drift from upstream
         run: |
           set +e
           python3 tests/run_tests.py --baseline upstream --candidate . --threads "" \
@@ -282,10 +296,3 @@ jobs:
             echo '```'; grep -E 'vs baseline|^passed' upstream.log; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit 0
-      - name: Keep logs of failed runs
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: failed-runs-${{ matrix.os }}
-          path: ${{ runner.temp }}/rh-tests/failed
-          if-no-files-found: ignore
