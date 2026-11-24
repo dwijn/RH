@@ -155,35 +155,50 @@ unset(CMAKE_REQUIRED_LIBRARIES)
 check_include_file(execinfo.h RH_HAVE_EXECINFO_H)
 
 # --- The library -----------------------------------------------------------
+# Sources by directory, src/<dir>/<name>.c (layout: docs/LIBRARY.md §6.2,
+# Q-40). The shared headers are in src/include, the others next to their
+# sources. Every directory is on the public include path, as the repository
+# root was before the move; separating the public headers (rh.h of the
+# API) from the internal ones is a later phase of the library track.
 
-add_library(rh STATIC
-  abundance.c accelerate.c anderson.c background.c bgscatter.c backgropac_xdr.c barklem.c
-  bezier_aux.c broad.c brs_xdr.c chemequil.c cocollisions.c collision.c
-  cubeconvol.c duplicate.c error.c expint.c fillgamma.c
-  fixedrate.c fpehandler.c gammafunc.c gaussleg.c getcpu.c getlambda.c
-  getline.c giigen.c gth.c hunt.c hydrogen.c
-  initial_xdr.c initscatter.c iterate.c kurucz.c linear.c ltepops.c
-  ludcmp.c matrix.c maxchange.c metal.c molzeeman.c mpe.c negtau.c nemetals.c newton.c ohchbf.c
-  opacity.c options.c order.c parallel.c parse.c paschen.c pchip.c planck.c
-  pops_xdr.c profile.c radrate_xdr.c rayleigh.c readatom.c readb_xdr.c
-  prdfold.c prdh.c prdrho.c readinput.c readj.c readmolecule.c readvalue.c redistribute.c scatter.c
-  solvene.c solver.c gchecks.c sortlambda.c statequil.c stokesgrid.c stokesopac.c stopreq.c
-  thomson.c vacuumtoair.c voigt.c w3.c wigner.c work.c writeatmos_xdr.c
-  writeatom_xdr.c writecoll_xdr.c writedamp_xdr.c writeinput_xdr.c
-  writemetal_xdr.c writemolec_xdr.c writeopac_xdr.c writespect_xdr.c
-  zeeman.c)
-target_include_directories(rh PUBLIC ${PROJECT_SOURCE_DIR})
+set(RH_SRC ${PROJECT_SOURCE_DIR}/src)
+set(rh_runtime error fpehandler getcpu matrix parallel stopreq work)
+set(rh_numerics accelerate anderson cubeconvol expint gammafunc gaussleg gth
+  hunt linear ludcmp maxchange mpe newton order pchip w3)
+set(rh_physics background barklem broad chemequil cocollisions collision
+  fixedrate giigen hydrogen kurucz ltepops metal molzeeman nemetals ohchbf
+  paschen planck prdfold prdh prdrho profile rayleigh scatter solvene thomson
+  vacuumtoair voigt wigner zeeman)
+set(rh_transfer bezier_aux bgscatter negtau opacity stokesgrid stokesopac)
+set(rh_nlte fillgamma gchecks initial_xdr initscatter iterate redistribute
+  solver statequil)
+set(rh_model duplicate getlambda sortlambda)
+set(rh_io abundance backgropac_xdr brs_xdr getline options parse pops_xdr
+  radrate_xdr readatom readb_xdr readinput readj readmolecule readvalue
+  writeatmos_xdr writeatom_xdr writecoll_xdr writedamp_xdr writeinput_xdr
+  writemetal_xdr writemolec_xdr writeopac_xdr writespect_xdr)
+
+set(rh_sources)
+foreach(dir runtime numerics physics transfer nlte model io)
+  foreach(name ${rh_${dir}})
+    list(APPEND rh_sources ${RH_SRC}/${dir}/${name}.c)
+  endforeach()
+endforeach()
+add_library(rh STATIC ${rh_sources})
+foreach(dir include runtime numerics physics transfer nlte model io)
+  target_include_directories(rh PUBLIC ${RH_SRC}/${dir})
+endforeach()
 target_link_libraries(rh PUBLIC rh_options rh_xdr Threads::Threads)
 if(RH_MATH_LIBRARY)
   target_link_libraries(rh PUBLIC ${RH_MATH_LIBRARY})
 endif()
 if(RH_HAVE_FEENABLEEXCEPT)
-  set_property(SOURCE fpehandler.c APPEND PROPERTY COMPILE_DEFINITIONS
-               HAVE_FEENABLEEXCEPT)
+  set_property(SOURCE ${RH_SRC}/runtime/fpehandler.c APPEND PROPERTY
+               COMPILE_DEFINITIONS HAVE_FEENABLEEXCEPT)
 endif()
 if(RH_HAVE_EXECINFO_H)
-  set_property(SOURCE fpehandler.c APPEND PROPERTY COMPILE_DEFINITIONS
-               HAVE_EXECINFO_H)
+  set_property(SOURCE ${RH_SRC}/runtime/fpehandler.c APPEND PROPERTY
+               COMPILE_DEFINITIONS HAVE_EXECINFO_H)
 endif()
 
 # --- Programs --------------------------------------------------------------
@@ -204,10 +219,12 @@ function(rh_program target name)
   install(PROGRAMS $<TARGET_FILE:${target}> TYPE BIN RENAME ${P_INSTALL_NAME})
 endfunction()
 
-add_subdirectory(rhf1d)
-add_subdirectory(rhsc2d)
-add_subdirectory(rhsc3d)
-add_subdirectory(rhsphere)
+# The geometries live in src/geometry/; their programs keep their build
+# directories (build/rhf1d/rhf1d, ...), where the test scripts look for them.
+add_subdirectory(src/geometry/plane1d rhf1d)
+add_subdirectory(src/geometry/cart2d rhsc2d)
+add_subdirectory(src/geometry/cart3d rhsc3d)
+add_subdirectory(src/geometry/sphere rhsphere)
 if(RH_BUILD_TOOLS)
   add_subdirectory(tools)
 endif()

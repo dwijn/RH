@@ -20,8 +20,12 @@ RAN = (EXIT_OK, EXIT_NOT_CONVERGED)     # the run went to its end
 
 
 def template(src, geom):
-    """The shipped example of a geometry, e.g. template(src, "rhf1d")."""
-    return os.path.join(src, geom, "run")
+    """The shipped example of a geometry, e.g. template(src, "rhf1d"):
+    examples/rhf1d since the source layout of Q-40, rhf1d/run in older
+    trees (a baseline or reference tree of run_stress.py)."""
+    d = os.path.join(src, "examples", geom)
+    old = os.path.join(src, geom, "run")
+    return old if not os.path.isdir(d) and os.path.isdir(old) else d
 
 
 def _remove(d):

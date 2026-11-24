@@ -18,7 +18,7 @@ def parse(required=(), optional=(), verbose=False, src_help=None, argv=None):
         p.add_argument("--" + k)
     p.add_argument("--src", default=SRC,
                    help=src_help or "RH source tree (Atoms/, Atmos/, Molecules/, "
-                                    "<geometry>/run/)")
+                                    "examples/)")
     p.add_argument("--work", help="run directory, kept (default: a temporary dir under "
                                   "$TMPDIR, removed when the test passes, kept and named "
                                   "on failure)")

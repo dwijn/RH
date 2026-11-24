@@ -12,3 +12,8 @@ rh_program(nist_pf nist_pf nist_pf.c)
 rh_program(waveinfo waveinfo waveinfo.c)
 rh_program(readkurucz readkurucz readkurucz.c writemulti.c)
 rh_program(readtrujillo readtrujillo readtrujillo.c writemulti.c)
+
+# These write 1-D model atmospheres with the Geometry of src/geometry/plane1d
+foreach(t readkurucz readtrujillo)
+  target_include_directories(${t} PRIVATE ${PROJECT_SOURCE_DIR}/src/geometry/plane1d)
+endforeach()

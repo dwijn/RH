@@ -36,7 +36,7 @@ extern Geometry   geometry;
 extern Atmosphere atmos;
 extern Spectrum   spectrum;
 
-/* --- The solvers under test (rhf1d/) --              -------------- */
+/* --- The solvers under test (src/geometry/plane1d/) -- ---------- */
 
 void   Piecewise_Linear_1D(int nspect, int mu, bool_t to_obs, double *chi,
 						   double *S, double *I, double *Psi);

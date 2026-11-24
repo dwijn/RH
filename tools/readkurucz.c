@@ -14,7 +14,7 @@
 #include "atom.h"
 #include "atomweights.h"
 #include "atmos.h"
-#include "rhf1d/geometry.h"
+#include "geometry.h" /* src/geometry/plane1d */
 #include "error.h"
 #include "inputs.h"
 #include "constant.h"

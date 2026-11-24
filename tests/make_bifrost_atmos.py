@@ -12,10 +12,11 @@ for lgtg, lgne, ux, uy, uz, bx, by, bz and the six hydrogen populations
 lgn1..lgn6. These are in SI units, cell centred, with z the height (up) and
 uz, bz positive upward; arrays are stored [z][y][x] with z increasing.
 
-Writes OUT.atmos (the layout read by rhsc2d/ or rhsc3d/readatmos_xdr.c) and
+Writes OUT.atmos (the layout read by src/geometry/cart2d/ or
+cart3d/readatmos_xdr.c) and
 OUT.B (B [T], gamma and chi [rad], read by readb_xdr.c). With --1d it writes
 the single column (X0, Y0) as a text atmosphere on a height scale for rhf1d
-(rhf1d/multiatmos.c), e.g. to compare a 2-D run with its columns in 1-D.
+(src/geometry/plane1d/multiatmos.c), e.g. to compare a 2-D run with its columns in 1-D.
 
 RH treats both horizontal boundaries as periodic (3-D: the only option;
 2-D: FIXED would need the incoming intensity at every wavelength on the
@@ -129,7 +130,7 @@ Nz = len(kz)
 zkm = z[kz] * 1e3
 dx = s * dx0
 
-if a.one_d:     # rhf1d/multiatmos.c: text, height [km], ne and nH in cm^-3
+if a.one_d:     # src/geometry/plane1d/multiatmos.c: text, height [km], ne and nH in cm^-3
     with open(a.out + ".atmos", "w") as f:
         f.write(f"* Bifrost column x = {ix[0]}, y = {iy[0]} (full-resolution indices)\n"
                 f"  BIFROST_{ix[0]}_{iy[0]}\n  Height scale\n* log g [cm s^-2]\n  4.44\n"
@@ -150,14 +151,14 @@ if a.one_d:     # rhf1d/multiatmos.c: text, height [km], ne and nH in cm^-3
 be = lambda q: np.ascontiguousarray(q, ">f8").tobytes()   # [z][y][x]: x fastest
 bc_top, bc_bottom = 1, 2                                   # ZERO, THERMALIZED
 with open(a.out + ".atmos", "wb") as f:
-    if a.three_d:   # rhsc3d/readatmos_xdr.c: Nx Ny Nz NHydr, bc[2], dx dy z ...
+    if a.three_d:   # src/geometry/cart3d/readatmos_xdr.c: Nx Ny Nz NHydr, bc[2], dx dy z ...
         f.write(struct.pack(">4i", nx, ny, Nz, 6))
         f.write(struct.pack(">2i", bc_top, bc_bottom))
         f.write(struct.pack(">2d", dx, dx))
         f.write(be(zkm))
         for q in (T, ne, vt, v[0], v[1], v[2]):
             f.write(be(q))
-    else:           # rhsc2d/readatmos_xdr.c: Nx Nz NHydr, bc[3], dx[Nx], z ...
+    else:           # src/geometry/cart2d/readatmos_xdr.c: Nx Nz NHydr, bc[3], dx[Nx], z ...
         f.write(struct.pack(">3i", nx, Nz, 6))
         f.write(struct.pack(">3i", 1, bc_top, bc_bottom))   # PERIODIC
         f.write(be(np.full(nx, dx)))

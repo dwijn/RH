@@ -15,7 +15,7 @@
 #include "rh.h"
 #include "atom.h"
 #include "atmos.h"
-#include "rhf1d/geometry.h"
+#include "geometry.h" /* src/geometry/plane1d */
 #include "error.h"
 #include "constant.h"
 #include "xdr.h"
