@@ -36,6 +36,12 @@ it, and a migration plan that keeps every step verifiable.
   (§3.8). Timing and stopping (`PRINT_CPU`, `STOP_RH`) are redone (§3.9).
   What is specific to solar conditions moves out of the library into
   run-time input where that is cheap (§3.10).
+- **Decided (user, 2026-11-24, on review):** the breaking changes of §7 as
+  proposed. Run-time configuration is preferred wherever it is possible,
+  including the checkpoint level (§3.8) and the profiling probes (§3.9).
+  TOML for the configuration. Validity limits of built-in data are reported
+  only when a run exceeds them (§3.10). A5 of §3.10 is logged as N-69, to be
+  fixed on `modernize`.
 
 Contents: §1 the clients and what they need, §2 requirements, §3 the
 design (objects, geometry, threads, errors, memory, derivatives,
@@ -96,7 +102,7 @@ Each requirement is a test the design and the finished library must pass.
 | C10 | **Testable in pieces.** Every module can be unit-tested without globals. |
 | C11 | **Prompt stop.** A stop request ends a solve within seconds (one block of wavelengths) and leaves the solver at its last completed iterate, from which it can continue or be checkpointed. |
 | C12 | **Timing built in.** Every solve reports wall-clock and CPU time per stage and its work counts; finer profiling is a compile-time option. |
-| C13 | **No built-in solar assumptions.** Properties of the star (abundances and the others of §3.10) come from run-time input; the validity limits of built-in data are reported, not hidden. |
+| C13 | **No built-in solar assumptions.** Properties of the star (abundances and the others of §3.10) come from run-time input; a run that uses built-in data outside its validity range says so. |
 
 **Stand-alone**
 
@@ -175,7 +181,7 @@ flowchart TB
   options object that accepts `set("iteration.limit", "1e-4")`; reading
   the configuration *file* moves to the I/O library. One schema, three front
   ends.
-- **Proposed: TOML for the configuration** (F-5): tables and arrays of
+- **Decided: TOML for the configuration** (F-5): tables and arrays of
   tables give the solver blocks and the per-atom options their structure
   (`[solver.anderson]`, `[[atoms]] file = ... active = true`), so most of
   today's keyword conflicts cannot be written at all; no indentation rules;
@@ -426,8 +432,10 @@ uninterrupted one at the same thread count, which is also the test of the
 feature. **Compact**: populations, ρ and n_e; at restart one sweep with the
 populations fixed recomputes J and the history starts afresh, which costs a
 few iterations and reaches the same solution. Writing 420 GB within 10
-minutes needs 0.7 GB/s, so large multi-D runs default to compact
-checkpoints on a stop request.
+minutes needs 0.7 GB/s, so large multi-D runs will want compact checkpoints
+on a stop request. The level is a run-time setting, like the rest
+(`[checkpoint] level = "exact"` or `"compact"`, for the periodic and the
+on-stop checkpoints separately; interval and file name likewise).
 
 The library serializes and restores through client callbacks
 (`rh_solver_save`, `rh_solver_restore`), so it still writes no files (C2);
@@ -457,9 +465,11 @@ profile case, 2 × 10⁻⁷ of it.
   the work counters, collected in the solver's statistics and returned in
   `rh_solve_info`. The program prints a summary at the end and stores it
   with the results; `time.out` goes.
-- A compile-time option `RH_PROFILE` (CMake) for finer probes that would
-  clutter the hot paths: per wavelength and per thread, load balance, time
-  spent in merges. Off in production builds.
+- Finer probes (per wavelength and per thread, load balance, time spent in
+  merges) switched at run time (`[profile] probes = true`). They sit at the
+  level of wavelengths and threads, not in inner loops, so the switch costs
+  a branch per probe. A compile-time option `RH_PROFILE` (on by default) can
+  remove them altogether should a measurement ever show a cost.
 - Routine-level profiles come from external tools (perf, VTune, gprof),
   with no code in RH.
 - `STOP_RH` goes; signals (Ctrl-C, `kill -TERM`, the batch system) stop a
@@ -482,7 +492,7 @@ solar-type, is the following.
 | A2 | `METALLICITY` scales every element except H, so helium too | `abundance.c:175` | helium as its own parameter, not scaled with the metals (changes results for runs that set `METALLICITY`) |
 | A3 | No per-element override: changing one element needs a new abundance file | `abundance.c` | abundances become model data: a base table plus per-element overrides in the configuration (`[abundances] Fe = 7.30`) |
 | A4 | The logarithmic scale is recognized from an H entry of exactly 12.00 | `abundance.c:123` | an explicit scale in the configuration |
-| A5 | Helium as a perturber is taken as all neutral: van der Waals broadening and CO collisions use the total He abundance | `broad.c:100-129`, `kurucz.c:1139`, `cocollisions.c:96-101` | use the neutral He density when He is in the model; matters above about 10 kK |
+| A5 | Helium as a collision partner does not follow its own ionization: van der Waals broadening scales the He perturbers with the neutral hydrogen density (A_He · n_HI), and the CO collision rates take all helium as neutral | `broad.c:100-146`, `kurucz.c:791,1139`, `cocollisions.c:96-101` | the neutral He density; logged as N-69, a fix on `modernize` |
 | A6 | The default abundance file is solar (Grevesse & Anders 1991, Asplund 2005 C and O) | `Atoms/abundance.input` | data only: offer alternatives |
 
 **Validity limits of built-in data (reported, not configurable).** Kurucz
@@ -494,9 +504,9 @@ H₂⁻ free-free θ = 0.5–3.6, H₂⁺ 2 500–12 000 K, H⁻ free-free held 
 1 400 K; H₂ Rayleigh scattering stops below 121.6 nm; the linear Stark
 broadening of hydrogen is approximate for hot stars; helium bound-free and
 free-free opacity need a He model atom, and He⁻ free-free does not exist
-(F-8). **Proposed:** a validity summary at the start of each run (which data
-are used outside their range, at how many points), part of the statistics
-of §3.9 (C13), and the same warning as N-53 for the partition functions.
+(F-8). **Decided:** a run says so only when it uses data outside its range
+(C13), with the number of points, as the N-53 warnings already do; the
+partition functions, held at the ends without a warning today, get one.
 
 **Structural, not in this track.** The composition is assumed
 hydrogen-dominated: abundances are relative to H and n_H is the density
@@ -506,10 +516,10 @@ are H and He only; 1-D hydrostatic equilibrium counts electrons only from
 metals with model atoms.
 
 **When.** A1 to A4 become model input in phase 4, when abundances move
-into `rh_model`; the configuration syntax comes in phase 5. A5 is a physics
-fix that changes results and does not depend on the library work: it can be
-logged and fixed on `modernize` now. The validity summary comes with the
-statistics in phase 5.
+into `rh_model`; the configuration syntax comes in phase 5. A5 (N-69) is a
+physics fix that changes results and does not depend on the library work:
+it is fixed on `modernize`. The partition-function warning can go on
+`modernize` too.
 
 ---
 
@@ -785,22 +795,24 @@ B-71 and F-5 close along the way.
 
 ## 7. Breaking changes
 
-Full backward compatibility is not a goal (user, 2026-11-24).
+Full backward compatibility is not a goal; the proposals below were agreed
+on review (user, 2026-11-24).
 
 | Item | Decision | Reason |
 |---|---|---|
 | Program names | **Decided:** one `rh` program; the geometry is a configuration parameter | one library, one program |
-| `keyword.input`, `atoms.input`, `molecules.input`, `ray.input` | **Decided:** one structured configuration file (F-5; TOML proposed), with a converter | structure the flat files cannot show; most keyword conflicts become impossible to write |
+| `keyword.input`, `atoms.input`, `molecules.input`, `ray.input` | **Decided:** one structured configuration file in TOML (F-5), with a converter | structure the flat files cannot show; most keyword conflicts become impossible to write |
 | Hard-coded paths (`../../Atoms/...`) | **Decided:** none; every input named in the configuration, relative to the run directory or absolute | self-contained runs |
 | `solve1d`, `solve2d`, `formal2d`, `formal3d` | **Decided:** retire (before phase 0) | own `Iterate`, binary stdin protocols |
-| `LIMIT_MEMORY` | **Agreed:** drop | replaced by storage policies; NG only today |
-| `OLD_BACKGROUND`, `BACKGROUND_FILE` | **Agreed:** drop from the core; the program may offer saving and loading the background | the background lives in memory |
-| `STARTING_J = OLD_J`, `J_FILE`, `OLD_POPULATIONS` | **Agreed:** restarts in the program, which reads the files and passes the state to `init`; checkpoints generalize them | restart is a client feature |
-| `STOP_RH` | **Proposed:** replaced by signals, which stop with a checkpoint (§3.8) | process-level behaviour |
-| `PRINT_CPU`, `time.out` | **Proposed:** always-on stage statistics plus a compile-time `RH_PROFILE` (§3.9) | the current timer is CPU time summed over threads |
-| `brs.out`, `metals.out`, `molecules.out` | **Agreed:** written only when asked | analysis output, written in every run today |
-| `HYDROSTATIC` | **Agreed:** a 1-D step of the NG solver | changes the atmosphere; a block in G is a later question |
-| `N_THREADS` | **Agreed:** an env setting; the configuration sets it for `rh` | threads are a runtime property |
+| `LIMIT_MEMORY` | **Decided:** drop | replaced by storage policies; NG only today |
+| `OLD_BACKGROUND`, `BACKGROUND_FILE` | **Decided:** drop from the core; the program may offer saving and loading the background | the background lives in memory |
+| `STARTING_J = OLD_J`, `J_FILE`, `OLD_POPULATIONS` | **Decided:** restarts in the program, which reads the files and passes the state to `init`; checkpoints generalize them | restart is a client feature |
+| `STOP_RH` | **Decided:** replaced by signals, which stop with a checkpoint (§3.8) | process-level behaviour |
+| `PRINT_CPU`, `time.out` | **Decided:** always-on stage statistics, finer probes switched at run time (§3.9) | the current timer is CPU time summed over threads |
+| `METALLICITY` | **Decided:** no longer scales helium; helium is its own parameter (§3.10, A2) | a solar mixture assumed |
+| `brs.out`, `metals.out`, `molecules.out` | **Decided:** written only when asked | analysis output, written in every run today |
+| `HYDROSTATIC` | **Decided:** a 1-D step of the NG solver | changes the atmosphere; a block in G is a later question |
+| `N_THREADS` | **Decided:** an env setting; the configuration sets it for `rh` | threads are a runtime property |
 
 ---
 
@@ -818,8 +830,8 @@ Full backward compatibility is not a goal (user, 2026-11-24).
 6. Output and checkpoint format of the stand-alone program: RH's XDR
    files, or a structured format (HDF5, netCDF). The library does not care;
    `rhanalyze` would need a reader for a new format.
-7. Which TOML parser to vendor, and whether the converter from
-   `keyword.input` lives in C (`rh --convert`) or Python.
+7. Which TOML parser to vendor (TOML itself is decided), and whether the
+   converter from `keyword.input` lives in C (`rh --convert`) or Python.
 8. Where `Atoms/`, `Molecules/` and `Atmos/` live once runs are
    self-contained (a `data/` directory?).
 9. A file-based stop as a convenience where signals do not reach the job.
