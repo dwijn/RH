@@ -27,7 +27,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rhtest.check import Checker
 from rhtest.cli import parse
-from rhtest.run import EXIT_FATAL, RAN, execute, prepare
+from rhtest.run import EXIT_FATAL, RAN, execute, prepare, template
 from rhtest.workdir import WorkDir
 
 a = parse(required=("rhf1d",), verbose=True)
@@ -41,8 +41,8 @@ CO_LINES = "../../Molecules/CO/vmax=3_Jmax=49_dv=1_26"
 
 
 def shipped_list():
-    """The molecule lines of the shipped rhf1d/run/molecules.input."""
-    with open(os.path.join(a.src, "rhf1d", "run", "molecules.input")) as f:
+    """The molecule lines of the shipped examples/rhf1d/molecules.input."""
+    with open(os.path.join(template(a.src, "rhf1d"), "molecules.input")) as f:
         return [l for l in f.read().splitlines() if ".molecule" in l and not l.lstrip().startswith("#")]
 
 

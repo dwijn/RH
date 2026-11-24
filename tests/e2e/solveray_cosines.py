@@ -19,7 +19,7 @@ NaN (a crash here). 2-D runs a short FAL-C case with a magnetic field
  3-D: mux = 0.8660254038, muy = 0.5 (sum 1 + 3e-11) and mux = 0.6,
       muy = 0.8 (muz = 0) are errors, since muz must be positive (the
       stencil distances divide by it). These stop before the results of a
-      main run are read, so they run in a copy of rhsc3d/run (a 3-D main
+      main run are read, so they run in a copy of examples/rhsc3d (a 3-D main
       run would take ~40 s).
 
 Python 3 standard library only. Exit status 0 = pass.
@@ -37,7 +37,7 @@ from rhtest.run import copy_dir, execute, make_field, template
 from rhtest.workdir import WorkDir
 
 a = parse(required=("rhsc2d", "solveray2d", "solveray3d"), verbose=True,
-          src_help="RH source tree (Atoms/, Atmos/, Molecules/, rhsc*/run/)")
+          src_help="RH source tree (Atoms/, Atmos/, Molecules/, examples/)")
 src = a.src
 work = WorkDir(src, a.work)
 ck = Checker(a.verbose)

@@ -64,7 +64,7 @@ from rhtest.workdir import WorkDir
 
 a = parse(required=("rhf1d", "rhsc2d"),
           optional=("solveray2d", "chartflow2d", "rhsc3d"), verbose=True,
-          src_help="RH source tree (Atoms/, Atmos/, Molecules/, rh*/run/)")
+          src_help="RH source tree (Atoms/, Atmos/, Molecules/, examples/)")
 src = a.src
 work = WorkDir(src, a.work)
 ck = Checker(a.verbose)

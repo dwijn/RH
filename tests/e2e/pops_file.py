@@ -3,7 +3,7 @@
 
 usage: pops_file.py --rhf1d PATH [--src DIR] [--work DIR] [-v]
 
-FAL-C (rhf1d/run), Ca II active, 1 thread, ITER_LIMIT 1e-4.
+FAL-C (examples/rhf1d), Ca II active, 1 thread, ITER_LIMIT 1e-4.
 Run A (SOLVE_NE = NONE, ZERO_RADIATION) writes pops.CA.out.
 
 B-60: readPopulations read the LTE populations n* from the file as well,

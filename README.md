@@ -26,7 +26,7 @@ The programs are built in `build/rhf1d/rhf1d`, `build/rhsc2d/rhsc2d`,
 `build/rhsc3d/rhsc3d` and `build/rhsphere/rhsphere`, next to the auxiliary
 programs of each geometry (`solveray`, `backgrcontr`, ...); the atomic-data
 tools are in `build/tools/`. Run a program from a run directory, e.g.
-`cd rhf1d/run && ../../build/rhf1d/rhf1d`. Installed, the auxiliary
+`cd examples/rhf1d && ../../build/rhf1d/rhf1d`. Installed, the auxiliary
 programs that exist for several geometries get a suffix (`solveray_1d`,
 `solveray_2d`, ...).
 
