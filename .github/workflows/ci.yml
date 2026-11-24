@@ -25,7 +25,8 @@ name: CI
 # runs everything.
 on:
   push:
-    branches: [modernize]
+    # modernize, and the library track's integration branch (Q-39)
+    branches: [modernize, chrysalis]
     paths-ignore: ['docs/**', '**/*.md', 'LICENSE', '.git-blame-ignore-revs', 'tests/run_stress.py', 'tests/analyze_run.py', 'tests/compare_spectra.py', 'tests/make_perturbed_atmos.py', 'tests/make_bifrost_atmos.py', 'tests/se_residual.py', 'tests/make_references.sh', 'tests/atmos/**', 'Atoms/**', 'Atmos/**', 'Molecules/**']
   pull_request:
     # Any base branch: a pull request stacked on another one (based on its
@@ -137,11 +138,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
-      # The label "changes-results" on the pull request. A push to modernize
-      # carries no labels, so there it is looked up on the pull request that
-      # the pushed commit merged ("Merge pull request #N" in its message, else
-      # the pull request GitHub associates with the commit); without the
-      # lookup every merge of an intended change of results failed (Q-26).
+      # The label "changes-results" on the pull request. A push (to modernize
+      # or chrysalis) carries no labels, so there it is looked up on the pull
+      # request that the pushed commit merged ("Merge pull request #N" in its
+      # message, else the pull request GitHub associates with the commit);
+      # without the lookup every merge of an intended change of results
+      # failed (Q-26).
       - name: Label changes-results
         env:
           GH_TOKEN: ${{ github.token }}
