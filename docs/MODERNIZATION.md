@@ -20,18 +20,18 @@ upstream. Newest changes go at the top of the changelog.
 
 ## At a glance
 
-*Status on 2026-11-17.* The work is on the fork
+*Status on 2026-11-23.* The work is on the fork
 [dwijn/RH](https://github.com/dwijn/RH), integration branch `modernize`.
 Every change is a pull request, verified against upstream RH (`c95bdf6`)
-or against its base commit. 192 issues are logged; 127 are fixed and 4
-closed without a fix.
-Plan steps 1–3 (crash fixes, build and hygiene, tests) are done, and
-step 4 (the solver) is nearly done: its research items moved to the
-wishlist in the triage of 2026-11-14 (§4). Next is the library track
-(errors that return, no globals; from step 7), then speed and memory.
+or against its base commit. 234 issues are logged; 159 are fixed and 5
+closed without a fix. Of the 70 open, 34 are on the wishlist.
+Plan steps 1–4 (crash fixes, build and hygiene, tests, the solver) are
+done: step 4 closed on 2026-11-23, its research items and the parts not
+needed now on the wishlist (§4). Next is the library track (errors that
+return, no globals; from step 7), then speed and memory.
 
 - **Wrong answers that looked right, also in upstream RH.**
-  - 65 of the problems found also exist upstream (§3.9), and 59 of them
+  - 102 of the problems found also exist upstream (§3.9), and 87 of them
     are fixed here.
   - **Formal solvers:**
     - 2-D and 3-D long characteristics stopped one section short (B-24):
@@ -41,6 +41,15 @@ wishlist in the triage of 2026-11-14 (§4). Next is the library track
       Stokes V was 38 % off for Ca II on FAL-C.
   - **Statistical equilibrium:** converged populations did not satisfy
     statistical equilibrium where transitions overlap (B-6).
+  - **Background scattering:** it was converged by one lambda step per
+    iteration, and `ITER_LIMIT` does not see it. Kurucz lines with
+    `RLK_SCATTER` need of order 1/ε ≈ 10⁴–10⁶ steps: on a MURaM column
+    the strong line cores still grew 2.8–8.8 times after the run reported
+    convergence, and in a spherical FAL-C test a line core came out 10
+    times too dark. Each such wavelength is now iterated on its own,
+    with a stopping test on its estimated error (N-51, N-65, N-66).
+  - **Polarized 2-D and 3-D:** `FULL_STOKES` iterations diverged, and
+    died with SIGFPE in upstream's default configuration (B-55).
   - **Chemical equilibrium:** the stored H⁻ density was too large by the
     inverse neutral fraction of hydrogen (B-40), up to 10¹¹ at the top of
     FAL-C. With the fix, continua below 200 nm change by up to 9–15 %
@@ -67,7 +76,11 @@ wishlist in the triage of 2026-11-14 (§4). Next is the library track
   - Rate equations are solved by GTH elimination (N-31). He_large
     stalled at 2×10⁻³ because of rounding in the LU solve. Its plain
     iteration now converges, and so does `ANDERSON` (N-28).
-  - Runs report whether they converged, also in the exit status (N-1).
+  - Runs report whether they converged, also in the exit status (N-1),
+    and `ERROR_LIMIT` stops on the estimated error instead of the
+    residual (N-3).
+  - Chemical equilibrium is solved by Newton's method in the log
+    densities: converged and positive below 2000 K (N-61).
   - Every keyword that is set is checked against the solver, and a
     conflict stops the run with a clear message.
   - A Newton–Krylov solver (S-4) is also built: G is bit-reproducible at
@@ -94,11 +107,12 @@ wishlist in the triage of 2026-11-14 (§4). Next is the library track
     five.
   - Zero compiler warnings, enforced as errors in CI, and one code style
     (clang-format).
-  - CI on Linux and macOS with gcc and clang, also under sanitizers. 30
-    tests run in ctest: 20 unit, 6 end-to-end and 4 that start each
+  - CI on Linux and macOS with gcc and clang, also under sanitizers. 62
+    tests run in ctest: 42 unit, 16 end-to-end and 4 that start each
     program.
-  - Every pull request is compared with its base commit, and drift from
-    upstream is reported.
+  - Every pull request is compared with its base commit. The drift from
+    upstream is reported on every merge and for intended changes of
+    results.
   - A stress suite covers convergence and performance, including cuts of
     a Bifrost snapshot.
 - **For codes that call RH as a library (STIC):**
@@ -110,12 +124,13 @@ wishlist in the triage of 2026-11-14 (§4). Next is the library track
     instead of calling `exit()` (Q-7, high severity, first in plan
     step 7).
 - **Next:**
-  - Finish step 4: B-55 (2-D and 3-D `FULL_STOKES` diverges, also in
-    upstream's default configuration; cause found, fix to be decided),
-    the PRD sub-iteration damping (N-38), N-41, and the items left in
-    §4.
-  - Then the library track (Q-7 first), speed (step 5) and memory
-    (step 6).
+  - The library track. A short design note first: how re-entrant RH has
+    to be (one solve per process, or several instances), whether geometry
+    is a library per topology or chosen at run time (Q-5), and how much
+    of the formal solution 1-D, 2-D, 3-D and polarized runs can share.
+    Then Q-7 (errors return), no process-wide side effects, inputs from
+    memory, a context instead of globals, and the API.
+  - Then speed (step 5) and memory (step 6).
   - Report the upstream bugs of §3.9 to upstream RH.
 
 Issue IDs: **B** bug or crash, **N** numerics/convergence, **P** speed,
@@ -496,7 +511,7 @@ SOLVER.md S-5, Results.
 | [B-70](https://github.com/dwijn/RH/issues/496) | low | *Moved to the wishlist (user, 2026-11-20); the design question (a sidecar file or a header in `J.dat`) waits with it.* A restart with `STARTING_J = OLD_J` does not check that the files belong to the current wavelength grid: `J.dat` (and `Jgas.dat`, the `Imu` file of `PRD_ANGLE_DEP`) are raw doubles without a header, read by wavelength index, and only a file that is too short stops the run; `radrate.<ID>.out` is not checked for Nline, Ncont or Nspace. A run with another atom set, wavelength table or atmosphere silently takes J of other wavelengths. Plan: a header with Nspect, Nspace and a checksum of the wavelength grid, checked on read (the readers in `python/rhanalyze` and IDL follow) | `readj.c:44-122`, `initial_xdr.c:162-230`, `radrate_xdr.c:68-100`, `initscatter.c:41-56` | Interpolation audit 2026-11-18 (`claude/RH/evidence/t16-interp-audit`, item C5), re-checked against modernize c8ec9c0 on 2026-11-20 | open |
 | [B-71](https://github.com/dwijn/RH/issues/529) | low | *Plan step 7 (user, 2026-11-23): reached only once RH frees its state, with the library track.* `freeMolLine` frees the row array of `mrt->phi` twice: `freeMatrix` frees `phi[0]` and `phi`, then `free(mrt->phi)` frees `phi` again. Not reached today: `freeMolecule` reaches an active molecule only from `freeAtmos`, which nothing calls, so it would crash once RH frees its state at the end of a run (library track). Also upstream (`readmolecule.c:487-488`) | `readmolecule.c:524-525` | Code reading while adding `wquad` for N-62, 2026-11-21 | open |
 | [B-72](https://github.com/dwijn/RH/issues/538) | low | Memory leaks, found by LeakSanitizer in the 2-D end-to-end tests (`eddington_2d`, `solveray_cosines`). (a) `freeAtomicLine` frees `c_shift` and `c_fraction` only for active atoms, and `freeAtomicContinuum` never frees a continuum's `lambda` (its own array in a passive atom; `SortLambda` points an active atom's into the spectrum) nor a hydrogenic continuum's `alpha`. When `Background()` frees the passive atoms (no hydrostatic equilibrium, `SOLVE_NE` below `ITERATION`, as in the 2-D template), these arrays are lost: 54 kB in 539 allocations with the 2-D template's atoms. (b) `RLKdet_level` (`kurucz.c`) does not free the word array of `getWords` when it cannot parse a Kurucz level label: one allocation per such line. (c) `getWords` (`zeeman.c`) allocates `length / 2 + 1` pointers, one too few for the end marker when a label has the most words its length allows ("a b c") or is empty: a heap overflow by one pointer (found by the unit test of the fix; Kurucz labels, 10 characters, never reach it). CI does not see them: its sanitizer job runs only the unit tests, and `run_tests.py` sets `detect_leaks=0`. Also upstream | `readatom.c:795-862`, `kurucz.c:966-984`, `zeeman.c:84-98`, `.github/workflows` | Local sanitizer build (conda-forge gcc, `claude/san-env`), `ctest -L e2e` on modernize a34785a, 2026-11-21 | fixed (#541) |
-| [B-73](https://github.com/dwijn/RH/issues/558) | low | `rhsphere`: `Formal` allocates `Jdag` twice and frees it once, so every formal solution of every wavelength leaks Nspace doubles (656 bytes per wavelength and sweep with 82 shells, 0.66 GB over 1000 sweeps of 1000 wavelengths). Not seen by the sanitizer builds: no `ctest` case runs `rhsphere`, and `run_tests.py` turns leak detection off. Found while reading the code for N-51 | `rhsphere/formal.c:79,91` | — | open |
+| [B-73](https://github.com/dwijn/RH/issues/558) | low | `rhsphere`: `Formal` allocates `Jdag` twice and frees it once, so every formal solution of every wavelength leaks Nspace doubles (656 bytes per wavelength and sweep with 82 shells, 0.66 GB over 1000 sweeps of 1000 wavelengths). Found while reading the code for N-51. *Corrected 2026-11-23 (#560):* only in unoptimized builds. At `-O2` gcc and icx drop the dead first `malloc` (the same 7 `malloc` calls in `Formal` before and after the fix), and LeakSanitizer finds nothing in a RelWithDebInfo build; at `-O0` the shipped example leaked 6.0 MB in 3 iterations | `rhsphere/formal.c:79,91` | — | fixed (#560) |
 
 ### 3.2 Numerics and convergence
 
@@ -552,7 +567,7 @@ SOLVER.md S-5, Results.
 | [N-48](https://github.com/dwijn/RH/issues/450) | low | Rayleigh scattering by H₂ (`Rayleigh_H2`) interpolates the cross-section table of Victor & Dalgarno (1969) linearly in λ and σ, though σ falls as λ⁻⁴ to λ⁻⁹ over its four decades (121.57–632.8 nm): between the nodes σ is too high by up to 14 % (436–546 nm: 1.143 at 497 nm; 334–405 nm: 1.10), against log-log interpolation of the same nodes | `hydrogen.c` (`Rayleigh_H2`) | Interpolation audit 2026-11-18 (B3): `/hao/solar1/dwijn/claude/RH/evidence/t16-interp-audit/B/rayh2.py`. Same code upstream | fixed (#457) |
 | [N-49](https://github.com/dwijn/RH/issues/451) | low | `pchipTableInit` (N-32) drops log y for the whole table when any node is ≤ 0: five shipped Mg I bound-free tables end in an explicit 0 at the blue edge (`MgI.atom` 11-4; `MgI+II`, `MgI_66`, `MgI_66_b123` 65-0; `MgI_b+MgII` 11-4), so they are interpolated linearly in σ throughout, across resonance dips of 10 times (8.3×10⁻²² to 3.8×10⁻²³ at 202.5 nm), where log-log reproduces a power law between nodes. Positive either way | `pchip.c` (`pchipTableInit`) | Interpolation audit 2026-11-18 (B8): `/hao/solar1/dwijn/claude/RH/evidence/t16-interp-audit/B/scanbf.py` | fixed (#459) |
 | [N-50](https://github.com/dwijn/RH/issues/468) | medium | Hydrogen free-free opacity 2–3.5 times too low in the mm (ALMA bands): the Gaunt factor (`Gaunt_ff`) is an expansion in (hν/Ry)^1/3 (Seaton 1960, as cited in the code) used far outside its range and floored at 1. The raw value falls below 1 from 416 µm at 3000 K, 194 µm at 5000 K, 68 µm at 10⁴ K, 13 µm at 3×10⁴ K and 2.1 µm at 10⁵ K, and is negative soon after (at 1 mm: −1.6 at 3000 K, −9.8 at 5000 K, −53 at 10⁴ K), so at 1 mm and 3 mm g = 1 at every temperature. The thermally averaged g of van Hoof et al. (2014) is 2.2–3.0 at 1 mm and 2.6–3.5 at 3 mm (3000–10⁴ K), and 1.48–2.0 at 100 µm, where the expansion gives 1.0–1.44; from 400 nm to 10 µm the expansion is within 0.6 % of it, and below 400 nm it is too high (2–5 % at 91 nm, 6–10 % at 23–30 nm, 6000–10⁵ K). On FAL-C (H active, disk centre) the table raises the brightness temperature by 210 K at 0.45 mm, 540 K at 1 mm, 610 K at 1.3 mm and 720 K at 3 mm, with τ = 1 150–380 km higher; unchanged up to 100 µm. *Corrected 2026-11-19:* the first version of this row gave 3.3–5.1 at 1 mm, from the Altenhoff form ln(4.955×10⁻²/ν[GHz]) + 1.5 ln T, which is π/√3 times g in this normalisation | `hydrogen.c` (`Gaunt_ff`, called only by `Hydrogen_ff`) | Interpolation audit 2026-11-18 (B1): `/hao/solar1/dwijn/claude/RH/evidence/t16-interp-audit/B/gff.py`; table and FAL-C measurement: `/hao/solar1/dwijn/claude/RH/evidence/t20-n50/` (README; `gff_compare.txt`, `impact.txt`). Same code upstream | fixed (#474) |
-| [N-51](https://github.com/dwijn/RH/issues/481) | medium | *Scope (user, 2026-11-23): N-51 closes with the spherical case; the rest goes to the wishlist, since the library track may restructure the formal solvers across geometries: 1-D polarized as N-67, 2-D and 3-D (polarized or not) as N-68.* The scattering part of the background opacity is converged by a plain lambda iteration in every geometry: `Formal` builds S = (η + η_c + σ_c J†)/χ with J† the J of the previous formal solution at that wavelength, and nothing treats the σ_c J term implicitly (no approximate operator, unlike the active transitions). `initScatter` does up to `N_MAX_SCATTER` such sweeps, and each later formal solution one more. With `RLK_SCATTER = TRUE` every Kurucz line puts (1 − ε) of its opacity into σ_c, with ε = 1/(1 + C₃T^1.5/(n_e (kT/ΔE)^(1+x))) from `kurucz.c`, 10⁻⁴–10⁻⁶ in a chromosphere: the lambda iteration then needs of order 1/ε sweeps. `ITER_LIMIT` tests only the populations, so a run reports convergence while J of those lines is still far off. MURaM quiet-Sun column (128 points, H_6, Fe I+II and Mg I+II active, 82448 Kurucz lines at 250–290 nm, `ANDERSON`): the run meets `ITER_LIMIT` 10⁻³ in 115 iterations, but the largest change of J is still 10⁻³ per sweep and shrinks by a factor 0.9995 per sweep. A restart from its populations differs by up to 47 % in line cores. Forced to 300, 600 and 1200 iterations, about 350 strong Kurucz line cores (those 10–3000 times brighter with `RLK_SCATTER = FALSE`) grow 2.8, 5.4 and 8.8 times with no sign of levelling off. The Fe populations stall at relative changes of 10⁻⁴–3×10⁻⁵ per iteration, while H and Mg go on down. Band flux (256–284 nm) changes by 0.06 % and the lines of the active atoms by < 0.25 % over ±0.05 nm. With `RLK_SCATTER = FALSE` a restart agrees to < 5×10⁻⁴ everywhere. A J-based stopping test (N-3, #477) would report this but not fix it. Related: N-39 (the same lambda iteration in 3-D) | `rhf1d/formal.c`, `rhsc2d/formal.c`, `rhsc3d/formal.c`, `rhsphere/formal.c` (S from `sca_c * Jdag`), `initscatter.c`, `kurucz.c:710-717` | `/hao/solar1/dwijn/claude/RH/evidence/n51-bgscatter` (README) | open |
+| [N-51](https://github.com/dwijn/RH/issues/481) | medium | *Scope (user, 2026-11-23): N-51 closes with the spherical case; the rest goes to the wishlist, since the library track may restructure the formal solvers across geometries: 1-D polarized as N-67, 2-D and 3-D (polarized or not) as N-68.* The scattering part of the background opacity is converged by a plain lambda iteration in every geometry: `Formal` builds S = (η + η_c + σ_c J†)/χ with J† the J of the previous formal solution at that wavelength, and nothing treats the σ_c J term implicitly (no approximate operator, unlike the active transitions). `initScatter` does up to `N_MAX_SCATTER` such sweeps, and each later formal solution one more. With `RLK_SCATTER = TRUE` every Kurucz line puts (1 − ε) of its opacity into σ_c, with ε = 1/(1 + C₃T^1.5/(n_e (kT/ΔE)^(1+x))) from `kurucz.c`, 10⁻⁴–10⁻⁶ in a chromosphere: the lambda iteration then needs of order 1/ε sweeps. `ITER_LIMIT` tests only the populations, so a run reports convergence while J of those lines is still far off. MURaM quiet-Sun column (128 points, H_6, Fe I+II and Mg I+II active, 82448 Kurucz lines at 250–290 nm, `ANDERSON`): the run meets `ITER_LIMIT` 10⁻³ in 115 iterations, but the largest change of J is still 10⁻³ per sweep and shrinks by a factor 0.9995 per sweep. A restart from its populations differs by up to 47 % in line cores. Forced to 300, 600 and 1200 iterations, about 350 strong Kurucz line cores (those 10–3000 times brighter with `RLK_SCATTER = FALSE`) grow 2.8, 5.4 and 8.8 times with no sign of levelling off. The Fe populations stall at relative changes of 10⁻⁴–3×10⁻⁵ per iteration, while H and Mg go on down. Band flux (256–284 nm) changes by 0.06 % and the lines of the active atoms by < 0.25 % over ±0.05 nm. With `RLK_SCATTER = FALSE` a restart agrees to < 5×10⁻⁴ everywhere. A J-based stopping test (N-3, #477) would report this but not fix it. Related: N-39 (the same lambda iteration in 3-D) | `rhf1d/formal.c`, `rhsc2d/formal.c`, `rhsc3d/formal.c`, `rhsphere/formal.c` (S from `sca_c * Jdag`), `initscatter.c`, `kurucz.c:710-717` | `/hao/solar1/dwijn/claude/RH/evidence/n51-bgscatter` (README) | fixed (#561) |
 | [N-52](https://github.com/dwijn/RH/issues/486) | medium | *Moved to the wishlist (user, 2026-11-23): worked around in #510 (strongly scattering wavelengths fall back to the linear solver; accuracy against linear in #522); a positive Bézier operator is research, not a bounded fix.* The 1-D cubic Bézier formal solver (`S_INTERPOLATION = S_BEZIER3`) is not a positive operator: dI_k/dS_k can exceed 1 and I_k can decrease when S downwind increases. Where Steffen's limited derivative (`cent_deriv`) takes the downwind slope, the local control point is C_k = S_k (1 + 2r/3) − (2r/3) S_k+1 with r = Δτ_uw/Δτ_dw: its value stays between S_k−1 and S_k, but dC_k/dS_k = 1 + 2r/3 and dC_k/dS_k+1 < 0, and r is large where the optical thickness per interval changes abruptly. In a scattering-dominated layer the scattering problem as discretized is then not contractive. MURaM quiet-Sun column, a strong Kurucz line core with `RLK_SCATTER` (σ_c/χ ≈ 1), Jacobian dJ/du of one formal solution by finite differences: Bézier has a diagonal up to 1.004 and negative off-diagonals down to −0.06, and spectral radius 1.0035 (the eigenvector at the jump in Δτ, k = 75–77); linear short characteristics give a positive matrix with spectral radius 0.99996. A Jacobi iteration of the background scattering (N-51) oscillates there with Bézier and converges with linear. The plain lambda iteration is then slightly unstable too, which may be part of the drift of N-51. B-66 kept Ψ within the weight of S for the rates, but the Jacobian is unchanged. Not yet known: how common this is in other atmospheres and for active lines; whether a derivative limited with the upwind interval only (or BESSER-type control points) keeps the accuracy. Related: N-51, B-66 | `bezier_aux.c` (`cent_deriv`), `rhf1d/bezier_1D.c` | `/hao/solar1/dwijn/claude/RH/evidence/n52-bezier-lambda` (README) | open |
 | [N-53](https://github.com/dwijn/RH/issues/497) | medium | *Parts: (a) fixed in #517, (c) in #515; (b) in #518 (open); (d) waits for a decision (2026-11-20).* *(d) decided 2026-11-21 (user): the shipped H tables are Johnson (1972) evaluated by `tools/make_h.c` at 3000–30 000 K; regenerate them to at least 10⁵ K (Johnson converges to the Bethe limit: Lyα Ω at 10⁵ K is 2.0× its 3×10⁴ K value, where holding Ω flat gives 1.0), drop the flat-Ω branch, and stop or warn beyond a table. Near threshold at chromospheric temperatures Johnson and Vriens & Smeets (1980) are both off from the R-matrix data of Anderson et al. (2000) by up to 2–5× (Lyβ–δ, Hα): better data for n ≤ 5 is F-12 (`claude/RH/evidence/n53d-johnson`).* Tables and fits outside their range follow no common rule, and several return 0 for a quantity that is physically nonzero: (a) molecular partition functions and equilibrium constants are 0 outside the molecule's [Tmin, Tmax] (`partfunction`, `equilconstant`), so every molecule vanishes below 1000 K (the Tmin of all 19 shipped molecules; H₂ 1000–9000 K), with no message; the hydrostatic equilibrium drops H₂ the same way, and an active molecule divides by pf = 0; (b) OH and CH bound-free opacity is 0 outside 2000–9000 K, although both molecules exist from 1000 K: it matters in the cool pockets of the chromosphere, where some models drop below 2000 K; (c) H₂⁻ and H₂⁺ free-free are 0 beyond the last table wavelength (15.2 µm and 10 µm; in T both are clamped), where H₂⁻ goes as λ²; (d) collision tables (PCHIP log-log, N-32) hold the end value, and for `CE` the rate is then multiplied by √T, so it grows above the table. Plan: one rule: tables hold the end value in log space or extend a power law where the physics gives one (H₂⁻), fits with known T dependence are held at the edge with that dependence (the van't Hoff form for K_eq), nothing physically nonzero returns 0, and a warning once per table | `chemequil.c:450,513`, `rhf1d/hydrostat.c:72`, `ohchbf.c:354,632`, `hydrogen.c:1021,1036,1140`, `collision.c:991-1046`, `pchip.c:208-213` | Interpolation audit 2026-11-18 (`claude/RH/evidence/t16-interp-audit`, item B4–B7), re-checked against modernize c8ec9c0 on 2026-11-20 | fixed (#546) |
 | [N-54](https://github.com/dwijn/RH/issues/498) | low | The height scale of a 1-D or spherical atmosphere given in column mass or τ₅₀₀ is shifted to zero at τ = 1 by `Linear` on τ (not ln τ), and if τ = 1 lies outside the table the end value is taken without a message (the scale is then not shifted, or shifted to the bottom). Plan: interpolate in ln τ, and stop with a message when τ = 1 is not in the table | `rhf1d/multiatmos.c:322`, `rhsphere/readatmos.c:309` | Interpolation audit 2026-11-18 (`claude/RH/evidence/t16-interp-audit`, item C1), re-checked against modernize c8ec9c0 on 2026-11-20 | fixed (#513) |
@@ -658,8 +673,8 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 | [Q-33](https://github.com/dwijn/RH/issues/447) | low | The 2-D and 3-D polarized solvers interpolate the Stokes vectors (S, I) and K′ at each call site, component by component (seven places in each geometry), from separate arrays passed down through every routine; the cone-preserving interpolation of B-63 needs them in one function per quantity, with the grid of one formal solution passed down as one structure | fixed (#455) |
 | [Q-34](https://github.com/dwijn/RH/issues/452) | low | Stale comments found in the interpolation audit: `bezier_aux.c` (`Bezier3_coeffs`) says interpolated opacities can give a small negative dt in 2-D and 3-D, but the Steffen-limited control points keep Δτ > 0 wherever χ > 0 on the grid (a negative Δτ comes only from a negative χ, N-40); the header of `rhsc3d/solveray.c` says the ray is solved with the Feautrier scheme and Fourier interpolation, where it calls `solveSpectrum` (short characteristics) | fixed (#461) |
 | [Q-35](https://github.com/dwijn/RH/issues/505) | low | `spline.c` (`splineCoef`/`splineEval` and the reentrant `splineTable*`) has no caller outside the unit tests since N-35 replaced the H⁻ bound-free spline; `expspline.c` is used only by `tools/hcollisions.c`, which reads its two data files from hard-coded paths in the upstream author's home directory, so it cannot run as shipped. Plan: remove `spline.c`, its prototypes and its tests; *decided 2026-11-20 (user): also remove `expspline.c` and `tools/hcollisions.c`, whose data files (Giovanardi et al., Whelan) are not in the repository* | `spline.c`, `expspline.c`, `rh.h:123-166`, `tests/unit/test_interp.c`, `tools/hcollisions.c` | Code reading, 2026-11-20 (audit item C7/B10) | fixed (#512) |
-| [Q-36](https://github.com/dwijn/RH/issues/562) | low | CI uses `actions/checkout@v4`, `actions/setup-python@v5` and `actions/upload-artifact@v4`, which declare Node 20 (`runs.using: node20`). GitHub has deprecated Node 20 on its runners and runs them on Node 24, with a deprecation warning in every CI run (seen on #560 and #561); once Node 20 is removed, they would depend on that forcing. Move to the current majors, which run on Node 24: `checkout@v7`, `setup-python@v7`, `upload-artifact@v7`. None of their breaking changes touch how `ci.yml` uses them (`checkout@v7` refuses fork checkouts only under `pull_request_target` and `workflow_run`; `setup-python@v7` drops the `pip-install` input and EOL Pythons, CI uses 3.12) | open |
-| [Q-37](https://github.com/dwijn/RH/issues/565) | low | The report of the drift from upstream RH (Q-27: on pushes, and on pull requests with `changes-results` or whose comparison with the base fails) runs inside both regression jobs, after the regression suite: 4.0 min of the 17 min of the Linux job with sanitizers on #561, 4.3 of 11 min on macOS. Run it as a job of its own, in parallel, on Linux only: it never fails, and what it measures is the difference of the code from upstream, which does not depend on the platform (the macOS numbers differ from the Linux ones only by the FMA contraction of clang on arm64, about 10⁻¹⁰); the regression job on macOS still compares each change with its base there. A job of its own cannot wait for the comparison with the base without losing the gain, so it runs on pushes and with the label only: a pull request whose comparison fails without the label fails anyway, and adding the label reruns CI with the report | open |
+| [Q-36](https://github.com/dwijn/RH/issues/562) | low | CI uses `actions/checkout@v4`, `actions/setup-python@v5` and `actions/upload-artifact@v4`, which declare Node 20 (`runs.using: node20`). GitHub has deprecated Node 20 on its runners and runs them on Node 24, with a deprecation warning in every CI run (seen on #560 and #561); once Node 20 is removed, they would depend on that forcing. Move to the current majors, which run on Node 24: `checkout@v7`, `setup-python@v7`, `upload-artifact@v7`. None of their breaking changes touch how `ci.yml` uses them (`checkout@v7` refuses fork checkouts only under `pull_request_target` and `workflow_run`; `setup-python@v7` drops the `pip-install` input and EOL Pythons, CI uses 3.12) | fixed (#564) |
+| [Q-37](https://github.com/dwijn/RH/issues/565) | low | The report of the drift from upstream RH (Q-27: on pushes, and on pull requests with `changes-results` or whose comparison with the base fails) runs inside both regression jobs, after the regression suite: 4.0 min of the 17 min of the Linux job with sanitizers on #561, 4.3 of 11 min on macOS. Run it as a job of its own, in parallel, on Linux only: it never fails, and what it measures is the difference of the code from upstream, which does not depend on the platform (the macOS numbers differ from the Linux ones only by the FMA contraction of clang on arm64, about 10⁻¹⁰); the regression job on macOS still compares each change with its base there. A job of its own cannot wait for the comparison with the base without losing the gain, so it runs on pushes and with the label only: a pull request whose comparison fails without the label fails anyway, and adding the label reruns CI with the report | fixed (#567) |
 
 Output formats are a contract: the Python (`python/rhanalyze`) and IDL readers
 unpack the XDR files field by field, and `rhopacity.py` seeks into raw
@@ -805,7 +820,7 @@ upstream issue or pull request once filed. Most severe first.
 | [B-67](https://github.com/dwijn/RH/issues/470) | medium | The polarized DELO-Bézier step's diagonal operator β + θ exceeds I/S_I where S rises along the ray, also with the B-66 correction where K′ is dichroic: negative preconditioned upward rates in every `FULL_STOKES` test case | [#473](https://github.com/dwijn/RH/pull/473) | — |
 | [N-48](https://github.com/dwijn/RH/issues/450) | low | Rayleigh scattering by H₂ interpolates its cross-section table linearly in λ and σ, up to 14 % too high between the nodes (σ falls as λ⁻⁴ to λ⁻⁹) | [#457](https://github.com/dwijn/RH/pull/457) | — |
 | [N-50](https://github.com/dwijn/RH/issues/468) | medium | The free-free Gaunt factor of hydrogen is floored at 1 where its expansion fails (far IR and mm; 2 µm at 10⁵ K): the H free-free opacity is 2–3.5 times too low in the ALMA bands, and FAL-C brightness temperatures there 210–720 K too low | [#474](https://github.com/dwijn/RH/pull/474) | — |
-| [N-51](https://github.com/dwijn/RH/issues/481) | medium | The background scattering (electron and Rayleigh scattering, and the scattering part of the Kurucz lines with `RLK_SCATTER = TRUE`) is converged by a plain lambda iteration, outside the approximate operator. Kurucz lines in a chromosphere have ε of 10⁻⁴–10⁻⁶ and need of order 1/ε sweeps: on a MURaM column the strong Kurucz line cores grow 2.8–8.8 times between 115 iterations (`ITER_LIMIT` met) and 300–1200 iterations, with no end in sight, while the run reports convergence | — | — |
+| [N-51](https://github.com/dwijn/RH/issues/481) | medium | The background scattering (electron and Rayleigh scattering, and the scattering part of the Kurucz lines with `RLK_SCATTER = TRUE`) is converged by a plain lambda iteration, outside the approximate operator. Kurucz lines in a chromosphere have ε of 10⁻⁴–10⁻⁶ and need of order 1/ε sweeps: on a MURaM column the strong Kurucz line cores grow 2.8–8.8 times between 115 iterations (`ITER_LIMIT` met) and 300–1200 iterations, with no end in sight, while the run reports convergence | [#561](https://github.com/dwijn/RH/pull/561) | — |
 | [N-67](https://github.com/dwijn/RH/issues/555) | medium | Polarized 1-D runs: the background scattering is a plain lambda iteration (the part of N-51 not fixed here) | — | — |
 | [N-68](https://github.com/dwijn/RH/issues/556) | medium | 2-D and 3-D: the background scattering is a plain lambda iteration (the part of N-51 not fixed here) | — | — |
 | [N-52](https://github.com/dwijn/RH/issues/486) | medium | The 1-D cubic Bézier formal solver is not a positive operator where Steffen's limited derivative takes the downwind slope next to an abrupt change in optical thickness per interval: dI_k/dS_k exceeds 1 and the downwind S enters with a negative weight. In a scattering-dominated layer the discretized scattering problem is then not contractive (spectral radius 1.0035 at a Kurucz line core in a MURaM column, against 0.99996 with linear short characteristics), and iterations of it oscillate | — | — |
@@ -815,7 +830,7 @@ upstream issue or pull request once filed. Most severe first.
 | [B-70](https://github.com/dwijn/RH/issues/496) | low | `OLD_J` restarts read J, Jgas and the radiative rates by index from headerless files: a file of another wavelength grid or atmosphere is accepted if it is long enough | — | — |
 | [B-71](https://github.com/dwijn/RH/issues/529) | low | `freeMolLine` frees `mrt->phi` twice (not reached: nothing frees an active molecule) | — | — |
 | [B-72](https://github.com/dwijn/RH/issues/538) | low | Passive atoms freed by `Background()` lose their component and continuum arrays, and `RLKdet_level` leaks for every unparsable Kurucz label | [#541](https://github.com/dwijn/RH/pull/541) | — |
-| [B-73](https://github.com/dwijn/RH/issues/558) | low | `rhsphere`: `Formal` leaks one array of Nspace doubles per wavelength and sweep (`Jdag` allocated twice) | — | — |
+| [B-73](https://github.com/dwijn/RH/issues/558) | low | `rhsphere`: `Formal` leaks one array of Nspace doubles per wavelength and sweep (`Jdag` allocated twice), in unoptimized builds only | [#560](https://github.com/dwijn/RH/pull/560) | — |
 | [N-54](https://github.com/dwijn/RH/issues/498) | low | The height zero point at τ = 1 is interpolated linearly in τ and silently held at the table end when τ = 1 is outside the atmosphere | [#513](https://github.com/dwijn/RH/pull/513) | — |
 | [N-57](https://github.com/dwijn/RH/issues/501) | low | Feautrier's emergent I⁺ = 2P₀ − I⁻ can be negative with an irradiated top | — | — |
 | [N-58](https://github.com/dwijn/RH/issues/502) | low | The `THERMALIZED` boundary intensity B ∓ ΔB/Δτ can be negative over a thin or steep boundary interval | — | — |
@@ -897,6 +912,13 @@ Ordered so that every step can be verified against upstream: byte-identical
    - to re-measure on the current code: N-10 (3-D) and N-29;
    - to rescope against the solver work, each partly superseded: N-3,
      N-4, N-6, N-7, N-8 and N-13.
+   *Done 2026-11-23:* every step-4 issue is closed (90; the last were N-51 with
+   its spherical case, B-73, Q-36 and Q-37). The rest of the background
+   scattering work is on the wishlist: N-52 (per-wavelength linear
+   stencils for the Bézier iteration), N-63 (wavelengths that stall),
+   N-67 (polarized 1-D runs) and N-68 (2-D and 3-D); N-67 and N-68 wait
+   for the library track, which may restructure the formal solvers they
+   need. B-71 moved to step 7.
 5. **Speed** — *Started early, 2026-11-04:* the background opacity stage
    (P-13, T-5) blocks large-line-list UV syntheses and does not depend on
    the solver, so it goes first: shared state removed and per-point tables
@@ -924,6 +946,58 @@ Ordered so that every step can be verified against upstream: byte-identical
 ---
 
 ## 5. Changelog
+
+### 2026-11-23 — rhsphere: Formal no longer allocates Jdag twice (B-73)
+
+`Formal` of `rhsphere` allocated `Jdag` twice and freed it once. The first allocation is dead, and optimized builds drop it: at `-O2`, gcc 8 and icx emit the same 7 `malloc` calls in `Formal` before and after the change, and LeakSanitizer finds no leak in the shipped spherical example (gcc 16.2, RelWithDebInfo). Unoptimized builds leaked one array of Nspace doubles per formal solution: 6.0 MB in 3 iterations of that example at `-O0` (gcc 16.2, ASan), all from that line, and nothing after the change.
+
+Results do not change (`run_tests.py --exact`).
+
+### 2026-11-23 — Background scattering iterated at each wavelength in spherical symmetry (rhsphere) (N-51)
+
+The background scattering iteration of N-51 (with the stopping test of N-66 and the default of N-65) now also runs in `rhsphere`. Until now `rhsphere` kept the plain lambda iteration, one step per formal solution, which needs of order 1/ε sweeps where a scattering line is optically thick. This closes N-51; 1-D polarized runs (N-67) and 2-D and 3-D (N-68) are on the wishlist.
+
+**The change.**
+- **The sweep.** `rhsphere` supplies the formal solution of the iteration: Feautrier along every ray, J from P with the ray weights of each shell, and the tridiagonal of dJ/du for the preconditioned step (`BACKGROUND_OPERATOR = TRIDIAGONAL`, the default).
+- **The operator.** `Feautrier` (`rhsphere/feautrier.c`) returns, on request, the tridiagonal of dP/dS besides its diagonal Psi. Column j of the inverse of the Feautrier matrix falls off from its diagonal as P_k = P_k+1 / (1 + F_k) above j and P_k = P_k−1 / (1 + G_k) below it, with F and G of the forward and backward elimination, so the off-diagonals cost no more than Psi.
+- **Positivity.** The Feautrier matrix (`STANDARD`) is an M-matrix with row sums ≥ 1, so dP/dS ≥ 0 with row sums ≤ 1, and the ray weights of each shell add up to 1 (to rounding, in the test below). ‖Λσ‖∞ is then at most the largest albedo, which is what the error bound of the stopping test (N-66) needs, and no wavelength needs the linear fallback of N-52.
+- **The fallback hook.** Whether iterated wavelengths switch to the linear solver was decided in `bgscatter.c` from `S_INTERPOLATION`, which `rhsphere` reads but does not use. Each geometry now says it (`bgScatterLinearFallback`): `rhf1d` with `S_BEZIER3` only.
+- `rhsphere/run/keyword.input` documents the keywords.
+
+**Results.** FAL-C in spherical symmetry (`FALC_82_s`, 88 rays), the example's atoms (H₆ and Ca II active, PRD), the Kurucz lines of 256–260 nm with `RLK_SCATTER` (7292 lines) and the wavelength table 256.5–259.5 nm of the N-65 reproducer (6000 points), `ITER_LIMIT` 10⁻³, 8 threads. Errors are of the emergent intensity of the central ray, against the new code at `ITER_LIMIT` 10⁻⁶ and `BACKGROUND_ITER_LIMIT` 10⁻⁹.
+
+| | iterations | background solves | wall | largest error | median | wavelengths off by > 10 % |
+|---|---|---|---|---|---|---|
+| before | 26 | — | 0:48 | 0.90 (I 10 times too small) | 1.7×10⁻³ | 24 % |
+| now | 15 | 476k | 0:49 | 3.5×10⁻⁵ | 2×10⁻⁶ | 0 |
+| before, `ITER_LIMIT` 10⁻⁶ | 225 (reported converged) | — | 5:34 | 0.64 | 3×10⁻⁷ | 4 % |
+
+**Check against the lambda iteration.** Part of the window (257.70–257.80 nm, 200 points), all atoms passive (LTE), so that only the background scattering is iterated:
+- The iteration (`BACKGROUND_ITER_LIMIT` 10⁻¹⁰) against the plain lambda iteration after N sweeps (`BACKGROUND_N_MAX_ITER` 0): J/J_iterated − 1 is −0.87 at worst after 1000 sweeps, −0.56 after 4000 and −0.084 after 16000, and never above 7×10⁻¹² (the lambda iteration of a positive operator rises monotonically to its fixed point).
+- The lambda iteration of the code before this change gives the same J as the new code with `BACKGROUND_N_MAX_ITER` 0, bit for bit.
+
+**`run_tests.py`** against B-73 (the base): 37 of 38 cases identical; `sph/small` (the shipped spherical example, stopped after 4 iterations, unconverged) changes by up to 2.1×10⁻² (I at 95.05 nm), because every wavelength is now iterated. Run to convergence (`ITER_LIMIT` 10⁻⁶, 28 iterations before and after), the example agrees with a run at `BACKGROUND_ITER_LIMIT` 10⁻¹⁰ to 6.8×10⁻⁸ before and 2.6×10⁻⁹ now: it has no strongly scattering wavelengths. The 1-D, 2-D and 3-D cases are byte-identical.
+
+Tests:
+- `test_formal_sphere`, `check_operator`: along every ray, Psi and the tridiagonal from `Feautrier` against the columns of dP/dS from perturbations of S, with the opacity varying over three decades: equal to 3×10⁻¹⁵ (the test allows 10⁻¹²); every entry of dP/dS ≥ 0, row sums ≤ 1, ray weights of each shell adding up to 1.
+
+Evidence: `/hao/solar1/dwijn/claude/RH/evidence/n51-sphere` (README, run setup, comparison scripts).
+
+### 2026-11-23 — CI actions on Node 24 (checkout, setup-python, upload-artifact v7) (Q-36)
+
+`ci.yml` used `actions/checkout@v4`, `actions/setup-python@v5` and `actions/upload-artifact@v4`, which declare Node 20; GitHub runs them on Node 24 instead and warns in every run. They are now at their current majors, `@v7`, which declare Node 24.
+
+The breaking changes since do not touch how CI uses them: the inputs it passes (`fetch-depth`, `ref`, `path`, `repository`; `python-version`; `name`, `path`, `if-no-files-found`) are unchanged; `checkout@v7` refuses fork checkouts only under `pull_request_target` and `workflow_run`, which CI does not use; `setup-python@v7` drops the `pip-install` input and end-of-life Pythons (CI asks for 3.12). The test is this pull request's own CI run, without the warning.
+
+### 2026-11-23 — CI: the drift from upstream is a job of its own, on Linux only (Q-37)
+
+The report of the drift from upstream RH ran inside both regression jobs, after the regression suite: 4.0 of the 17 min of the Linux job with sanitizers on #561, 4.3 of 11 min on macOS. It is now a job of its own (`drift from upstream (report only)`), in parallel with the others, on Linux with gcc: it checks out and builds upstream and the candidate (about 1 min) and runs the same comparison as before (`run_tests.py --baseline upstream --threads ""`), into the run summary; it never fails.
+
+- **When.** On pushes, manual runs and pull requests with `changes-results`, as before. A pull request whose comparison with the base fails without the label no longer gets the report: the job cannot wait for that comparison without losing the gain, the pull request fails anyway, and adding the label reruns CI with the report.
+- **Linux only.** The drift is a property of the code; the macOS numbers differ from the Linux ones only by clang's FMA contraction on arm64 (at most 10⁻¹⁰, see the 2026-10-16 entry). The macOS regression job still compares each change with its base.
+- **Effect.** On a pull request with the label and on pushes, the Linux regression job loses its last 4 min and the macOS job its last 4.3 min; without the label nothing changes.
+
+The test is this pull request's own CI run (with `changes-results` set by hand to make the new job run).
 
 ### 2026-11-22 — BACKGROUND_ITER_LIMIT defaults to 0.1 × the smaller of ITER_LIMIT and ERROR_LIMIT; with NEWTON_KRYLOV at most NEWTON_NOISE (N-65)
 
