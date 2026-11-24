@@ -32,8 +32,8 @@
 
   N_MAX_SCATTER = 2
 
-# Background scattering at each wavelength (KEYWORD_DEFAULT; 1-D only,
-# N-51). The scattering part of the
+# Background scattering at each wavelength (KEYWORD_DEFAULT; 1-D and
+# spherical symmetry, N-51). The scattering part of the
 # background (electrons, Rayleigh, and with RLK_SCATTER the Kurucz lines)
 # is otherwise a lambda iteration, one step per formal solution, which
 # never converges for lines with a small photon destruction probability.

@@ -45,14 +45,15 @@ extern char       messageStr[];
 /* ------- begin -------------------------- Feautrier.c ------------- */
 
 double Feautrier(int nspect, int mu, double *chi, double *S,
-				 enum FeautrierOrder F_order, double *P, double *Psi)
+				 enum FeautrierOrder F_order, double *P, double *Psi,
+				 double *Tri)
 {
 	const char   routineName[] = "Feautrier";
 	register int k;
 
 	int    Ns;
 	double r0 = 0.0, h0 = 0.0, rN, hN, f0, fN, Ak, Ck, tau0 = 0.0, Bnu[2], dtau_mid,
-		   Iplus, *dtau, *abc, *A1, *C1, *F, *G, *Q, *Stmp, *ztmp;
+		   Iplus, *dtau, *abc, *A1, *C1, *F, *G, *Q, *Stmp, *ztmp, *D;
 	Ray *ray;
 
 	ray = &geometry.rays[mu];
@@ -148,23 +149,42 @@ double Feautrier(int nspect, int mu, double *chi, double *S,
 
 	/* --- If necessary evaluate the diagonal operator -- ------------- */
 
-	if (Psi) {
+	if (Psi || Tri) {
 		if (F_order == FEAUTRIER_HERMITE) {
 			sprintf(messageStr,
 					"Higher order for diagonal operator not yet implemented");
 			Error(ERROR_LEVEL_1, routineName, messageStr);
 		}
+		D = (Psi) ? Psi : Q;
 
 		G[Ns - 1] = abc[Ns - 1] / A1[Ns - 1];
 		for (k = Ns - 2; k >= 1; k--)
 			G[k] = (abc[k] + C1[k] * G[k + 1] / (1.0 + G[k + 1])) / A1[k];
 
-		Psi[0] = 1.0 / (abc[0] + C1[0] * G[1] / (1.0 + G[1]));
+		D[0] = 1.0 / (abc[0] + C1[0] * G[1] / (1.0 + G[1]));
 		for (k = 1; k < Ns - 1; k++)
-			Psi[k] = 1.0 / (abc[k] + A1[k] * F[k - 1] / (1.0 + F[k - 1]) +
-							C1[k] * G[k + 1] / (1.0 + G[k + 1]));
-		Psi[Ns - 1] = 1.0 /
-					  (abc[Ns - 1] + A1[Ns - 1] * F[Ns - 2] / (1.0 + F[Ns - 2]));
+			D[k] = 1.0 / (abc[k] + A1[k] * F[k - 1] / (1.0 + F[k - 1]) +
+						  C1[k] * G[k + 1] / (1.0 + G[k + 1]));
+		D[Ns - 1] = 1.0 /
+					(abc[Ns - 1] + A1[Ns - 1] * F[Ns - 2] / (1.0 + F[Ns - 2]));
+
+		/* --- The tridiagonal of dP/dS for the background scattering
+			   iteration (N-51), Tri[3k + i] = dP_k / dS_k-1+i. Column j
+			   of the inverse of the Feautrier matrix falls off from its
+			   diagonal D_j as P_k = P_k+1 / (1 + F_k) above j and as
+			   P_k = P_k-1 / (1 + G_k) below it, so dP_k / dS_k-1 =
+			   D_k-1 / (1 + G_k) and dP_k / dS_k+1 = D_k+1 / (1 + F_k).
+			   The matrix is an M-matrix (positive diagonal, negative
+			   off-diagonals, diagonally dominant with row sums abc >= 1),
+			   so dP/dS >= 0 and its row sums are <= 1 -- -------------- */
+
+		if (Tri) {
+			for (k = 0; k < Ns; k++) {
+				Tri[3 * k]     = (k > 0) ? D[k - 1] / (1.0 + G[k]) : 0.0;
+				Tri[3 * k + 1] = D[k];
+				Tri[3 * k + 2] = (k < Ns - 1) ? D[k + 1] / (1.0 + F[k]) : 0.0;
+			}
+		}
 	}
 
 	free(dtau);

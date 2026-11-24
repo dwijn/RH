@@ -129,6 +129,21 @@
   STARTING_J      = NEW_J
   BACKGROUND_FILE = background.dat
 
+# Background scattering at each wavelength (KEYWORD_DEFAULT, N-51): the
+# scattering part of the background (electrons, Rayleigh, and with
+# RLK_SCATTER the Kurucz lines) is iterated with the populations fixed
+# where the previous sweep found that J would still change, with the
+# tridiagonal (or diagonal) Feautrier operator, accelerated by Anderson,
+# until the estimated relative error of J is below BACKGROUND_ITER_LIMIT
+# (default: 0.1 x the smaller of ITER_LIMIT and ERROR_LIMIT), or after
+# BACKGROUND_N_MAX_ITER solves (0: the lambda iteration of before). See
+# rhf1d/run/keyword.input.
+#
+#  BACKGROUND_N_MAX_ITER = 50
+#  BACKGROUND_ANDERSON_DEPTH = 3
+#  BACKGROUND_OPERATOR = TRIDIAGONAL
+#  BACKGROUND_ITER_LIMIT = 1.0E-4
+
 # Apply multiplicative factor to all background metals. METALLICITY
 # is specified in terms of dex, ie -1.0 means a tenfold decrease in metals
 # Type is KEYWORD_DEFAULT.

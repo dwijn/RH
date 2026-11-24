@@ -44,11 +44,20 @@ extern char       messageStr[];
 
 const char *bgScatterSupported(void)
 {
-	/* --- The background scattering iteration (N-51) is 1-D only -- */
+	/* --- The background scattering iteration (N-51) is not done in
+		   2-D and 3-D (N-68) -- --                    -------------- */
 
-	return "it is implemented in 1-D (rhf1d) only";
+	return "it is implemented in 1-D and spherical symmetry only (N-68)";
 }
 /* ------- end ---------------------------- bgScatterSupported.c ---- */
+
+/* ------- begin -------------------------- bgScatterLinearFallback.c */
+
+bool_t bgScatterLinearFallback(void)
+{
+	return FALSE;
+}
+/* ------- end ---------------------------- bgScatterLinearFallback.c */
 
 /* ------- begin -------------------------- Formal.c ---------------- */
 

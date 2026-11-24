@@ -16,8 +16,9 @@
 
 	   Feautrier returns P = (I+ + I-)/2 and the emergent I+(s0).
 	   Checks the order of convergence and the errors as the shell is
-	   refined, for STANDARD and FEAUTRIER_HERMITE. -v prints the
-	   measured errors.
+	   refined, for STANDARD and FEAUTRIER_HERMITE. Then the operator
+	   dP/dS of STANDARD for the background scattering iteration (N-51,
+	   check_operator). -v prints the measured errors.
 	   --                                              -------------- */
 
 #include <math.h>
@@ -38,7 +39,8 @@ extern Spectrum    spectrum;
 extern CommandLine commandline;
 
 double Feautrier(int nspect, int mu, double *chi, double *S,
-				 enum FeautrierOrder F_order, double *P, double *Psi);
+				 enum FeautrierOrder F_order, double *P, double *Psi,
+				 double *Tri);
 
 #define RADIUS 1.0 /* core radius */
 #define HEIGHT 1.0 /* shell thickness */
@@ -114,7 +116,7 @@ static Errors shell_errors(int Nr, enum FeautrierOrder order, double S0)
 	for (int mu = 0; mu < geometry.Nrays; mu++) {
 		Ray   *ray   = &geometry.rays[mu];
 		double s0    = ray->s[0],
-			   Iplus = Feautrier(0, mu, chi, S, order, P, NULL),
+			   Iplus = Feautrier(0, mu, chi, S, order, P, NULL, NULL),
 			   Iemit = (ray->type == SHELL_RAY) ? S0 * (1.0 - exp(-2.0 * CHI * s0)) : S0;
 
 		for (int k = 0; k < ray->Ns; k++) {
@@ -163,6 +165,88 @@ static const Method methods[] = {
 
 #define N_METHODS (int) (sizeof(methods) / sizeof(methods[0]))
 
+/* --- The operator of the background scattering iteration (N-51):
+	   along every ray, the diagonal Psi and the tridiagonal Tri of
+	   dP/dS from Feautrier against the columns of dP/dS from unit
+	   perturbations DS of S (P is linear in S), with the opacity varying
+	   over three decades. The whole of dP/dS must be >= 0 with row
+	   sums <= 1 (an M-matrix), and the ray weights at each radius must
+	   add up to at most 1: then ||Lambda sigma||_inf <= the largest
+	   albedo, the bound of the stopping test (N-66) -- -------------- */
+
+#define NR_OP 41
+#define DS    1.0e6 /* large, so that rounding of P0 does not matter */
+
+static void check_operator(bool_t verbose)
+{
+	int     Nr  = NR_OP;
+	double *chi = malloc(Nr * sizeof(double)), *S = malloc(Nr * sizeof(double)),
+		   *P0 = malloc(Nr * sizeof(double)), *P1 = malloc(Nr * sizeof(double)),
+		   *Psi = malloc(Nr * sizeof(double)), *Tri = malloc(3 * Nr * sizeof(double)),
+		   *wsum = calloc(Nr, sizeof(double)), err_tri = 0.0, err_psi = 0.0, neg = 0.0,
+		   rowmax = 0.0, wmax = 0.0, wmin = HUGE_VAL;
+
+	shell_init(Nr);
+	for (int k = 0; k < Nr; k++) {
+		chi[k] = CHI * pow(10.0, 3.0 * k / (Nr - 1) - 1.5) * (1.0 + 0.3 * sin(k));
+		S[k]   = 1.0 + 0.5 * cos(0.7 * k);
+	}
+	for (int mu = 0; mu < geometry.Nrays; mu++) {
+		Ray   *ray = &geometry.rays[mu];
+		int    Ns  = ray->Ns;
+		double row[NR_OP];
+
+		Feautrier(0, mu, chi, S, STANDARD, P0, Psi, Tri);
+		for (int k = 0; k < Nr; k++) row[k] = 0.0;
+		for (int j = 0; j < Ns; j++) {
+			S[j] += DS;
+			Feautrier(0, mu, chi, S, STANDARD, P1, NULL, NULL);
+			S[j] -= DS;
+			for (int k = 0; k < Ns; k++) {
+				double d = (P1[k] - P0[k]) / DS, scale = fabs(Psi[k]) + 1.0e-300;
+
+				row[k] += d;
+				if (d < neg) neg = d;
+				if (k == j) {
+					err_psi = MAX(err_psi, fabs(Psi[k] - d) / scale);
+					err_tri = MAX(err_tri, fabs(Tri[3 * k + 1] - d) / scale);
+				} else if (k == j + 1) {
+					err_tri = MAX(err_tri, fabs(Tri[3 * k] - d) / scale);
+				} else if (k == j - 1) {
+					err_tri = MAX(err_tri, fabs(Tri[3 * k + 2] - d) / scale);
+				}
+			}
+		}
+		for (int k = 0; k < Ns; k++) {
+			rowmax = MAX(rowmax, row[k]);
+			wsum[k] += ray->wmu[k];
+		}
+	}
+	for (int k = 0; k < Nr; k++) {
+		wmax = MAX(wmax, wsum[k]);
+		wmin = MIN(wmin, wsum[k]);
+	}
+	if (verbose)
+		printf("  operator: Psi %.2e, Tri %.2e (relative to Psi); most negative"
+			   " entry %.2e; largest row sum %.15f; ray weights %.6f .. %.15f\n",
+			   err_psi, err_tri, neg, rowmax, wmin, wmax);
+	CHECK(err_psi <= 1.0e-12, "Psi differs from dP_k/dS_k by %.3g", err_psi);
+	CHECK(err_tri <= 1.0e-12, "Tri differs from the tridiagonal of dP/dS by %.3g",
+		  err_tri);
+	CHECK(neg >= -1.0e-15, "dP/dS has a negative entry %.3g", neg);
+	CHECK(rowmax <= 1.0 + 1.0e-12, "a row sum of dP/dS is %.15f > 1", rowmax);
+	CHECK(wmax <= 1.0 + 1.0e-12, "the ray weights at a radius add up to %.15f > 1",
+		  wmax);
+	shell_free();
+	free(chi);
+	free(S);
+	free(P0);
+	free(P1);
+	free(Psi);
+	free(Tri);
+	free(wsum);
+}
+
 int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
@@ -208,5 +292,6 @@ int main(int argc, char *argv[])
 		CHECK(grazing_max <= m->max_grazing, "%s: grazing-ray error %.3g > %.3g",
 			  m->name, grazing_max, m->max_grazing);
 	}
+	check_operator(verbose);
 	return check_summary("test_formal_sphere");
 }
