@@ -282,7 +282,7 @@ operations:
 | `emergent` | which points are the surface for a ray, and the emergent values there | `I[0]`, top row, top plane |
 | `boundary` | incoming intensities at the boundaries for a wavelength | `getBoundary`, `Itop`, `Ibottom` |
 | `rii` | the angle-dependent PRD redistribution function for two rays | `RII` |
-| capabilities | angle-dependent opacity, Stokes, Eddington (2-D), tridiagonal operator, positive operator | scattered checks (`checkEddington`, `bgScatterSupported`, `bgScatterLinearFallback`) |
+| capabilities | angle-dependent opacity, Stokes, tridiagonal operator, positive operator | scattered checks (`bgScatterSupported`, `bgScatterLinearFallback`) |
 
 - Polarized and unpolarized transfer differ only in the `solve` operation
   used, so the plumbing of the background-scattering iteration (N-51) comes
@@ -290,10 +290,16 @@ operations:
   numerics: a positive operator in 2-D and 3-D (linear stencils, or a
   fallback per wavelength as in 1-D), and memory and cost in 3-D. N-67
   remains the question of an operator for the Stokes solver.
-- **Open:** whether `rhsphere` fits the shared driver. Its rays are impact
-  parameter rays with a μ and a weight that vary along the ray, and it
-  accumulates Γ and the rates itself. With per-point weights in the driver it
-  fits on paper; decide after a prototype in phase 1.
+- **Decided (2026-11-24): `rhsphere` joins the shared driver only if it fits
+  cleanly, otherwise it is retired** (Q-43). Its rays are impact parameter
+  rays with a μ and a weight that vary along the ray, and it accumulates Γ
+  and the rates itself, under locks. With per-point weights in the driver it
+  fits on paper; a prototype after the driver for 1-D, 2-D and 3-D (Q-42)
+  decides. It treats static, unpolarized atmospheres with angle-averaged PRD
+  only, which limits its use.
+- **Decided (2026-11-24): the 2-D Eddington approximation is retired**
+  (Q-41, §7). It solves each column alone as a 1-D two-stream problem,
+  which a loop over columns does with any angle set.
 - `Hydrostatic` is not a geometry operation: it changes the atmosphere. It
   stays a 1-D step that only the NG solver allows (§7).
 - The indirect call per ray costs nothing measurable: each call does
@@ -696,6 +702,9 @@ tools/, tests/, docs/, python/, idl/   unchanged
 Atoms/, Molecules/, Atmos/             unchanged until runs are self-contained
 ```
 
+As built (#579, 2026-11-24): the example runs moved from `<program>/run/` to
+`examples/<program>/`, and the programs still build into `build/<program>/`.
+
 | Directory | Files today (92 `.c` in the root) |
 |---|---|
 | `runtime/` (7) | error, parallel, getcpu, work, matrix, fpehandler, stopreq; parallel.h |
@@ -735,7 +744,9 @@ flowchart TB
    library; each program installs its geometry operations. Globals stay for
    now. Settles the riskiest interface first, removes two of the three
    copies of the driver (about 600 lines), and opens the way for N-68.
-   Decide whether `rhsphere` joins (§3.4).
+   In three steps: retire the 2-D Eddington branch (Q-41); one driver for
+   1-D, 2-D and 3-D, with `rhsphere` behind an override (Q-42); then
+   `rhsphere` joins or is retired (Q-43, §3.4).
 2. **Gather state.** Put the eight globals and the per-run statics into one
    struct with one global instance; references are rewritten mechanically
    (`atmos.T` becomes `rh->atmos.T` with `rh` the global instance). Nothing
@@ -811,6 +822,8 @@ on review (user, 2026-11-24).
 | `PRINT_CPU`, `time.out` | **Decided:** always-on stage statistics, finer probes switched at run time (§3.9) | the current timer is CPU time summed over threads |
 | `METALLICITY` | **Decided:** no longer scales helium; helium is its own parameter (§3.10, A2) | a solar mixture assumed |
 | `brs.out`, `metals.out`, `molecules.out` | **Decided:** written only when asked | analysis output, written in every run today |
+| 2-D `ANGLE_SET = SET_EDDINGTON` | **Decided:** retire (before phase 1, Q-41); 1-D keeps it | each column solved alone as 1-D two-stream, which a loop over columns gives |
+| `rhsphere` | **Decided:** joins the shared driver if it fits cleanly, else retired (Q-43) | static, unpolarized, angle-averaged PRD only |
 | `HYDROSTATIC` | **Decided:** a 1-D step of the NG solver | changes the atmosphere; a block in G is a later question |
 | `N_THREADS` | **Decided:** an env setting; the configuration sets it for `rh` | threads are a runtime property |
 
@@ -819,7 +832,8 @@ on review (user, 2026-11-24).
 ## 8. Open questions
 
 1. Does `rhsphere` join the shared transfer driver (§3.4)? Decided after a
-   prototype in phase 1.
+   prototype in phase 1: it joins if it fits cleanly, else it is retired
+   (Q-43).
 2. Block-ordered reductions (§3.5): default, option, or dropped, after
    measuring the merge cost for large atoms.
 3. Synthesis on wavelengths outside the model's grid (§3.3): when, and with
