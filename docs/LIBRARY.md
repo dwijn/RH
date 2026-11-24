@@ -5,7 +5,8 @@ that a stand-alone program, inversion codes and Python bindings all use. It
 records the requirements, the target design, how the current code maps onto
 it, and a migration plan that keeps every step verifiable.
 
-- **Status:** proposal, 2026-11-23, for review. Written against `modernize`
+- **Status:** accepted 2026-11-24 (#569); revised 2026-11-24 with the
+  decisions below, the revision for review. Written against `modernize`
   at `9885adb` (end of plan step 4). Statements about the current code come
   from a survey of that commit, spot-checked against the source; the
   evidence (survey notes, profile) is in
@@ -24,11 +25,23 @@ it, and a migration plan that keeps every step verifiable.
   response functions. The target design comes first; it may break with the
   current structure where there is a good reason, and the migration reuses
   what fits.
+- **Decided (user, 2026-11-24):** the work happens on the integration
+  branch `chrysalis` while `modernize` carries on with other work (§6.1).
+  The sources move into directories as soon as that is feasible, not at the
+  end (phase 0, §6.2). One `rh` program selects its geometry with a
+  configuration parameter. The run configuration moves to a structured
+  format (F-5). Runs are self-contained: no hard-coded data paths.
+  `solve1d`, `solve2d`, `formal2d` and `formal3d` are retired; full backward
+  compatibility is not a goal. The stand-alone program gets checkpointing
+  (§3.8). Timing and stopping (`PRINT_CPU`, `STOP_RH`) are redone (§3.9).
+  What is specific to solar conditions moves out of the library into
+  run-time input where that is cheap (§3.10).
 
 Contents: §1 the clients and what they need, §2 requirements, §3 the
-design (objects, geometry, threads, errors, memory, derivatives), §4 the API
-in outline, §5 how today's code maps onto it, §6 the migration plan, §7
-breaking changes to decide, §8 open questions.
+design (objects, geometry, threads, errors, memory, derivatives,
+checkpoints, timing, solar assumptions), §4 the API in outline, §5 how
+today's code maps onto it, §6 the branch, the layout and the migration plan,
+§7 breaking changes, §8 open questions.
 
 ---
 
@@ -36,7 +49,7 @@ breaking changes to decide, §8 open questions.
 
 | Client | Typical use | What it needs from RH |
 |---|---|---|
-| **Stand-alone program** (`rh`, today `rhf1d`, `rhsc2d`, `rhsc3d`, `rhsphere`) | One atmosphere per run, any geometry, input and output files in RH's formats | Every current configuration, with the results of the current programs; file formats handled outside the core |
+| **Stand-alone program** (`rh`, today `rhf1d`, `rhsc2d`, `rhsc3d`, `rhsphere`) | One atmosphere per run, the geometry chosen in the configuration; long 2-D and 3-D runs on HPC systems that preempt or time-limit jobs | Every current configuration, with the results of the current programs; a structured configuration; self-contained run directories; checkpoint and restart; file formats handled outside the core |
 | **Inversion codes** (STIC-like) | Thousands to millions of 1-D (1.5-D) syntheses per process, same atoms and wavelength grid, a different atmosphere each time; many columns at once on threads; response functions | Set up the atoms and the wavelength grid once; per column: new atmosphere, warm start, solve, emergent spectrum at the observed angles; a failing column returns an error and the process carries on |
 | **Python bindings** | Interactive work and scripts: build or load an atmosphere, solve, inspect populations and J, change a keyword, solve again | Arrays in, arrays out; exceptions instead of exits; warnings into Python's logging; interrupt with Ctrl-C; no files left behind |
 
@@ -81,14 +94,20 @@ Each requirement is a test the design and the finished library must pass.
 | C8 | **Memory trade-offs stay open.** Nothing in the design forces per-thread copies of large arrays or storage of quantities that can be recomputed; plan steps 5 and 6 plug in here. |
 | C9 | **C17 with a stable C API.** Opaque handles, a version number, no dependencies beyond libm and POSIX threads in the core (XDR only in the I/O library). |
 | C10 | **Testable in pieces.** Every module can be unit-tested without globals. |
+| C11 | **Prompt stop.** A stop request ends a solve within seconds (one block of wavelengths) and leaves the solver at its last completed iterate, from which it can continue or be checkpointed. |
+| C12 | **Timing built in.** Every solve reports wall-clock and CPU time per stage and its work counts; finer profiling is a compile-time option. |
+| C13 | **No built-in solar assumptions.** Properties of the star (abundances and the others of §3.10) come from run-time input; the validity limits of built-in data are reported, not hidden. |
 
 **Stand-alone**
 
 | ID | Requirement |
 |---|---|
 | S1 | Runs every current configuration (1-D, 2-D, 3-D, spherical, all keywords that survive §7) with the results of the current programs, checked with `run_tests.py --exact` at every migration step that should not change results. |
-| S2 | Writes RH's output files (XDR) through the I/O library, so `rhanalyze` keeps working. |
+| S2 | Writes its output through the I/O library: RH's XDR files for now, so `rhanalyze` keeps working (a structured output format is open, §8). |
 | S3 | Runs too large for memory remain possible through a file-backed store that the program, not the core, provides. |
+| S4 | **Self-contained runs.** Every input file is named in the configuration, relative to the run directory or absolute; no hard-coded paths such as `../../Atoms`. |
+| S5 | **Structured configuration** (F-5): one file with sections, the geometry selected by a parameter, with a converter from `keyword.input` and its companion files. |
+| S6 | **Checkpoint and restart.** On SIGTERM, SIGINT or SIGUSR1, and periodically, the program writes a checkpoint and exits cleanly within the grace period of the batch system (10 minutes on NCAR's `preempt` queue); a restart from it continues the run (§3.8). |
 
 **Inversions**
 
@@ -123,7 +142,7 @@ flowchart TB
     INV["inversion code"]
     PY["Python package"]
   end
-  IO["librh_io: keyword files, atom / molecule / line-list readers,\natmosphere readers, XDR writers"]
+  IO["librh_io: configuration (TOML), atom / molecule / line-list readers,\natmosphere readers, XDR writers, checkpoints"]
   API["rh.h: public C API (opaque handles, status codes)"]
   subgraph Core["librh (no files, no globals)"]
     MOD["model builder:\natoms, molecules, wavelength grid, active sets"]
@@ -153,8 +172,17 @@ flowchart TB
   sees a file name.
 - **Proposed.** Keyword parsing is split: the keyword *schema* (names,
   types, defaults, the cross-checks of `readInput`) stays in the core as an
-  options object that accepts `set("ITER_LIMIT", "1e-4")`; reading the
-  keyword *file* moves to the I/O library. One schema, three front ends.
+  options object that accepts `set("iteration.limit", "1e-4")`; reading
+  the configuration *file* moves to the I/O library. One schema, three front
+  ends.
+- **Proposed: TOML for the configuration** (F-5): tables and arrays of
+  tables give the solver blocks and the per-atom options their structure
+  (`[solver.anderson]`, `[[atoms]] file = ... active = true`), so most of
+  today's keyword conflicts cannot be written at all; no indentation rules;
+  a small MIT-licensed C parser can be vendored into `librh_io`. A converter
+  turns `keyword.input`, `atoms.input`, `molecules.input` and `ray.input`
+  into one file. The geometry is a parameter there
+  (`geometry = "1d-plane"`).
 
 ### 3.2 Objects and lifetimes
 
@@ -314,10 +342,13 @@ flowchart LR
 - Warnings and messages go through `rh_log(ctx, level, ...)` to the env's
   callback (serialized by the env). `messageStr` disappears.
 - Allocation failure is `RH_E_NOMEM`, not an exit.
-- Floating-point traps and `STOP_RH` move to the stand-alone program: the
-  program may set traps around its calls (CI relies on them); stopping is a
-  callback the solver polls once per iteration, which the program implements
-  with the `STOP_RH` file and Python with Ctrl-C.
+- Floating-point traps move to the stand-alone program, which may set
+  them around its calls (CI relies on them).
+- Stopping is a callback that the transfer driver polls between blocks of
+  wavelengths (C11). On a stop the outer solver drops the G evaluation in
+  flight and returns `RH_E_STOPPED`, with the solver at its last completed
+  iterate. The program sets the flag from a signal handler (§3.8), Python
+  from Ctrl-C.
 
 ### 3.7 Memory, storage, response functions
 
@@ -347,6 +378,138 @@ pieces they need explicit:
    already does) and a GMRES solve with any right-hand side, which give
    dx/dp = (I − ∂G/∂x)⁻¹ ∂G/∂p at the converged state (implicit function
    theorem), and from it the full NLTE response.
+
+### 3.8 Checkpoint and restart (stand-alone program)
+
+**Why.** Large 2-D and 3-D runs take hours to days, and HPC systems end jobs
+early: walltime limits, node failures, preemption. On NCAR's Derecho the
+`preempt` queue sends SIGTERM, waits 10 minutes, then sends SIGKILL; a job
+can ask to be requeued with `#PBS -r y`
+(<https://ncar-hpc-docs.readthedocs.io/en/latest/pbs/preemption/>). One
+iteration of a 3-D run can take longer than the grace period (the 3-D perf
+case of the log, §2.3: about 44 minutes per iteration), so waiting for the
+iteration to end is not enough.
+
+**How (proposed).**
+
+1. The program installs handlers for SIGTERM, SIGINT and SIGUSR1 that only
+   set an atomic flag (async-signal-safe). The library installs nothing
+   (C1).
+2. The solver's stop callback reads the flag. The transfer driver polls it
+   between blocks of wavelengths, so the reaction time is one block, not
+   one iteration (C11). The outer solver drops the G evaluation in flight
+   and returns `RH_E_STOPPED`; its last completed iterate is intact, since
+   the Anderson driver already keeps the full state vectors (x, G(x), the
+   last accepted point) apart from RH's working arrays.
+3. The program writes the checkpoint to a temporary file and renames it
+   over the previous one only when it is complete and flushed, so a SIGKILL
+   during the write leaves the previous checkpoint usable. It then exits
+   with a status that means "stopped, restartable" (proposed: 75,
+   `EX_TEMPFAIL`), which a job script can use to requeue.
+4. Periodic checkpoints as well, every N iterations or T minutes
+   (configuration), so that a kill without warning loses at most that much.
+5. A restart (`rh --restart <checkpoint>`) builds model and solver from the
+   same configuration, recomputes the derived data (background, profiles),
+   checks the checkpoint's identity record, restores the state and continues
+   with the remaining iteration budget.
+
+**Contents.**
+
+| Part | Content | Size |
+|---|---|---|
+| identity | code version and commit, hashes of configuration, model (atoms, grid) and atmosphere | bytes |
+| state | the state-vector blocks: populations, ρ, n_e, J (and J20) | J dominates in multi-D: Nspect × Nspace doubles (420 GB in the 256² × 200 estimate of M-5) |
+| solver | outer-solver counters and history (Anderson pairs), error-estimate state | (m + 1) pairs of the packed state |
+
+Two levels. **Exact**: everything; the continued run is bit-identical to an
+uninterrupted one at the same thread count, which is also the test of the
+feature. **Compact**: populations, ρ and n_e; at restart one sweep with the
+populations fixed recomputes J and the history starts afresh, which costs a
+few iterations and reaches the same solution. Writing 420 GB within 10
+minutes needs 0.7 GB/s, so large multi-D runs default to compact
+checkpoints on a stop request.
+
+The library serializes and restores through client callbacks
+(`rh_solver_save`, `rh_solver_restore`), so it still writes no files (C2);
+`librh_io` puts the bytes in a file. Today's restarts (`OLD_POPULATIONS`,
+`STARTING_J = OLD_J`) become special cases of an initial state read from
+files.
+
+### 3.9 Timing and profiling
+
+**Today.** `PRINT_CPU` writes `time.out` from `clock()`, which is CPU time
+summed over threads, so it never shows a parallel speedup (P-9); `time.out`
+is created in every run, also without `PRINT_CPU`. The work counters of
+`work.c` count formal solutions per stage. `STOP_RH` is a file polled once
+per iteration.
+
+**Measured** (sundog2, Xeon E5-2697 v2, glibc vDSO):
+`clock_gettime(CLOCK_MONOTONIC)` costs 19 ns per call; the CPU-time clocks
+(`CLOCK_PROCESS_CPUTIME_ID`, `CLOCK_THREAD_CPUTIME_ID`, `clock()`) cost
+about 0.5 µs, a system call each. A wall-clock timer around every
+wavelength of a sweep costs 2 × 286 × 19 ns ≈ 11 µs per 49 s sweep of the
+profile case, 2 × 10⁻⁷ of it.
+
+**Proposed.**
+
+- Always on, no keyword: wall-clock (monotonic) and CPU time per stage
+  (each setup step, each G evaluation, sweeps, PRD, synthesis, output) and
+  the work counters, collected in the solver's statistics and returned in
+  `rh_solve_info`. The program prints a summary at the end and stores it
+  with the results; `time.out` goes.
+- A compile-time option `RH_PROFILE` (CMake) for finer probes that would
+  clutter the hot paths: per wavelength and per thread, load balance, time
+  spent in merges. Off in production builds.
+- Routine-level profiles come from external tools (perf, VTune, gprof),
+  with no code in RH.
+- `STOP_RH` goes; signals (Ctrl-C, `kill -TERM`, the batch system) stop a
+  run with a checkpoint (§3.8).
+
+### 3.10 Solar-specific assumptions
+
+Asked for by the user on 2026-11-24: whatever is specific to solar
+conditions moves out of the library into run-time input, where that is
+cheap. A survey of `9885adb` (spot-checked) found no solar constants in the
+code: no R☉, no log g = 4.44, no T_eff; gravity and radius come from the
+atmosphere file and abundances from the abundance file. What is solar, or
+solar-type, is the following.
+
+**Cheap to make run-time input (proposed).**
+
+| # | What | Where | Proposal |
+|---|---|---|---|
+| A1 | The 1-D reader floors the gas pressure at 1.908 × the electron pressure when it derives n_H from column mass; the number is close to Pg/Pe of fully ionized H and He at solar He/H [inferred] | `rhf1d/multiatmos.c:56,230` | compute it from the abundances |
+| A2 | `METALLICITY` scales every element except H, so helium too | `abundance.c:175` | helium as its own parameter, not scaled with the metals (changes results for runs that set `METALLICITY`) |
+| A3 | No per-element override: changing one element needs a new abundance file | `abundance.c` | abundances become model data: a base table plus per-element overrides in the configuration (`[abundances] Fe = 7.30`) |
+| A4 | The logarithmic scale is recognized from an H entry of exactly 12.00 | `abundance.c:123` | an explicit scale in the configuration |
+| A5 | Helium as a perturber is taken as all neutral: van der Waals broadening and CO collisions use the total He abundance | `broad.c:100-129`, `kurucz.c:1139`, `cocollisions.c:96-101` | use the neutral He density when He is in the model; matters above about 10 kK |
+| A6 | The default abundance file is solar (Grevesse & Anders 1991, Asplund 2005 C and O) | `Atoms/abundance.input` | data only: offer alternatives |
+
+**Validity limits of built-in data (reported, not configurable).** Kurucz
+partition functions cover 1 000–100 000 K and at most stage VI, and are held
+at the ends without a warning; molecular equilibrium fits cover
+1 000–9 000 K (CO to 12 000 K, H₂O to 6 000 K) and are extrapolated with a
+warning (N-53); OH and CH bound-free cover 2 000–9 000 K and 2.1–15 eV;
+H₂⁻ free-free θ = 0.5–3.6, H₂⁺ 2 500–12 000 K, H⁻ free-free held below
+1 400 K; H₂ Rayleigh scattering stops below 121.6 nm; the linear Stark
+broadening of hydrogen is approximate for hot stars; helium bound-free and
+free-free opacity need a He model atom, and He⁻ free-free does not exist
+(F-8). **Proposed:** a validity summary at the start of each run (which data
+are used outside their range, at how many points), part of the statistics
+of §3.9 (C13), and the same warning as N-53 for the partition functions.
+
+**Structural, not in this track.** The composition is assumed
+hydrogen-dominated: abundances are relative to H and n_H is the density
+variable; H must be the first atom and H₂ the first molecule; helium is
+found by its position in the element table; the van der Waals perturbers
+are H and He only; 1-D hydrostatic equilibrium counts electrons only from
+metals with model atoms.
+
+**When.** A1 to A4 become model input in phase 4, when abundances move
+into `rh_model`; the configuration syntax comes in phase 5. A5 is a physics
+fix that changes results and does not depend on the library work: it can be
+logged and fixed on `modernize` now. The validity summary comes with the
+statistics in phase 5.
 
 ---
 
@@ -394,6 +557,12 @@ rh_status rh_solver_view(const rh_solver *s, rh_quantity q, int index,
 /* Room for derivatives */
 rh_status rh_solver_get_state(rh_solver *s, rh_array *x);
 rh_status rh_solver_apply_G(rh_solver *s, const double *x, double *gx,
+                            rh_error *err);
+
+/* Checkpoints: bytes through client callbacks, no files */
+rh_status rh_solver_save(const rh_solver *s, rh_checkpoint_level level,
+                         rh_write_fn write, void *user, rh_error *err);
+rh_status rh_solver_restore(rh_solver *s, rh_read_fn read, void *user,
                             rh_error *err);
 
 void rh_solver_destroy(rh_solver *s);   /* and the matching destroy calls */
@@ -450,57 +619,150 @@ void rh_solver_destroy(rh_solver *s);   /* and the matching destroy calls */
 
 ---
 
-## 6. Migration plan
+## 6. Branch, layout and migration plan
 
-**Proposed.** Six phases. Each pull request keeps results unchanged
+### 6.1 Working on the branch `chrysalis`
+
+**Decided (user, 2026-11-24)**, with the workflow **proposed**:
+
+- All library-track pull requests target `chrysalis`, created on
+  2026-11-24 from `modernize` at `d61cf08`. `modernize` carries on with
+  fixes and features.
+- **Syncing.** `modernize` is merged into `chrysalis` through a pull
+  request (branch `sync/modernize-<date>`) whenever it has something the
+  library work needs, and at least every few weeks, so that the final merge
+  stays manageable. It is reviewed and merged like any code pull request.
+- **CI.** Pull requests are already checked against their own base,
+  whatever it is (Q-23). Pushes are checked only on `modernize`; the first
+  `chrysalis` pull request adds `chrysalis` to the push trigger.
+- **Issues and the log.** Each phase gets its log row on `modernize`, as
+  usual (a docs PR, then `make_issues.py`). GitHub closes an issue by
+  keyword only when the pull request merges into the default branch, so the
+  issue of a `chrysalis` pull request is closed by hand with a comment that
+  names the pull request; `make_log_page.py` learns to fill in
+  "fixed (#n)" from merged `chrysalis` pull requests that say "Closes #N"
+  (a docs-tooling change when the first one merges).
+- **Change notes** (`docs/changes/<ID>.md`) collect on `chrysalis` and
+  reach the changelog when `chrysalis` merges back.
+- **The end.** `chrysalis` merges into `modernize` once the library runs
+  every configuration with the results of `modernize` (S1) and the other
+  requirements pass. If `modernize` has stopped moving by then, `chrysalis`
+  simply becomes the main line.
+- This document stays on `modernize`, where the design is reviewed; changes
+  to it are docs pull requests there.
+
+### 6.2 Phase 0: source layout
+
+**Proposed.** The first thing on `chrysalis`, before any code changes: a
+pure move (`git mv`, CMake paths, the paths in the unit tests), checked by
+`--exact`. Every later phase then works in the final layout. Merges from
+`modernize` follow the renames (git's rename detection); conflicts are
+expected mainly in `CMakeLists.txt`. Before the move, a separate pull
+request retires `solve1d`, `solve2d`, `formal2d` and `formal3d`.
+
+```
+src/
+  include/     shared internal headers: rh.h, atom.h, atmos.h, spectrum.h,
+               inputs.h, constant.h, error.h, statistics.h, background.h, xdr.h
+  runtime/     errors, threads, timers and work counters, matrix allocation,
+               FP traps and the stop request (until they move to the program)
+  numerics/    Anderson, Newton–GMRES, MPE, Ng, GTH, LU, interpolation,
+               special functions, quadrature, sorting
+  physics/     background opacity sources, chemistry, n_e, LTE, collisions,
+               fixed rates, profiles, Voigt, Zeeman, broadening, PRD integrals
+  transfer/    opacity per wavelength, Bézier and Stokes kernels, the
+               negative-τ detector, background scattering; the driver of phase 1
+  nlte/        iteration, the map G and the outer solvers, rate equations and
+               Γ accumulation, initial solution, the G checks
+  model/       wavelength grid and active sets (the model builder of phase 4)
+  io/          configuration and atom/molecule readers, B field, scratch-file
+               I/O, XDR writers
+  geometry/
+    plane1d/   today's rhf1d/, with its main programs for now
+    cart2d/    rhsc2d/
+    cart3d/    rhsc3d/
+    sphere/    rhsphere/
+tools/, tests/, docs/, python/, idl/   unchanged
+Atoms/, Molecules/, Atmos/             unchanged until runs are self-contained
+```
+
+| Directory | Files today (92 `.c` in the root) |
+|---|---|
+| `runtime/` (7) | error, parallel, getcpu, work, matrix, fpehandler, stopreq; parallel.h |
+| `numerics/` (16) | anderson, newton, mpe, accelerate, maxchange, gth, ludcmp, linear, pchip, hunt, cubeconvol, expint, gammafunc, gaussleg, order, w3; anderson.h, newton.h, mpe.h, accelerate.h, simd.h |
+| `physics/` (29) | background, hydrogen, metal, kurucz, rayleigh, thomson, ohchbf, chemequil, solvene, nemetals, ltepops, collision, cocollisions, fixedrate, profile, voigt, zeeman, molzeeman, paschen, broad, barklem, planck, wigner, giigen, scatter, prdfold, prdh, prdrho, vacuumtoair; prdfold.h, prdh.h, atomweights.h |
+| `transfer/` (6) | opacity, bezier_aux, stokesgrid, stokesopac, negtau, bgscatter; bezier.h, stokesgrid.h, negtau.h, bgscatter.h |
+| `nlte/` (8) | iterate, solver, statequil, fillgamma, initial_xdr, initscatter, redistribute, gchecks; solver.h |
+| `model/` (3) | sortlambda, getlambda, duplicate |
+| `io/` (23) | readinput, readvalue, parse, options, getline, abundance, readatom, readmolecule, readb_xdr, readj, pops_xdr, radrate_xdr, brs_xdr, backgropac_xdr, writeatmos_xdr, writeatom_xdr, writecoll_xdr, writedamp_xdr, writeinput_xdr, writemetal_xdr, writemolec_xdr, writeopac_xdr, writespect_xdr |
+
+Files that mix concerns go where most of their code belongs and are split in
+later phases: `readatom.c` reads atom files and builds model data (split in
+phase 4), `initial_xdr.c` sets up the initial solution and reads old
+populations and J (split in phase 5), `background.c` is the per-atmosphere
+background stage and frees model data (phase 4). `librh.a` stays one
+library until phase 5 separates `librh_io`.
+
+### 6.3 Phases
+
+**Proposed.** Seven phases. Each pull request keeps results unchanged
 (`run_tests.py --exact` against its base, full `ctest`, icx) unless it says
 otherwise and carries `changes-results`.
 
 ```mermaid
 flowchart TB
-  P1["1 One transfer driver\n(Q-5; unblocks N-68)"] --> P2["2 Gather state\nglobals + statics into one struct"]
-  P2 --> P3["3 Pass it explicitly, return status\n(Q-4, Q-7, Q-16, T-1..3, B-41)"]
+  P0["0 Source layout\n(retire solve1d & co. first)"] --> P1["1 One transfer driver\n(Q-5; unblocks N-68)"]
+  P1 --> P2["2 Gather state\nglobals + statics into one struct"]
+  P2 --> P3["3 Pass it explicitly, return status, stop path\n(Q-4, Q-7, Q-16, T-1..3, B-41)"]
   P3 --> P4["4 Split lifetimes, free everything\n(Q-8, B-71)"]
-  P4 --> P5["5 No files in the core\nmemory stores, librh_io"]
-  P5 --> P6["6 API, thread pool, one rh program,\nPython, inversion test driver"]
+  P4 --> P5["5 The stand-alone program and its files\nlibrh_io, TOML, one rh, self-contained runs, timing"]
+  P5 --> P6["6 API and clients\nthread pool, Python, inversion driver, checkpoints"]
 ```
 
+0. **Source layout** (§6.2), after retiring `solve1d`, `solve2d`,
+   `formal2d` and `formal3d`.
 1. **One transfer driver.** Move the per-wavelength driver into the
    library; each program installs its geometry operations. Globals stay for
    now. Settles the riskiest interface first, removes two of the three
-   copies of the driver (about 600 lines), and opens the way for N-68. Decide whether `rhsphere` joins (§3.4).
+   copies of the driver (about 600 lines), and opens the way for N-68.
+   Decide whether `rhsphere` joins (§3.4).
 2. **Gather state.** Put the eight globals and the per-run statics into one
    struct with one global instance; references are rewritten mechanically
    (`atmos.T` becomes `rh->atmos.T` with `rh` the global instance). Nothing
    else changes, so `--exact` checks the rewrite.
-3. **Pass it explicitly and return status.** Module by module, leaves
-   first: the struct pointer becomes the first parameter, and functions that
-   can fail return `rh_status` instead of calling `Error(ERROR_LEVEL_*)`.
-   Both touch the same signatures, so they go together; at the end the global
-   instance is gone, no code path exits, and the FP traps and `STOP_RH` live
-   in the programs. Most of the ~600 fatal call sites are input checks in
-   `readinput.c`, `readatom.c` and `readmolecule.c`, where returning is
-   natural.
+3. **Pass it explicitly, return status, stop path.** Module by module,
+   leaves first: the struct pointer becomes the first parameter, and
+   functions that can fail return `rh_status` instead of calling
+   `Error(ERROR_LEVEL_*)`. Both touch the same signatures, so they go
+   together. At the end the global instance is gone and no code path exits;
+   the stop callback is polled between wavelength blocks (C11). Most of the
+   ~600 fatal call sites are input checks in `readinput.c`, `readatom.c` and
+   `readmolecule.c`, where returning is natural.
 4. **Split lifetimes and free everything.** Model, atmosphere and solver
    become separate objects (§3.2): atom data without `Nspace` arrays,
    collision data parsed into memory, `Background()` no longer frees model
    data, grid flags from the options, a complete free path (fixing B-71 on
-   the way). New test: two solves in one process give the same results as
-   two processes, and valgrind/ASan are clean.
-5. **No files in the core.** Background opacity, PRD weights, Jgas and the
-   angle-dependent intensities in memory with the storage policies of §3.7;
-   readers and writers move into `librh_io`, which the programs use. Output
-   files stay byte-identical.
-6. **API and clients.** The public `rh.h`; the env thread pool; one `rh`
-   program with run-time geometry (`rhf1d` and the others as aliases);
-   Python bindings; an inversion-style test driver (many columns, one solver
-   per thread, shared model) that exercises C3, C4 and I1 to I5;
-   thread-count-independent reductions (`changes-results`).
+   the way). The solar-specific values of §3.10 become model input here. New
+   test: two solves in one process give the same results as two processes,
+   and valgrind/ASan are clean.
+5. **The stand-alone program and its files.** `librh_io` separates from the
+   core; background opacity, PRD weights, Jgas and the angle-dependent
+   intensities live in memory with the storage policies of §3.7. One `rh`
+   program with the geometry from the configuration; the TOML configuration
+   with its converter (F-5); every path from the configuration (S4); the
+   statistics of §3.9 replace `time.out` and `PRINT_CPU`. Results unchanged;
+   the output files stay byte-identical.
+6. **API and clients.** The public `rh.h`; the env thread pool; Python
+   bindings; an inversion-style test driver (many columns, one solver per
+   thread, shared model) that exercises C3, C4 and I1 to I5; checkpoint and
+   restart in `rh` (§3.8, tested by bit-identical continuation);
+   block-ordered reductions (`changes-results`).
 
 Why this order:
 
+- The layout costs least before anything else is in flight on the branch.
 - The geometry interface is the part most likely to need a second try, and
-  it is self-contained; doing it first shrinks the code every later phase
+  it is self-contained; doing it early shrinks the code every later phase
   touches.
 - Gathering before threading separates a mechanical rename from the
   signature changes, and each is checked by `--exact` on its own.
@@ -516,27 +778,29 @@ After phase 6, separately: N-67 and N-68 on the shared driver, response
 functions, synthesis on other wavelength grids, then plan steps 5 and 6.
 
 New log items: each phase gets a log row (and issue) before its first pull
-request, as usual; Q-4, Q-5, Q-7, Q-8, Q-9, Q-16, T-1, T-2, T-3, B-14, B-41
-and B-71 close along the way.
+request, as usual; Q-4, Q-5, Q-7, Q-8, Q-9, Q-16, T-1, T-2, T-3, B-14, B-41,
+B-71 and F-5 close along the way.
 
 ---
 
-## 7. Breaking changes to decide
+## 7. Breaking changes
 
-Each is proposed with its reason; each is decided on its own.
+Full backward compatibility is not a goal (user, 2026-11-24).
 
-| Item | Proposal | Reason |
+| Item | Decision | Reason |
 |---|---|---|
-| Program names | one `rh` program that takes the geometry from the atmosphere; `rhf1d`, `rhsc2d`, `rhsc3d`, `rhsphere` stay as aliases for a release | one library, one program |
-| `LIMIT_MEMORY` (NG only) | drop | replaced by the storage policies |
-| `OLD_BACKGROUND`, `BACKGROUND_FILE` | drop from the core; the program may offer saving and loading the background | the background lives in memory |
-| `STARTING_J = OLD_J`, `J_FILE` | keep in the program, which reads J and passes it to `init` | restart is a client feature |
-| `STOP_RH`, `PRINT_CPU` / `time.out` | keep in the program (stop callback, statistics) | process-level behaviour |
-| `brs.out`, `metals.out`, `molecules.out` written in every run | write only when asked | analysis output, not results |
-| `../../Atoms/...` default paths | a data-directory setting in the program, same defaults | runs need not sit two levels below the repository |
-| `solve1d`, `solve2d`, `formal2d`, `formal3d` | retire, after checking for users | own `Iterate`, binary stdin protocols |
-| `HYDROSTATIC` (1-D, NG only) | keep as a 1-D step of the NG solver | changes the atmosphere; a G block is a later question |
-| `N_THREADS` | becomes an env setting; the program maps the keyword | threads are a runtime property |
+| Program names | **Decided:** one `rh` program; the geometry is a configuration parameter | one library, one program |
+| `keyword.input`, `atoms.input`, `molecules.input`, `ray.input` | **Decided:** one structured configuration file (F-5; TOML proposed), with a converter | structure the flat files cannot show; most keyword conflicts become impossible to write |
+| Hard-coded paths (`../../Atoms/...`) | **Decided:** none; every input named in the configuration, relative to the run directory or absolute | self-contained runs |
+| `solve1d`, `solve2d`, `formal2d`, `formal3d` | **Decided:** retire (before phase 0) | own `Iterate`, binary stdin protocols |
+| `LIMIT_MEMORY` | **Agreed:** drop | replaced by storage policies; NG only today |
+| `OLD_BACKGROUND`, `BACKGROUND_FILE` | **Agreed:** drop from the core; the program may offer saving and loading the background | the background lives in memory |
+| `STARTING_J = OLD_J`, `J_FILE`, `OLD_POPULATIONS` | **Agreed:** restarts in the program, which reads the files and passes the state to `init`; checkpoints generalize them | restart is a client feature |
+| `STOP_RH` | **Proposed:** replaced by signals, which stop with a checkpoint (§3.8) | process-level behaviour |
+| `PRINT_CPU`, `time.out` | **Proposed:** always-on stage statistics plus a compile-time `RH_PROFILE` (§3.9) | the current timer is CPU time summed over threads |
+| `brs.out`, `metals.out`, `molecules.out` | **Agreed:** written only when asked | analysis output, written in every run today |
+| `HYDROSTATIC` | **Agreed:** a 1-D step of the NG solver | changes the atmosphere; a block in G is a later question |
+| `N_THREADS` | **Agreed:** an env setting; the configuration sets it for `rh` | threads are a runtime property |
 
 ---
 
@@ -544,12 +808,18 @@ Each is proposed with its reason; each is decided on its own.
 
 1. Does `rhsphere` join the shared transfer driver (§3.4)? Decided after a
    prototype in phase 1.
-2. Thread-count-independent reductions (§3.5): default, option, or
-   dropped, after measuring the merge cost for large atoms.
+2. Block-ordered reductions (§3.5): default, option, or dropped, after
+   measuring the merge cost for large atoms.
 3. Synthesis on wavelengths outside the model's grid (§3.3): when, and with
    which opacities.
-4. Binding technology for Python (Cython or cffi).
-5. Whether reference counting of tables and models is worth it, or the
-   documented rule "a model outlives its solvers" is enough.
-6. The source layout (`src/core`, `src/geometry/*`, `src/io`, `src/cli`,
-   `include/rh.h`): during phase 6, or earlier.
+4. Cython or cffi for the Python binding.
+5. Reference counting of tables and models, or the documented rule that a
+   model outlives its solvers.
+6. Output and checkpoint format of the stand-alone program: RH's XDR
+   files, or a structured format (HDF5, netCDF). The library does not care;
+   `rhanalyze` would need a reader for a new format.
+7. Which TOML parser to vendor, and whether the converter from
+   `keyword.input` lives in C (`rh --convert`) or Python.
+8. Where `Atoms/`, `Molecules/` and `Atmos/` live once runs are
+   self-contained (a `data/` directory?).
+9. A file-based stop as a convenience where signals do not reach the job.

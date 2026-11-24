@@ -124,12 +124,13 @@ return, no globals; from step 7), then speed and memory.
     instead of calling `exit()` (Q-7, high severity, first in plan
     step 7).
 - **Next:**
-  - The library track. A short design note first: how re-entrant RH has
-    to be (one solve per process, or several instances), whether geometry
-    is a library per topology or chosen at run time (Q-5), and how much
-    of the formal solution 1-D, 2-D, 3-D and polarized runs can share.
-    Then Q-7 (errors return), no process-wide side effects, inputs from
-    memory, a context instead of globals, and the API.
+  - The library track, on the branch `chrysalis`, designed in
+    [`LIBRARY.md`](https://github.com/dwijn/RH/blob/modernize/docs/LIBRARY.md):
+    several independent solver instances per process sharing one immutable
+    model, geometry chosen at run time behind one transfer driver, errors
+    that return, no files in the core; one `rh` program with a structured
+    configuration and checkpointing. First the source layout, then the
+    shared transfer driver.
   - Then speed (step 5) and memory (step 6).
   - Report the upstream bugs of §3.9 to upstream RH.
 
@@ -938,6 +939,12 @@ Ordered so that every step can be verified against upstream: byte-identical
    calls RH as a library, so errors must return to the caller instead of
    calling `exit()`. MPI domain decomposition (P-11) is a separate, larger
    project.
+   *Library track, from 2026-11-24:* the design is
+   [`LIBRARY.md`](https://github.com/dwijn/RH/blob/modernize/docs/LIBRARY.md)
+   (#569, revised 2026-11-24). The work happens on the branch `chrysalis`,
+   in the phases of its §6, which replace the order above (Q-7 goes
+   together with the explicit context, after the source layout, one transfer
+   driver and gathering the state).
    The manual is revised and rewritten with its source in the repository
    once the code has settled (Q-19).
    A license (Q-30) does not depend on the other steps and is listed here
