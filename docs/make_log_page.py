@@ -30,7 +30,11 @@ and the issue state is the authority for the status column. Unless
 is set to fixed (closed as completed), wontfix (closed as not planned) or
 open (open issue; an "in progress" cell is kept). A cell that becomes fixed
 names the merged pull requests that closed the issue, "fixed (#455)"; a cell
-already fixed, with or without numbers, is kept. In the table of bugs also
+already fixed, with or without numbers, is kept. GitHub links an issue to the
+pull request that closed it only for pull requests into the default branch;
+for the library track's branch (chrysalis, docs/LIBRARY.md §6.1), whose
+issues are closed by hand, the numbers come from the merged pull requests
+into that branch that say "Closes #N". In the table of bugs also
 present upstream (a "Fixed here" column), an empty cell ("—") of a closed
 issue gets links to those pull requests. Cells that change are listed.
 Without a working `gh` the cells are left as they are.
@@ -88,6 +92,10 @@ def apply_fragments(text, frags):
     return text
 
 
+# The integration branch of the library track (docs/LIBRARY.md §6.1)
+SIDE_BRANCH = "chrysalis"
+
+
 def github_states(repo="dwijn/RH"):
     """{ID: (status, [merged PR numbers that closed it])} from the issue
     states, or None if gh is unavailable."""
@@ -96,9 +104,17 @@ def github_states(repo="dwijn/RH"):
                                          capture_output=True, text=True, check=True).stdout)
     try:
         issues = gh_json("issue", "list", "--state", "all", "--json",
-                         "title,state,stateReason,closedByPullRequestsReferences")
+                         "number,title,state,stateReason,closedByPullRequestsReferences")
         merged = {p["number"] for p in gh_json("pr", "list", "--state", "merged",
                                                 "--json", "number")}
+        # Pull requests merged into the library track's branch: GitHub does
+        # not close or link issues for them, so read their "Closes #N"
+        side = {}
+        for p in gh_json("pr", "list", "--state", "merged", "--base", SIDE_BRANCH,
+                         "--json", "number,body"):
+            for n in re.findall(r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)",
+                                p.get("body") or ""):
+                side.setdefault(int(n), set()).add(p["number"])
     except (OSError, subprocess.CalledProcessError) as e:
         print(f"warning: no issue states from GitHub ({e}); status cells unchanged",
               file=sys.stderr)
@@ -116,6 +132,8 @@ def github_states(repo="dwijn/RH"):
             prs = sorted(p["number"] for p in i.get("closedByPullRequestsReferences") or []
                          if p["number"] in merged
                          and p.get("repository", {}).get("name", "RH") == repo.split("/")[1])
+            if not prs:
+                prs = sorted(side.get(i.get("number"), ()))
             states[m.group(1)] = ("fixed", prs)
     return states
 
