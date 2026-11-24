@@ -75,8 +75,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	/* --- Allocate temporary space --                   -------------- */
 
-	chi  = (double *) malloc(Nspace * sizeof(double));
-	Jdag = (double *) malloc(Nspace * sizeof(double));
+	chi = (double *) malloc(Nspace * sizeof(double));
 
 	if (eval_operator)
 		Psi = (double *) malloc(Nspace * sizeof(double));
