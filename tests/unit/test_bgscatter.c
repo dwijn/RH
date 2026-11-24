@@ -33,6 +33,7 @@
 #include "spectrum.h"
 #include "inputs.h"
 #include "bgscatter.h"
+#include "geometryops.h"
 #include "check.h"
 
 extern Geometry    geometry;
@@ -41,18 +42,23 @@ extern Spectrum    spectrum;
 extern InputData   input;
 extern CommandLine commandline;
 
-/* --- bgscatter.c asks each geometry whether it supports the
-	   iteration: not needed here --                  -------------- */
+/* --- bgscatter.c asks the geometry (geometryOps) whether it
+	   supports the iteration: here it does, with the linear fallback of
+	   rhf1d (N-52) --                                -------------- */
 
-const char *bgScatterSupported(void)
+static const char *bgSupported(void)
 {
 	return NULL;
 }
 
-bool_t bgScatterLinearFallback(void)
+static bool_t bgLinearFallback(void)
 {
 	return input.S_interpolation != S_LINEAR;
 }
+
+const GeometryOps geometryOps = {.name               = "unit test",
+								 .bg_supported       = bgSupported,
+								 .bg_linear_fallback = bgLinearFallback};
 
 #define NMU 3
 static double mus[NMU], wmus[NMU];

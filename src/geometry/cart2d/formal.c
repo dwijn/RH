@@ -6,9 +6,10 @@
 
 	   --------------------------                      ----------RH-- */
 
-/* --- Formal solution with given source function, and allowing for
-	   a PRD emission profile, polarized line radiation, polarized
-	   background lines, and scattering background polarization -- -- */
+/* --- The transfer operations of the 2-D Cartesian geometry for the
+	   shared driver (Formal(), src/transfer/formal.c, Q-42): the short
+	   characteristics, the negative optical depth check and the
+	   emergent intensity --                          -------------- */
 
 #include <stdlib.h>
 #include <math.h>
@@ -23,6 +24,7 @@
 #include "inputs.h"
 #include "bgscatter.h"
 #include "negtau.h"
+#include "geometryops.h"
 #include "constant.h"
 #include "statistics.h"
 #include "xdr.h"
@@ -35,380 +37,121 @@ extern Spectrum   spectrum;
 extern InputData  input;
 extern char       messageStr[];
 
-/* ------- begin -------------------------- bgScatterSupported.c ---- */
+/* ------- begin -------------------------- bgSupported.c ----------- */
 
-const char *bgScatterSupported(void)
+static const char *bgSupported(void)
 {
 	/* --- The background scattering iteration (N-51) is not done in
 		   2-D and 3-D (N-68) -- --                    -------------- */
 
 	return "it is implemented in 1-D and spherical symmetry only (N-68)";
 }
-/* ------- end ---------------------------- bgScatterSupported.c ---- */
+/* ------- end ---------------------------- bgSupported.c ----------- */
 
-/* ------- begin -------------------------- bgScatterLinearFallback.c */
-
-bool_t bgScatterLinearFallback(void)
+static bool_t bgLinearFallback(void)
 {
 	return FALSE;
 }
-/* ------- end ---------------------------- bgScatterLinearFallback.c */
 
-/* ------- begin -------------------------- Formal.c ---------------- */
+/* ------- begin -------------------------- solve_2D.c -------------- */
 
-double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
+/* --- Unpolarized short characteristics along ray mu; no tridiagonal
+	   operator and no linear fallback (Tri and lin are never set) -- */
+
+static void solve_2D(int nspect, int mu, bool_t to_obs, double *chi,
+					 double *S, double *I, double *Psi, double *Tri,
+					 bool_t lin)
 {
-	const char   routineName[] = "Formal";
-	register int k, l, mu, n;
+	const char routineName[] = "solve_2D";
 
-	bool_t initialize, boundbound, polarized_as, polarized_c,
-		PRD_angle_dep, to_obs, solveStokes, angle_dep;
-	int                    Nspace = atmos.Nspace, Nrays = atmos.Nrays, muslant;
-	enum negtau_quadrature quad, quad_ray;
-	double                *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
-						 dJmax = 0.0, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
-						 *J, *J20 = NULL;
-	ActiveSet *as;
-
-	/* --- Retrieve active set as of transitions at wavelength nspect - */
-
-	as = &spectrum.as[nspect];
-	alloc_as(nspect, eval_operator);
-
-	/* --- Check whether current active set includes a bound-bound
-		   and/or polarized transition and/or angle-dependent PRD
-		   transition, and/or polarization through background scattering.
-		   Otherwise, only angle-independent opacity and source functions
-		   are needed --                                 -------------- */
-
-	/* --- Check for bound-bound transition in active set -- ---------- */
-
-	boundbound = containsBoundBound(as);
-
-	/* --- Check for line with angle-dependent PRD in set -- ---------- */
-
-	PRD_angle_dep = (containsPRDline(as) &&
-					 (input.PRD_angle_dep == PRD_ANGLE_DEP ||
-					  input.PRD_angle_dep == PRD_ANGLE_APPROX));
-
-	/* --- Check for polarized bound-bound transition in active set - - */
-
-	polarized_as = containsPolarized(as);
-
-	/* --- Check for polarized bound-bound transition in background - - */
-
-	polarized_c = atmos.backgrflags[nspect].ispolarized;
-
-	/* --- Determine if we solve for I, or for I, Q, U, V -- ---------- */
-
-	solveStokes = (input.StokesMode == FULL_STOKES &&
-				   (polarized_as || polarized_c || input.backgr_pol));
-
-	/* --- The negative-opacity detector integrates chi as the formal
-		   solver will (B-68): Bezier for S_BEZIER3 and for the
-		   polarized solver (DELO_BEZIER3), trapezoid for S_LINEAR -- */
-
-	quad     = (input.S_interpolation == S_BEZIER3) ? NEGTAU_BEZIER_SC : NEGTAU_LINEAR;
-	quad_ray = (solveStokes) ? NEGTAU_BEZIER_SC : quad;
-
-	/* --- Determine if we have to do angle-dependent opacity and
-		   emissivity --                                 -------------- */
-
-	angle_dep = (polarized_as || polarized_c || PRD_angle_dep || input.backgr_pol ||
-				 (atmos.moving &&
-				  (boundbound || atmos.backgrflags[nspect].hasline)));
-
-	/* --- Allocate temporary space --                   -------------- */
-
-	if (eval_operator)
-		Psi = (double *) malloc(Nspace * sizeof(double));
-	else
-		Psi = NULL;
-
-	if (solveStokes) {
-		Spol = matrix_double(4, Nspace);
-		S    = Spol[0];
-		Ipol = matrix_double(4, Nspace);
-		I    = Ipol[0];
+	(void) Tri;
+	(void) lin;
+	if (input.S_interpolation == S_LINEAR) {
+		Piecewise_Linear_2D(&geometry, nspect, mu, to_obs, chi, S, I, Psi);
+	} else if (input.S_interpolation == S_BEZIER3) {
+		Piecewise_Bezier3_2D(&geometry, nspect, mu, to_obs, chi, S, I, Psi);
 	} else {
-		S = (double *) malloc(Nspace * sizeof(double));
-		I = (double *) malloc(Nspace * sizeof(double));
+		sprintf(messageStr, "Unknown radiation solver: %d",
+				input.S_interpolation);
+		Error(ERROR_LEVEL_1, routineName, messageStr);
 	}
-	chi = (double *) malloc(Nspace * sizeof(double));
-
-	/* --- Store current mean intensity, initialize new one to zero - - */
-
-	Jdag = (double *) malloc(Nspace * sizeof(double));
-	if (input.limit_memory) {
-		J = (double *) malloc(atmos.Nspace * sizeof(double));
-		readJlambda(nspect, Jdag);
-	} else {
-		J = spectrum.J[nspect];
-		for (k = 0; k < Nspace; k++) Jdag[k] = J[k];
-	}
-	if (spectrum.updateJ)
-		for (k = 0; k < Nspace; k++) J[k] = 0.0;
-
-	/* --- Store current anisotropy, initialize new one to zero ---- -- */
-
-	if (input.backgr_pol) {
-		J20dag = (double *) malloc(Nspace * sizeof(double));
-		if (input.limit_memory) {
-			J20 = (double *) malloc(Nspace * sizeof(double));
-			readJ20lambda(nspect, J20dag);
-		} else {
-			J20 = spectrum.J20[nspect];
-			for (k = 0; k < Nspace; k++)
-				J20dag[k] = J20[k];
-		}
-		if (spectrum.updateJ)
-			for (k = 0; k < Nspace; k++) J20[k] = 0.0;
-	}
-	/* --- Case of angle-dependent opacity and source function -- ----- */
-
-	if (angle_dep) {
-		for (mu = 0; mu < Nrays; mu++) {
-			wmu = 0.5 * geometry.wmu[mu];
-			if (input.backgr_pol) {
-				musq     = SQ(geometry.muz[mu]);
-				threemu1 = TWOSQRTTWO * (3.0 * musq - 1.0);
-				threemu2 = (3.0 * TWOSQRTTWO) * (musq - 1.0);
-			}
-			for (to_obs = 0; to_obs <= 1; to_obs++) {
-				initialize = (mu == 0 && to_obs == 0);
-
-				if (initialize || atmos.backgrflags[nspect].hasline)
-					readBackground(nspect, mu, to_obs);
-
-				if (initialize || boundbound)
-					Opacity(nspect, mu, to_obs, initialize);
-
-				if (eval_operator) addtoCoupling(nspect);
-				for (k = 0; k < Nspace; k++) {
-					chi[k] = as->chi[k] + as->chi_c[k];
-					S[k]   = as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k];
-				}
-				if (negTauColumns(nspect, mu, to_obs, geometry.Nz, geometry.Nx, chi, geometry.z,
-								  geometry.muz[mu], quad_ray))
-					goto cleanup;
-				if (input.backgr_pol) {
-					for (k = 0; k < Nspace; k++) {
-						S[k] += threemu1 * as->sca_c[k] * J20dag[k];
-					}
-				}
-				if (solveStokes) {
-					for (k = Nspace; k < 4 * Nspace; k++) Spol[0][k] = 0.0;
-
-					/* --- Add emissivity due to active set for Q, U, V -- ---- */
-
-					if (polarized_as) {
-						for (k = Nspace; k < 4 * Nspace; k++)
-							Spol[0][k] += as->eta[k];
-					}
-					/* --- Add emissivity due to background lines -- ---------- */
-
-					if (polarized_c) {
-						for (k = Nspace; k < 4 * Nspace; k++)
-							Spol[0][k] += as->eta_c[k];
-					}
-					/* --- Add emissivity due to background scattering -- ----- */
-
-					if (input.backgr_pol) {
-						for (k = 0; k < Nspace; k++) {
-							Spol[1][k] += threemu2 * as->sca_c[k] * J20dag[k];
-						}
-					}
-					for (n = 0; n < 4; n++) {
-						for (k = 0; k < Nspace; k++)
-							Spol[n][k] /= chi[k];
-					}
-					/* --- Polarized transfer --                 -------------- */
-
-					if (input.S_interpolation_stokes == DELO_BEZIER3) {
-						Piece_Stokes_Bezier3_2D(&geometry, nspect, mu, to_obs,
-												chi, Spol, Ipol, Psi);
-					} else {
-						sprintf(messageStr,
-								"Unknown polarization solver: %d",
-								input.S_interpolation_stokes);
-						Error(ERROR_LEVEL_1, routineName, messageStr);
-					}
-				} else {
-					for (k = 0; k < Nspace; k++) S[k] /= chi[k];
-
-					/* --- Intensity only --                     -------------- */
-
-					if (input.S_interpolation == S_LINEAR) {
-						Piecewise_Linear_2D(&geometry, nspect, mu, to_obs,
-											chi, S, I, Psi);
-					} else if (input.S_interpolation == S_BEZIER3) {
-						Piecewise_Bezier3_2D(&geometry, nspect, mu, to_obs,
-											 chi, S, I, Psi);
-					} else {
-						sprintf(messageStr,
-								"Unknown radiation solver: %d",
-								input.S_interpolation);
-						Error(ERROR_LEVEL_1, routineName, messageStr);
-					}
-				}
-				if (eval_operator) {
-					for (k = 0; k < Nspace; k++) Psi[k] /= chi[k];
-					addtoGamma(nspect, wmu, I, Psi);
-				}
-
-				if (spectrum.updateJ) {
-
-					/* --- Accumulate mean intensity --        ---------------- */
-
-					for (k = 0; k < Nspace; k++)
-						J[k] += wmu * I[k];
-					addtoRates(nspect, mu, to_obs, wmu, I, redistribute);
-
-					/* --- Accumulate anisotropy --            -------------- */
-
-					if (input.backgr_pol) {
-						if (solveStokes) {
-							for (k = 0; k < Nspace; k++) {
-								J20[k] += (threemu1 * Ipol[0][k] +
-										   threemu2 * Ipol[1][k]) *
-										  wmu;
-							}
-						} else {
-							for (k = 0; k < Nspace; k++) {
-								J20[k] += threemu1 * I[k] * wmu;
-							}
-						}
-					}
-
-					/* --- Accumulate gas-frame mean intensity --   ----------- */
-
-					if (atmos.NPRDactive > 0 &&
-						input.PRD_angle_dep == PRD_ANGLE_APPROX) {
-
-						addJgasRay(nspect, mu, to_obs, wmu, I);
-					}
-
-					if (containsPRDline(as) &&
-						input.PRD_angle_dep == PRD_ANGLE_DEP)
-						writeImu(nspect, mu, to_obs, I);
-				}
-			}
-
-			/* --- Save emergent intensity --              -------------- */
-
-			for (l = 0; l < geometry.Nx; l++)
-				spectrum.I[nspect * Nrays + mu][l] = I[l];
-
-			if (solveStokes) {
-				for (l = 0; l < geometry.Nx; l++) {
-					spectrum.Stokes_Q[nspect * Nrays + mu][l] = Ipol[1][l];
-					spectrum.Stokes_U[nspect * Nrays + mu][l] = Ipol[2][l];
-					spectrum.Stokes_V[nspect * Nrays + mu][l] = Ipol[3][l];
-				}
-			}
-		}
-	} else {
-
-		/* --- The angle-independent case --               -------------- */
-
-		readBackground(nspect, 0, 0);
-		Opacity(nspect, 0, 0, initialize = TRUE);
-		if (eval_operator) addtoCoupling(nspect);
-
-		for (k = 0; k < Nspace; k++) chi[k] = as->chi[k] + as->chi_c[k];
-		for (mu = 1, muslant = 0; mu < Nrays; mu++) /* the most slanted ray */
-			if (geometry.muz[mu] < geometry.muz[muslant]) muslant = mu;
-		if (negTauColumns(nspect, muslant, -1, geometry.Nz, geometry.Nx, chi, geometry.z,
-						  geometry.muz[muslant], quad))
-			goto cleanup;
-		for (k = 0; k < Nspace; k++)
-			S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jdag[k]) / chi[k];
-		for (mu = 0; mu < Nrays; mu++) {
-			wmu = 0.5 * geometry.wmu[mu];
-			for (to_obs = 0; to_obs <= 1; to_obs++) {
-				if (input.S_interpolation == S_LINEAR) {
-					Piecewise_Linear_2D(&geometry, nspect, mu, to_obs,
-										chi, S, I, Psi);
-				} else if (input.S_interpolation == S_BEZIER3) {
-					Piecewise_Bezier3_2D(&geometry, nspect, mu, to_obs,
-										 chi, S, I, Psi);
-				} else {
-					sprintf(messageStr,
-							"Unknown radiation solver: %d",
-							input.S_interpolation);
-					Error(ERROR_LEVEL_1, routineName, messageStr);
-				}
-				if (eval_operator) {
-					for (k = 0; k < Nspace; k++) Psi[k] /= chi[k];
-					addtoGamma(nspect, wmu, I, Psi);
-				}
-				if (spectrum.updateJ) {
-					for (k = 0; k < Nspace; k++)
-						J[k] += I[k] * wmu;
-					addtoRates(nspect, mu, to_obs, wmu, I, redistribute);
-
-					/* --- Accumulate gas-frame mean intensity, which is the same
-						   as J in the angle-independent case --   ------------ */
-
-					if (atmos.NPRDactive > 0 &&
-						input.PRD_angle_dep == PRD_ANGLE_APPROX) {
-						addJgasRow(nspect, wmu, I);
-					}
-				}
-			}
-			for (l = 0; l < geometry.Nx; l++)
-				spectrum.I[nspect * Nrays + mu][l] = I[l];
-		}
-	}
-	/* --- Write new J for current position in the spectrum -- -------- */
-
-	dJmax = 0.0;
-	if (spectrum.updateJ) {
-		for (k = 0; k < Nspace; k++) {
-			/* --- J can be zero where every emissivity along the rays has
-			   underflowed (far in the EUV): count it as no change -- */
-
-			if (J[k] != 0.0)
-				dJ = fabs(1.0 - Jdag[k] / J[k]);
-			else
-				dJ = (Jdag[k] != 0.0) ? 1.0 : 0.0;
-			dJmax = MAX(dJmax, dJ);
-		}
-		if (input.limit_memory) {
-			writeJlambda(nspect, J);
-			if (input.backgr_pol)
-				writeJ20lambda(nspect, J20);
-		}
-	}
-
-	/* --- Clean up; the formal solution of this wavelength stops here
-		   when the opacity is negative enough to overflow it (N-40;
-		   the caller stops the run or rejects the trial point) -- --- */
-
-cleanup:
-
-	free_as(nspect, eval_operator);
-	if (eval_operator) free(Psi);
-
-	free(chi);
-	if (solveStokes) {
-		freeMatrix((void **) Ipol);
-		freeMatrix((void **) Spol);
-	} else {
-		free(I);
-		free(S);
-	}
-
-	free(Jdag);
-	if (input.limit_memory) free(J);
-	if (input.backgr_pol) {
-		free(J20dag);
-		if (input.limit_memory) free(J20);
-	}
-
-	return dJmax;
 }
-/* ------- end ---------------------------- Formal.c ---------------- */
+/* ------- end ---------------------------- solve_2D.c -------------- */
+
+/* ------- begin -------------------------- solveStokes_2D.c -------- */
+
+static void solveStokes_2D(int nspect, int mu, bool_t to_obs, double *chi,
+						   double **S, double **I, double *Psi)
+{
+	const char routineName[] = "solveStokes_2D";
+
+	if (input.S_interpolation_stokes == DELO_BEZIER3) {
+		Piece_Stokes_Bezier3_2D(&geometry, nspect, mu, to_obs, chi, S, I, Psi);
+	} else {
+		sprintf(messageStr, "Unknown polarization solver: %d",
+				input.S_interpolation_stokes);
+		Error(ERROR_LEVEL_1, routineName, messageStr);
+	}
+}
+/* ------- end ---------------------------- solveStokes_2D.c -------- */
+
+/* ------- begin -------------------------- checkTau_2D.c ----------- */
+
+static bool_t checkTau_2D(int nspect, int mu, int to_obs, const double *chi,
+						  enum negtau_quadrature quad)
+{
+	return negTauColumns(nspect, mu, to_obs, geometry.Nz, geometry.Nx, chi,
+						 geometry.z, geometry.muz[mu], quad);
+}
+/* ------- end ---------------------------- checkTau_2D.c ----------- */
+
+/* ------- begin -------------------------- emergent_2D.c ----------- */
+
+/* --- The emergent intensity of ray mu at the top of each column -- */
+
+static void emergent_2D(int nspect, int mu, const double *I, double **Ipol)
+{
+	register int l;
+
+	int n = nspect * atmos.Nrays + mu;
+
+	for (l = 0; l < geometry.Nx; l++)
+		spectrum.I[n][l] = I[l];
+	if (Ipol) {
+		for (l = 0; l < geometry.Nx; l++) {
+			spectrum.Stokes_Q[n][l] = Ipol[1][l];
+			spectrum.Stokes_U[n][l] = Ipol[2][l];
+			spectrum.Stokes_V[n][l] = Ipol[3][l];
+		}
+	}
+}
+/* ------- end ---------------------------- emergent_2D.c ----------- */
+
+static double muz_2D(int mu)
+{
+	return geometry.muz[mu];
+}
+static double wmu_2D(int mu)
+{
+	return geometry.wmu[mu];
+}
+
+/* --- The operations of the 2-D geometry for the driver -- -------- */
+
+const GeometryOps geometryOps = {
+	.name               = "2-D Cartesian",
+	.muz                = muz_2D,
+	.wmu                = wmu_2D,
+	.solve              = solve_2D,
+	.solve_stokes       = solveStokes_2D,
+	.check_tau          = checkTau_2D,
+	.negtau_bezier      = NEGTAU_BEZIER_SC,
+	.emergent           = emergent_2D,
+	.bg_supported       = bgSupported,
+	.bg_linear_fallback = bgLinearFallback,
+	.bg_max_albedo      = NULL,
+	.bg_add_operator    = NULL,
+	.formal             = NULL};
 
 /* ------- begin -------------------------- Hydrostatic.c ----------- */
 
