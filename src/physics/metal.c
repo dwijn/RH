@@ -52,7 +52,7 @@
 #include "background.h"
 #include "inputs.h"
 
-#define N_MAX_OVERLAP 10
+#define N_MAX_METAL_OVERLAP 10
 
 /* --- Function prototypes --                          -------------- */
 
@@ -63,7 +63,7 @@
 
 struct PassiveBBCache {
 	int              Nlist;
-	struct Linelist *linelist[N_MAX_OVERLAP];
+	struct Linelist *linelist[N_MAX_METAL_OVERLAP];
 };
 
 /* --- Global variables --                             -------------- */
@@ -201,7 +201,7 @@ void passiveBBCacheFree(PassiveBBCache *cache)
 	register int l;
 
 	if (cache == NULL) return;
-	for (l = 0; l < N_MAX_OVERLAP; l++) {
+	for (l = 0; l < N_MAX_METAL_OVERLAP; l++) {
 		if (cache->linelist[l]) {
 			if (cache->linelist[l]->adamp) free(cache->linelist[l]->adamp);
 			free(cache->linelist[l]);
@@ -294,7 +294,7 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 						}
 					}
 					if (add_to_list) {
-						if (*Nlist == N_MAX_OVERLAP) {
+						if (*Nlist == N_MAX_METAL_OVERLAP) {
 							sprintf(messageStr, "Too many overlapping transitions");
 							Error(ERROR_LEVEL_2, routineName, messageStr);
 						}
@@ -363,9 +363,9 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 			linelist[l] = NULL;
 		}
 	}
-	for (l = 0; l < N_MAX_OVERLAP; l++) {
+	for (l = 0; l < N_MAX_METAL_OVERLAP; l++) {
 		if (linelist[l] == NULL) {
-			for (m = l + 1; m < N_MAX_OVERLAP; m++) {
+			for (m = l + 1; m < N_MAX_METAL_OVERLAP; m++) {
 				if (linelist[m] != NULL) {
 					linelist[l] = linelist[m];
 					linelist[m] = NULL;
@@ -377,7 +377,7 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 	/* --- Count number of entries in the list --        -------------- */
 
 	*Nlist = 0;
-	for (l = 0; l < N_MAX_OVERLAP; l++)
+	for (l = 0; l < N_MAX_METAL_OVERLAP; l++)
 		if (linelist[l]) (*Nlist)++;
 
 	return backgrflags;

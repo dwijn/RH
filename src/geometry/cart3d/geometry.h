@@ -47,7 +47,7 @@ struct Longchar {
 	Stencil *stencil;
 };
 
-typedef struct {
+typedef struct Geometry {
 	enum boundary x_boundary, y_boundary;
 	enum boundval z_boundary_value[2];
 	int           Nx, Ny, Nz, Nplane, Nrays, Nlongchar;

@@ -14,6 +14,9 @@
 	 - Include pthread.h for POSIX threads
 	   --                                              -------------- */
 
+#ifndef __RH_H__
+#define __RH_H__
+
 #include <stdio.h>
 #include <rpc/types.h>
 #include <pthread.h>
@@ -166,5 +169,7 @@ void w2(double dtau, double *w);
 void w3(double dtau, double *w);
 
 void U3(double dtau, double *U);
+
+#endif /* !__RH_H__ */
 
 /* ------- end ---------------------------- rh.h -------------------- */
