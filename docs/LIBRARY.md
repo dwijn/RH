@@ -677,6 +677,8 @@ void rh_solver_destroy(rh_solver *s);   /* and the matching destroy calls */
 
 ### 6.2 Phase 0: source layout
 
+*Done 2026-11-24 (#577–#579).*
+
 **Proposed.** The first thing on `chrysalis`, before any code changes: a
 pure move (`git mv`, CMake paths, the paths in the unit tests), checked by
 `--exact`. Every later phase then works in the final layout. Merges from
@@ -755,6 +757,7 @@ flowchart TB
    In three steps: retire the 2-D Eddington branch (Q-41); one driver for
    1-D, 2-D and 3-D, with `rhsphere` behind an override (Q-42); then
    `rhsphere` is retired (Q-43, §3.4: it does not join cleanly).
+   *Done 2026-11-25 (#584, #585, #588).*
 2. **Gather state.** Put the eight globals and the per-run statics into one
    struct with one global instance; references are rewritten mechanically
    (`atmos.T` becomes `rh->atmos.T` with `rh` the global instance). Nothing
