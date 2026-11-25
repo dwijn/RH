@@ -72,7 +72,6 @@ typedef struct {
 
 void   getAngleQuadr(Geometry *geometry);
 void   fillMesh(Geometry *geometry);
-void   checkEddington(void);
 bool_t writeFlux(char *fileName);
 void   writeGeometry(Geometry *geometry);
 void   readAtmos(Atmosphere *atmos, Geometry *geometry);

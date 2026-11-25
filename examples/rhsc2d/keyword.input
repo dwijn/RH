@@ -12,11 +12,7 @@
 
 # Set choice of angular grid (KEYWORD_OPTIONAL).
 # Options: SET_VERTICAL, SET_A2, SET_A4, SET_A6, SET_A8, SET_B4, SET_B6,
-# SET_B8, SET_GL_NxM (see anglequad.c) and SET_EDDINGTON. SET_EDDINGTON
-# solves every column on its own (Feautrier, no horizontal transfer) with
-# one ray at mu = 1/sqrt(3); it cannot be combined with polarization,
-# a magnetic field, a moving atmosphere with lines, or angle-dependent PRD
-# (PRD_ANGLE_DEP = PRD_ANGLE_DEP or PRD_ANGLE_APPROX with a PRD line).
+# SET_B8 and SET_GL_NxM (see anglequad.c). SET_EDDINGTON is 1-D only.
 
   ANGLE_SET = SET_GL_3X2
 

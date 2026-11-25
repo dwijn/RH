@@ -300,10 +300,9 @@ if(Python3_Interpreter_FOUND)
       --rhf1d $<TARGET_FILE:rhf1d>)
   rh_add_e2e(opacity_fudge opacity_fudge
       --rhf1d $<TARGET_FILE:rhf1d>)
-  rh_add_e2e(eddington_2d eddington_2d
+  rh_add_e2e(eddington eddington
       --rhf1d $<TARGET_FILE:rhf1d> --rhsc2d $<TARGET_FILE:rhsc2d>
       --solveray2d $<TARGET_FILE:rhsc2d_solveray>
-      --chartflow2d $<TARGET_FILE:rhsc2d_chartflow>
       --rhsc3d $<TARGET_FILE:rhsc3d>)
 
   # The readers and comparisons of tests/rhtest, on synthetic files

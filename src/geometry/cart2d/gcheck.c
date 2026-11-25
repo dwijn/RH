@@ -70,7 +70,6 @@ int main(int argc, char *argv[])
 	getBoundary(&atmos, &geometry);
 
 	Background(analyze_output = FALSE, equilibria_only = FALSE);
-	checkEddington();
 
 	getProfiles();
 	initSolution();
