@@ -198,5 +198,4 @@ const GeometryOps geometryOps = {
 	.bg_supported       = bgSupported,
 	.bg_linear_fallback = bgLinearFallback,
 	.bg_max_albedo      = maxAlbedo,
-	.bg_add_operator    = addTri,
-	.formal             = NULL};
+	.bg_add_operator    = addTri};

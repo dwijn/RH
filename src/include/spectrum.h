@@ -68,7 +68,7 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 							const double *gij, const double *n_i,
 							const double *n_j, const double *U_i,
 							const double *U_j, const double *I,
-							const double *Psi, double wmu, const double *wk, int Nspace,
+							const double *Psi, double wmu, int Nspace,
 							double **Gam);
 
 /* --- What type of lines are present in active set as? -- ---------- */

@@ -189,8 +189,8 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 							const double *restrict gij, const double *restrict n_i,
 							const double *restrict n_j, const double *restrict U_i,
 							const double *restrict U_j, const double *restrict I,
-							const double *restrict Psi, double wmu,
-							const double *restrict wk, int Nspace, double **Gam)
+							const double *restrict Psi, double wmu, int Nspace,
+							double **Gam)
 {
 	register int k;
 
@@ -199,8 +199,7 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 
 	/* --- Radiative rates of transition i -> j (i lower) with the
 		   preconditioning of Rybicki & Hummer (1992, A&A 262, 209),
-		   for angle weight wmu, times wk[k] if wk is not NULL,
-		   restricted to the two levels of the transition (their sect.
+		   for angle weight wmu, restricted to the two levels of the transition (their sect.
 		   2.4, extended to overlapping transitions).
 
 		   U_a is the emission coefficient summed over the active
@@ -227,7 +226,7 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 
 		   The arrays do not overlap (restrict: the two rows of Gam are
 		   different rows, i != j), so the loop over depth vectorizes
-		   (P-7); the two cases of wk keep it free of branches. -- --- */
+		   (P-7). --                                       -------------- */
 
 #define PRECONDITIONED_RATES(W)                                             \
 	RH_SIMD                                                                 \
@@ -243,11 +242,7 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 				  chi * Psi[k] * U_j[k] * w;                                \
 	}
 
-	if (wk != NULL) {
-		PRECONDITIONED_RATES(wmu * wk[k])
-	} else {
-		PRECONDITIONED_RATES(wmu)
-	}
+	PRECONDITIONED_RATES(wmu)
 #undef PRECONDITIONED_RATES
 }
 /* ------- end ---------------------------- addPreconditionedRates.c */
@@ -320,7 +315,7 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 								   atom->rhth[nt].Vij[n], atom->rhth[nt].wla[n],
 								   atom->rhth[nt].gij[n], atom->n[i], atom->n[j],
 								   atom->rhth[nt].Uji_down[i],
-								   atom->rhth[nt].Uji_down[j], I, Psi, wmu, NULL,
+								   atom->rhth[nt].Uji_down[j], I, Psi, wmu,
 								   atmos.Nspace, Gam);
 		}
 	}
@@ -448,9 +443,8 @@ void zeroRates(bool_t redistribute)
 		   every thread's private accumulator (written by addtoRates()
 		   with no locking, one slot per thread) ahead of a wavelength
 		   sweep. The shared arrays have to be zeroed here because
-		   geometries whose formal solution writes them directly
-		   (rhsphere) never touch the private ones, and mergeRates() only
-		   adds to them.
+		   mergeRates() only adds to them (and with one thread
+		   addtoRates() writes them directly).
 
 		   When redistribute == TRUE only the rates of PRD lines are
 		   zeroed, matching the set of lines addtoRates() actually
@@ -496,7 +490,7 @@ void zeroRates(bool_t redistribute)
 
 /* --- Add every thread's private Rij/Rji contributions to the shared
 	   line->Rij/Rji, which zeroRates() zeroed at the start of the
-	   sweep (and which rhsphere fills directly). Call after a
+	   sweep. Call after a
 	   wavelength sweep completes, with the same redistribute flag
 	   passed to zeroRates() for that sweep, before anything
 	   (PRDScatter, RADRATE_OUTPUT, ...) reads the result.

@@ -544,33 +544,6 @@ on ``columns'' (2-D, the two layers nearest the bottom) and exactly on
 ``layers''.
 
 %======================================================================
-\section{Spherical symmetry}
-\code{test\_formal\_sphere} solves a shell of thickness $H=1$ around a
-core of radius $R=1$ with constant opacity $\chi=10$ and constant source
-function $S = B_\nu(T)$. Along a ray with impact parameter $p$ the path
-coordinate is $s = \sqrt{r^2-p^2}$, with $s_0$ at the outer radius.
-\begin{itemize}
-\item Shell rays ($p>R$) pass the tangent point $s=0$:
-  \begin{equation}
-  I^-(s) = S\bigl(1-\e^{-\chi(s_0-s)}\bigr),\qquad
-  I^+(s) = S\bigl(1-\e^{-\chi(s_0+s)}\bigr),
-  \end{equation}
-  emergent $S(1-\e^{-2\chi s_0})$.
-\item Core rays ($p<R$) end on a thermalized core, $I^+ = B = S$ there,
-  and with $S=B$ everywhere $I^+(s) = S$; $I^-$ as above.
-\end{itemize}
-Feautrier returns $P=\tfrac12(I^++I^-)$ and the emergent $I^+$. The
-grid along a ray is where it crosses the radial shells; near the tangent
-point $s\approx\sqrt{2p\,(r-p)}$, so the sampling is coarse there and the
-measured orders, 1.4--1.6 for standard Feautrier and 1.2--1.5 for
-Feautrier--Hermite, stay below the formal 2 and 4. Rays whose tangent
-point lies above radial optical depth $0.1$ (grazing rays near the top)
-are not refined by refining the radial grid: their tangent points move
-toward the surface and the outermost always has three points. Their
-errors (up to $7\times10^{-3}$) do not converge and are bounded
-separately.
-
-%======================================================================
 \section{Polarized formal solution}
 \label{sec:stokes}
 
@@ -993,8 +966,7 @@ eq.~\eqref{eq:Ft} adds
   \Gamma_{ul} \mathrel{+}= \chi_t\Psi^*\bar U_l
   \label{eq:pertrans}
 \end{equation}
-(\code{addPreconditionedRates} in \code{fillgamma.c}, also used by the
-spherical solver). Emission from other levels stays in
+(\code{addPreconditionedRates} in \code{fillgamma.c}). Emission from other levels stays in
 $I_{\text{eff},t}$, lagged by one iteration. Because what $\Gamma$ puts
 back is exactly what $I_{\text{eff},t}$ took out, the fixed point is
 exact. $\Gamma$ has entries only between the levels of a transition,

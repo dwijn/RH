@@ -22,8 +22,8 @@ ctest --test-dir build                    # unit tests; the programs start clean
 cmake --install build --prefix ~/rh       # optional: ~/rh/bin/rhf1d, ...
 ```
 
-The programs are built in `build/rhf1d/rhf1d`, `build/rhsc2d/rhsc2d`,
-`build/rhsc3d/rhsc3d` and `build/rhsphere/rhsphere`, next to the auxiliary
+The programs are built in `build/rhf1d/rhf1d`, `build/rhsc2d/rhsc2d` and
+`build/rhsc3d/rhsc3d`, next to the auxiliary
 programs of each geometry (`solveray`, `backgrcontr`, ...); the atomic-data
 tools are in `build/tools/`. Run a program from a run directory, e.g.
 `cd examples/rhf1d && ../../build/rhf1d/rhf1d`. Installed, the auxiliary
@@ -64,7 +64,7 @@ the whole tree.
 
 ## Exit status
 
-`rhf1d`, `rhsc2d`, `rhsc3d` and `rhsphere` report the outcome of a run in
+`rhf1d`, `rhsc2d` and `rhsc3d` report the outcome of a run in
 their exit status:
 
 | Status | Meaning |

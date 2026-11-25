@@ -2,13 +2,13 @@
 """End-to-end test of the default solver (S-10, docs/SOLVER.md, Anderson as
 the default solver).
 
-usage: solver_default.py --rhf1d PATH --rhsphere PATH --rhsc2d PATH
-                         --rhsc3d PATH [--src DIR] [--work DIR]
+usage: solver_default.py --rhf1d PATH --rhsc2d PATH --rhsc3d PATH
+                         [--src DIR] [--work DIR]
 
 Each program runs its shipped example (run/) for one or two iterations:
- 1. rhf1d, rhsphere, rhsc2d and rhsc3d iterate with ANDERSON when the
-    keyword file does not set SOLVER, and say so (" -- SOLVER = ANDERSON
-    (the default)"). rhf1d and rhsphere extrapolate the whole state
+ 1. rhf1d, rhsc2d and rhsc3d iterate with ANDERSON when the keyword
+    file does not set SOLVER, and say so (" -- SOLVER = ANDERSON (the
+    default)"). rhf1d extrapolates the whole state
     (ANDERSON_EXTRAPOLATE = ALL), rhsc2d and rhsc3d only the populations
     and rho (POPULATIONS_RHO, S-11); the banner marks it "(the default)".
     Without PRD lines (PRD_N_MAX_ITER = 0) rhsc2d's default runs as
@@ -31,7 +31,7 @@ from rhtest.keywords import edit_file
 from rhtest.run import EXIT_FATAL, copy_dir, execute, template
 from rhtest.workdir import WorkDir
 
-a = parse(required=("rhf1d", "rhsphere", "rhsc2d", "rhsc3d"))
+a = parse(required=("rhf1d", "rhsc2d", "rhsc3d"))
 work = WorkDir(a.src, a.work)
 ck = Checker()
 
@@ -51,7 +51,6 @@ def report_run(label, ok, r):
 # --- 1. The default of each geometry
 for name, program, rundir, want in (
         ("rhf1d", a.rhf1d, "rhf1d", "ALL"),
-        ("rhsphere", a.rhsphere, "rhsphere", "ALL"),
         ("rhsc2d", a.rhsc2d, "rhsc2d", "POPULATIONS_RHO"),
         ("rhsc3d", a.rhsc3d, "rhsc3d", "POPULATIONS_RHO")):
     r = run(f"default_{name}", program, rundir, [("N_MAX_ITER", "2")])

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build an upstream RH checkout (han-uitenbroek/RH, which still uses its
 # hand-written makefiles) as the baseline for run_tests.py and
-# run_stress.py: rhf1d, rhsc2d, rhsc3d and rhsphere, built in place,
+# run_stress.py: rhf1d, rhsc2d and rhsc3d, built in place,
 # without the Fortran Voigt routines so that no Fortran compiler is needed.
 # Compare against it in tolerance mode: the Stokes cases differ by ~1e-10
 # (complex arithmetic in the Voigt code). For byte-identical checks of a
@@ -25,7 +25,7 @@ if [ -d /usr/include/tirpc ]; then
 fi
 make CC="$cc" CFLAGS="$cflags" librh.a > build_upstream.log 2>&1 ||
   { tail -20 build_upstream.log; exit 1; }
-for g in rhf1d rhsc2d rhsc3d rhsphere; do
+for g in rhf1d rhsc2d rhsc3d; do
   (cd $g && make CC="$cc" LD="$cc" CFLAGS="$cflags -I../" LIBS="$libs" \
      -o librh $g >> ../build_upstream.log 2>&1) ||
     { tail -20 build_upstream.log; exit 1; }

@@ -44,7 +44,7 @@ static const char *bgSupported(void)
 	/* --- The background scattering iteration (N-51) is not done in
 		   2-D and 3-D (N-68) -- --                    -------------- */
 
-	return "it is implemented in 1-D and spherical symmetry only (N-68)";
+	return "it is implemented in 1-D only (N-68)";
 }
 /* ------- end ---------------------------- bgSupported.c ----------- */
 
@@ -150,8 +150,7 @@ const GeometryOps geometryOps = {
 	.bg_supported       = bgSupported,
 	.bg_linear_fallback = bgLinearFallback,
 	.bg_max_albedo      = NULL,
-	.bg_add_operator    = NULL,
-	.formal             = NULL};
+	.bg_add_operator    = NULL};
 
 /* ------- begin -------------------------- Hydrostatic.c ----------- */
 

@@ -78,9 +78,6 @@ void writeSpectrum(Spectrum *spectrum)
 	case THREE_D_PLANE:
 		Nintensity = atmos.N[0] * atmos.N[1] * atmos.Nrays * spectrum->Nspect;
 		break;
-	case SPHERICAL_SYMMETRIC:
-		Nintensity = atmos.Nrays * spectrum->Nspect;
-		break;
 	default:
 		Nintensity = 0;
 		break;

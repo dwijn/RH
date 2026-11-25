@@ -32,8 +32,8 @@
 
   N_MAX_SCATTER = 2
 
-# Background scattering at each wavelength (KEYWORD_DEFAULT; 1-D and
-# spherical symmetry, N-51). The scattering part of the
+# Background scattering at each wavelength (KEYWORD_DEFAULT; 1-D only,
+# N-51). The scattering part of the
 # background (electrons, Rayleigh, and with RLK_SCATTER the Kurucz lines)
 # is otherwise a lambda iteration, one step per formal solution, which
 # never converges for lines with a small photon destruction probability.
@@ -105,8 +105,8 @@
 #
 #  ERROR_LIMIT = 1.0E-3
 
-# Iteration scheme (KEYWORD_DEFAULT): ANDERSON, the default in 1-D and
-# spherical geometry (and in 2-D and 3-D); NG (MALI with Ng
+# Iteration scheme (KEYWORD_DEFAULT): ANDERSON, the default in 1-D (and
+# in 2-D and 3-D); NG (MALI with Ng
 # acceleration, the default before S-10); FIXED_POINT; or NEWTON_KRYLOV.
 # See docs/SOLVER.md. ANDERSON_EXTRAPOLATE defaults to ALL here, to
 # POPULATIONS_RHO in 2-D and 3-D. A setting that the solver would not honour stops

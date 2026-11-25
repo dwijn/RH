@@ -88,9 +88,8 @@ bool_t negTauCheck(int nspect, int mu, int to_obs, int Ninterval,
 
 	/* --- dtau[k] is the optical depth of interval k along ray mu;
 		   to_obs is the direction (-1: none, for an angle-independent
-		   check or a spherical ray, whose Feautrier solution covers
-		   both) and column the column in 2-D and 3-D (-1 in 1-D and
-		   spherical geometry). Records a stretch below NEG_TAU_LIMIT and
+		   check) and column the column in 2-D and 3-D (-1 in 1-D).
+		   Records a stretch below NEG_TAU_LIMIT and
 		   returns TRUE for it --                        -------------- */
 
 	if (!(tau < NEG_TAU_LIMIT)) return FALSE;
@@ -205,8 +204,7 @@ bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
 	double *dtau = NULL, tau, taumin = 0.0;
 
 	/* --- Plane-parallel geometries: chi[k * Ncol + c] at height z[k]
-		   in column c (1-D: Ncol = 1); also a spherical ray, with its
-		   path positions as z, Ncol = 1 and muz = 1. Each column is
+		   in column c (1-D: Ncol = 1). Each column is
 		   checked along the vertical scaled by 1 / muz. A ray in 2-D or
 		   3-D crosses columns, but the threshold is more than ten times
 		   short of an overflow, and a bound over all columns (each

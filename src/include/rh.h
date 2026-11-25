@@ -18,6 +18,10 @@
 #include <rpc/types.h>
 #include <pthread.h>
 
+/* --- SPHERICAL_SYMMETRIC is no longer a geometry (rhsphere was
+	   retired in Q-43); it keeps its value because geometry.out
+	   stores the topology as a number (python/rhanalyze, idl) -- */
+
 enum Topology { ONE_D_PLANE,
 				TWO_D_PLANE,
 				SPHERICAL_SYMMETRIC,
