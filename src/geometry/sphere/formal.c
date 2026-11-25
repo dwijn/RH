@@ -6,8 +6,10 @@
 
 	   --------------------------                      ----------RH-- */
 
-/* --- Formal solution with given source function and PRD emission
-	   profile. --                                     -------------- */
+/* --- The transfer of the spherical geometry: its own formal solution
+	   (Feautrier on the impact parameter rays; the shared driver of
+	   src/transfer/formal.c calls it, Q-42, until Q-43), its
+	   accumulation of the rates and Gamma, and the flux -- ------- */
 
 #include <stdlib.h>
 #include <math.h>
@@ -20,13 +22,12 @@
 #include "error.h"
 #include "inputs.h"
 #include "bgscatter.h"
+#include "geometryops.h"
 #include "negtau.h"
 #include "background.h"
 #include "constant.h"
 #include "statistics.h"
 #include "xdr.h"
-
-/* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
@@ -36,9 +37,9 @@ extern Spectrum   spectrum;
 extern InputData  input;
 extern char       messageStr[];
 
-/* ------- begin -------------------------- bgScatterSupported.c ---- */
+/* ------- begin -------------------------- bgSupported.c ----------- */
 
-const char *bgScatterSupported(void)
+static const char *bgSupported(void)
 {
 	/* --- The Feautrier operator is positive (an M-matrix, see
 		   feautrier.c), so the background scattering iteration (N-51)
@@ -46,15 +47,15 @@ const char *bgScatterSupported(void)
 
 	return NULL;
 }
-/* ------- end ---------------------------- bgScatterSupported.c ---- */
+/* ------- end ---------------------------- bgSupported.c ----------- */
 
-/* ------- begin -------------------------- bgScatterLinearFallback.c */
+/* ------- begin -------------------------- bgLinearFallback.c ------ */
 
-bool_t bgScatterLinearFallback(void)
+static bool_t bgLinearFallback(void)
 {
 	return FALSE;
 }
-/* ------- end ---------------------------- bgScatterLinearFallback.c */
+/* ------- end ---------------------------- bgLinearFallback.c ------ */
 
 /* ------- begin -------------------------- addTri_sphere.c --------- */
 
@@ -123,11 +124,16 @@ static void bgSweep_sphere(void *ctx, const double *u, double *J, double *A,
 }
 /* ------- end ---------------------------- bgSweep_sphere.c -------- */
 
-/* ------- begin -------------------------- Formal.c ---------------- */
+/* ------- begin -------------------------- Formal_sphere.c --------- */
 
-double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
+/* --- The formal solution of rhsphere, which does not use the shared
+	   driver (src/transfer/formal.c) until Q-43: Feautrier on the
+	   impact parameter rays, angle-independent only -- -------- */
+
+static double Formal_sphere(int nspect, bool_t eval_operator,
+							bool_t redistribute)
 {
-	const char   routineName[] = "Formal";
+	const char   routineName[] = "Formal_sphere";
 	register int k, mu;
 
 	bool_t initialize, boundbound, PRD_angle_dep, polarized, bg,
@@ -292,7 +298,15 @@ cleanup:
 
 	return dJmax;
 }
-/* ------- end ---------------------------- Formal.c ---------------- */
+/* ------- end ---------------------------- Formal_sphere.c --------- */
+
+/* --- The operations of the spherical geometry for the driver: its
+	   own Formal(), and the background scattering iteration -- */
+
+const GeometryOps geometryOps = {.name               = "spherical",
+								 .bg_supported       = bgSupported,
+								 .bg_linear_fallback = bgLinearFallback,
+								 .formal             = Formal_sphere};
 
 /* ------- begin -------------------------- writeFlux.c ------------- */
 

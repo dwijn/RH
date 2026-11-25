@@ -116,6 +116,7 @@
 #include "anderson.h"
 #include "error.h"
 #include "bgscatter.h"
+#include "geometryops.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -157,7 +158,7 @@ void bgScatterSetup(void)
 		   warning if BACKGROUND_N_MAX_ITER was set -- -------------- */
 
 	if (input.bg_NmaxIter == 0) return;
-	if ((why = bgScatterSupported()) != NULL) {
+	if ((why = geometryOps.bg_supported()) != NULL) {
 		if (input.bg_NmaxIter_set) {
 			sprintf(messageStr,
 					"BACKGROUND_N_MAX_ITER = %d is ignored: %s.\n"
@@ -185,7 +186,7 @@ void bgScatterSetup(void)
 		kappa = (float *) calloc(spectrum.Nspect, sizeof(float));
 	}
 
-	if (bgScatterLinearFallback() && linear == NULL) {
+	if (geometryOps.bg_linear_fallback() && linear == NULL) {
 		linear = (unsigned char *) calloc(spectrum.Nspect, 1);
 		sprintf(messageStr,
 				"  with S_INTERPOLATION = S_BEZIER3: wavelengths whose albedo"

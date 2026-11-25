@@ -31,24 +31,16 @@ typedef struct {
 							not reset) */
 } BgScatterStats;
 
+/* --- Whether the geometry has the iteration, and whether it falls back
+	   to the linear solver (N-52), it says in geometryOps
+	   (bg_supported, bg_linear_fallback; geometryops.h) -- ------- */
+
 int  bgScatterActive(void);
 void bgScatterSetup(void);
-
-/* --- Defined by each geometry (its formal.c): NULL where the
-	   iteration is implemented for the current input, otherwise why
-	   not --                                          -------------- */
-
-const char *bgScatterSupported(void);
-
-/* --- Defined by each geometry: whether wavelengths iterated with a
-	   formal solver whose operator is not positive switch to the linear
-	   solver (N-52; rhf1d with S_BEZIER3) -- --       -------------- */
-
-bool_t bgScatterLinearFallback(void);
-int    bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
-						const double *A, const double *albedo, double *J,
-						double *kappa, BgSweep sweep, void *ctx);
-void   bgScatterStats(BgScatterStats *s, int reset);
+int  bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
+					  const double *A, const double *albedo, double *J,
+					  double *kappa, BgSweep sweep, void *ctx);
+void bgScatterStats(BgScatterStats *s, int reset);
 
 /* --- Iterate before the main sweep (N-51): bgScatterPending says
 	   whether wavelength nspect is to be iterated first; then
