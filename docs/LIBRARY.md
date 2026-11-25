@@ -762,6 +762,15 @@ flowchart TB
    struct with one global instance; references are rewritten mechanically
    (`atmos.T` becomes `rh->atmos.T` with `rh` the global instance). Nothing
    else changes, so `--exact` checks the rewrite.
+   *Agreed 2026-11-25 (survey: `claude/RH/evidence/lib-phase2-survey`):*
+   the struct is `RHState` (`src/include/state.h`), reached through
+   `RHState *const rh`; each program defines the instance with a static
+   initializer, and `geometry` is a pointer, since its type differs per
+   geometry. Two pull requests: the seven globals, rewritten by a script
+   (Q-45), then the 36 per-run statics by hand, one part of the struct per
+   module (Q-46). `messageStr` waits for phase 3, the 27 tables loaded once
+   for phase 4, the 13 scratch buffers for phase 3 and the 5 file handles
+   for phase 5.
 3. **Pass it explicitly, return status, stop path.** Module by module,
    leaves first: the struct pointer becomes the first parameter, and
    functions that can fail return `rh_status` instead of calling
@@ -777,6 +786,12 @@ flowchart TB
    the way). The solar-specific values of §3.10 become model input here. New
    test: two solves in one process give the same results as two processes,
    and valgrind/ASan are clean.
+   Known to break that test (survey of phase 2): counters never reset
+   between runs (G evaluations; `ne_iter` in `computeBackground`, so a
+   second run would not solve n_e from scratch; the PRD damping note; the
+   exit flags), the opacity pool sized once from the thread count, the
+   background-scattering arrays sized once from the number of wavelengths,
+   and the solver's arrays, which are never freed.
 5. **The stand-alone program and its files.** `librh_io` separates from the
    core; background opacity, PRD weights, Jgas and the angle-dependent
    intensities live in memory with the storage policies of §3.7. One `rh`
