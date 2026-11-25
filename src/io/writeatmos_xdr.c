@@ -18,13 +18,13 @@
 #include "error.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern InputData input;
-extern char      messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- xdr_counted_string.c ---- */
 
@@ -63,10 +63,10 @@ void writeAtmos(Atmosphere *atmos)
 	FILE  *fp_out;
 	XDR    xdrs;
 
-	if (!strcmp(input.atmos_output, "none")) return;
+	if (!strcmp(rh->input.atmos_output, "none")) return;
 
-	if ((fp_out = fopen(input.atmos_output, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open output file %s", input.atmos_output);
+	if ((fp_out = fopen(rh->input.atmos_output, "w")) == NULL) {
+		sprintf(messageStr, "Unable to open output file %s", rh->input.atmos_output);
 		Error(ERROR_LEVEL_1, routineName, messageStr);
 		return;
 	}
@@ -110,7 +110,7 @@ void writeAtmos(Atmosphere *atmos)
 
 	if (!result) {
 		sprintf(messageStr, "Unable to write proper amount to output file %s",
-				input.atmos_output);
+				rh->input.atmos_output);
 		Error(ERROR_LEVEL_1, routineName, messageStr);
 	}
 	xdr_destroy(&xdrs);
@@ -146,7 +146,7 @@ void freeAtmos(Atmosphere *atmos)
 	for (n = 0; n < atmos->Natom; n++) {
 		if (atmos->atoms[n].active ||
 			atmos->hydrostatic ||
-			input.solve_ne == ITERATION)
+			rh->input.solve_ne == ITERATION)
 			freeAtom(&atmos->atoms[n]);
 	}
 	free(atmos->activeatoms);
@@ -154,7 +154,7 @@ void freeAtmos(Atmosphere *atmos)
 	for (n = 0; n < atmos->Nmolecule; n++) {
 		if (atmos->molecules[n].active ||
 			atmos->hydrostatic ||
-			input.solve_ne == ITERATION)
+			rh->input.solve_ne == ITERATION)
 			freeMolecule(&atmos->molecules[n]);
 	}
 	free(atmos->activemols);

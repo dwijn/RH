@@ -18,6 +18,7 @@
 #include "error.h"
 #include "inputs.h"
 #include "constant.h"
+#include "state.h"
 
 #define COMMENT_CHAR "*"
 
@@ -28,8 +29,9 @@ void writeMULTIatmos(Geometry *geometry, Atmosphere *atmos,
 
 /* --- Global variables --                             -------------- */
 
-CommandLine commandline;
-char        messageStr[MAX_MESSAGE_LENGTH];
+static RHState rh_state;
+RHState *const rh = &rh_state;
+char           messageStr[MAX_MESSAGE_LENGTH];
 
 /* ------- begin -------------------------- readKurucz.c ------------ */
 
@@ -46,7 +48,7 @@ int main(int argc, char *argv[])
 	Element   *element;
 	FILE      *fp_Kurucz;
 
-	commandline.logfile = stderr;
+	rh->commandline.logfile = stderr;
 
 	if (argc < 2) {
 		fprintf(stderr, "Usage : %s  model.Kurucz [MULTI_name]\n\n",

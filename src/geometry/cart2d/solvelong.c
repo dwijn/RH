@@ -20,12 +20,11 @@
 #include "geometry.h"
 #include "inputs.h"
 #include "bezier.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
-
-extern InputData input;
 
 /* ------- begin -------------------------- SolveLong.c ------------- */
 
@@ -72,7 +71,7 @@ double SolveLong(LongChar *lc, int local, double *chi, double *S, double *I)
 		}
 		ds_dw = lc->stencil[ls - 1].ds[UPWIND];
 
-		if (input.S_interpolation_longchar == S_BEZIER3)
+		if (rh->input.S_interpolation_longchar == S_BEZIER3)
 			I_uw = LongChar_Bezier3(ds_uw, ds_dw, chi_uw, chi_loc, chi_dw,
 									S_uw, S_loc, S_dw, I_uw);
 		else
@@ -103,7 +102,7 @@ void SolveLongStokes(StokesGrid *sg, LongChar *lc, int local, double *I_uw)
 
 	register int ls, n;
 
-	bool_t bezier = (input.S_interpolation_longchar == S_BEZIER3);
+	bool_t bezier = (rh->input.S_interpolation_longchar == S_BEZIER3);
 	double chi_uw, chi_loc, chi_dw, ds_uw, ds_dw, S_uw[4], S_loc[4], S_dw[4],
 		I_loc[4], K_uw[4][4], K_loc[4][4], K_dw[4][4];
 

@@ -21,12 +21,11 @@
 #include "atmos.h"
 #include "constant.h"
 #include "background.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
-
-extern Atmosphere atmos;
 
 /* ------- begin -------------------------- Thomson.c --------------- */
 
@@ -36,7 +35,7 @@ void Thomson(double *chi)
 
 	double sigma = 8.0 * PI / 3.0 * pow(Q_ELECTRON / (sqrt(4.0 * PI * EPSILON_0) * (sqrt(M_ELECTRON) * CLIGHT)), 4);
 
-	for (k = 0; k < atmos.Nspace; k++)
-		chi[k] = atmos.ne[k] * sigma;
+	for (k = 0; k < rh->atmos.Nspace; k++)
+		chi[k] = rh->atmos.ne[k] * sigma;
 }
 /* ------- end ---------------------------- Thomson.c --------------- */

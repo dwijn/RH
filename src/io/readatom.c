@@ -37,6 +37,7 @@
 #include "error.h"
 #include "inputs.h"
 #include "statistics.h"
+#include "state.h"
 
 #define COMMENT_CHAR    "#"
 #define MAX_ABUND_ERROR 0.001
@@ -48,11 +49,7 @@ char *getAtomID(char *atom_file);
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere  atmos;
-extern Spectrum    spectrum;
-extern InputData   input;
-extern CommandLine commandline;
-extern char        messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- readAtom.c -------------- */
 
@@ -65,7 +62,7 @@ void readAtom(Atom *atom, char *atom_file)
 		symmStr[20], optionStr[20], labelStr[MAX_LINE_SIZE];
 	bool_t exit_on_EOF, match;
 	int    i, j, Nlevel, Nline, Ncont, Nfixed,
-		Nspace = atmos.Nspace,
+		Nspace = rh->atmos.Nspace,
 		Nread, Nrequired, checkPoint, Ndup;
 	double f, C, lambda0, lambdamin, vtherm,
 		c_sum, waveratio, lambda_air;
@@ -106,12 +103,12 @@ void readAtom(Atom *atom, char *atom_file)
 		   See: abundance.c --                          -------------- */
 
 	match = FALSE;
-	for (n = 0; n < atmos.Nelem; n++) {
-		if (strstr(atmos.elements[n].ID, atom->ID)) {
-			if (atmos.elements[n].abundance_set) {
+	for (n = 0; n < rh->atmos.Nelem; n++) {
+		if (strstr(rh->atmos.elements[n].ID, atom->ID)) {
+			if (rh->atmos.elements[n].abundance_set) {
 				atom->periodic_table = n;
-				atom->abundance      = atmos.elements[n].abund;
-				atom->weight         = atmos.elements[n].weight;
+				atom->abundance      = rh->atmos.elements[n].abund;
+				atom->weight         = rh->atmos.elements[n].weight;
 				match                = TRUE;
 			}
 			break;
@@ -163,7 +160,7 @@ void readAtom(Atom *atom, char *atom_file)
 	atom->ntotal = (double *) malloc(Nspace * sizeof(double));
 
 	for (k = 0; k < Nspace; k++)
-		atom->ntotal[k] = atom->abundance * atmos.nHtot[k];
+		atom->ntotal[k] = atom->abundance * rh->atmos.nHtot[k];
 
 	/* --- Ratio of thermal velocity and speed of light for use in
 		   Doppler width for this particular atomic weight --  -------- */
@@ -172,14 +169,14 @@ void readAtom(Atom *atom, char *atom_file)
 		atom->vbroad = (double *) malloc(Nspace * sizeof(double));
 		vtherm       = 2.0 * KBOLTZMANN / (AMU * atom->weight);
 		for (k = 0; k < Nspace; k++)
-			atom->vbroad[k] = sqrt(vtherm * atmos.T[k] + SQ(atmos.vturb[k]));
+			atom->vbroad[k] = sqrt(vtherm * rh->atmos.T[k] + SQ(rh->atmos.vturb[k]));
 	}
 
 	/* --- Check validity of input.isum for active atom -- ------------ */
 
-	if (atom->active && (input.isum < -1 || input.isum >= Nlevel)) {
+	if (atom->active && (rh->input.isum < -1 || rh->input.isum >= Nlevel)) {
 		sprintf(messageStr, "Invalid value for ISUM = %d, Nlevel = %d",
-				input.isum, Nlevel);
+				rh->input.isum, Nlevel);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
@@ -226,11 +223,11 @@ void readAtom(Atom *atom, char *atom_file)
 					shapeStr);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
-		if (strstr(shapeStr, "PRD") && input.PRD_NmaxIter > 0) {
+		if (strstr(shapeStr, "PRD") && rh->input.PRD_NmaxIter > 0) {
 			atom->Nprd++;
 			line->PRD = TRUE;
 
-			if (input.limit_memory && atom->active) {
+			if (rh->input.limit_memory && atom->active) {
 				sprintf(messageStr,
 						"Cannot limit memory with PRD lines present in active atom");
 				Error(ERROR_LEVEL_2, routineName, messageStr);
@@ -319,12 +316,12 @@ void readAtom(Atom *atom, char *atom_file)
 			/* --- Per-thread accumulators used by the shared addtoRates()
 				   (no lock) --                   -------------- */
 
-			if (input.Nthreads > 1) {
-				line->Rij_thread = matrix_double(input.Nthreads, Nspace);
-				line->Rji_thread = matrix_double(input.Nthreads, Nspace);
+			if (rh->input.Nthreads > 1) {
+				line->Rij_thread = matrix_double(rh->input.Nthreads, Nspace);
+				line->Rji_thread = matrix_double(rh->input.Nthreads, Nspace);
 			}
 
-			if (atmos.Stokes) {
+			if (rh->atmos.Stokes) {
 				if (zeemanPolarizable(atom, i, j, line->g_Lande_eff)) {
 
 					line->polarizable = TRUE;
@@ -434,9 +431,9 @@ void readAtom(Atom *atom, char *atom_file)
 			/* --- Per-thread accumulators used by the shared addtoRates()
 				   (no lock) --                   -------------- */
 
-			if (input.Nthreads > 1) {
-				continuum->Rij_thread = matrix_double(input.Nthreads, Nspace);
-				continuum->Rji_thread = matrix_double(input.Nthreads, Nspace);
+			if (rh->input.Nthreads > 1) {
+				continuum->Rij_thread = matrix_double(rh->input.Nthreads, Nspace);
+				continuum->Rji_thread = matrix_double(rh->input.Nthreads, Nspace);
 			}
 		}
 	}
@@ -508,16 +505,16 @@ void readAtom(Atom *atom, char *atom_file)
 		sprintf(atom->popsoutFile, (atom->ID[1] == ' ') ? "pops.%.1s.out" : "pops.%.2s.out", atom->ID);
 
 		if (atom->Nprd > 0) {
-			if (atmos.moving && input.PRD_angle_dep == PRD_ANGLE_AVER) {
+			if (rh->atmos.moving && rh->input.PRD_angle_dep == PRD_ANGLE_AVER) {
 				sprintf(messageStr,
 						"Using angle-averaged PRD in moving atmosphere for "
 						"atom %2s\n",
 						atom->ID);
 				Error(WARNING, routineName, messageStr);
 			}
-			if (!atmos.moving &&
-				(input.PRD_angle_dep == PRD_ANGLE_DEP ||
-				 input.PRD_angle_dep == PRD_ANGLE_APPROX)) {
+			if (!rh->atmos.moving &&
+				(rh->input.PRD_angle_dep == PRD_ANGLE_DEP ||
+				 rh->input.PRD_angle_dep == PRD_ANGLE_APPROX)) {
 				sprintf(messageStr,
 						"Using angle-dependent PRD in static atmosphere for "
 						"atom %2s\n",
@@ -527,7 +524,7 @@ void readAtom(Atom *atom, char *atom_file)
 
 			/* --- Create the array to store cross redistribution lines - - */
 
-			if (input.XRD) {
+			if (rh->input.XRD) {
 				for (kr = 0; kr < Nline; kr++) {
 					line      = &atom->line[kr];
 					line->xrd = (AtomicLine **) malloc(Nline * sizeof(AtomicLine *));
@@ -568,7 +565,7 @@ void readAtom(Atom *atom, char *atom_file)
 
 		/* --- Allocate space for thread dependent quantities -- -------- */
 
-		atom->rhth = (rhthread *) calloc(input.Nthreads, sizeof(rhthread));
+		atom->rhth = (rhthread *) calloc(rh->input.Nthreads, sizeof(rhthread));
 
 		/* --- Store the offset to allow pointing back to the start of the
 			   collisional data in the atomic input file, and allocate
@@ -586,7 +583,7 @@ void readAtom(Atom *atom, char *atom_file)
 
 			/* --- Allocate memory for Non-LTE populations -- ------------- */
 
-			atom->n = matrix_double(atom->Nlevel, atmos.Nspace);
+			atom->n = matrix_double(atom->Nlevel, rh->atmos.Nspace);
 			readPopulations(atom);
 
 			sprintf(messageStr,
@@ -725,7 +722,7 @@ void freeAtom(Atom *atom)
 		/* --- The per-thread work arrays are allocated lazily, in
 			   alloc_as(), and are kept for the whole run --  ---------- */
 
-		for (nt = 0; nt < input.Nthreads; nt++) {
+		for (nt = 0; nt < rh->input.Nthreads; nt++) {
 			struct rhthread *th = &atom->rhth[nt];
 
 			free(th->eta);
@@ -791,7 +788,7 @@ void freeAtomicLine(AtomicLine *line)
 			freeMatrix((void **) line->phi_Q);
 			freeMatrix((void **) line->phi_U);
 			freeMatrix((void **) line->phi_V);
-			if (input.magneto_optical) {
+			if (rh->input.magneto_optical) {
 				freeMatrix((void **) line->psi_Q);
 				freeMatrix((void **) line->psi_U);
 				freeMatrix((void **) line->psi_V);
@@ -802,10 +799,10 @@ void freeAtomicLine(AtomicLine *line)
 			freeMatrix((void **) line->rho_prd);
 			fclose(line->fp_GII);
 			free(line->prd_block);
-			if (input.XRD) free(line->xrd);
+			if (rh->input.XRD) free(line->xrd);
 		}
-		if (atmos.Stokes &&
-			input.StokesMode == FULL_STOKES &&
+		if (rh->atmos.Stokes &&
+			rh->input.StokesMode == FULL_STOKES &&
 			line->polarizable) {
 			freeZeeman(line->zm);
 		}
@@ -864,22 +861,22 @@ void readAtomicModels(void)
 
 	/* --- Open input file for atomic models --          -------------- */
 
-	if ((fp_atoms = fopen(input.atoms_input, "r")) == NULL) {
+	if ((fp_atoms = fopen(rh->input.atoms_input, "r")) == NULL) {
 		sprintf(messageStr, "Unable to open input file %s",
-				input.atoms_input);
+				rh->input.atoms_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	/* --- Get the number of atomic models to be read -- -------------- */
 
 	getLine(fp_atoms, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
-	Nread = sscanf(inputLine, "%d", &atmos.Natom);
+	Nread = sscanf(inputLine, "%d", &rh->atmos.Natom);
 	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 1);
 
-	atmos.atoms = (Atom *) malloc(atmos.Natom * sizeof(Atom));
+	rh->atmos.atoms = (Atom *) malloc(rh->atmos.Natom * sizeof(Atom));
 
 	/* --- Read atomic data for the various model atoms -- ------------ */
 
-	for (n = 0; n < atmos.Natom; n++) {
+	for (n = 0; n < rh->atmos.Natom; n++) {
 
 		getLine(fp_atoms, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%s %s %s %s ",
@@ -895,7 +892,7 @@ void readAtomicModels(void)
 		/* --- Check for duplicate atomic ID --            -------------- */
 
 		for (m = 0; m < n; m++) {
-			if (strstr(atomID, atmos.atoms[m].ID)) {
+			if (strstr(atomID, rh->atmos.atoms[m].ID)) {
 				sprintf(messageStr,
 						"Aready read atomic model for element %s\n", atomID);
 				Error(ERROR_LEVEL_2, routineName, messageStr);
@@ -904,7 +901,7 @@ void readAtomicModels(void)
 		/* --- Set active flag. Active set to TRUE means atom will be
 			   treated in Non-LTE --                       -------------- */
 
-		atom = &atmos.atoms[n];
+		atom = &rh->atmos.atoms[n];
 		initAtom(atom);
 
 		atom->active = (strstr(actionKey, "ACTIVE") ? TRUE : FALSE);
@@ -962,7 +959,7 @@ void readAtomicModels(void)
 		}
 		/* --- If input.startJ == OLD_J then enforce OLD_POPULATIONAS - - */
 
-		if (atom->active && input.startJ == OLD_J)
+		if (atom->active && rh->input.startJ == OLD_J)
 			atom->initial_solution = OLD_POPULATIONS;
 
 		/* --- Copy filename for old population numbers -- -------------- */
@@ -984,12 +981,12 @@ void readAtomicModels(void)
 
 	/* --- Create an alias to the hydrogen atom structure -- ---------- */
 
-	atmos.H = &atmos.atoms[0];
+	rh->atmos.H = &rh->atmos.atoms[0];
 
 	/* --- Store pointers to models in element structures -- ---------- */
 
-	for (n = 0; n < atmos.Natom; n++)
-		atmos.elements[atmos.atoms[n].periodic_table].model = &atmos.atoms[n];
+	for (n = 0; n < rh->atmos.Natom; n++)
+		rh->atmos.elements[rh->atmos.atoms[n].periodic_table].model = &rh->atmos.atoms[n];
 
 	/* --- Redistribute the hydrogen populations read in with the
 		   atmosphere over the atmospheric Hydrogen model -- ---------- */

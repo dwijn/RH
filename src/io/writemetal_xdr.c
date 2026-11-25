@@ -16,13 +16,13 @@
 #include "atmos.h"
 #include "error.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- writeMetals.c ----------- */
 
@@ -45,14 +45,14 @@ bool_t writeMetals(char *fileName)
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
-	xdr_atom(&xdrs, atmos.H);
+	xdr_atom(&xdrs, rh->atmos.H);
 
 	/* --- Only write active atoms, write Hydrogen seperately -- ------ */
 
-	Nmetal = atmos.Natom - 1 - atmos.Nactiveatom;
+	Nmetal = rh->atmos.Natom - 1 - rh->atmos.Nactiveatom;
 	result &= xdr_int(&xdrs, &Nmetal);
-	for (n = 1; n < atmos.Natom; n++) {
-		atom = &atmos.atoms[n];
+	for (n = 1; n < rh->atmos.Natom; n++) {
+		atom = &rh->atmos.atoms[n];
 		if (!atom->active)
 			result &= xdr_atom(&xdrs, atom);
 	}

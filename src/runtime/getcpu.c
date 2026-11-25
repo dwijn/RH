@@ -22,6 +22,7 @@
 #include "statistics.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 #define TAB_POSITION 24
 #define DOTS         "...................................."
@@ -32,9 +33,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern ProgramStats stats;
-extern CommandLine  commandline;
-extern char         messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- getTime.c --------------- */
 
@@ -48,12 +47,12 @@ void getCPU(int level, enum CPUaction action, char *label)
 	static double  scale = 1.0 / CLOCKS_PER_SEC;
 	clock_t        CPUtime;
 
-	if (level == 0 && action == TIME_START && !commandline.showkeywords) {
-		stats.fp_CPU = fopen(TIME_DOT_OUT, "w");
-		setvbuf(stats.fp_CPU, NULL, _IOLBF, BUFSIZ);
+	if (level == 0 && action == TIME_START && !rh->commandline.showkeywords) {
+		rh->stats.fp_CPU = fopen(TIME_DOT_OUT, "w");
+		setvbuf(rh->stats.fp_CPU, NULL, _IOLBF, BUFSIZ);
 	}
 
-	if (!stats.printCPU || !stats.fp_CPU)
+	if (!rh->stats.printCPU || !rh->stats.fp_CPU)
 		return;
 	else {
 		if ((CPUtime = clock()) == ((clock_t) -1)) {
@@ -78,9 +77,9 @@ void getCPU(int level, enum CPUaction action, char *label)
 	Ndot    = TAB_POSITION - Nspace - strlen(label);
 	Nblanck = (level > 2) ? 0 : 3 - level;
 
-	fprintf(stats.fp_CPU, "%.*s%.*s%s: %7.3f [sec]\n", Nspace, SPACES,
+	fprintf(rh->stats.fp_CPU, "%.*s%.*s%s: %7.3f [sec]\n", Nspace, SPACES,
 			Ndot, DOTS, label, CPUtime * scale);
-	for (n = 0; n < Nblanck; n++) fprintf(stats.fp_CPU, "\n");
+	for (n = 0; n < Nblanck; n++) fprintf(rh->stats.fp_CPU, "\n");
 }
 
 /* ------- end ---------------------------- getTime.c --------------- */
@@ -101,11 +100,11 @@ void printTotalCPU()
 		   can use none at all, and 0/0 would trap with FP exceptions
 		   enabled (B-33) --                              -------------- */
 
-	fprintf(stats.fp_CPU, "\nTotal_time____: %8.3f [sec] ", total);
+	fprintf(rh->stats.fp_CPU, "\nTotal_time____: %8.3f [sec] ", total);
 	if (total > 0.0)
-		fprintf(stats.fp_CPU, " (user: %4.1f%%, system: %4.1f%%)\n\n",
+		fprintf(rh->stats.fp_CPU, " (user: %4.1f%%, system: %4.1f%%)\n\n",
 				100 * user / total, 100 * system / total);
 	else
-		fprintf(stats.fp_CPU, " (less than one clock tick)\n\n");
+		fprintf(rh->stats.fp_CPU, " (less than one clock tick)\n\n");
 }
 /* ------- end ---------------------------- printTotalCPU ----------- */

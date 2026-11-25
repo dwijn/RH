@@ -54,12 +54,7 @@
 #include "constant.h"
 #include "check.h"
 #include "stokes_exact.h"
-
-extern Atmosphere  atmos;
-extern Geometry    geometry;
-extern InputData   input;
-extern CommandLine commandline;
-extern Spectrum    spectrum;
+#include "state.h"
 
 void Bproject(void);
 void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs, double *chi,
@@ -301,32 +296,32 @@ static void setup_atmosphere(void)
 	points[NPOINT - 1].gamma = acos(ray_muz[1]);
 	points[NPOINT - 1].chi   = atan2(ray_muy[1], ray_mux[1]);
 
-	atmos.Nspace   = NPOINT;
-	atmos.Nrays    = NRAYS;
-	atmos.Stokes   = TRUE;
-	atmos.moving   = FALSE;
-	atmos.wmu      = ray_wmu;
-	atmos.B        = malloc(NPOINT * sizeof(double));
-	atmos.gamma_B  = malloc(NPOINT * sizeof(double));
-	atmos.chi_B    = malloc(NPOINT * sizeof(double));
-	atom.vbroad    = malloc(NPOINT * sizeof(double));
-	geometry.Nrays = NRAYS;
-	geometry.mux   = ray_mux;
-	geometry.muy   = ray_muy;
-	geometry.muz   = ray_muz;
-	geometry.wmu   = ray_wmu;
+	rh->atmos.Nspace    = NPOINT;
+	rh->atmos.Nrays     = NRAYS;
+	rh->atmos.Stokes    = TRUE;
+	rh->atmos.moving    = FALSE;
+	rh->atmos.wmu       = ray_wmu;
+	rh->atmos.B         = malloc(NPOINT * sizeof(double));
+	rh->atmos.gamma_B   = malloc(NPOINT * sizeof(double));
+	rh->atmos.chi_B     = malloc(NPOINT * sizeof(double));
+	atom.vbroad         = malloc(NPOINT * sizeof(double));
+	rh->geometry->Nrays = NRAYS;
+	rh->geometry->mux   = ray_mux;
+	rh->geometry->muy   = ray_muy;
+	rh->geometry->muz   = ray_muz;
+	rh->geometry->wmu   = ray_wmu;
 	for (int k = 0; k < NPOINT; k++) {
-		atmos.B[k]       = points[k].B;
-		atmos.gamma_B[k] = points[k].gamma;
-		atmos.chi_B[k]   = points[k].chi;
-		atom.vbroad[k]   = points[k].vbroad;
+		rh->atmos.B[k]       = points[k].B;
+		rh->atmos.gamma_B[k] = points[k].gamma;
+		rh->atmos.chi_B[k]   = points[k].chi;
+		atom.vbroad[k]       = points[k].vbroad;
 	}
 	Bproject();
 
-	input.StokesMode      = FULL_STOKES;
-	input.magneto_optical = TRUE;
-	input.limit_memory    = FALSE;
-	input.Nthreads        = 1;
+	rh->input.StokesMode      = FULL_STOKES;
+	rh->input.magneto_optical = TRUE;
+	rh->input.limit_memory    = FALSE;
+	rh->input.Nthreads        = 1;
 }
 
 /* --- Expected profiles. For propagation direction n with the
@@ -498,19 +493,19 @@ static double me_profile[NLAMBDA][7];
 
 static void solve_me_slab(int mu, double chi_l, double Iem[NLAMBDA][4])
 {
-	ActiveSet *as  = &spectrum.as[0];
+	ActiveSet *as  = &rh->spectrum.as[0];
 	double    *chi = malloc(NDEP * sizeof(double)), **Sv = matrix_double(4, NDEP),
 		   **I = matrix_double(4, NDEP), *tau = malloc(NDEP * sizeof(double));
 
-	atmos.Nspace  = NDEP;
-	geometry.Ndep = NDEP;
-	free(geometry.height);
-	geometry.height = malloc(NDEP * sizeof(double));
-	as->chi_c       = realloc(as->chi_c, 4 * NDEP * sizeof(double));
-	as->chip_c      = realloc(as->chip_c, 3 * NDEP * sizeof(double));
+	rh->atmos.Nspace   = NDEP;
+	rh->geometry->Ndep = NDEP;
+	free(rh->geometry->height);
+	rh->geometry->height = malloc(NDEP * sizeof(double));
+	as->chi_c            = realloc(as->chi_c, 4 * NDEP * sizeof(double));
+	as->chip_c           = realloc(as->chip_c, 3 * NDEP * sizeof(double));
 	for (int k = 0; k < NDEP; k++) {
-		tau[k]             = (k == 0) ? 0.0 : 1.0e-4 * pow(1.0e6, (double) (k - 1) / (NDEP - 2));
-		geometry.height[k] = -tau[k];
+		tau[k]                  = (k == 0) ? 0.0 : 1.0e-4 * pow(1.0e6, (double) (k - 1) / (NDEP - 2));
+		rh->geometry->height[k] = -tau[k];
 	}
 	for (int la = 0; la < NLAMBDA; la++) {
 		const double *f = me_profile[la];
@@ -529,7 +524,7 @@ static void solve_me_slab(int mu, double chi_l, double Iem[NLAMBDA][4])
 			Sv[0][k]                 = S;
 			for (int n = 1; n < 4; n++) Sv[n][k] = S * chi_l * f[n] / chi[k];
 		}
-		geometry.Ibottom[0][mu] = S0 + S1 * tau[NDEP - 1] + ray_muz[mu] * S1;
+		rh->geometry->Ibottom[0][mu] = S0 + S1 * tau[NDEP - 1] + ray_muz[mu] * S1;
 		Piece_Stokes_Bezier3_1D(0, mu, TRUE, chi, Sv, I, NULL);
 		for (int n = 0; n < 4; n++) Iem[la][n] = I[n][0];
 	}
@@ -551,7 +546,7 @@ static void check_milne_eddington(const MECase *mc, bool_t verbose)
 
 	/* --- RH's profiles of point k, ray mu, upward --  -------------- */
 
-	atmos.Nspace = NPOINT;
+	rh->atmos.Nspace = NPOINT;
 	make_line(c);
 	expected_pattern(c, &p);
 	Profile(&line);
@@ -630,8 +625,8 @@ int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
 
-	commandline.logfile = stdout;
-	commandline.quiet   = TRUE;
+	rh->commandline.logfile = stdout;
+	rh->commandline.quiet   = TRUE;
 
 	setup_atmosphere();
 	for (int n = 0; n < N_CONFIG; n++) check_pattern(&configs[n], verbose);
@@ -643,14 +638,14 @@ int main(int argc, char *argv[])
 	/* --- The emergent Stokes vector agreed with the analytic one to
 		   1e-12 with double profiles; stored as float (M-1) the
 		   differences are up to 4e-8 --                 -------------- */
-	static const MECase me[]         = {{0, 2, 0, 1e-7}, {0, 2, 1, 1e-7}, {0, 3, 1, 1e-7}, {2, 4, 1, 1e-7}, {3, 1, 0, 1e-7}, {4, 3, 0, 1e-7}, {4, 6, 1, 1e-7}, {6, 3, 1, 1e-7}, {0, 1, 0, 1e-7}};
-	spectrum.as                      = calloc(1, sizeof(ActiveSet));
-	atmos.backgrflags                = calloc(1, sizeof(flags));
-	atmos.backgrflags[0].ispolarized = TRUE;
-	geometry.vboundary[TOP]          = ZERO;
-	geometry.vboundary[BOTTOM]       = IRRADIATED;
-	geometry.Itop                    = matrix_double(1, NRAYS);
-	geometry.Ibottom                 = matrix_double(1, NRAYS);
+	static const MECase me[]             = {{0, 2, 0, 1e-7}, {0, 2, 1, 1e-7}, {0, 3, 1, 1e-7}, {2, 4, 1, 1e-7}, {3, 1, 0, 1e-7}, {4, 3, 0, 1e-7}, {4, 6, 1, 1e-7}, {6, 3, 1, 1e-7}, {0, 1, 0, 1e-7}};
+	rh->spectrum.as                      = calloc(1, sizeof(ActiveSet));
+	rh->atmos.backgrflags                = calloc(1, sizeof(flags));
+	rh->atmos.backgrflags[0].ispolarized = TRUE;
+	rh->geometry->vboundary[TOP]         = ZERO;
+	rh->geometry->vboundary[BOTTOM]      = IRRADIATED;
+	rh->geometry->Itop                   = matrix_double(1, NRAYS);
+	rh->geometry->Ibottom                = matrix_double(1, NRAYS);
 	for (int n = 0; n < (int) (sizeof(me) / sizeof(me[0])); n++)
 		check_milne_eddington(&me[n], verbose);
 

@@ -29,8 +29,7 @@
 #include "constant.h"
 #include "background.h"
 #include "check.h"
-
-extern Atmosphere atmos;
+#include "state.h"
 
 #define NT 8
 
@@ -45,12 +44,12 @@ int main(void)
 	memset(&OH, 0, sizeof(OH));
 	memset(&CH, 0, sizeof(CH));
 	for (k = 0; k < NT; k++) n[k] = 1.0E15;
-	OH.n         = n;
-	CH.n         = n;
-	atmos.OH     = &OH;
-	atmos.CH     = &CH;
-	atmos.Nspace = NT;
-	atmos.T      = (double *) T;
+	OH.n             = n;
+	CH.n             = n;
+	rh->atmos.OH     = &OH;
+	rh->atmos.CH     = &CH;
+	rh->atmos.Nspace = NT;
+	rh->atmos.T      = (double *) T;
 
 	for (m = 0; m < 2; m++) {
 		bool_t (*bf)(double, double *, double *) = m ? CH_bf_opac : OH_bf_opac;

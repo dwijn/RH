@@ -21,8 +21,7 @@
 #include "spectrum.h"
 #include "check.h"
 #include "negtau.h"
-
-extern Spectrum spectrum;
+#include "state.h"
 
 static void check_runs(void)
 {
@@ -212,8 +211,8 @@ int main(void)
 {
 	double lambda[8] = {100, 200, 300, 400, 500, 600, 700, 800};
 
-	spectrum.lambda = lambda;
-	spectrum.Nspect = 8;
+	rh->spectrum.lambda = lambda;
+	rh->spectrum.Nspect = 8;
 
 	check_runs();
 	check_threshold();

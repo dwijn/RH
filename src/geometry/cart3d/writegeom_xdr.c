@@ -18,16 +18,13 @@
 #include "error.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern enum Topology topology;
-
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- writeGeometry.c --------- */
 
@@ -40,22 +37,22 @@ void writeGeometry(Geometry *geometry)
 	FILE *fp_out;
 	XDR   xdrs;
 
-	if (!strcmp(input.geometry_output, "none")) return;
+	if (!strcmp(rh->input.geometry_output, "none")) return;
 
-	if ((fp_out = fopen(input.geometry_output, "w")) == NULL) {
+	if ((fp_out = fopen(rh->input.geometry_output, "w")) == NULL) {
 		sprintf(messageStr, "Unable to open output file %s",
-				input.geometry_output);
+				rh->input.geometry_output);
 		Error(ERROR_LEVEL_1, routineName, messageStr);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
-	result = xdr_enum(&xdrs, (enum_t *) &topology);
+	result = xdr_enum(&xdrs, (enum_t *) &rh->topology);
 	result &= xdr_int(&xdrs, &geometry->Nrays);
 	result &= xdr_int(&xdrs, &geometry->Nx);
 	result &= xdr_int(&xdrs, &geometry->Ny);
 	result &= xdr_int(&xdrs, &geometry->Nz);
-	result &= xdr_enum(&xdrs, (enum_t *) &atmos.angleSet.set);
+	result &= xdr_enum(&xdrs, (enum_t *) &rh->atmos.angleSet.set);
 
 	result &= xdr_vector(&xdrs, (char *) geometry->mux, Nrays,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
@@ -76,7 +73,7 @@ void writeGeometry(Geometry *geometry)
 	result &= xdr_vector(&xdrs, (char *) geometry->vz, Nspace,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
-		sprintf(messageStr, "Unable to write geometry to file %s", input.geometry_output);
+		sprintf(messageStr, "Unable to write geometry to file %s", rh->input.geometry_output);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 

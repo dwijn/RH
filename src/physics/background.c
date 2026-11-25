@@ -123,6 +123,7 @@
 #include "inputs.h"
 #include "xdr.h"
 #include "parallel.h"
+#include "state.h"
 
 #define COMMENT_CHAR "#"
 
@@ -130,10 +131,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- backgroundRange.c ------- */
 
@@ -174,39 +172,39 @@ static BackgroundScratch *backgroundScratchCreate(void)
 	/* --- Allocate the temporary storage space of one worker. See
 		   Background() for what the quantities are used for -- ------- */
 
-	NrecStokes = (atmos.Stokes) ? 4 : 1;
+	NrecStokes = (rh->atmos.Stokes) ? 4 : 1;
 
 	sc = (BackgroundScratch *) malloc(sizeof(BackgroundScratch));
 
-	sc->chi_c = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
-	sc->eta_c = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
-	sc->sca_c = (double *) malloc(atmos.Nspace * sizeof(double));
+	sc->chi_c = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
+	sc->eta_c = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
+	sc->sca_c = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
-	sc->chi   = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
-	sc->eta   = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
-	sc->scatt = (double *) malloc(atmos.Nspace * sizeof(double));
+	sc->chi   = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
+	sc->eta   = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
+	sc->scatt = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
-	if (atmos.Stokes && input.magneto_optical) {
-		sc->chip   = (double *) malloc(3 * atmos.Nspace * sizeof(double));
-		sc->chip_c = (double *) malloc(3 * atmos.Nspace * sizeof(double));
+	if (rh->atmos.Stokes && rh->input.magneto_optical) {
+		sc->chip   = (double *) malloc(3 * rh->atmos.Nspace * sizeof(double));
+		sc->chip_c = (double *) malloc(3 * rh->atmos.Nspace * sizeof(double));
 	} else {
 		sc->chip   = NULL;
 		sc->chip_c = NULL;
 	}
 
-	if (atmos.moving || atmos.Stokes) {
-		sc->chi_ai = (double *) malloc(atmos.Nspace * sizeof(double));
-		sc->eta_ai = (double *) malloc(atmos.Nspace * sizeof(double));
-		sc->sca_ai = (double *) malloc(atmos.Nspace * sizeof(double));
+	if (rh->atmos.moving || rh->atmos.Stokes) {
+		sc->chi_ai = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		sc->eta_ai = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		sc->sca_ai = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	} else {
 		sc->chi_ai = sc->chi_c;
 		sc->eta_ai = sc->eta_c;
 		sc->sca_ai = sc->sca_c;
 	}
-	sc->Bnu = (double *) malloc(atmos.Nspace * sizeof(double));
+	sc->Bnu = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 	sc->passivecache = passiveBBCacheCreate();
-	sc->pending      = (int *) malloc(2 * atmos.Nrays * sizeof(int));
+	sc->pending      = (int *) malloc(2 * rh->atmos.Nrays * sizeof(int));
 	sc->Npending     = 0;
 
 	return sc;
@@ -222,12 +220,12 @@ static void backgroundScratchFree(BackgroundScratch *sc)
 	free(sc->eta_c);
 	free(sc->sca_c);
 
-	if (atmos.moving || atmos.Stokes) {
+	if (rh->atmos.moving || rh->atmos.Stokes) {
 		free(sc->chi_ai);
 		free(sc->eta_ai);
 		free(sc->sca_ai);
 	}
-	if (atmos.Stokes && input.magneto_optical) {
+	if (rh->atmos.Stokes && rh->input.magneto_optical) {
 		free(sc->chip);
 		free(sc->chip_c);
 	}
@@ -280,20 +278,20 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 
 	for (nspect = begin; nspect < end; nspect++) {
 		sc->Npending = 0;
-		wavelength   = spectrum.lambda[nspect];
+		wavelength   = rh->spectrum.lambda[nspect];
 
 		/* --- The Planck function at this wavelength --   -------------- */
 
-		Planck(atmos.Nspace, atmos.T, wavelength, Bnu);
+		Planck(rh->atmos.Nspace, rh->atmos.T, wavelength, Bnu);
 
 		/* --- Initialize the flags for this wavelength -- -------------- */
 
-		atmos.backgrflags[nspect].hasline     = FALSE;
-		atmos.backgrflags[nspect].ispolarized = FALSE;
+		rh->atmos.backgrflags[nspect].hasline     = FALSE;
+		rh->atmos.backgrflags[nspect].ispolarized = FALSE;
 
 		/* --- Initialize angle-independent quantities --  -------------- */
 
-		for (k = 0; k < atmos.Nspace; k++) {
+		for (k = 0; k < rh->atmos.Nspace; k++) {
 			chi_ai[k] = 0.0;
 			eta_ai[k] = 0.0;
 			sca_ai[k] = thomson[k];
@@ -301,13 +299,13 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 		/* --- Negative hydrogen ion, bound-free and free-free -- ------- */
 
 		if (Hminus_bf(wavelength, chi, eta)) {
-			for (k = 0; k < atmos.Nspace; k++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				chi_ai[k] += chi[k];
 				eta_ai[k] += eta[k];
 			}
 		}
 		if (Hminus_ff(wavelength, chi)) {
-			for (k = 0; k < atmos.Nspace; k++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				chi_ai[k] += chi[k];
 				eta_ai[k] += chi[k] * Bnu[k];
 			}
@@ -317,7 +315,7 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 		if (do_fudge) {
 			Linear(Nfudge, lambda_fudge, fudge[0],
 				   1, &wavelength, &Hmin_fudge, FALSE);
-			for (k = 0; k < atmos.Nspace; k++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				chi_ai[k] *= Hmin_fudge;
 				eta_ai[k] *= Hmin_fudge;
 			}
@@ -325,13 +323,13 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 		/* --- Opacities from bound-free transitions in OH and CH -- ---- */
 
 		if (OH_bf_opac(wavelength, chi, eta)) {
-			for (k = 0; k < atmos.Nspace; k++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				chi_ai[k] += chi[k];
 				eta_ai[k] += eta[k];
 			}
 		}
 		if (CH_bf_opac(wavelength, chi, eta)) {
-			for (k = 0; k < atmos.Nspace; k++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				chi_ai[k] += chi[k];
 				eta_ai[k] += eta[k];
 			}
@@ -339,34 +337,34 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 		/* --- Neutral Hydrogen Bound-Free and Free-Free --  ------------ */
 
 		if (Hydrogen_bf(wavelength, chi, eta)) {
-			for (k = 0; k < atmos.Nspace; k++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				chi_ai[k] += chi[k];
 				eta_ai[k] += eta[k];
 			}
 		}
 		Hydrogen_ff(wavelength, chi);
-		for (k = 0; k < atmos.Nspace; k++) {
+		for (k = 0; k < rh->atmos.Nspace; k++) {
 			chi_ai[k] += chi[k];
 			eta_ai[k] += chi[k] * Bnu[k];
 		}
 		/* --- Rayleigh scattering by neutral hydrogen --  -------------- */
 
-		if (Rayleigh(wavelength, atmos.H, scatt)) {
-			for (k = 0; k < atmos.Nspace; k++) {
+		if (Rayleigh(wavelength, rh->atmos.H, scatt)) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				sca_ai[k] += scatt[k];
 			}
 		}
 		/* --- Rayleigh scattering by neutral helium --    -------------- */
 
 		if (He && Rayleigh(wavelength, He, scatt)) {
-			for (k = 0; k < atmos.Nspace; k++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				sca_ai[k] += scatt[k];
 			}
 		}
 		/* --- Absorption by H + H^+ (referred to as H2plus free-free) -- */
 
 		if (H2plus_ff(wavelength, chi)) {
-			for (k = 0; k < atmos.Nspace; k++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				chi_ai[k] += chi[k];
 				eta_ai[k] += chi[k] * Bnu[k];
 			}
@@ -375,12 +373,12 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 			   molecular hydrogen --                       -------------- */
 
 		if (Rayleigh_H2(wavelength, scatt)) {
-			for (k = 0; k < atmos.Nspace; k++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				sca_ai[k] += scatt[k];
 			}
 		}
 		if (H2minus_ff(wavelength, chi)) {
-			for (k = 0; k < atmos.Nspace; k++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				chi_ai[k] += chi[k];
 				eta_ai[k] += chi[k] * Bnu[k];
 			}
@@ -396,8 +394,8 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 		/* --- Note: Hydrogen bound-free opacities are calculated in
 			   routine Hydrogen_bf --                      -------------- */
 
-		Metal_bf(wavelength, atmos.Natom - 1, atmos.atoms + 1, chi, eta);
-		for (k = 0; k < atmos.Nspace; k++) {
+		Metal_bf(wavelength, rh->atmos.Natom - 1, rh->atmos.atoms + 1, chi, eta);
+		for (k = 0; k < rh->atmos.Nspace; k++) {
 			chi_ai[k] += chi[k] * metal_fudge;
 			eta_ai[k] += eta[k] * metal_fudge;
 		}
@@ -410,21 +408,21 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 		} else {
 			scatt_fudge = 1.0;
 		}
-		for (k = 0; k < atmos.Nspace; k++) {
+		for (k = 0; k < rh->atmos.Nspace; k++) {
 			sca_ai[k] *= scatt_fudge;
 			chi_ai[k] += sca_ai[k];
 		}
 		/* --- Now the contributions that may be angle-dependent due to the
 			   presence of atomic or molecular lines --    -------------- */
 
-		if (atmos.moving || atmos.Stokes) {
-			for (mu = 0; mu < atmos.Nrays; mu++) {
+		if (rh->atmos.moving || rh->atmos.Stokes) {
+			for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 				for (to_obs = 0; to_obs <= 1; to_obs++) {
-					index = 2 * (nspect * atmos.Nrays + mu) + to_obs;
+					index = 2 * (nspect * rh->atmos.Nrays + mu) + to_obs;
 
 					/* --- First, copy the angle-independent parts -- --------- */
 
-					for (k = 0; k < atmos.Nspace; k++) {
+					for (k = 0; k < rh->atmos.Nspace; k++) {
 						chi_c[k] = chi_ai[k];
 						eta_c[k] = eta_ai[k];
 						sca_c[k] = sca_ai[k];
@@ -432,33 +430,33 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 
 					/* --- Zero the polarized quantities, if necessary -- ----- */
 
-					if (atmos.Stokes) {
-						for (k = atmos.Nspace; k < 4 * atmos.Nspace; k++) {
+					if (rh->atmos.Stokes) {
+						for (k = rh->atmos.Nspace; k < 4 * rh->atmos.Nspace; k++) {
 							chi_c[k] = 0.0;
 							eta_c[k] = 0.0;
 						}
-						if (input.magneto_optical)
-							for (k = 0; k < 3 * atmos.Nspace; k++) chip_c[k] = 0.0;
+						if (rh->input.magneto_optical)
+							for (k = 0; k < 3 * rh->atmos.Nspace; k++) chip_c[k] = 0.0;
 					}
 					/* --- Add opacity from passive atomic lines (including
 						   hydrogen) --                          -------------- */
 
-					if (input.allow_passive_bb) {
+					if (rh->input.allow_passive_bb) {
 						backgrflags = passive_bb(sc->passivecache, wavelength, nspect, mu,
 												 to_obs, chi, eta, chip);
 						if (backgrflags.hasline) {
-							atmos.backgrflags[nspect].hasline = TRUE;
+							rh->atmos.backgrflags[nspect].hasline = TRUE;
 							if (backgrflags.ispolarized) {
-								NrecStokes                            = 4;
-								atmos.backgrflags[nspect].ispolarized = TRUE;
-								if (input.magneto_optical) {
-									for (k = 0; k < 3 * atmos.Nspace; k++)
+								NrecStokes                                = 4;
+								rh->atmos.backgrflags[nspect].ispolarized = TRUE;
+								if (rh->input.magneto_optical) {
+									for (k = 0; k < 3 * rh->atmos.Nspace; k++)
 										chip_c[k] += chip[k];
 								}
 							} else
 								NrecStokes = 1;
 
-							for (k = 0; k < NrecStokes * atmos.Nspace; k++) {
+							for (k = 0; k < NrecStokes * rh->atmos.Nspace; k++) {
 								chi_c[k] += chi[k];
 								eta_c[k] += eta[k];
 							}
@@ -466,27 +464,27 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 					}
 					/* --- Add opacity from Kurucz line list --  -------------- */
 
-					if (atmos.Nrlk > 0) {
+					if (rh->atmos.Nrlk > 0) {
 						backgrflags = rlk_opacity(wavelength, nspect, mu, to_obs,
 												  chi, eta, scatt, chip);
 						if (backgrflags.hasline) {
-							atmos.backgrflags[nspect].hasline = TRUE;
+							rh->atmos.backgrflags[nspect].hasline = TRUE;
 							if (backgrflags.ispolarized) {
-								NrecStokes                            = 4;
-								atmos.backgrflags[nspect].ispolarized = TRUE;
-								if (input.magneto_optical) {
-									for (k = 0; k < 3 * atmos.Nspace; k++)
+								NrecStokes                                = 4;
+								rh->atmos.backgrflags[nspect].ispolarized = TRUE;
+								if (rh->input.magneto_optical) {
+									for (k = 0; k < 3 * rh->atmos.Nspace; k++)
 										chip_c[k] += chip[k];
 								}
 							} else
 								NrecStokes = 1;
 
-							for (k = 0; k < NrecStokes * atmos.Nspace; k++) {
+							for (k = 0; k < NrecStokes * rh->atmos.Nspace; k++) {
 								chi_c[k] += chi[k];
 								eta_c[k] += eta[k];
 							}
-							if (input.rlkscatter) {
-								for (k = 0; k < atmos.Nspace; k++) {
+							if (rh->input.rlkscatter) {
+								for (k = 0; k < rh->atmos.Nspace; k++) {
 									sca_c[k] += scatt[k];
 									chi_c[k] += scatt[k];
 								}
@@ -498,18 +496,18 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 					backgrflags = MolecularOpacity(wavelength, nspect, mu, to_obs,
 												   chi, eta, chip);
 					if (backgrflags.hasline) {
-						atmos.backgrflags[nspect].hasline = TRUE;
+						rh->atmos.backgrflags[nspect].hasline = TRUE;
 						if (backgrflags.ispolarized) {
-							NrecStokes                            = 4;
-							atmos.backgrflags[nspect].ispolarized = TRUE;
-							if (input.magneto_optical) {
-								for (k = 0; k < 3 * atmos.Nspace; k++)
+							NrecStokes                                = 4;
+							rh->atmos.backgrflags[nspect].ispolarized = TRUE;
+							if (rh->input.magneto_optical) {
+								for (k = 0; k < 3 * rh->atmos.Nspace; k++)
 									chip_c[k] += chip[k];
 							}
 						} else
 							NrecStokes = 1;
 
-						for (k = 0; k < NrecStokes * atmos.Nspace; k++) {
+						for (k = 0; k < NrecStokes * rh->atmos.Nspace; k++) {
 							chi_c[k] += chi[k];
 							eta_c[k] += eta[k];
 						}
@@ -517,9 +515,9 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 					/* --- Store angle-dependent results only if at least one
 							   line was found at this wavelength --  -------------- */
 
-					if ((mu == atmos.Nrays - 1 && to_obs) ||
-						(atmos.backgrflags[nspect].hasline &&
-						 (atmos.moving || atmos.backgrflags[nspect].ispolarized))) {
+					if ((mu == rh->atmos.Nrays - 1 && to_obs) ||
+						(rh->atmos.backgrflags[nspect].hasline &&
+						 (rh->atmos.moving || rh->atmos.backgrflags[nspect].ispolarized))) {
 
 						/* --- Reserve the records of this block. Entries
 							   that were not written since the previous
@@ -529,11 +527,11 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 
 						recno = reserveRecords(job, nspect);
 						for (n = 0; n < sc->Npending; n++)
-							atmos.backgrrecno[sc->pending[n]] = recno;
-						sc->Npending             = 0;
-						atmos.backgrrecno[index] = recno;
-						Nwrite                   = writeBackground(nspect, mu, to_obs,
-																   chi_c, eta_c, sca_c, chip_c);
+							rh->atmos.backgrrecno[sc->pending[n]] = recno;
+						sc->Npending                 = 0;
+						rh->atmos.backgrrecno[index] = recno;
+						Nwrite                       = writeBackground(nspect, mu, to_obs,
+																	   chi_c, eta_c, sca_c, chip_c);
 						if (Nwrite != backgroundRecords(nspect))
 							Error(ERROR_LEVEL_2, routineName,
 								  "Reserved and written number of records differ");
@@ -545,12 +543,12 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 			/* --- Angle-independent case. First, add opacity from passive
 			   atomic lines (including hydrogen) --      -------------- */
 
-			if (input.allow_passive_bb) {
+			if (rh->input.allow_passive_bb) {
 				backgrflags = passive_bb(sc->passivecache, wavelength, nspect, 0,
 										 TRUE, chi, eta, NULL);
 				if (backgrflags.hasline) {
-					atmos.backgrflags[nspect].hasline = TRUE;
-					for (k = 0; k < atmos.Nspace; k++) {
+					rh->atmos.backgrflags[nspect].hasline = TRUE;
+					for (k = 0; k < rh->atmos.Nspace; k++) {
 						chi_c[k] += chi[k];
 						eta_c[k] += eta[k];
 					}
@@ -558,17 +556,17 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 			}
 			/* --- Add opacity from Kurucz line list --      -------------- */
 
-			if (atmos.Nrlk > 0) {
+			if (rh->atmos.Nrlk > 0) {
 				backgrflags = rlk_opacity(wavelength, nspect, 0, TRUE,
 										  chi, eta, scatt, NULL);
 				if (backgrflags.hasline) {
-					atmos.backgrflags[nspect].hasline = TRUE;
-					for (k = 0; k < atmos.Nspace; k++) {
+					rh->atmos.backgrflags[nspect].hasline = TRUE;
+					for (k = 0; k < rh->atmos.Nspace; k++) {
 						chi_c[k] += chi[k];
 						eta_c[k] += eta[k];
 					}
-					if (input.rlkscatter) {
-						for (k = 0; k < atmos.Nspace; k++) {
+					if (rh->input.rlkscatter) {
+						for (k = 0; k < rh->atmos.Nspace; k++) {
 							sca_c[k] += scatt[k];
 							chi_c[k] += scatt[k];
 						}
@@ -580,17 +578,17 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 			backgrflags = MolecularOpacity(wavelength, nspect, 0, TRUE,
 										   chi, eta, NULL);
 			if (backgrflags.hasline) {
-				atmos.backgrflags[nspect].hasline = TRUE;
-				for (k = 0; k < atmos.Nspace; k++) {
+				rh->atmos.backgrflags[nspect].hasline = TRUE;
+				for (k = 0; k < rh->atmos.Nspace; k++) {
 					chi_c[k] += chi[k];
 					eta_c[k] += eta[k];
 				}
 			}
 			/* --- Store results --                          -------------- */
 
-			atmos.backgrrecno[nspect] = reserveRecords(job, nspect);
-			Nwrite                    = writeBackground(nspect, 0, 0,
-														chi_c, eta_c, sca_c, NULL);
+			rh->atmos.backgrrecno[nspect] = reserveRecords(job, nspect);
+			Nwrite                        = writeBackground(nspect, 0, 0,
+															chi_c, eta_c, sca_c, NULL);
 			if (Nwrite != backgroundRecords(nspect))
 				Error(ERROR_LEVEL_2, routineName,
 					  "Reserved and written number of records differ");
@@ -618,7 +616,7 @@ static void closeBackgroundFile(void)
 {
 	if (fd_open) {
 		unmapBackground();
-		close(atmos.fd_background);
+		close(rh->atmos.fd_background);
 		fd_open = FALSE;
 	}
 }
@@ -632,17 +630,17 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 
 	getCPU(2, TIME_START, NULL);
 
-	if (input.solve_ne == ONCE || input.solve_ne == ITERATION) {
-		fromscratch = (input.solve_ne == ONCE ||
-					   (input.solve_ne == ITERATION && ne_iter == 0))
+	if (rh->input.solve_ne == ONCE || rh->input.solve_ne == ITERATION) {
+		fromscratch = (rh->input.solve_ne == ONCE ||
+					   (rh->input.solve_ne == ITERATION && ne_iter == 0))
 						  ? TRUE
 						  : FALSE;
-		Solve_ne(atmos.ne, fromscratch);
+		Solve_ne(rh->atmos.ne, fromscratch);
 		ne_iter++;
 	}
 	SetLTEQuantities();
 
-	if (input.NonICE)
+	if (rh->input.NonICE)
 		readMolecules(MOLECULAR_CONCENTRATION_FILE);
 	else
 		ChemicalEquilibrium(N_MAX_CHEM_ITER, CHEM_ITER_LIMIT);
@@ -662,11 +660,11 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 
 	closeBackgroundFile();
 
-	if (input.old_background) {
-		if ((atmos.fd_background =
-				 open(input.background_File, O_RDONLY, 0)) == -1) {
+	if (rh->input.old_background) {
+		if ((rh->atmos.fd_background =
+				 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
 			sprintf(messageStr, "Unable to open input file %s",
-					input.background_File);
+					rh->input.background_File);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		fd_open = TRUE;
@@ -702,19 +700,19 @@ static void backgroundOpacities(bool_t write_analyze_output)
 
 	do_fudge = FALSE;
 
-	if (strcmp(input.fudgeData, "none")) {
+	if (strcmp(rh->input.fudgeData, "none")) {
 		do_fudge = TRUE;
 
 		/* --- Read wavelength-dependent fudge factors to compensate for
 			   missing UV backround line haze --           -------------- */
 
-		if ((fp_fudge = fopen(input.fudgeData, "r")) == NULL) {
-			sprintf(messageStr, "Unable to open input file %s", input.fudgeData);
+		if ((fp_fudge = fopen(rh->input.fudgeData, "r")) == NULL) {
+			sprintf(messageStr, "Unable to open input file %s", rh->input.fudgeData);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		sprintf(messageStr,
 				"\n-Fudging background opacities with file\n  %s\n\n",
-				input.fudgeData);
+				rh->input.fudgeData);
 		Error(MESSAGE, routineName, messageStr);
 
 		/* --- The table is interpolated with Linear (at least two
@@ -730,7 +728,7 @@ static void backgroundOpacities(bool_t write_analyze_output)
 			sprintf(messageStr,
 					"Opacity fudge file %.200s: the first line must give the number"
 					" of wavelengths, at least 2 (read \"%.40s\")",
-					input.fudgeData, inputLine);
+					rh->input.fudgeData, inputLine);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		lambda_fudge = (double *) malloc(Nfudge * sizeof(double));
@@ -744,7 +742,7 @@ static void backgroundOpacities(bool_t write_analyze_output)
 				sprintf(messageStr,
 						"Opacity fudge file %.200s, wavelength %d of %d: need four"
 						" numbers, wavelength and three factors minus 1 (read \"%.60s\")",
-						input.fudgeData, n + 1, Nfudge, inputLine);
+						rh->input.fudgeData, n + 1, Nfudge, inputLine);
 				Error(ERROR_LEVEL_2, routineName, messageStr);
 			}
 			for (int i = 0; i < 3; i++) {
@@ -753,7 +751,7 @@ static void backgroundOpacities(bool_t write_analyze_output)
 							"Opacity fudge file %.200s, wavelength %g nm: value %g"
 							" below -1 (the file gives factor - 1, and the factor"
 							" multiplies an opacity: it must be >= 0)",
-							input.fudgeData, lambda_fudge[n], fudge[i][n]);
+							rh->input.fudgeData, lambda_fudge[n], fudge[i][n]);
 					Error(ERROR_LEVEL_2, routineName, messageStr);
 				}
 			}
@@ -763,7 +761,7 @@ static void backgroundOpacities(bool_t write_analyze_output)
 				sprintf(messageStr,
 						"Opacity fudge file %.200s: wavelengths must be strictly"
 						" increasing or decreasing (%g nm after %g nm)",
-						input.fudgeData, lambda_fudge[n], lambda_fudge[n - 1]);
+						rh->input.fudgeData, lambda_fudge[n], lambda_fudge[n - 1]);
 				Error(ERROR_LEVEL_2, routineName, messageStr);
 			}
 		}
@@ -771,7 +769,7 @@ static void backgroundOpacities(bool_t write_analyze_output)
 			sprintf(messageStr,
 					"Opacity fudge file %.200s: wavelengths must be strictly"
 					" increasing or decreasing (%g nm repeated)",
-					input.fudgeData, lambda_fudge[0]);
+					rh->input.fudgeData, lambda_fudge[0]);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		for (n = 0; n < 3 * Nfudge; n++) fudge[0][n] += 1.0;
@@ -805,22 +803,22 @@ static void backgroundOpacities(bool_t write_analyze_output)
 	/* --- Thomson scattering by free electrons is wavelength independent
 		   in non-relativistic limit so we compute it only once -- ---- */
 
-	thomson = (double *) malloc(atmos.Nspace * sizeof(double));
+	thomson = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	Thomson(thomson);
 
 	/* --- Check whether an atomic model is present for He -- --------- */
 
-	He = (atmos.elements[1].model) ? atmos.elements[1].model : NULL;
+	He = (rh->atmos.elements[1].model) ? rh->atmos.elements[1].model : NULL;
 
 	/* --- Read background files from Kurucz data file. The list does
 		   not depend on the atmosphere: when Background() is called
 		   again it is kept from the first call (B-39) -- -------------- */
 
 	if (!rlk_read) {
-		atmos.Nrlk = 0;
-		readKuruczLines(input.KuruczData);
-		if (atmos.Nrlk > 0) {
-			qsort(atmos.rlk_lines, atmos.Nrlk, sizeof(RLK_Line), rlk_ascend);
+		rh->atmos.Nrlk = 0;
+		readKuruczLines(rh->input.KuruczData);
+		if (rh->atmos.Nrlk > 0) {
+			qsort(rh->atmos.rlk_lines, rh->atmos.Nrlk, sizeof(RLK_Line), rlk_ascend);
 		}
 		rlk_read = TRUE;
 	}
@@ -832,22 +830,22 @@ static void backgroundOpacities(bool_t write_analyze_output)
 		   and in hydrostatic equilibrium: free the arrays of the
 		   previous call (B-11) --                        -------------- */
 
-	free(atmos.backgrflags);
-	free(atmos.backgrrecno);
-	atmos.backgrflags = (flags *) malloc(spectrum.Nspect * sizeof(flags));
-	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
-		atmos.backgrflags[nspect].hasline     = FALSE;
-		atmos.backgrflags[nspect].ispolarized = FALSE;
+	free(rh->atmos.backgrflags);
+	free(rh->atmos.backgrrecno);
+	rh->atmos.backgrflags = (flags *) malloc(rh->spectrum.Nspect * sizeof(flags));
+	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
+		rh->atmos.backgrflags[nspect].hasline     = FALSE;
+		rh->atmos.backgrflags[nspect].ispolarized = FALSE;
 	}
 	/* --- Allocate memory for the list of record numbers that specifies
 		   for each wavelength where to find the background opacity,
 		   scattering opacity, and emissivity --         -------------- */
 
-	if (atmos.moving || atmos.Stokes) {
-		atmos.backgrrecno =
-			(int *) malloc(2 * spectrum.Nspect * atmos.Nrays * sizeof(int));
+	if (rh->atmos.moving || rh->atmos.Stokes) {
+		rh->atmos.backgrrecno =
+			(int *) malloc(2 * rh->spectrum.Nspect * rh->atmos.Nrays * sizeof(int));
 	} else
-		atmos.backgrrecno = (int *) malloc(spectrum.Nspect * sizeof(int));
+		rh->atmos.backgrrecno = (int *) malloc(rh->spectrum.Nspect * sizeof(int));
 
 	/* --- Open output file for background opacity, emissivity,
 		   scattering. The values are stored as float (M-1); truncate,
@@ -859,18 +857,18 @@ static void backgroundOpacities(bool_t write_analyze_output)
 		   the float rounding is noise when Background() runs inside
 		   the iteration) --                              -------------- */
 
-	if (input.background_double) {
-		atmos.backgrbytes  = sizeof(double);
-		atmos.backgretaexp = 0;
+	if (rh->input.background_double) {
+		rh->atmos.backgrbytes  = sizeof(double);
+		rh->atmos.backgretaexp = 0;
 	} else {
-		atmos.backgrbytes  = sizeof(float);
-		atmos.backgretaexp = BACKGR_ETA_EXP;
+		rh->atmos.backgrbytes  = sizeof(float);
+		rh->atmos.backgretaexp = BACKGR_ETA_EXP;
 	}
-	if ((atmos.fd_background =
-			 open(input.background_File, O_RDWR | O_CREAT | O_TRUNC,
+	if ((rh->atmos.fd_background =
+			 open(rh->input.background_File, O_RDWR | O_CREAT | O_TRUNC,
 				  PERMISSIONS)) == -1) {
 		sprintf(messageStr, "Unable to open output file %s",
-				input.background_File);
+				rh->input.background_File);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	fd_open = TRUE;
@@ -879,7 +877,7 @@ static void backgroundOpacities(bool_t write_analyze_output)
 		   loop, and the cache for passive_bb --         -------------- */
 
 	backgroundPrepare();
-	if (atmos.Nrlk > 0) rlk_prepare();
+	if (rh->atmos.Nrlk > 0) rlk_prepare();
 
 	/* --- Go through the spectrum and add the different opacity and
 		   emissivity contributions. This is the main loop, over
@@ -895,8 +893,8 @@ static void backgroundOpacities(bool_t write_analyze_output)
 		   blocks in the file varies from run to run; readers find them
 		   through atmos.backgrrecno. --                 -------------- */
 
-	Nworker = (input.Nthreads > 1) ? input.Nthreads : 1;
-	chunk   = spectrum.Nspect / (8 * Nworker);
+	Nworker = (rh->input.Nthreads > 1) ? rh->input.Nthreads : 1;
+	chunk   = rh->spectrum.Nspect / (8 * Nworker);
 	if (chunk > 32) chunk = 32;
 	if (chunk < 1) chunk = 1;
 
@@ -910,9 +908,9 @@ static void backgroundOpacities(bool_t write_analyze_output)
 	atomic_init(&job.backgrrecno, 0);
 	for (n = 0; n < Nworker; n++) job.scratch[n] = backgroundScratchCreate();
 
-	parallelForDynamic(spectrum.Nspect, chunk, Nworker, backgroundRange, &job);
+	parallelForDynamic(rh->spectrum.Nspect, chunk, Nworker, backgroundRange, &job);
 
-	if (atmos.Nrlk > 0) rlk_cleanup();
+	if (rh->atmos.Nrlk > 0) rlk_cleanup();
 
 	if (write_analyze_output) {
 		/* --- Write background record structure --          ------------ */
@@ -929,34 +927,34 @@ static void backgroundOpacities(bool_t write_analyze_output)
 		   skipped explicitly as well), and active atom and/or molecule
 		   if appropriate --                               ------------ */
 
-	if (atmos.Natom > 1) {
-		for (n = 1; n < atmos.Natom; n++)
-			if (!atmos.atoms[n].active &&
-				!atmos.hydrostatic &&
-				input.solve_ne < ITERATION)
-				freeAtom(&atmos.atoms[n]);
+	if (rh->atmos.Natom > 1) {
+		for (n = 1; n < rh->atmos.Natom; n++)
+			if (!rh->atmos.atoms[n].active &&
+				!rh->atmos.hydrostatic &&
+				rh->input.solve_ne < ITERATION)
+				freeAtom(&rh->atmos.atoms[n]);
 	}
-	if (atmos.Nmolecule > 1) {
-		for (n = 1; n < atmos.Nmolecule; n++)
-			if (!atmos.molecules[n].active &&
-				&atmos.molecules[n] != atmos.H2 && !atmos.hydrostatic &&
-				input.solve_ne < ITERATION)
-				freeMolecule(&atmos.molecules[n]);
+	if (rh->atmos.Nmolecule > 1) {
+		for (n = 1; n < rh->atmos.Nmolecule; n++)
+			if (!rh->atmos.molecules[n].active &&
+				&rh->atmos.molecules[n] != rh->atmos.H2 && !rh->atmos.hydrostatic &&
+				rh->input.solve_ne < ITERATION)
+				freeMolecule(&rh->atmos.molecules[n]);
 	}
 
 	/* --- The partition functions are needed again when Background is
 		   called again (electron density iteration, hydrostatic
 		   equilibrium), like the passive atoms above --  ------------- */
 
-	if (strcmp(input.KuruczData, "none") &&
-		!atmos.hydrostatic && input.solve_ne < ITERATION) {
-		free(atmos.Tpf);
-		atmos.Tpf = NULL;
-		for (n = 0; n < atmos.Nelem; n++) {
-			free(atmos.elements[n].ionpot);
-			freeMatrix((void **) atmos.elements[n].pf);
-			if (atmos.elements[n].n)
-				freeMatrix((void **) atmos.elements[n].n);
+	if (strcmp(rh->input.KuruczData, "none") &&
+		!rh->atmos.hydrostatic && rh->input.solve_ne < ITERATION) {
+		free(rh->atmos.Tpf);
+		rh->atmos.Tpf = NULL;
+		for (n = 0; n < rh->atmos.Nelem; n++) {
+			free(rh->atmos.elements[n].ionpot);
+			freeMatrix((void **) rh->atmos.elements[n].pf);
+			if (rh->atmos.elements[n].n)
+				freeMatrix((void **) rh->atmos.elements[n].n);
 		}
 	}
 	getCPU(3, TIME_POLL, "Background Opacity");
@@ -977,14 +975,14 @@ static void backgroundOpacities(bool_t write_analyze_output)
 	/* --- Keep the Kurucz lines if Background() will be called again,
 		   like the passive atoms and partition functions above -- ---- */
 
-	if (!atmos.hydrostatic && input.solve_ne < ITERATION) {
-		for (n = 0; n < atmos.Nrlk; n++) {
-			if (atmos.rlk_lines[n].zm != NULL) freeZeeman(atmos.rlk_lines[n].zm);
+	if (!rh->atmos.hydrostatic && rh->input.solve_ne < ITERATION) {
+		for (n = 0; n < rh->atmos.Nrlk; n++) {
+			if (rh->atmos.rlk_lines[n].zm != NULL) freeZeeman(rh->atmos.rlk_lines[n].zm);
 		}
-		free(atmos.rlk_lines);
-		atmos.rlk_lines = NULL;
-		atmos.Nrlk      = 0;
-		rlk_read        = FALSE;
+		free(rh->atmos.rlk_lines);
+		rh->atmos.rlk_lines = NULL;
+		rh->atmos.Nrlk      = 0;
+		rlk_read            = FALSE;
 	}
 
 	/* --- The formal solutions read the file through a mapping (P-18) */
@@ -1013,10 +1011,10 @@ void BackgroundOfState(bool_t write_analyze_output)
 	Atom  *atom;
 
 	getCPU(2, TIME_START, NULL);
-	for (n = 0; n < atmos.Natom; n++) {
-		atom = &atmos.atoms[n];
-		for (k = 0; k < atmos.Nspace; k++)
-			atom->ntotal[k] = atom->abundance * atmos.nHtot[k];
+	for (n = 0; n < rh->atmos.Natom; n++) {
+		atom = &rh->atmos.atoms[n];
+		for (k = 0; k < rh->atmos.Nspace; k++)
+			atom->ntotal[k] = atom->abundance * rh->atmos.nHtot[k];
 	}
 	SetLTEQuantities();
 	ChemicalEquilibriumOfState(N_MAX_CHEM_ITER, CHEM_ITER_LIMIT);

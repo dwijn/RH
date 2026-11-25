@@ -24,20 +24,17 @@
 #include "inputs.h"
 #include "xdr.h"
 #include "solver.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-enum Topology topology = ONE_D_PLANE;
+static Geometry geometry_data;
+static RHState  rh_state = RH_STATE_INIT(ONE_D_PLANE, &geometry_data);
+RHState *const  rh       = &rh_state;
 
-Atmosphere   atmos;
-Geometry     geometry;
-Spectrum     spectrum;
-ProgramStats stats;
-InputData    input;
-CommandLine  commandline;
-char         messageStr[MAX_MESSAGE_LENGTH];
+char messageStr[MAX_MESSAGE_LENGTH];
 
 /* ------- begin -------------------------- gcheck.c ---------------- */
 
@@ -52,26 +49,26 @@ int main(int argc, char *argv[])
 	SetFPEtraps();
 
 	readInput();
-	if (input.solver != SOLVER_FIXED_POINT) {
+	if (rh->input.solver != SOLVER_FIXED_POINT) {
 		Error(ERROR_LEVEL_2, "gcheck",
 			  "gcheck checks the map G of SOLVER = FIXED_POINT: set"
 			  " SOLVER = FIXED_POINT\n in keyword.input, with the"
 			  " keyword settings it requires");
 	}
-	spectrum.updateJ = TRUE;
+	rh->spectrum.updateJ = TRUE;
 
 	getCPU(1, TIME_START, NULL);
-	MULTIatmos(&atmos, &geometry);
-	if (atmos.Stokes) Bproject();
+	MULTIatmos(&rh->atmos, rh->geometry);
+	if (rh->atmos.Stokes) Bproject();
 
 	readAtomicModels();
 	readMolecularModels();
 	SortLambda();
 
-	getBoundary(&geometry);
+	getBoundary(rh->geometry);
 
 	Background(write_analyze_output = FALSE, equilibria_only = FALSE);
-	convertScales(&atmos, &geometry);
+	convertScales(&rh->atmos, rh->geometry);
 
 	getProfiles();
 	initSolution();

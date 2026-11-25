@@ -26,6 +26,7 @@
 #include "atmos.h"
 #include "constant.h"
 #include "error.h"
+#include "state.h"
 
 #define BARKLEM_SP_DATA  "../../Atoms/Barklem_spdata.dat"
 #define BARKLEM_SP_NS    21
@@ -49,8 +50,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- determinate_abo.c ------- */
 
@@ -200,7 +200,7 @@ bool_t getBarklemcross(Barklemstruct *bs, RLK_Line *rlk)
 		crossmean, E_Rydberg, deltaEi, deltaEj;
 	Element *element;
 
-	element = &atmos.elements[rlk->pt_index - 1];
+	element = &rh->atmos.elements[rlk->pt_index - 1];
 
 	/* --- Note: ABO tabulations are valid only for neutral atoms -- -- */
 
@@ -240,7 +240,7 @@ bool_t getBarklemcross(Barklemstruct *bs, RLK_Line *rlk)
 								bs->alpha[0], findex2, findex1);
 	}
 
-	reducedmass  = AMU / (1.0 / atmos.H->weight + 1.0 / element->weight);
+	reducedmass  = AMU / (1.0 / rh->atmos.H->weight + 1.0 / element->weight);
 	meanvelocity = sqrt(8.0 * KBOLTZMANN / (PI * reducedmass));
 	crossmean    = SQ(RBOHR) * pow(meanvelocity / 1.0E4, -rlk->alpha);
 
@@ -328,7 +328,7 @@ bool_t getBarklemactivecross(AtomicLine *line)
 	line->cvdWaals[1] = cubeconvol(bs.N2, bs.N1,
 								   bs.alpha[0], findex2, findex1);
 
-	reducedmass  = AMU / (1.0 / atmos.atoms[0].weight + 1.0 / atom->weight);
+	reducedmass  = AMU / (1.0 / rh->atmos.atoms[0].weight + 1.0 / atom->weight);
 	meanvelocity = sqrt(8.0 * KBOLTZMANN / (PI * reducedmass));
 	crossmean    = SQ(RBOHR) * pow(meanvelocity / 1.0E4, -line->cvdWaals[1]);
 
@@ -353,7 +353,7 @@ bool_t getBarklemExplicit(AtomicLine *line)
 
 	atom = line->atom;
 
-	reducedmass  = AMU / (1.0 / atmos.atoms[0].weight + 1.0 / atom->weight);
+	reducedmass  = AMU / (1.0 / rh->atmos.atoms[0].weight + 1.0 / atom->weight);
 	meanvelocity = sqrt(8.0 * KBOLTZMANN / (PI * reducedmass));
 	crossmean    = SQ(RBOHR) * pow(meanvelocity / 1.0E4, -line->cvdWaals[1]);
 

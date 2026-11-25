@@ -17,6 +17,7 @@
 #include "error.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "state.h"
 
 #define INPUT_DOT_OUT "input.out"
 
@@ -26,10 +27,7 @@ int is_big_endian(void);
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- writeInput.c ------------ */
 
@@ -51,21 +49,21 @@ void writeInput(void)
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
-	PRD_angle_dep = (input.PRD_angle_dep && atmos.NPRDactive > 0);
-	XRD           = (input.XRD && atmos.NPRDactive > 0);
+	PRD_angle_dep = (rh->input.PRD_angle_dep && rh->atmos.NPRDactive > 0);
+	XRD           = (rh->input.XRD && rh->atmos.NPRDactive > 0);
 
 	/* --- Write various input parameters to file --     -------------- */
 
-	result &= xdr_bool(&xdrs, &input.magneto_optical);
+	result &= xdr_bool(&xdrs, &rh->input.magneto_optical);
 	result &= xdr_bool(&xdrs, &PRD_angle_dep);
 	result &= xdr_bool(&xdrs, &XRD);
 
-	result &= xdr_enum(&xdrs, (enum_t *) &input.startJ);
-	result &= xdr_enum(&xdrs, (enum_t *) &input.StokesMode);
+	result &= xdr_enum(&xdrs, (enum_t *) &rh->input.startJ);
+	result &= xdr_enum(&xdrs, (enum_t *) &rh->input.StokesMode);
 
-	result &= xdr_double(&xdrs, &input.metallicity);
+	result &= xdr_double(&xdrs, &rh->input.metallicity);
 
-	result &= xdr_bool(&xdrs, &input.backgr_pol);
+	result &= xdr_bool(&xdrs, &rh->input.backgr_pol);
 
 	/* --- Write Endianness of compute architecture so that J can be
 		   read properly in the analysis --              -------------- */

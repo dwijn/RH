@@ -15,13 +15,13 @@
 #include "accelerate.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern CommandLine commandline;
-extern char        messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- MaxChange.c ------------- */
 
@@ -40,7 +40,7 @@ double MaxChange(struct Ng *Ngs, char *text, bool_t quiet)
 			dmax = MAX(dmax, fabs((new[k] - old[k]) / new[k]));
 	}
 	if (!quiet)
-		fprintf(commandline.logfile, "%s delta = %6.4E", text, dmax);
+		fprintf(rh->commandline.logfile, "%s delta = %6.4E", text, dmax);
 
 	return dmax;
 }

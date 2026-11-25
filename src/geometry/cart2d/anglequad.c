@@ -31,6 +31,7 @@
 #include "inputs.h"
 #include "error.h"
 #include "constant.h"
+#include "state.h"
 
 /* --- Define number of rays per octant (NRO) for each of the Carlson
 	   sets --                                         -------------- */
@@ -49,9 +50,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- getAngleQuadr.c --------- */
 
@@ -124,11 +123,11 @@ void getAngleQuadr(Geometry *geometry)
 							 0.06900520, 0.06900520, 0.06900520,
 							 0.17152232};
 
-	switch (atmos.angleSet.set) {
+	switch (rh->atmos.angleSet.set) {
 	case SET_VERTICAL: geometry->Nrays = 1; break;
 	case SET_GL:
 		geometry->Nrays =
-			2 * atmos.angleSet.Ninclination * atmos.angleSet.Nazimuth;
+			2 * rh->atmos.angleSet.Ninclination * rh->atmos.angleSet.Nazimuth;
 		break;
 	case SET_A2: geometry->Nrays = 2 * NRO_A2; break;
 	case SET_A4: geometry->Nrays = 2 * NRO_A4; break;
@@ -143,7 +142,7 @@ void getAngleQuadr(Geometry *geometry)
 		break;
 	default:
 		sprintf(messageStr, "Did not recognize angleset: %d\n",
-				atmos.angleSet.set);
+				rh->atmos.angleSet.set);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
@@ -152,7 +151,7 @@ void getAngleQuadr(Geometry *geometry)
 	geometry->muz = (double *) malloc(geometry->Nrays * sizeof(double));
 	geometry->wmu = (double *) malloc(geometry->Nrays * sizeof(double));
 
-	switch (atmos.angleSet.set) {
+	switch (rh->atmos.angleSet.set) {
 	case SET_VERTICAL:
 		geometry->mux[0] = 0.0;
 		geometry->muy[0] = 0.0;
@@ -164,24 +163,24 @@ void getAngleQuadr(Geometry *geometry)
 
 		/* --- Quadrature in inclination --                -------------- */
 
-		wmu = (double *) malloc(atmos.angleSet.Ninclination *
+		wmu = (double *) malloc(rh->atmos.angleSet.Ninclination *
 								sizeof(double));
-		xmu = (double *) malloc(atmos.angleSet.Ninclination *
+		xmu = (double *) malloc(rh->atmos.angleSet.Ninclination *
 								sizeof(double));
-		GaussLeg(0.0, 1.0, xmu, wmu, atmos.angleSet.Ninclination);
+		GaussLeg(0.0, 1.0, xmu, wmu, rh->atmos.angleSet.Ninclination);
 
 		/* --- Grid step of quadrature in azimuth --       -------------- */
 
-		alpha = HALFPI / (2.0 * atmos.angleSet.Nazimuth);
+		alpha = HALFPI / (2.0 * rh->atmos.angleSet.Nazimuth);
 
 		/* --- Fill first octant --                        -------------- */
 
-		for (n = 0, mu = 0; n < atmos.angleSet.Ninclination; n++) {
+		for (n = 0, mu = 0; n < rh->atmos.angleSet.Ninclination; n++) {
 			singamma = sqrt(1.0 - SQ(xmu[n]));
-			for (m = 0; m < atmos.angleSet.Nazimuth; m++, mu++) {
+			for (m = 0; m < rh->atmos.angleSet.Nazimuth; m++, mu++) {
 				geometry->mux[mu] = cos((2.0 * m + 1.0) * alpha) * singamma;
 				geometry->muy[mu] = sin((2.0 * m + 1.0) * alpha) * singamma;
-				geometry->wmu[mu] = wmu[n] / atmos.angleSet.Nazimuth;
+				geometry->wmu[mu] = wmu[n] / rh->atmos.angleSet.Nazimuth;
 			}
 		}
 

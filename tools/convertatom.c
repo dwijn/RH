@@ -23,6 +23,7 @@
 #include "constant.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 #define MULTI_COMMENT_CHAR "*"
 
@@ -34,8 +35,9 @@ void writeCollisions(FILE *atomFile, struct Atom *atom, FILE *fpOut);
 
 /* --- Global variables --                             -------------- */
 
-CommandLine commandline;
-char        messageStr[MAX_LINE_SIZE];
+static RHState rh_state;
+RHState *const rh = &rh_state;
+char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- convertAtom.c ----------- */
 
@@ -44,8 +46,8 @@ int main(int argc, char *argv[])
 	Atom  atom;
 	FILE *fpOut, *atomFile;
 
-	commandline.quiet   = FALSE;
-	commandline.logfile = stderr;
+	rh->commandline.quiet   = FALSE;
+	rh->commandline.logfile = stderr;
 
 	if (argc >= 3)
 		fpOut = fopen(argv[2], "w");

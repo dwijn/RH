@@ -50,6 +50,7 @@
 #include "background.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -57,9 +58,7 @@ double bilinear(int Ncol, int Nrow, double *f, double x, double y);
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- distribute_nH.c --------- */
 
@@ -69,7 +68,7 @@ void distribute_nH()
 	register int k, i;
 
 	char    config[4], *ptr;
-	int    *quantumNo, Nspace = atmos.Nspace, iq;
+	int    *quantumNo, Nspace = rh->atmos.Nspace, iq;
 	double *g_total, g_i;
 
 	/* --- Redistribute the hydrogen levels for use in the background
@@ -90,49 +89,49 @@ void distribute_nH()
 
 	   --                                                -------------- */
 
-	if (atmos.H_LTE) {
-		atmos.H->NLTEpops = FALSE;
+	if (rh->atmos.H_LTE) {
+		rh->atmos.H->NLTEpops = FALSE;
 		Error(MESSAGE, routineName,
 			  "\nUsing LTE hydrogen populations for background opacities\n\n");
 
 		/* --- To save memory space let atmos.H->n point to LTE populations
 			   atmos.H->nstar --                           -------------- */
 
-		if (!atmos.H->active) atmos.H->n = atmos.H->nstar;
+		if (!rh->atmos.H->active) rh->atmos.H->n = rh->atmos.H->nstar;
 
 	} else {
-		atmos.H->NLTEpops = TRUE;
-		if (!atmos.H->active)
-			atmos.H->n = matrix_double(atmos.H->Nlevel, atmos.Nspace);
+		rh->atmos.H->NLTEpops = TRUE;
+		if (!rh->atmos.H->active)
+			rh->atmos.H->n = matrix_double(rh->atmos.H->Nlevel, rh->atmos.Nspace);
 
 		/* --- Find principal quantum number from label --   ------------ */
 
-		quantumNo = (int *) malloc((atmos.H->Nlevel - 1) * sizeof(int));
-		g_total   = (double *) calloc(atmos.NHydr - 1, sizeof(double));
+		quantumNo = (int *) malloc((rh->atmos.H->Nlevel - 1) * sizeof(int));
+		g_total   = (double *) calloc(rh->atmos.NHydr - 1, sizeof(double));
 
-		for (i = 0; i < atmos.H->Nlevel - 1; i++) {
-			sscanf(atmos.H->label[i], "H I %s", config);
+		for (i = 0; i < rh->atmos.H->Nlevel - 1; i++) {
+			sscanf(rh->atmos.H->label[i], "H I %s", config);
 			ptr = config;
 			while (isdigit(*ptr)) ptr++;
 			*ptr = ' ';
 			sscanf(config, "%d", &quantumNo[i]);
 
-			if (quantumNo[i] < atmos.NHydr)
-				g_total[quantumNo[i] - 1] += atmos.H->g[i];
+			if (quantumNo[i] < rh->atmos.NHydr)
+				g_total[quantumNo[i] - 1] += rh->atmos.H->g[i];
 		}
 		/* --- Now redistribute atmosphere's Hydrogen populations over
 			   the levels of atom H --                     -------------- */
 
-		for (i = 0; i < atmos.H->Nlevel - 1; i++) {
-			if (quantumNo[i] < atmos.NHydr) {
+		for (i = 0; i < rh->atmos.H->Nlevel - 1; i++) {
+			if (quantumNo[i] < rh->atmos.NHydr) {
 				iq  = quantumNo[i] - 1;
-				g_i = atmos.H->g[i] / g_total[iq];
+				g_i = rh->atmos.H->g[i] / g_total[iq];
 				for (k = 0; k < Nspace; k++)
-					atmos.H->n[i][k] = g_i * atmos.nH[iq][k];
+					rh->atmos.H->n[i][k] = g_i * rh->atmos.nH[iq][k];
 			} else {
 				sprintf(messageStr, "Too many hydrogen levels (level n = %d)\n"
 									" Background opacity additional levels set to zero%s",
-						quantumNo[i], (i == atmos.H->Nlevel - 2) ? "\n\n" : "");
+						quantumNo[i], (i == rh->atmos.H->Nlevel - 2) ? "\n\n" : "");
 				Error(WARNING, routineName, messageStr);
 			}
 		}
@@ -142,11 +141,11 @@ void distribute_nH()
 		/* --- The protons come last --                    -------------- */
 
 		for (k = 0; k < Nspace; k++)
-			atmos.H->n[atmos.H->Nlevel - 1][k] = atmos.nH[atmos.NHydr - 1][k];
+			rh->atmos.H->n[rh->atmos.H->Nlevel - 1][k] = rh->atmos.nH[rh->atmos.NHydr - 1][k];
 	}
 	/* --- Free memory for atmospheric populations --    -------------- */
 
-	freeMatrix((void **) atmos.nH);
+	freeMatrix((void **) rh->atmos.nH);
 }
 /* ------- end ---------------------------- distribute_nH.c --------- */
 
@@ -167,21 +166,21 @@ bool_t Hydrogen_bf(double lambda, double *chi, double *eta)
 	AtomicContinuum *continuum;
 
 	opaque = FALSE;
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		chi[k] = 0.0;
 		eta[k] = 0.0;
 	}
-	if (atmos.H->active) return opaque;
+	if (rh->atmos.H->active) return opaque;
 
 	twohc  = (2.0 * HPLANCK * CLIGHT) / CUBE(NM_TO_M);
 	hc_k   = (HPLANCK * CLIGHT) / (KBOLTZMANN * NM_TO_M);
 	sigma0 = 32.0 / (3.0 * sqrt(3.0)) * SQ(Q_ELECTRON) / (4.0 * PI * EPSILON_0) /
 			 (M_ELECTRON * CLIGHT) * HPLANCK / (2.0 * E_RYDBERG);
 
-	npstar = atmos.H->nstar[atmos.H->Nlevel - 1];
+	npstar = rh->atmos.H->nstar[rh->atmos.H->Nlevel - 1];
 
-	for (kr = 0; kr < atmos.H->Ncont; kr++) {
-		continuum  = atmos.H->continuum + kr;
+	for (kr = 0; kr < rh->atmos.H->Ncont; kr++) {
+		continuum  = rh->atmos.H->continuum + kr;
 		lambdaEdge = continuum->lambda0;
 		i          = continuum->i;
 
@@ -191,18 +190,18 @@ bool_t Hydrogen_bf(double lambda, double *chi, double *eta)
 			/* --- Find the principal quantum number of level i -- -------- */
 
 			n_eff = sqrt(E_RYDBERG /
-						 (atmos.H->E[continuum->j] - atmos.H->E[continuum->i]));
+						 (rh->atmos.H->E[continuum->j] - rh->atmos.H->E[continuum->i]));
 
-			g_bf       = Gaunt_bf(lambda, n_eff, atmos.H->stage[i] + 1);
+			g_bf       = Gaunt_bf(lambda, n_eff, rh->atmos.H->stage[i] + 1);
 			sigma      = sigma0 * n_eff * g_bf * CUBE(lambda / lambdaEdge);
 			hc_kla     = hc_k / lambda;
 			twohnu3_c2 = twohc / CUBE(lambda);
 
-			np = atmos.H->n[atmos.H->Nlevel - 1];
-			for (k = 0; k < atmos.Nspace; k++) {
-				expla = exp(-hc_kla / atmos.T[k]);
-				gijk  = atmos.H->nstar[i][k] / npstar[k] * expla;
-				chi[k] += sigma * (1.0 - expla) * atmos.H->n[i][k];
+			np = rh->atmos.H->n[rh->atmos.H->Nlevel - 1];
+			for (k = 0; k < rh->atmos.Nspace; k++) {
+				expla = exp(-hc_kla / rh->atmos.T[k]);
+				gijk  = rh->atmos.H->nstar[i][k] / npstar[k] * expla;
+				chi[k] += sigma * (1.0 - expla) * rh->atmos.H->n[i][k];
 				eta[k] += twohnu3_c2 * gijk * sigma * np[k];
 			}
 		}
@@ -222,7 +221,7 @@ void Hydrogen_ff(double lambda, double *chi)
 
 	register int k;
 
-	int    Nspace = atmos.Nspace;
+	int    Nspace = rh->atmos.Nspace;
 	double hc_kla, C0, sigma, g_ff, stim, nu3, *np;
 
 	C0    = SQ(Q_ELECTRON) / (4.0 * PI * EPSILON_0) / sqrt(M_ELECTRON);
@@ -231,11 +230,11 @@ void Hydrogen_ff(double lambda, double *chi)
 	nu3    = CUBE((lambda * NM_TO_M) / CLIGHT);
 	hc_kla = (HPLANCK * CLIGHT) / (KBOLTZMANN * NM_TO_M * lambda);
 
-	np = atmos.H->n[atmos.H->Nlevel - 1];
+	np = rh->atmos.H->n[rh->atmos.H->Nlevel - 1];
 	for (k = 0; k < Nspace; k++) {
-		stim   = 1.0 - exp(-hc_kla / atmos.T[k]);
-		g_ff   = Gaunt_ff(lambda, 1, atmos.T[k]);
-		chi[k] = sigma / sqrt(atmos.T[k]) * nu3 * atmos.ne[k] *
+		stim   = 1.0 - exp(-hc_kla / rh->atmos.T[k]);
+		g_ff   = Gaunt_ff(lambda, 1, rh->atmos.T[k]);
+		chi[k] = sigma / sqrt(rh->atmos.T[k]) * nu3 * rh->atmos.ne[k] *
 				 np[k] * stim * g_ff;
 	}
 }
@@ -737,7 +736,7 @@ bool_t Hminus_bf(double lambda, double *chi, double *eta)
 	const char   routineName[] = "Hminus_bf";
 	register int k;
 
-	int    Nspace = atmos.Nspace;
+	int    Nspace = rh->atmos.Nspace;
 	double hc_kla, stimEmis, twohnu3_c2, alpha_bf;
 
 	if (lambda <= 0.0 || lambda >= HMBF_LAMBDA0) return FALSE;
@@ -753,9 +752,9 @@ bool_t Hminus_bf(double lambda, double *chi, double *eta)
 	twohnu3_c2 = (2.0 * HPLANCK * CLIGHT) / CUBE(NM_TO_M * lambda);
 
 	for (k = 0; k < Nspace; k++) {
-		stimEmis = exp(-hc_kla / atmos.T[k]);
-		chi[k]   = atmos.nHmin[k] * (1.0 - stimEmis) * alpha_bf;
-		eta[k]   = atmos.nHmin[k] * twohnu3_c2 * stimEmis * alpha_bf;
+		stimEmis = exp(-hc_kla / rh->atmos.T[k]);
+		chi[k]   = rh->atmos.nHmin[k] * (1.0 - stimEmis) * alpha_bf;
+		eta[k]   = rh->atmos.nHmin[k] * twohnu3_c2 * stimEmis * alpha_bf;
 	}
 
 	return TRUE;
@@ -890,14 +889,14 @@ bool_t Hminus_ff(double lambda, double *chi)
 	double C_lambda[NJOHN], scale, pe;
 
 	if (lambda <= 0.0) {
-		for (k = 0; k < atmos.Nspace; k++) chi[k] = 0.0;
+		for (k = 0; k < rh->atmos.Nspace; k++) chi[k] = 0.0;
 		return TRUE;
 	}
 	scale = Hmff_coeffs(lambda, C_lambda) * 1.0E-32;
-	for (k = 0; k < atmos.Nspace; k++) {
-		pe     = atmos.ne[k] * KBOLTZMANN * atmos.T[k];
-		chi[k] = atmos.H->n[0][k] * pe * scale *
-				 Hmff_sum(C_lambda, THETA0 / atmos.T[k]);
+	for (k = 0; k < rh->atmos.Nspace; k++) {
+		pe     = rh->atmos.ne[k] * KBOLTZMANN * rh->atmos.T[k];
+		chi[k] = rh->atmos.H->n[0][k] * pe * scale *
+				 Hmff_sum(C_lambda, THETA0 / rh->atmos.T[k]);
 	}
 	return TRUE;
 }
@@ -922,9 +921,9 @@ static void H2minus_ff_prepare(void)
 	double theta;
 
 	atomic_flag_clear(&H2mff_beyond_told);
-	H2mff_theta_index = (double *) malloc(atmos.Nspace * sizeof(double));
-	for (k = 0; k < atmos.Nspace; k++) {
-		theta = THETA0 / atmos.T[k];
+	H2mff_theta_index = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	for (k = 0; k < rh->atmos.Nspace; k++) {
+		theta = THETA0 / rh->atmos.T[k];
 		if (theta <= thetaFF_H2m[0])
 			H2mff_theta_index[k] = 0;
 		else if (theta >= thetaFF_H2m[NTHETA_H2 - 1])
@@ -1025,7 +1024,7 @@ bool_t H2minus_ff(double lambda, double *chi)
 		7.16e+01, 9.23e+01, 1.01e+02, 1.08e+02, 1.18e+02,
 		1.26e+02, 1.38e+02, 1.47e+02};
 
-	int    Nspace = atmos.Nspace, index = 0;
+	int    Nspace = rh->atmos.Nspace, index = 0;
 	double pe, lambda_index, kappa, *nH2, scale = 1.0;
 
 	if (H2mff_theta_index == NULL) {
@@ -1050,10 +1049,10 @@ bool_t H2minus_ff(double lambda, double *chi)
 								   (lambdaFF[index + 1] - lambdaFF[index]);
 	}
 
-	nH2 = atmos.H2->n;
+	nH2 = rh->atmos.H2->n;
 	for (k = 0; k < Nspace; k++) {
 		if (nH2[k] > 0.0) {
-			pe     = atmos.ne[k] * KBOLTZMANN * atmos.T[k];
+			pe     = rh->atmos.ne[k] * KBOLTZMANN * rh->atmos.T[k];
 			kappa  = bilinear(NTHETA_H2, NFF_H2, kappaFF,
 							  H2mff_theta_index[k], lambda_index);
 			chi[k] = (nH2[k] * 1.0E-29) * pe * (scale * kappa);
@@ -1084,9 +1083,9 @@ static void H2plus_ff_prepare(void)
 	double T;
 
 	atomic_flag_clear(&H2pff_beyond_told);
-	H2pff_temp_index = (double *) malloc(atmos.Nspace * sizeof(double));
-	for (k = 0; k < atmos.Nspace; k++) {
-		T = atmos.T[k];
+	H2pff_temp_index = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	for (k = 0; k < rh->atmos.Nspace; k++) {
+		T = rh->atmos.T[k];
 		if (T <= tempFF_H2p[0])
 			H2pff_temp_index[k] = 0;
 		else if (T >= tempFF_H2p[NTEMP_H2P - 1])
@@ -1161,7 +1160,7 @@ bool_t H2plus_ff(double lambda, double *chi)
 		/* --- lambda =  10000.0 [nm] --                   -------------- */
 		1.39, 1.18, 1.02, 0.90, 0.73, 0.60, 0.52, 0.46, 0.37, 0.31};
 
-	int    Nspace = atmos.Nspace, index = 0;
+	int    Nspace = rh->atmos.Nspace, index = 0;
 	double lambda_index, kappa, *np;
 
 	if (H2pff_temp_index == NULL) {
@@ -1185,11 +1184,11 @@ bool_t H2plus_ff(double lambda, double *chi)
 								   (lambdaFF[index + 1] - lambdaFF[index]);
 	}
 
-	np = atmos.H->n[atmos.H->Nlevel - 1];
+	np = rh->atmos.H->n[rh->atmos.H->Nlevel - 1];
 	for (k = 0; k < Nspace; k++) {
 		kappa  = bilinear(NTEMP_H2P, NFF_H2P, kappaFF,
 						  H2pff_temp_index[k], lambda_index);
-		chi[k] = (atmos.H->n[0][k] * 1.0E-29) * (np[k] * 1.0E-20) * kappa;
+		chi[k] = (rh->atmos.H->n[0][k] * 1.0E-29) * (np[k] * 1.0E-20) * kappa;
 	}
 
 	return TRUE;
@@ -1236,7 +1235,7 @@ bool_t Rayleigh_H2(double lambda, double *scatt)
 	bool_t hunt;
 	double lambda2, sigma_RH2, *nH2, ln_lambda[N_RAYLEIGH_H2], ln_sigma[N_RAYLEIGH_H2], ln_l;
 
-	nH2 = atmos.H2->n;
+	nH2 = rh->atmos.H2->n;
 
 	if (lambda >= RAYLEIGH_H2_LIMIT) {
 		if (lambda <= lambdaRH2[N_RAYLEIGH_H2 - 1]) {
@@ -1253,7 +1252,7 @@ bool_t Rayleigh_H2(double lambda, double *scatt)
 		}
 		sigma_RH2 *= MEGABARN_TO_M2;
 
-		for (k = 0; k < atmos.Nspace; k++)
+		for (k = 0; k < rh->atmos.Nspace; k++)
 			scatt[k] = sigma_RH2 * nH2[k];
 
 		return TRUE;
@@ -1307,10 +1306,10 @@ void hydrogenPrepare(void)
 	hydrogenCleanup();
 
 	if (gff_lng == NULL &&
-		Gaunt_ff_readTable(input.GauntFfData, messageStr, MAX_MESSAGE_LENGTH) != 0)
+		Gaunt_ff_readTable(rh->input.GauntFfData, messageStr, MAX_MESSAGE_LENGTH) != 0)
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	if (Hmbf_lambda == NULL) {
-		if (Hminus_bf_readTable(input.HminusBfData, messageStr,
+		if (Hminus_bf_readTable(rh->input.HminusBfData, messageStr,
 								MAX_MESSAGE_LENGTH) != 0)
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		Hminus_bf_joins(&short_ratio, &long_ratio);
@@ -1319,7 +1318,7 @@ void hydrogenPrepare(void)
 			sprintf(messageStr,
 					"H-minus bound-free table %s does not join its fits: "
 					"fit/table = %.4f at %.2f nm, %.4f at %.2f nm",
-					input.HminusBfData, short_ratio, Hmbf_lambda[0], long_ratio,
+					rh->input.HminusBfData, short_ratio, Hmbf_lambda[0], long_ratio,
 					Hmbf_lambda[Hmbf_N - 1]);
 			Error(WARNING, routineName, messageStr);
 		}

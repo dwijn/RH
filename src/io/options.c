@@ -13,13 +13,13 @@
 #include "rh.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern CommandLine commandline;
-extern char        messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- setOptions.c ------------ */
 
@@ -33,14 +33,14 @@ void setOptions(int argc, char *argv[])
 	Option theOptions[] = {
 		{"help", 1, FALSE, "", NULL, NULL, "Prints this message"},
 		{"input", 1, TRUE, "keyword.input",
-		 commandline.keyword_input,
+		 rh->commandline.keyword_input,
 		 setcharValue, "File name for input keywords"},
 		{"logfile", 1, TRUE, "",
 		 logfileName,
 		 setcharValue, "File name log file"},
-		{"quiet", 1, FALSE, "FALSE", &commandline.quiet, setboolValue,
+		{"quiet", 1, FALSE, "FALSE", &rh->commandline.quiet, setboolValue,
 		 "Turns off warning messages"},
-		{"showkeywords", 1, FALSE, "FALSE", &commandline.showkeywords,
+		{"showkeywords", 1, FALSE, "FALSE", &rh->commandline.showkeywords,
 		 setboolValue,
 		 "Show keyword values with current keyword input file"}};
 	Noption = sizeof(theOptions) / sizeof(Option);
@@ -48,14 +48,14 @@ void setOptions(int argc, char *argv[])
 	parse(argc, argv, Noption, theOptions);
 
 	if (strlen(logfileName) > 0) {
-		if ((commandline.logfile = fopen(logfileName, "w")) == NULL) {
+		if ((rh->commandline.logfile = fopen(logfileName, "w")) == NULL) {
 			sprintf(messageStr, "Unable to open log file %s", logfileName);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
-		setvbuf(commandline.logfile, NULL, _IOLBF, BUFSIZ);
+		setvbuf(rh->commandline.logfile, NULL, _IOLBF, BUFSIZ);
 	} else
-		commandline.logfile = stderr;
+		rh->commandline.logfile = stderr;
 
-	commandline.wavetable = (strlen(wavetable) > 0) ? wavetable : NULL;
+	rh->commandline.wavetable = (strlen(wavetable) > 0) ? wavetable : NULL;
 }
 /* ------- end ---------------------------- setOptions.c ------------ */

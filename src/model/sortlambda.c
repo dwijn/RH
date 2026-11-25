@@ -26,16 +26,13 @@
 #include "error.h"
 #include "statistics.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere  atmos;
-extern Spectrum    spectrum;
-extern InputData   input;
-extern CommandLine commandline;
-extern char        messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- SortLambda.c ------------ */
 
@@ -63,10 +60,10 @@ void SortLambda()
 
 	result = TRUE;
 
-	if (strcmp(input.wavetable_input, "none")) {
-		if ((fp_wavetable = fopen(input.wavetable_input, "r")) == NULL) {
+	if (strcmp(rh->input.wavetable_input, "none")) {
+		if ((fp_wavetable = fopen(rh->input.wavetable_input, "r")) == NULL) {
 			sprintf(messageStr, "Unable to open input file %s",
-					input.wavetable_input);
+					rh->input.wavetable_input);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		xdrstdio_create(&xdrs, fp_wavetable, XDR_DECODE);
@@ -77,7 +74,7 @@ void SortLambda()
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
 			sprintf(messageStr, "Unable to read from input file %s",
-					input.wavetable_input);
+					rh->input.wavetable_input);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		xdr_destroy(&xdrs);
@@ -87,17 +84,17 @@ void SortLambda()
 
 	/* --- Add reference wavelength if necessary --      -------------- */
 
-	Nspectrum = (atmos.lambda_ref > 0.0) ? Nwave + 1 : Nwave;
+	Nspectrum = (rh->atmos.lambda_ref > 0.0) ? Nwave + 1 : Nwave;
 
 	/* --- Symmetric lines with wavelengths of other transitions, of
 		   the table or the reference wavelength in their blue half get
 		   full profiles (N-55) --                       -------------- */
 
-	if (atmos.Natom > 0) {
+	if (rh->atmos.Natom > 0) {
 		double *extra = (double *) malloc((Nwave + 1) * sizeof(double));
 
 		for (kr = 0; kr < Nwave; kr++) extra[kr] = wavetable[kr];
-		if (atmos.lambda_ref > 0.0) extra[Nwave] = atmos.lambda_ref;
+		if (rh->atmos.lambda_ref > 0.0) extra[Nwave] = rh->atmos.lambda_ref;
 		asymmetricBlends(extra, Nspectrum);
 		free(extra);
 	}
@@ -105,9 +102,9 @@ void SortLambda()
 	/* --- Go through the active atoms to collect number of wavelengths
 		   for the lines and continua treated in detail -- ------------ */
 
-	atmos.Nactiveatom = 0;
-	for (n = 0; n < atmos.Natom; n++) {
-		atom = &atmos.atoms[n];
+	rh->atmos.Nactiveatom = 0;
+	for (n = 0; n < rh->atmos.Natom; n++) {
+		atom = &rh->atmos.atoms[n];
 		if (atom->active) {
 			for (kr = 0; kr < atom->Ncont; kr++) {
 				Nspectrum += atom->continuum[kr].Nlambda;
@@ -119,148 +116,148 @@ void SortLambda()
 			for (kr = 0; kr < atom->Nline; kr++)
 				Nspectrum += atom->line[kr].Nlambda;
 
-			atom->activeindex = atmos.Nactiveatom;
-			atmos.Nactiveatom++;
+			atom->activeindex = rh->atmos.Nactiveatom;
+			rh->atmos.Nactiveatom++;
 		}
 	}
 	/* --- Store the pointers to the active atoms, so that they can be
 		   enumerated --                                 -------------- */
 
-	if (atmos.Nactiveatom > 0) {
-		atmos.activeatoms = (Atom **) malloc(atmos.Nactiveatom *
-											 sizeof(Atom *));
-		for (n = 0; n < atmos.Natom; n++) {
-			atom = &atmos.atoms[n];
+	if (rh->atmos.Nactiveatom > 0) {
+		rh->atmos.activeatoms = (Atom **) malloc(rh->atmos.Nactiveatom *
+												 sizeof(Atom *));
+		for (n = 0; n < rh->atmos.Natom; n++) {
+			atom = &rh->atmos.atoms[n];
 			if (atom->active)
-				atmos.activeatoms[atom->activeindex] = atom;
+				rh->atmos.activeatoms[atom->activeindex] = atom;
 		}
 	} else
-		atmos.activeatoms = NULL;
+		rh->atmos.activeatoms = NULL;
 
 	/* --- Add number of wavelengths for lines in active molecules -- - */
 
-	atmos.Nactivemol = 0;
-	for (n = 0; n < atmos.Nmolecule; n++) {
-		molecule = &atmos.molecules[n];
+	rh->atmos.Nactivemol = 0;
+	for (n = 0; n < rh->atmos.Nmolecule; n++) {
+		molecule = &rh->atmos.molecules[n];
 		if (molecule->active) {
 			for (kr = 0; kr < molecule->Nrt; kr++)
 				Nspectrum += molecule->mrt[kr].Nlambda;
 
-			molecule->activeindex = atmos.Nactivemol;
-			atmos.Nactivemol++;
+			molecule->activeindex = rh->atmos.Nactivemol;
+			rh->atmos.Nactivemol++;
 		}
 	}
 	/* --- Store the pointers to the active molecules, so that they can be
 		  enumerated --                                  -------------- */
 
-	if (atmos.Nactivemol > 0) {
-		atmos.activemols = (Molecule **) malloc(atmos.Nactivemol *
-												sizeof(Molecule *));
-		for (n = 0; n < atmos.Nmolecule; n++) {
-			molecule = &atmos.molecules[n];
+	if (rh->atmos.Nactivemol > 0) {
+		rh->atmos.activemols = (Molecule **) malloc(rh->atmos.Nactivemol *
+													sizeof(Molecule *));
+		for (n = 0; n < rh->atmos.Nmolecule; n++) {
+			molecule = &rh->atmos.molecules[n];
 			if (molecule->active)
-				atmos.activemols[molecule->activeindex] = molecule;
+				rh->atmos.activemols[molecule->activeindex] = molecule;
 		}
 	} else
-		atmos.activemols = NULL;
+		rh->atmos.activemols = NULL;
 
 	/* --- Fill the wavelength array --                  -------------- */
 
-	nspect          = 0;
-	spectrum.lambda = (double *) malloc(Nspectrum * sizeof(double));
+	nspect              = 0;
+	rh->spectrum.lambda = (double *) malloc(Nspectrum * sizeof(double));
 
 	/* --- First the referenece wavelength if specified -- ------------ */
 
-	if (atmos.lambda_ref > 0.0)
-		spectrum.lambda[nspect++] = atmos.lambda_ref;
+	if (rh->atmos.lambda_ref > 0.0)
+		rh->spectrum.lambda[nspect++] = rh->atmos.lambda_ref;
 
 	/* --- Then the wavelength table --                  -------------- */
 
 	for (kr = 0; kr < Nwave; kr++)
-		spectrum.lambda[nspect++] = wavetable[kr];
+		rh->spectrum.lambda[nspect++] = wavetable[kr];
 
 	/* --- Finally, all the detailed radiative transitions -- --------- */
 
-	atmos.NPRDactive = 0;
+	rh->atmos.NPRDactive = 0;
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 		for (kr = 0; kr < atom->Ncont; kr++) {
 			continuum = &atom->continuum[kr];
 
 			/* --- NOTE(CMO): Modified the following to insert multiple copies
 			   of lambdaEdge if we go over it --         -------------- */
 
-			spectrum.lambda[nspect++] = continuum->lambda0;
+			rh->spectrum.lambda[nspect++] = continuum->lambda0;
 			for (la = 0; la < continuum->Nlambda; la++)
 				if (continuum->lambda[la] <= continuum->lambda0)
-					spectrum.lambda[nspect++] = continuum->lambda[la];
+					rh->spectrum.lambda[nspect++] = continuum->lambda[la];
 				else
-					spectrum.lambda[nspect++] = continuum->lambda0;
+					rh->spectrum.lambda[nspect++] = continuum->lambda0;
 		}
 		for (kr = 0; kr < atom->Nline; kr++) {
 			line = &atom->line[kr];
 			for (la = 0; la < line->Nlambda; la++)
-				spectrum.lambda[nspect++] = line->lambda[la];
+				rh->spectrum.lambda[nspect++] = line->lambda[la];
 
 			if (line->PRD)
-				atmos.NPRDactive++;
+				rh->atmos.NPRDactive++;
 		}
 	}
 	/* --- Active molecular lines --                     -------------- */
 
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
 		for (kr = 0; kr < molecule->Nrt; kr++) {
 			mrt = &molecule->mrt[kr];
 			for (la = 0; la < mrt->Nlambda; la++)
-				spectrum.lambda[nspect++] = mrt->lambda[la];
+				rh->spectrum.lambda[nspect++] = mrt->lambda[la];
 		}
 	}
 	/* --- Sort the wavelengths in ascending order --    -------------- */
 
-	qsort(spectrum.lambda, Nspectrum, sizeof(double), qsascend);
+	qsort(rh->spectrum.lambda, Nspectrum, sizeof(double), qsascend);
 
 	/* --- Check for duplicate wavelengths --            -------------- */
 
-	spectrum.Nspect = 1;
+	rh->spectrum.Nspect = 1;
 	for (nspect = 1; nspect < Nspectrum; nspect++) {
-		if (spectrum.lambda[nspect] > spectrum.lambda[nspect - 1] + 1e-10) {
-			spectrum.lambda[spectrum.Nspect] = spectrum.lambda[nspect];
-			spectrum.Nspect++;
+		if (rh->spectrum.lambda[nspect] > rh->spectrum.lambda[nspect - 1] + 1e-10) {
+			rh->spectrum.lambda[rh->spectrum.Nspect] = rh->spectrum.lambda[nspect];
+			rh->spectrum.Nspect++;
 		}
 	}
 	sprintf(messageStr, "\n %s: Found %d unique wavelengths\n",
-			routineName, spectrum.Nspect);
+			routineName, rh->spectrum.Nspect);
 	Error(MESSAGE, routineName, messageStr);
-	if (spectrum.Nspect < Nspectrum) {
+	if (rh->spectrum.Nspect < Nspectrum) {
 		sprintf(messageStr, " %s: Eliminated %d duplicate wavelengths\n\n",
-				routineName, Nspectrum - spectrum.Nspect);
+				routineName, Nspectrum - rh->spectrum.Nspect);
 		Error(MESSAGE, routineName, messageStr);
 	}
 	/* --- Allocate space for wavelength array and active sets -- ----- */
 
-	spectrum.lambda = (double *) realloc(spectrum.lambda,
-										 spectrum.Nspect * sizeof(double));
-	spectrum.as     = (ActiveSet *) calloc(spectrum.Nspect, sizeof(ActiveSet));
+	rh->spectrum.lambda = (double *) realloc(rh->spectrum.lambda,
+											 rh->spectrum.Nspect * sizeof(double));
+	rh->spectrum.as     = (ActiveSet *) calloc(rh->spectrum.Nspect, sizeof(ActiveSet));
 
 	/* --- Go through each established wavelength and gather active
 		   transitions --                                -------------- */
 
-	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
-		as = &spectrum.as[nspect];
+	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
+		as = &rh->spectrum.as[nspect];
 
 		/* --- as->art and as->mrt store the arrays of active
 			   transitions for each active atom
 			   and molecule at this wavelength seperately -- ------------ */
 
-		if (atmos.Nactiveatom > 0) {
+		if (rh->atmos.Nactiveatom > 0) {
 			as->Nactiveatomrt =
-				(int *) malloc(atmos.Nactiveatom * sizeof(int));
+				(int *) malloc(rh->atmos.Nactiveatom * sizeof(int));
 			as->art = (AtomicTransition **)
-				malloc(atmos.Nactiveatom * sizeof(AtomicTransition *));
+				malloc(rh->atmos.Nactiveatom * sizeof(AtomicTransition *));
 
-			for (nact = 0; nact < atmos.Nactiveatom; nact++) {
+			for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 				as->Nactiveatomrt[nact] = 0;
 				as->art[nact]           = (AtomicTransition *)
 					malloc(N_MAX_OVERLAP * sizeof(AtomicTransition));
@@ -270,13 +267,13 @@ void SortLambda()
 			as->art           = NULL;
 		}
 
-		if (atmos.Nactivemol > 0) {
+		if (rh->atmos.Nactivemol > 0) {
 			as->Nactivemolrt = (int *)
-				malloc(atmos.Nactivemol * sizeof(int));
+				malloc(rh->atmos.Nactivemol * sizeof(int));
 			as->mrt = (MolTransition **)
-				malloc(atmos.Nactivemol * sizeof(MolTransition *));
+				malloc(rh->atmos.Nactivemol * sizeof(MolTransition *));
 
-			for (nact = 0; nact < atmos.Nactivemol; nact++) {
+			for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 				as->Nactivemolrt[nact] = 0;
 				as->mrt[nact]          = (MolTransition *)
 					malloc(N_MAX_OVERLAP * sizeof(MolTransition));
@@ -289,8 +286,8 @@ void SortLambda()
 	/* --- Determine what transitions are active at which
 		   wavelengths and store the pointers to those transitions. - - */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 
 		/*--- Go through the continua first --             -------------- */
 
@@ -305,12 +302,12 @@ void SortLambda()
 			/* --- Find the indices of the lowest (Nblue) and highest (Nred)
 				   wavelength of the current transition --     ------------ */
 
-			Hunt(spectrum.Nspect, spectrum.lambda,
+			Hunt(rh->spectrum.Nspect, rh->spectrum.lambda,
 				 continuum->lambda[0], &continuum->Nblue);
 
 			/* --- NOTE(CMO): Changed from lambda[Nlambda-1] -- ----------- */
 
-			Hunt(spectrum.Nspect, spectrum.lambda,
+			Hunt(rh->spectrum.Nspect, rh->spectrum.lambda,
 				 continuum->lambda0, &Nred);
 			continuum->Nlambda = Nred - continuum->Nblue + 1;
 
@@ -319,7 +316,7 @@ void SortLambda()
 				   transition. Calculate wavelength integration weights - - */
 
 			for (nspect = continuum->Nblue; nspect <= Nred; nspect++) {
-				as   = &spectrum.as[nspect];
+				as   = &rh->spectrum.as[nspect];
 				nact = atom->activeindex;
 
 				as->art[nact][as->Nactiveatomrt[nact]].type            = ATOMIC_CONTINUUM;
@@ -341,7 +338,7 @@ void SortLambda()
 
 			if (continuum->hydrogenic) {
 				free(continuum->lambda);
-				continuum->lambda = spectrum.lambda + continuum->Nblue;
+				continuum->lambda = rh->spectrum.lambda + continuum->Nblue;
 				continuum->alpha =
 					(double *) realloc(continuum->alpha,
 									   continuum->Nlambda * sizeof(double));
@@ -368,11 +365,11 @@ void SortLambda()
 				continuum->alpha =
 					(double *) malloc(continuum->Nlambda * sizeof(double));
 				pchipTableEval(&bftable, continuum->Nlambda,
-							   spectrum.lambda + continuum->Nblue, continuum->alpha);
+							   rh->spectrum.lambda + continuum->Nblue, continuum->alpha);
 				pchipTableFree(&bftable);
 
 				free(continuum->lambda);
-				continuum->lambda = spectrum.lambda + continuum->Nblue;
+				continuum->lambda = rh->spectrum.lambda + continuum->Nblue;
 				free(alpha_original);
 			}
 		}
@@ -388,9 +385,9 @@ void SortLambda()
 			/* --- Find the indices of the lowest (Nblue) and highest (Nred)
 				   wavelength of the current transition --      ----------- */
 
-			Hunt(spectrum.Nspect, spectrum.lambda, line->lambda[0],
+			Hunt(rh->spectrum.Nspect, rh->spectrum.lambda, line->lambda[0],
 				 &line->Nblue);
-			Hunt(spectrum.Nspect, spectrum.lambda,
+			Hunt(rh->spectrum.Nspect, rh->spectrum.lambda,
 				 line->lambda[line->Nlambda - 1], &Nred);
 			line->Nlambda = Nred - line->Nblue + 1;
 
@@ -399,7 +396,7 @@ void SortLambda()
 				   transition. Calculate wavelength integration weights - - */
 
 			for (nspect = line->Nblue; nspect <= Nred; nspect++) {
-				as   = &spectrum.as[nspect];
+				as   = &rh->spectrum.as[nspect];
 				nact = atom->activeindex;
 
 				as->art[nact][as->Nactiveatomrt[nact]].type       = ATOMIC_LINE;
@@ -415,12 +412,12 @@ void SortLambda()
 				}
 			}
 			free(line->lambda);
-			line->lambda = spectrum.lambda + line->Nblue;
+			line->lambda = rh->spectrum.lambda + line->Nblue;
 		}
 	}
 
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
 
 		Nred = 0;
 		for (kr = 0; kr < molecule->Nrt; kr++) {
@@ -430,16 +427,16 @@ void SortLambda()
 				   wavelength of the current transition and allocate memory
 				   for the wavelength integration weights -- -------------- */
 
-			Hunt(spectrum.Nspect, spectrum.lambda,
+			Hunt(rh->spectrum.Nspect, rh->spectrum.lambda,
 				 mrt->lambda[0], &mrt->Nblue);
-			Hunt(spectrum.Nspect, spectrum.lambda,
+			Hunt(rh->spectrum.Nspect, rh->spectrum.lambda,
 				 mrt->lambda[mrt->Nlambda - 1], &Nred);
 			mrt->Nlambda = Nred - mrt->Nblue + 1;
 
 			/* --- Repoint to proper position in wavelength array -- ------ */
 
 			free(mrt->lambda);
-			mrt->lambda = spectrum.lambda + mrt->Nblue;
+			mrt->lambda = rh->spectrum.lambda + mrt->Nblue;
 
 			/* --- Store the transition number of the current transition
 				   in the active molecular set (as) at each wavelength
@@ -448,7 +445,7 @@ void SortLambda()
 
 			for (nspect = mrt->Nblue;
 				 nspect < mrt->Nblue + mrt->Nlambda; nspect++) {
-				as   = &spectrum.as[nspect];
+				as   = &rh->spectrum.as[nspect];
 				nact = molecule->activeindex;
 
 				as->mrt[nact][as->Nactivemolrt[nact]].type         = mrt->type;
@@ -466,24 +463,24 @@ void SortLambda()
 		}
 	}
 
-	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
-		as = &spectrum.as[nspect];
+	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
+		as = &rh->spectrum.as[nspect];
 
 		/* --- For each wavelength in the spectrum gather the unique set of
 			   lower and upper levels involved in active atomic transitions at that
 			   wavelength. These are needed in the calculation of the cross
 			   coupling coefficients in the approximate lambda iteration -- */
 
-		as->Nlower = (int *) malloc(atmos.Nactiveatom * sizeof(int));
-		as->Nupper = (int *) malloc(atmos.Nactiveatom * sizeof(int));
+		as->Nlower = (int *) malloc(rh->atmos.Nactiveatom * sizeof(int));
+		as->Nupper = (int *) malloc(rh->atmos.Nactiveatom * sizeof(int));
 
 		as->upper_levels =
-			(int **) malloc(atmos.Nactiveatom * sizeof(int *));
+			(int **) malloc(rh->atmos.Nactiveatom * sizeof(int *));
 		as->lower_levels =
-			(int **) malloc(atmos.Nactiveatom * sizeof(int *));
+			(int **) malloc(rh->atmos.Nactiveatom * sizeof(int *));
 
-		for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-			atom = atmos.activeatoms[nact];
+		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+			atom = rh->atmos.activeatoms[nact];
 
 			/* --- First, for each wavelength in the spectrum gather
 		   the unique set of lower levels of active transitions
@@ -542,7 +539,7 @@ void SortLambda()
 		}
 		/* --- Reallocate space for the atomic transition arrays -- ------- */
 
-		for (nact = 0; nact < atmos.Nactiveatom; nact++) {
+		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 			if (as->Nactiveatomrt[nact] > 0) {
 				as->art[nact] = (AtomicTransition *)
 					realloc(as->art[nact],
@@ -558,7 +555,7 @@ void SortLambda()
 		}
 		/* --- Reallocate space for the molecular transition arrays -- -- */
 
-		for (nact = 0; nact < atmos.Nactivemol; nact++) {
+		for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 			if (as->Nactivemolrt[nact] > 0) {
 				as->mrt[nact] = (MolTransition *)
 					realloc(as->mrt[nact],

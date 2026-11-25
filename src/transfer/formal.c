@@ -26,12 +26,9 @@
 #include "negtau.h"
 #include "bgscatter.h"
 #include "geometryops.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
-
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
 
 /* ------- begin -------------------------- bgSweep.c --------------- */
 
@@ -58,19 +55,19 @@ static void bgSweep(void *ctx, const double *u, double *J, double *A,
 	BgCtx     *c  = (BgCtx *) ctx;
 	ActiveSet *as = c->as;
 	bool_t     to_obs, initialize;
-	int        Nspace = atmos.Nspace;
+	int        Nspace = rh->atmos.Nspace;
 	double     wmu;
 
 	for (k = 0; k < Nspace; k++) J[k] = 0.0;
 	for (k = 0; k < 3 * Nspace; k++) A[k] = 0.0;
 	if (albedo)
 		for (k = 0; k < Nspace; k++) albedo[k] = 0.0;
-	for (mu = 0; mu < atmos.Nrays; mu++) {
+	for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 		wmu = 0.5 * geometryOps.wmu(mu);
 		for (to_obs = 0; to_obs <= 1; to_obs++) {
 			if (c->angle_dep) {
 				initialize = (mu == 0 && to_obs == 0);
-				if (initialize || atmos.backgrflags[c->nspect].hasline)
+				if (initialize || rh->atmos.backgrflags[c->nspect].hasline)
 					readBackground(c->nspect, mu, to_obs);
 				if (initialize || c->boundbound)
 					Opacity(c->nspect, mu, to_obs, initialize);
@@ -127,7 +124,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	bool_t initialize, boundbound, polarized_as, polarized_c,
 		PRD_angle_dep, to_obs, solveStokes, angle_dep;
-	int                    Nspace = atmos.Nspace, Nrays = atmos.Nrays, muslant;
+	int                    Nspace = rh->atmos.Nspace, Nrays = rh->atmos.Nrays, muslant;
 	enum negtau_quadrature quad, quad_ray;
 	double                *I, *chi, *S, **Ipol = NULL, **Spol = NULL, *Psi, *Jdag, wmu,
 						 dJmax = 0.0, dJ, *J20dag = NULL, musq, threemu1 = 0.0, threemu2 = 0.0,
@@ -139,7 +136,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	/* --- Retrieve active set as of transitions at wavelength nspect - */
 
-	as = &spectrum.as[nspect];
+	as = &rh->spectrum.as[nspect];
 	alloc_as(nspect, eval_operator);
 
 	/* --- Check whether current active set includes a bound-bound
@@ -155,8 +152,8 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	/* --- Check for line with angle-dependent PRD in set -- ---------- */
 
 	PRD_angle_dep = (containsPRDline(as) &&
-					 (input.PRD_angle_dep == PRD_ANGLE_DEP ||
-					  input.PRD_angle_dep == PRD_ANGLE_APPROX));
+					 (rh->input.PRD_angle_dep == PRD_ANGLE_DEP ||
+					  rh->input.PRD_angle_dep == PRD_ANGLE_APPROX));
 
 	/* --- Check for polarized bound-bound transition in active set - - */
 
@@ -164,35 +161,35 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	/* --- Check for polarized bound-bound transition in background - - */
 
-	polarized_c = atmos.backgrflags[nspect].ispolarized;
+	polarized_c = rh->atmos.backgrflags[nspect].ispolarized;
 
 	/* --- Determine if we solve for I, or for I, Q, U, V -- ---------- */
 
-	solveStokes = (input.StokesMode == FULL_STOKES &&
-				   (polarized_as || polarized_c || input.backgr_pol));
+	solveStokes = (rh->input.StokesMode == FULL_STOKES &&
+				   (polarized_as || polarized_c || rh->input.backgr_pol));
 
 	/* --- The negative-opacity detector integrates chi as the formal
 		   solver will (B-68): Bezier for S_BEZIER3 and for the
 		   polarized solver (DELO_BEZIER3), trapezoid for S_LINEAR -- */
 
-	quad     = (input.S_interpolation == S_BEZIER3) ? geometryOps.negtau_bezier
-													: NEGTAU_LINEAR;
+	quad     = (rh->input.S_interpolation == S_BEZIER3) ? geometryOps.negtau_bezier
+														: NEGTAU_LINEAR;
 	quad_ray = (solveStokes) ? geometryOps.negtau_bezier : quad;
 
 	/* --- Determine if we have to do angle-dependent opacity and
 		   emissivity --                                 -------------- */
 
-	angle_dep = (polarized_as || polarized_c || PRD_angle_dep || input.backgr_pol ||
-				 (atmos.moving &&
-				  (boundbound || atmos.backgrflags[nspect].hasline)));
+	angle_dep = (polarized_as || polarized_c || PRD_angle_dep || rh->input.backgr_pol ||
+				 (rh->atmos.moving &&
+				  (boundbound || rh->atmos.backgrflags[nspect].hasline)));
 
 	/* --- Iterate the background scattering at this wavelength after
 		   the main sweep (N-51): needs the diagonal operator; not with
 		   Stokes or background polarization (J20), which keep the
 		   lambda iteration -- --                       -------------- */
 
-	bg = (spectrum.updateJ && bgScatterActive() && !solveStokes &&
-		  !input.backgr_pol);
+	bg = (rh->spectrum.updateJ && bgScatterActive() && !solveStokes &&
+		  !rh->input.backgr_pol);
 
 	/* --- Allocate temporary space --                   -------------- */
 
@@ -220,14 +217,14 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	/* --- Store current mean intensity, initialize new one to zero - - */
 
 	Jdag = (double *) malloc(Nspace * sizeof(double));
-	if (input.limit_memory) {
-		J = (double *) malloc(atmos.Nspace * sizeof(double));
+	if (rh->input.limit_memory) {
+		J = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 		readJlambda(nspect, Jdag);
 	} else {
-		J = spectrum.J[nspect];
+		J = rh->spectrum.J[nspect];
 		for (k = 0; k < Nspace; k++) Jdag[k] = J[k];
 	}
-	if (spectrum.updateJ)
+	if (rh->spectrum.updateJ)
 		for (k = 0; k < Nspace; k++) J[k] = 0.0;
 
 	/* --- The background scattering source: from Jdag, or, where the
@@ -267,17 +264,17 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	/* --- Store current anisotropy, initialize new one to zero ---- -- */
 
-	if (input.backgr_pol) {
+	if (rh->input.backgr_pol) {
 		J20dag = (double *) malloc(Nspace * sizeof(double));
-		if (input.limit_memory) {
+		if (rh->input.limit_memory) {
 			J20 = (double *) malloc(Nspace * sizeof(double));
 			readJ20lambda(nspect, J20dag);
 		} else {
-			J20 = spectrum.J20[nspect];
+			J20 = rh->spectrum.J20[nspect];
 			for (k = 0; k < Nspace; k++)
 				J20dag[k] = J20[k];
 		}
-		if (spectrum.updateJ)
+		if (rh->spectrum.updateJ)
 			for (k = 0; k < Nspace; k++) J20[k] = 0.0;
 	}
 	/* --- Case of angle-dependent opacity and source function -- ----- */
@@ -285,7 +282,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	if (angle_dep) {
 		for (mu = 0; mu < Nrays; mu++) {
 			wmu = 0.5 * geometryOps.wmu(mu);
-			if (input.backgr_pol) {
+			if (rh->input.backgr_pol) {
 				musq     = SQ(geometryOps.muz(mu));
 				threemu1 = TWOSQRTTWO * (3.0 * musq - 1.0);
 				threemu2 = (3.0 * TWOSQRTTWO) * (musq - 1.0);
@@ -293,7 +290,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 			for (to_obs = 0; to_obs <= 1; to_obs++) {
 				initialize = (mu == 0 && to_obs == 0);
 
-				if (initialize || atmos.backgrflags[nspect].hasline)
+				if (initialize || rh->atmos.backgrflags[nspect].hasline)
 					readBackground(nspect, mu, to_obs);
 
 				if (initialize || boundbound)
@@ -307,7 +304,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 				}
 				if (geometryOps.check_tau(nspect, mu, to_obs, chi, quad_ray))
 					goto cleanup;
-				if (input.backgr_pol) {
+				if (rh->input.backgr_pol) {
 					for (k = 0; k < Nspace; k++) {
 						S[k] += threemu1 * as->sca_c[k] * J20dag[k];
 					}
@@ -329,7 +326,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 					}
 					/* --- Add emissivity due to background scattering -- ----- */
 
-					if (input.backgr_pol) {
+					if (rh->input.backgr_pol) {
 						for (k = 0; k < Nspace; k++) {
 							Spol[1][k] += threemu2 * as->sca_c[k] * J20dag[k];
 						}
@@ -361,7 +358,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 						albedo[k] += wmu * as->sca_c[k] / chi[k];
 				}
 
-				if (spectrum.updateJ) {
+				if (rh->spectrum.updateJ) {
 
 					/* --- Accumulate mean intensity and rates -- ----------- */
 
@@ -371,7 +368,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 					/* --- Accumulate anisotropy --            -------------- */
 
-					if (input.backgr_pol) {
+					if (rh->input.backgr_pol) {
 						if (solveStokes) {
 							for (k = 0; k < Nspace; k++) {
 								J20[k] += (threemu1 * Ipol[0][k] +
@@ -387,14 +384,14 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 					/* --- Accumulate gas-frame mean intensity --   ----------- */
 
-					if (atmos.NPRDactive > 0 &&
-						input.PRD_angle_dep == PRD_ANGLE_APPROX) {
+					if (rh->atmos.NPRDactive > 0 &&
+						rh->input.PRD_angle_dep == PRD_ANGLE_APPROX) {
 
 						addJgasRay(nspect, mu, to_obs, wmu, I);
 					}
 
 					if (containsPRDline(as) &&
-						input.PRD_angle_dep == PRD_ANGLE_DEP)
+						rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
 						writeImu(nspect, mu, to_obs, I);
 				}
 			}
@@ -441,15 +438,15 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 						albedo[k] += wmu * as->sca_c[k] / chi[k];
 				}
 
-				if (spectrum.updateJ) {
+				if (rh->spectrum.updateJ) {
 					for (k = 0; k < Nspace; k++) J[k] += wmu * I[k];
 					addtoRates(nspect, mu, to_obs, wmu, I, redistribute);
 
 					/* --- Accumulate gas-frame mean intensity, which is the
 						   same as J in the angle-independent case -- ----- */
 
-					if (atmos.NPRDactive > 0 &&
-						input.PRD_angle_dep == PRD_ANGLE_APPROX) {
+					if (rh->atmos.NPRDactive > 0 &&
+						rh->input.PRD_angle_dep == PRD_ANGLE_APPROX) {
 						addJgasRow(nspect, wmu, I);
 					}
 				}
@@ -460,7 +457,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	/* --- Write new J for current position in the spectrum -- -------- */
 
 	dJmax = 0.0;
-	if (spectrum.updateJ) {
+	if (rh->spectrum.updateJ) {
 		for (k = 0; k < Nspace; k++) {
 			/* --- J can be zero where every emissivity along the rays has
 			   underflowed (far in the EUV): count it as no change -- */
@@ -475,9 +472,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 			   scattering at this wavelength first (N-51) -- -------- */
 
 		if (bg && !pending) bgScatterAfter(nspect, Nspace, Jsrc, J, Abg, albedo);
-		if (input.limit_memory) {
+		if (rh->input.limit_memory) {
 			writeJlambda(nspect, J);
-			if (input.backgr_pol)
+			if (rh->input.backgr_pol)
 				writeJ20lambda(nspect, J20);
 		}
 	}
@@ -501,10 +498,10 @@ cleanup:
 
 	free(Jdag);
 	free(Jstar);
-	if (input.limit_memory) free(J);
-	if (input.backgr_pol) {
+	if (rh->input.limit_memory) free(J);
+	if (rh->input.backgr_pol) {
 		free(J20dag);
-		if (input.limit_memory) free(J20);
+		if (rh->input.limit_memory) free(J20);
 	}
 
 	return dJmax;

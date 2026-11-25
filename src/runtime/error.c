@@ -16,12 +16,11 @@
 #include "rh.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
-
-extern CommandLine commandline;
 
 /* ------- begin -------------------------- ErrorMessage.c ---------- */
 
@@ -29,10 +28,10 @@ void ErrorMessage(enum errorlevel level, const char *routineName,
 				  const char *messageStr)
 {
 	if (level == MESSAGE) {
-		if (!commandline.quiet)
-			fprintf(commandline.logfile, "%s", (messageStr) ? messageStr : "");
+		if (!rh->commandline.quiet)
+			fprintf(rh->commandline.logfile, "%s", (messageStr) ? messageStr : "");
 	} else {
-		fprintf(commandline.logfile, "\n-WARNING in routine %s\n %s\n",
+		fprintf(rh->commandline.logfile, "\n-WARNING in routine %s\n %s\n",
 				routineName, (messageStr) ? messageStr : " (Undocumented)\n");
 	}
 }
@@ -49,8 +48,8 @@ void ErrorExit(enum errorlevel level, const char *routineName,
 			routineName, (messageStr) ? messageStr : " (Undocumented)\n",
 			"Exiting.....");
 
-	fprintf(commandline.logfile, "%s", errorStr);
-	if (commandline.logfile != stderr) fprintf(stderr, "%s", errorStr);
+	fprintf(rh->commandline.logfile, "%s", errorStr);
+	if (rh->commandline.logfile != stderr) fprintf(stderr, "%s", errorStr);
 
 	(void) level;
 	exit(RH_EXIT_FATAL);

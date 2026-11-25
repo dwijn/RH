@@ -22,12 +22,11 @@
 #include "atom.h"
 #include "atmos.h"
 #include "geometry.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
-
-extern Atmosphere atmos;
 
 /* ------- begin -------------------------- getAngleQuad.c ---------- */
 
@@ -50,14 +49,14 @@ void getAngleQuad(Geometry *geometry)
 	/* --- Copy the number of rays to the geometry structure.
 	 Note: Nrays is read into the atmos structure in readinput.c -- --- */
 
-	geometry->Nrays = atmos.Nrays;
+	geometry->Nrays = rh->atmos.Nrays;
 
 	geometry->mux = (double *) malloc(geometry->Nrays * sizeof(double));
 	geometry->muy = (double *) malloc(geometry->Nrays * sizeof(double));
 	geometry->muz = (double *) malloc(geometry->Nrays * sizeof(double));
 	geometry->wmu = (double *) malloc(geometry->Nrays * sizeof(double));
 
-	switch (atmos.angleSet.set) {
+	switch (rh->atmos.angleSet.set) {
 	case SET_VERTICAL:
 		geometry->muz[0] = 1.0;
 		geometry->wmu[0] = 1.0;

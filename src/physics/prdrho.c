@@ -12,12 +12,11 @@
 #include "inputs.h"
 #include "error.h"
 #include "negtau.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- PRDRhoSize.c ----------- */
 
@@ -27,11 +26,11 @@ long PRDRhoSize(const AtomicLine *line)
 		   per wavelength, or per wavelength, ray and direction with
 		   PRD_ANGLE_DEP, times the locations -- ---------------------- */
 
-	long Nlamu = (input.PRD_angle_dep == PRD_ANGLE_DEP)
-					 ? 2L * atmos.Nrays * line->Nlambda
+	long Nlamu = (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
+					 ? 2L * rh->atmos.Nrays * line->Nlambda
 					 : (long) line->Nlambda;
 
-	return Nlamu * atmos.Nspace;
+	return Nlamu * rh->atmos.Nspace;
 }
 /* ------- end ---------------------------- PRDRhoSize.c ----------- */
 
@@ -41,7 +40,7 @@ bool_t PRDRhoCheck(const Atom *atom, int kr)
 {
 	const char        routineName[] = "PRDRhoCheck";
 	const AtomicLine *line          = atom->line + kr;
-	const long        Ns            = atmos.Nspace;
+	const long        Ns            = rh->atmos.Nspace;
 	long              n, N, Nbad = 0, nbad = -1;
 	int               la, mu, to_obs;
 	char              where[96], what[440];
@@ -65,10 +64,10 @@ bool_t PRDRhoCheck(const Atom *atom, int kr)
 	if (Nbad == 0) return TRUE;
 
 	la = (int) (nbad / Ns);
-	if (input.PRD_angle_dep == PRD_ANGLE_DEP) {
+	if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP) {
 		to_obs = la % 2;
-		mu     = (la / 2) % atmos.Nrays;
-		la     = la / (2 * atmos.Nrays);
+		mu     = (la / 2) % rh->atmos.Nrays;
+		la     = la / (2 * rh->atmos.Nrays);
 		snprintf(where, sizeof(where), "wavelength index %d (%.6f nm), ray %d%s", la,
 				 line->lambda[la], mu, (to_obs) ? " upward" : " downward");
 	} else

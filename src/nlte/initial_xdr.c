@@ -41,18 +41,13 @@
 #include "inputs.h"
 #include "xdr.h"
 #include "prdh.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere  atmos;
-extern Spectrum    spectrum;
-extern InputData   input;
-extern CommandLine commandline;
-extern char        messageStr[];
-
-extern enum Topology topology;
+extern char messageStr[];
 
 /* ------- begin -------------------------- initSolution.c ---------- */
 
@@ -76,31 +71,31 @@ void initSolution(void)
 
 	/* --- Allocate space for angle-averaged mean intensity -- -------- */
 
-	if (!input.limit_memory) {
-		spectrum.J = matrix_double(spectrum.Nspect, atmos.Nspace);
+	if (!rh->input.limit_memory) {
+		rh->spectrum.J = matrix_double(rh->spectrum.Nspect, rh->atmos.Nspace);
 
 		/* --- If we do background polarization we need space for the
 			   anisotropy --                               -------------- */
 
-		if (input.backgr_pol)
-			spectrum.J20 = matrix_double(spectrum.Nspect, atmos.Nspace);
+		if (rh->input.backgr_pol)
+			rh->spectrum.J20 = matrix_double(rh->spectrum.Nspect, rh->atmos.Nspace);
 	}
 
 	/* --- For the PRD angle approximation we need to store J in
 		   the gas frame --                              -------------- */
 
-	if (input.PRD_angle_dep == PRD_ANGLE_APPROX &&
-		atmos.NPRDactive > 0) {
+	if (rh->input.PRD_angle_dep == PRD_ANGLE_APPROX &&
+		rh->atmos.NPRDactive > 0) {
 
-		spectrum.Jgas = matrix_double(spectrum.Nspect, atmos.Nspace);
+		rh->spectrum.Jgas = matrix_double(rh->spectrum.Nspect, rh->atmos.Nspace);
 		initJgasLocks();
-		spectrum.v_los = matrix_double(atmos.Nrays, atmos.Nspace);
+		rh->spectrum.v_los = matrix_double(rh->atmos.Nrays, rh->atmos.Nspace);
 
 		/* --- Calculate line of sight velocity --         -------------- */
 
-		for (mu = 0; mu < atmos.Nrays; mu++) {
-			for (k = 0; k < atmos.Nspace; k++) {
-				spectrum.v_los[mu][k] = vproject(k, mu); // / vbroad[k];
+		for (mu = 0; mu < rh->atmos.Nrays; mu++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
+				rh->spectrum.v_los[mu][k] = vproject(k, mu); // / vbroad[k];
 			}
 		}
 
@@ -112,48 +107,48 @@ void initSolution(void)
 
 	/* --- Allocate space for the emergent intensity --  -------------- */
 
-	switch (topology) {
+	switch (rh->topology) {
 	case ONE_D_PLANE:
-		spectrum.I = matrix_double(spectrum.Nspect, atmos.Nrays);
-		if (atmos.Stokes || input.backgr_pol) {
-			spectrum.Stokes_Q = matrix_double(spectrum.Nspect, atmos.Nrays);
-			spectrum.Stokes_U = matrix_double(spectrum.Nspect, atmos.Nrays);
-			spectrum.Stokes_V = matrix_double(spectrum.Nspect, atmos.Nrays);
+		rh->spectrum.I = matrix_double(rh->spectrum.Nspect, rh->atmos.Nrays);
+		if (rh->atmos.Stokes || rh->input.backgr_pol) {
+			rh->spectrum.Stokes_Q = matrix_double(rh->spectrum.Nspect, rh->atmos.Nrays);
+			rh->spectrum.Stokes_U = matrix_double(rh->spectrum.Nspect, rh->atmos.Nrays);
+			rh->spectrum.Stokes_V = matrix_double(rh->spectrum.Nspect, rh->atmos.Nrays);
 		}
 		break;
 	case TWO_D_PLANE:
-		Nsr        = spectrum.Nspect * atmos.Nrays;
-		spectrum.I = matrix_double(Nsr, atmos.N[0]);
-		if (atmos.Stokes || input.backgr_pol) {
-			spectrum.Stokes_Q = matrix_double(Nsr, atmos.N[0]);
-			spectrum.Stokes_U = matrix_double(Nsr, atmos.N[0]);
-			spectrum.Stokes_V = matrix_double(Nsr, atmos.N[0]);
+		Nsr            = rh->spectrum.Nspect * rh->atmos.Nrays;
+		rh->spectrum.I = matrix_double(Nsr, rh->atmos.N[0]);
+		if (rh->atmos.Stokes || rh->input.backgr_pol) {
+			rh->spectrum.Stokes_Q = matrix_double(Nsr, rh->atmos.N[0]);
+			rh->spectrum.Stokes_U = matrix_double(Nsr, rh->atmos.N[0]);
+			rh->spectrum.Stokes_V = matrix_double(Nsr, rh->atmos.N[0]);
 		}
 		break;
 	case THREE_D_PLANE:
-		Nsr        = spectrum.Nspect * atmos.Nrays;
-		Nplane     = atmos.N[0] * atmos.N[1];
-		spectrum.I = matrix_double(Nsr, Nplane);
-		if (atmos.Stokes || input.backgr_pol) {
-			spectrum.Stokes_Q = matrix_double(Nsr, Nplane);
-			spectrum.Stokes_U = matrix_double(Nsr, Nplane);
-			spectrum.Stokes_V = matrix_double(Nsr, Nplane);
+		Nsr            = rh->spectrum.Nspect * rh->atmos.Nrays;
+		Nplane         = rh->atmos.N[0] * rh->atmos.N[1];
+		rh->spectrum.I = matrix_double(Nsr, Nplane);
+		if (rh->atmos.Stokes || rh->input.backgr_pol) {
+			rh->spectrum.Stokes_Q = matrix_double(Nsr, Nplane);
+			rh->spectrum.Stokes_U = matrix_double(Nsr, Nplane);
+			rh->spectrum.Stokes_V = matrix_double(Nsr, Nplane);
 		}
 		break;
 	default:
-		sprintf(messageStr, "Unknown topology (%d)", topology);
+		sprintf(messageStr, "Unknown topology (%d)", rh->topology);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	/* --- Read angle-averaged intensity from previous run if necessary,
 		   and open file for J in case option for limited memory is set */
 
-	spectrum.fd_J   = -1;
-	spectrum.fd_J20 = -1;
-	oflag           = 0;
-	openJfile       = FALSE;
+	rh->spectrum.fd_J   = -1;
+	rh->spectrum.fd_J20 = -1;
+	oflag               = 0;
+	openJfile           = FALSE;
 
-	if (input.startJ == OLD_J) {
-		if (spectrum.updateJ) {
+	if (rh->input.startJ == OLD_J) {
+		if (rh->spectrum.updateJ) {
 			strcpy(permission, "r+");
 			oflag |= O_RDWR;
 		} else {
@@ -162,22 +157,22 @@ void initSolution(void)
 		}
 		openJfile = TRUE;
 	} else {
-		if (input.limit_memory) {
+		if (rh->input.limit_memory) {
 			strcpy(permission, "w+");
 			oflag |= (O_RDWR | O_CREAT);
 			openJfile = TRUE;
 		}
 	}
 	if (openJfile) {
-		if ((spectrum.fd_J = open(input.JFile, oflag, PERMISSIONS)) == -1) {
+		if ((rh->spectrum.fd_J = open(rh->input.JFile, oflag, PERMISSIONS)) == -1) {
 			sprintf(messageStr,
 					"Unable to open input file %s with permission %s",
-					input.JFile, permission);
+					rh->input.JFile, permission);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
-		if (input.backgr_pol) {
-			if ((spectrum.fd_J20 = open(J20_DOT_OUT, oflag,
-										PERMISSIONS)) == -1) {
+		if (rh->input.backgr_pol) {
+			if ((rh->spectrum.fd_J20 = open(J20_DOT_OUT, oflag,
+											PERMISSIONS)) == -1) {
 				sprintf(messageStr,
 						"Unable to open input file %s with permission %s",
 						J20_DOT_OUT, permission);
@@ -185,52 +180,52 @@ void initSolution(void)
 			}
 		}
 	}
-	if (input.limit_memory) {
+	if (rh->input.limit_memory) {
 		if (oflag & O_CREAT) {
-			J = (double *) malloc(atmos.Nspace * sizeof(double));
+			J = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 			/* --- Initialize J file with zeroes --          -------------- */
 
-			for (k = 0; k < atmos.Nspace; k++) J[k] = 0.0;
-			for (nspect = 0; nspect < spectrum.Nspect; nspect++)
+			for (k = 0; k < rh->atmos.Nspace; k++) J[k] = 0.0;
+			for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
 				writeJlambda(nspect, J);
 
 			free(J);
 
-			if (input.backgr_pol) {
-				J20 = (double *) malloc(atmos.Nspace * sizeof(double));
-				for (k = 0; k < atmos.Nspace; k++) J20[k] = 0.0;
-				for (nspect = 0; nspect < spectrum.Nspect; nspect++)
+			if (rh->input.backgr_pol) {
+				J20 = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+				for (k = 0; k < rh->atmos.Nspace; k++) J20[k] = 0.0;
+				for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
 					writeJ20lambda(nspect, J20);
 
 				free(J20);
 			}
 		}
 	} else {
-		if (input.startJ == OLD_J) {
+		if (rh->input.startJ == OLD_J) {
 
 			/* --- Fill matrix J with old values from previous run ----- -- */
 
-			for (nspect = 0; nspect < spectrum.Nspect; nspect++)
-				readJlambda(nspect, spectrum.J[nspect]);
+			for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
+				readJlambda(nspect, rh->spectrum.J[nspect]);
 
-			close(spectrum.fd_J);
-			spectrum.fd_J = -1;
+			close(rh->spectrum.fd_J);
+			rh->spectrum.fd_J = -1;
 
-			if (input.backgr_pol) {
-				for (nspect = 0; nspect < spectrum.Nspect; nspect++)
-					readJ20lambda(nspect, spectrum.J20[nspect]);
+			if (rh->input.backgr_pol) {
+				for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
+					readJ20lambda(nspect, rh->spectrum.J20[nspect]);
 
-				close(spectrum.fd_J20);
-				spectrum.fd_J20 = -1;
+				close(rh->spectrum.fd_J20);
+				rh->spectrum.fd_J20 = -1;
 			}
 		}
 	}
 
 	/* --- Look for Jgas and read, otherwise use spectrum.J --- ------- */
 
-	if (atmos.NPRDactive > 0 &&
-		input.PRD_angle_dep == PRD_ANGLE_APPROX) {
+	if (rh->atmos.NPRDactive > 0 &&
+		rh->input.PRD_angle_dep == PRD_ANGLE_APPROX) {
 
 		fp = fopen("Jgas.dat", "r");
 		if (fp) {
@@ -238,7 +233,7 @@ void initSolution(void)
 			/* --- File exists --                            -------------- */
 
 			fclose(fp);
-			readJgas(spectrum.Jgas);
+			readJgas(rh->spectrum.Jgas);
 			sprintf(messageStr, "Read spectrum.Jgas from file.");
 			Error(MESSAGE, routineName, messageStr);
 		} else {
@@ -249,9 +244,9 @@ void initSolution(void)
 					"Jgas.dat does not exist,setting spectrum.Jgas spectrum.J.");
 			Error(WARNING, routineName, messageStr);
 
-			for (k = 0; k < atmos.Nspace; k++) {
-				for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
-					spectrum.Jgas[nspect][k] = spectrum.J[nspect][k];
+			for (k = 0; k < rh->atmos.Nspace; k++) {
+				for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
+					rh->spectrum.Jgas[nspect][k] = rh->spectrum.J[nspect][k];
 				}
 			}
 		}
@@ -260,12 +255,12 @@ void initSolution(void)
 	/* --- Need storage for angle-dependent specific intensities for
 		   angle-dependent PRD --                        -------------- */
 
-	if (atmos.NPRDactive > 0 &&
-		input.PRD_angle_dep == PRD_ANGLE_DEP) {
+	if (rh->atmos.NPRDactive > 0 &&
+		rh->input.PRD_angle_dep == PRD_ANGLE_DEP) {
 
 		oflag = 0;
-		if (input.startJ == OLD_J) {
-			if (spectrum.updateJ) {
+		if (rh->input.startJ == OLD_J) {
+			if (rh->spectrum.updateJ) {
 				strcpy(permission, "r+");
 				oflag |= O_RDWR;
 			} else {
@@ -276,9 +271,9 @@ void initSolution(void)
 			strcpy(permission, "w+");
 			oflag |= (O_RDWR | O_CREAT);
 		}
-		if ((spectrum.fd_Imu = open(IMU_FILENAME, oflag, PERMISSIONS)) == -1) {
+		if ((rh->spectrum.fd_Imu = open(IMU_FILENAME, oflag, PERMISSIONS)) == -1) {
 			sprintf(messageStr, "Unable to open %s file %s with permission %s",
-					(spectrum.updateJ) ? "update" : "input",
+					(rh->spectrum.updateJ) ? "update" : "input",
 					IMU_FILENAME, permission);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
@@ -286,40 +281,40 @@ void initSolution(void)
 			   of intensity Imu in file spectrum.fd_Imu at wavelength
 			   corresponding to nspect. --                 -------------- */
 
-		spectrum.PRDindex = (int *) malloc(spectrum.Nspect * sizeof(int));
-		index             = 0;
-		for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
-			if (containsPRDline(&spectrum.as[nspect])) {
-				spectrum.PRDindex[nspect] = index;
+		rh->spectrum.PRDindex = (int *) malloc(rh->spectrum.Nspect * sizeof(int));
+		index                 = 0;
+		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
+			if (containsPRDline(&rh->spectrum.as[nspect])) {
+				rh->spectrum.PRDindex[nspect] = index;
 				index++;
 			}
 		}
 	}
-	if (input.PRD_angle_dep == PRD_ANGLE_APPROX && atmos.NPRDactive > 0) {
+	if (rh->input.PRD_angle_dep == PRD_ANGLE_APPROX && rh->atmos.NPRDactive > 0) {
 
 		/* --- Which wavelengths the PRD sub-iterations re-solve, and the
 			   rows of Jgas_fixed (N-27) --                  -------------- */
 
-		char *isPRD = (char *) malloc(spectrum.Nspect);
+		char *isPRD = (char *) malloc(rh->spectrum.Nspect);
 
 		if (isPRD == NULL) Error(ERROR_LEVEL_2, routineName, "Out of memory");
 
-		for (nspect = 0; nspect < spectrum.Nspect; nspect++)
-			isPRD[nspect] = containsPRDline(&spectrum.as[nspect]);
+		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
+			isPRD[nspect] = containsPRDline(&rh->spectrum.as[nspect]);
 		initJgasRows(isPRD);
 		free(isPRD);
 	}
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 
 		/* --- Allocate memory for the rate equation matrix -- ---------- */
 
-		atom->Gamma = matrix_double(SQ(atom->Nlevel), atmos.Nspace);
+		atom->Gamma = matrix_double(SQ(atom->Nlevel), rh->atmos.Nspace);
 
 		switch (atom->initial_solution) {
 		case LTE_POPULATIONS:
 			for (i = 0; i < atom->Nlevel; i++) {
-				for (k = 0; k < atmos.Nspace; k++)
+				for (k = 0; k < rh->atmos.Nspace; k++)
 					atom->n[i][k] = atom->nstar[i][k];
 			}
 			break;
@@ -333,8 +328,8 @@ void initSolution(void)
 
 			/* --- Then add radiative contributions of active transitions --  */
 
-			for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
-				as = spectrum.as + nspect;
+			for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
+				as = rh->spectrum.as + nspect;
 
 				for (n = 0; n < as->Nactiveatomrt[nact]; n++) {
 					switch (as->art[nact][n].type) {
@@ -346,7 +341,7 @@ void initSolution(void)
 						ij   = i * atom->Nlevel + j;
 
 						if (la == 0) {
-							for (k = 0; k < atmos.Nspace; k++)
+							for (k = 0; k < rh->atmos.Nspace; k++)
 								atom->Gamma[ij][k] += line->Aji;
 						}
 						break;
@@ -361,9 +356,9 @@ void initSolution(void)
 						wla = fourPI * getwlambda_cont(continuum, la) /
 							  continuum->lambda[la];
 						twohnu3_c2 = twoc / CUBE(continuum->lambda[la]);
-						for (k = 0; k < atmos.Nspace; k++) {
+						for (k = 0; k < rh->atmos.Nspace; k++) {
 							gijk = atom->nstar[i][k] / atom->nstar[j][k] *
-								   exp(-hc_k / (continuum->lambda[la] * atmos.T[k]));
+								   exp(-hc_k / (continuum->lambda[la] * rh->atmos.T[k]));
 							atom->Gamma[ij][k] += gijk * twohnu3_c2 *
 												  continuum->alpha[la] * wla;
 						}
@@ -375,7 +370,7 @@ void initSolution(void)
 			}
 			/* --- Solve statistical equilibrium equations --  ------------ */
 
-			statEquil(atom, (input.isum == -1) ? 0 : input.isum);
+			statEquil(atom, (rh->input.isum == -1) ? 0 : rh->input.isum);
 			break;
 
 		case OLD_POPULATIONS:
@@ -393,27 +388,27 @@ void initSolution(void)
 	}
 	/* --- Now the molecules that are active --          -------------- */
 
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
 
 		/* --- Calculate the LTE vibration level populations here. They
 			   cannot be calculated yet in readMolecule since chemical
 			   equilibrium has to be established first --  -------------- */
 
 		for (i = 0; i < molecule->Nv; i++) {
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				molecule->nvstar[i][k] = molecule->n[k] *
 										 molecule->pfv[i][k] / molecule->pf[k];
 		}
 		/* --- Allocate memory for the rate equation matrix -- ---------- */
 
-		molecule->Gamma = matrix_double(SQ(molecule->Nv), atmos.Nspace);
+		molecule->Gamma = matrix_double(SQ(molecule->Nv), rh->atmos.Nspace);
 
 		switch (molecule->initial_solution) {
 
 		case LTE_POPULATIONS:
 			for (i = 0; i < molecule->Nv; i++) {
-				for (k = 0; k < atmos.Nspace; k++)
+				for (k = 0; k < rh->atmos.Nspace; k++)
 					molecule->nv[i][k] = molecule->nvstar[i][k];
 			}
 			break;

@@ -32,6 +32,7 @@
 #include "constant.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 #define F_QUADRUPOLE 0.1
 /*#define  NTEMP         7 */
@@ -64,8 +65,9 @@ double square(double x)
 int    *n, *l;
 double *n_eff, E_Rydberg, f, deltaE, R0, x0, ERkT, PIa0square;
 
-CommandLine commandline;
-char        messageStr[MAX_LINE_SIZE];
+static RHState rh_state;
+RHState *const rh = &rh_state;
+char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- impact.c ---------------- */
 
@@ -80,8 +82,8 @@ int main(int argc, char *argv[])
 	FILE  *fp_out;
 	Atom   atom;
 
-	commandline.quiet   = FALSE;
-	commandline.logfile = stderr;
+	rh->commandline.quiet   = FALSE;
+	rh->commandline.logfile = stderr;
 
 	if (argc >= 3) {
 		if ((fp_out = fopen(argv[2], "w")) == NULL) {

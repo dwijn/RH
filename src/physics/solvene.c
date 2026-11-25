@@ -36,6 +36,7 @@
 #include "constant.h"
 #include "error.h"
 #include "statistics.h"
+#include "state.h"
 
 #define MAX_ELECTRON_ERROR        1.0E-2
 #define N_MAX_ELECTRON_ITERATIONS 100
@@ -47,8 +48,7 @@ double getKuruczpf(Element *element, int stage, int k);
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- Solve_ne.c -------------- */
 
@@ -87,22 +87,22 @@ static double solveNe(double *ne, bool_t fromscratch, int Nfixed)
 		   have to allocate and free memory all the time -- ----------- */
 
 	Nmaxstage = 0;
-	for (n = 0; n < atmos.Nelem; n++)
-		Nmaxstage = MAX(Nmaxstage, atmos.elements[n].Nstage);
+	for (n = 0; n < rh->atmos.Nelem; n++)
+		Nmaxstage = MAX(Nmaxstage, rh->atmos.elements[n].Nstage);
 	fjk  = (double *) malloc(Nmaxstage * sizeof(double));
 	dfjk = (double *) malloc(Nmaxstage * sizeof(double));
 
-	np = atmos.H->n[atmos.H->Nlevel - 1];
-	for (k = 0; k < atmos.Nspace; k++) {
+	np = rh->atmos.H->n[rh->atmos.H->Nlevel - 1];
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		if (fromscratch) {
 
 			/* --- Get the initial solution from ionization of H only -- -- */
 
-			if (atmos.H_LTE) {
-				Uk   = getKuruczpf(&atmos.elements[0], 0, k);
-				PhiH = 0.5 * pow(C1 / atmos.T[k], 1.5) *
-					   exp(Uk + atmos.elements[0].ionpot[0] / (KBOLTZMANN * atmos.T[k]));
-				ne_old = (sqrt(1.0 + 4.0 * atmos.nHtot[k] * PhiH) - 1.0) / (2.0 * PhiH);
+			if (rh->atmos.H_LTE) {
+				Uk   = getKuruczpf(&rh->atmos.elements[0], 0, k);
+				PhiH = 0.5 * pow(C1 / rh->atmos.T[k], 1.5) *
+					   exp(Uk + rh->atmos.elements[0].ionpot[0] / (KBOLTZMANN * rh->atmos.T[k]));
+				ne_old = (sqrt(1.0 + 4.0 * rh->atmos.nHtot[k] * PhiH) - 1.0) / (2.0 * PhiH);
 			} else
 				ne_old = np[k];
 
@@ -117,30 +117,30 @@ static double solveNe(double *ne, bool_t fromscratch, int Nfixed)
 
 		niter = 0;
 		while (niter < ((Nfixed > 0) ? Nfixed : N_MAX_ELECTRON_ITERATIONS)) {
-			error = ne_old / atmos.nHtot[k];
+			error = ne_old / rh->atmos.nHtot[k];
 			sum   = 0.0;
 
-			for (n = 0; n < atmos.Nelem; n++) {
-				getfjk(&atmos.elements[n], ne_old, k, fjk, dfjk);
+			for (n = 0; n < rh->atmos.Nelem; n++) {
+				getfjk(&rh->atmos.elements[n], ne_old, k, fjk, dfjk);
 
 				/* --- Contribution from Hminus --             -------------- */
 
 				if (n == 0) {
-					PhiHmin = 0.25 * pow(C1 / atmos.T[k], 1.5) *
-							  exp(E_ION_HMIN / (KBOLTZMANN * atmos.T[k]));
+					PhiHmin = 0.25 * pow(C1 / rh->atmos.T[k], 1.5) *
+							  exp(E_ION_HMIN / (KBOLTZMANN * rh->atmos.T[k]));
 					error += ne_old * fjk[0] * PhiHmin;
 					sum -= (fjk[0] + ne_old * dfjk[0]) * PhiHmin;
 				}
 
-				for (j = 1; j < atmos.elements[n].Nstage; j++) {
-					akj = atmos.elements[n].abund * j;
+				for (j = 1; j < rh->atmos.elements[n].Nstage; j++) {
+					akj = rh->atmos.elements[n].abund * j;
 					error -= akj * fjk[j];
 					sum += akj * dfjk[j];
 				}
 			}
 
 			ne[k] = ne_old -
-					atmos.nHtot[k] * error / (1.0 - atmos.nHtot[k] * sum);
+					rh->atmos.nHtot[k] * error / (1.0 - rh->atmos.nHtot[k] * sum);
 			dne    = fabs((ne[k] - ne_old) / ne_old);
 			ne_old = ne[k];
 
@@ -153,7 +153,7 @@ static double solveNe(double *ne, bool_t fromscratch, int Nfixed)
 			sprintf(messageStr, "Electron density iteration not converged:\n"
 								" spatial location: %d, temperature: %6.1f [K], \n"
 								" density: %9.3E [m^-3],\n dnemax: %9.3E\n",
-					k, atmos.T[k], atmos.nHtot[k], dne);
+					k, rh->atmos.T[k], rh->atmos.nHtot[k], dne);
 			Error(WARNING, routineName, messageStr);
 		}
 	}
@@ -205,7 +205,7 @@ void getfjk(Element *element, double ne, int k, double *fjk, double *dfjk)
 
 		C1 = (HPLANCK / (2.0 * PI * M_ELECTRON)) * (HPLANCK / KBOLTZMANN);
 
-		CT_ne   = 2.0 * pow(C1 / atmos.T[k], -1.5) / ne;
+		CT_ne   = 2.0 * pow(C1 / rh->atmos.T[k], -1.5) / ne;
 		sum1    = 1.0;
 		sum2    = 0.0;
 		fjk[0]  = 1.0;
@@ -216,7 +216,7 @@ void getfjk(Element *element, double ne, int k, double *fjk, double *dfjk)
 			Ukp1 = getKuruczpf(element, j, k);
 
 			fjk[j] = fjk[j - 1] * CT_ne *
-					 exp(Ukp1 - Uk - element->ionpot[j - 1] / (KBOLTZMANN * atmos.T[k]));
+					 exp(Ukp1 - Uk - element->ionpot[j - 1] / (KBOLTZMANN * rh->atmos.T[k]));
 			dfjk[j] = -j * fjk[j] / ne;
 			sum1 += fjk[j];
 			sum2 += dfjk[j];
@@ -238,8 +238,8 @@ double getKuruczpf(Element *element, int stage, int k)
 	bool_t hunt = TRUE;
 	double Uk;
 
-	Linear(atmos.Npf, atmos.Tpf, element->pf[stage],
-		   1, &atmos.T[k], &Uk, hunt);
+	Linear(rh->atmos.Npf, rh->atmos.Tpf, element->pf[stage],
+		   1, &rh->atmos.T[k], &Uk, hunt);
 
 	return Uk;
 }

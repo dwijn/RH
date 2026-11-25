@@ -17,13 +17,13 @@
 #include "atmos.h"
 #include "error.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- xdr_populations.c ------- */
 
@@ -108,7 +108,7 @@ void writePopulations(Atom *atom)
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
-	if (!xdr_populations(&xdrs, atmos.ID, atom->Nlevel, atmos.Nspace,
+	if (!xdr_populations(&xdrs, rh->atmos.ID, atom->Nlevel, rh->atmos.Nspace,
 						 atom->n[0], atom->nstar[0])) {
 		sprintf(messageStr, "Unable to write to output file %s",
 				atom->popsoutFile);
@@ -145,7 +145,7 @@ void readPopulations(Atom *atom)
 	}
 	xdrstdio_create(&xdrs, fp_in, XDR_DECODE);
 
-	if (!xdr_populations(&xdrs, atmos.ID, atom->Nlevel, atmos.Nspace,
+	if (!xdr_populations(&xdrs, rh->atmos.ID, atom->Nlevel, rh->atmos.Nspace,
 						 atom->n[0], NULL)) {
 		sprintf(messageStr, "Unable to read from input file %s",
 				atom->popsinFile);
@@ -175,7 +175,7 @@ void writeMolPops(struct Molecule *molecule)
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
-	if (!xdr_populations(&xdrs, atmos.ID, molecule->Nv, atmos.Nspace,
+	if (!xdr_populations(&xdrs, rh->atmos.ID, molecule->Nv, rh->atmos.Nspace,
 						 molecule->nv[0], molecule->nvstar[0])) {
 		sprintf(messageStr, "Unable to write to output file %s",
 				molecule->popsFile);
@@ -209,7 +209,7 @@ void readMolPops(struct Molecule *molecule)
 	}
 	xdrstdio_create(&xdrs, fp_in, XDR_DECODE);
 
-	if (!xdr_populations(&xdrs, atmos.ID, molecule->Nv, atmos.Nspace,
+	if (!xdr_populations(&xdrs, rh->atmos.ID, molecule->Nv, rh->atmos.Nspace,
 						 molecule->nv[0], NULL)) {
 		sprintf(messageStr, "Unable to read from input file %s",
 				molecule->popsFile);

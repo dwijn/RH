@@ -25,15 +25,13 @@
 #include "inputs.h"
 #include "error.h"
 #include "bezier.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- Piece_Stokes_Bezier3_3D.c */
 

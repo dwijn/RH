@@ -20,6 +20,7 @@
 #include "inputs.h"
 #include "anderson.h"
 #include "error.h"
+#include "state.h"
 
 /* --- BACKGROUND_ITER_LIMIT by default, times min(ITER_LIMIT,
 	   ERROR_LIMIT) (N-65) --                         -------------- */
@@ -37,14 +38,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern enum Topology topology;
-
-extern Atmosphere   atmos;
-extern Spectrum     spectrum;
-extern InputData    input;
-extern CommandLine  commandline;
-extern ProgramStats stats;
-extern char         messageStr[];
+extern char messageStr[];
 
 /* --- Function prototypes --                          -------------- */
 
@@ -67,204 +61,204 @@ void readInput()
 	FILE            *fp_keyword;
 
 	Keyword theKeywords[] = {
-		{"ATMOS_FILE", "", FALSE, KEYWORD_REQUIRED, input.atmos_input,
+		{"ATMOS_FILE", "", FALSE, KEYWORD_REQUIRED, rh->input.atmos_input,
 		 setcharValue},
-		{"ABUND_FILE", "", FALSE, KEYWORD_REQUIRED, input.abund_input,
+		{"ABUND_FILE", "", FALSE, KEYWORD_REQUIRED, rh->input.abund_input,
 		 setcharValue},
 
-		{"NRAYS", "0", FALSE, KEYWORD_OPTIONAL, &atmos.Nrays, setintValue},
-		{"ANGLE_SET", "NO_SET", FALSE, KEYWORD_OPTIONAL, &atmos.angleSet,
+		{"NRAYS", "0", FALSE, KEYWORD_OPTIONAL, &rh->atmos.Nrays, setintValue},
+		{"ANGLE_SET", "NO_SET", FALSE, KEYWORD_OPTIONAL, &rh->atmos.angleSet,
 		 setAngleSet},
 
-		{"ATMOS_ITOP", "none", FALSE, KEYWORD_OPTIONAL, input.Itop, setcharValue},
+		{"ATMOS_ITOP", "none", FALSE, KEYWORD_OPTIONAL, rh->input.Itop, setcharValue},
 
-		{"WAVETABLE", "none", FALSE, KEYWORD_OPTIONAL, input.wavetable_input,
+		{"WAVETABLE", "none", FALSE, KEYWORD_OPTIONAL, rh->input.wavetable_input,
 		 setcharValue},
-		{"ATOMS_FILE", "", FALSE, KEYWORD_REQUIRED, input.atoms_input,
+		{"ATOMS_FILE", "", FALSE, KEYWORD_REQUIRED, rh->input.atoms_input,
 		 setcharValue},
-		{"MOLECULES_FILE", "", FALSE, KEYWORD_REQUIRED, input.molecules_input,
+		{"MOLECULES_FILE", "", FALSE, KEYWORD_REQUIRED, rh->input.molecules_input,
 		 setcharValue},
-		{"NON_ICE", "FALSE", FALSE, KEYWORD_OPTIONAL, &input.NonICE,
+		{"NON_ICE", "FALSE", FALSE, KEYWORD_OPTIONAL, &rh->input.NonICE,
 		 setboolValue},
 
-		{"N_MAX_SCATTER", "5", FALSE, KEYWORD_OPTIONAL, &input.NmaxScatter,
+		{"N_MAX_SCATTER", "5", FALSE, KEYWORD_OPTIONAL, &rh->input.NmaxScatter,
 		 setintValue},
 		/* --- Background scattering per wavelength (N-51) -- -- */
-		{"BACKGROUND_N_MAX_ITER", "50", FALSE, KEYWORD_DEFAULT, &input.bg_NmaxIter,
+		{"BACKGROUND_N_MAX_ITER", "50", FALSE, KEYWORD_DEFAULT, &rh->input.bg_NmaxIter,
 		 setintValue},
 		{"BACKGROUND_ITER_LIMIT", "0.0", FALSE, KEYWORD_DEFAULT,
-		 &input.bg_iterLimit, setdoubleValue},
-		{"BACKGROUND_ANDERSON_DEPTH", "3", FALSE, KEYWORD_DEFAULT, &input.bg_depth,
+		 &rh->input.bg_iterLimit, setdoubleValue},
+		{"BACKGROUND_ANDERSON_DEPTH", "3", FALSE, KEYWORD_DEFAULT, &rh->input.bg_depth,
 		 setintValue},
 		{"BACKGROUND_OPERATOR", "TRIDIAGONAL", FALSE, KEYWORD_DEFAULT,
-		 &input.bg_operator, setBgOperator},
+		 &rh->input.bg_operator, setBgOperator},
 		{"BACKGROUND_LINEAR_ALBEDO", "0.9", FALSE, KEYWORD_DEFAULT,
-		 &input.bg_linearAlbedo, setdoubleValue},
+		 &rh->input.bg_linearAlbedo, setdoubleValue},
 		{"BACKGROUND_LINEAR_TAU", "1.0", FALSE, KEYWORD_DEFAULT,
-		 &input.bg_linearTau, setdoubleValue},
+		 &rh->input.bg_linearTau, setdoubleValue},
 
-		{"I_SUM", "0", FALSE, KEYWORD_REQUIRED, &input.isum, setintValue},
-		{"N_MAX_ITER", "", FALSE, KEYWORD_REQUIRED, &input.NmaxIter,
+		{"I_SUM", "0", FALSE, KEYWORD_REQUIRED, &rh->input.isum, setintValue},
+		{"N_MAX_ITER", "", FALSE, KEYWORD_REQUIRED, &rh->input.NmaxIter,
 		 setintValue},
 		/* --- At least one of the two, see below (N-3) -- ---------- */
-		{"ITER_LIMIT", "0.0", FALSE, KEYWORD_OPTIONAL, &input.iterLimit,
+		{"ITER_LIMIT", "0.0", FALSE, KEYWORD_OPTIONAL, &rh->input.iterLimit,
 		 setdoubleValue},
-		{"ERROR_LIMIT", "0.0", FALSE, KEYWORD_OPTIONAL, &input.errorLimit,
+		{"ERROR_LIMIT", "0.0", FALSE, KEYWORD_OPTIONAL, &rh->input.errorLimit,
 		 setdoubleValue},
-		{"NG_DELAY", "0", FALSE, KEYWORD_OPTIONAL, &input.Ngdelay, setintValue},
-		{"NG_ORDER", "0", FALSE, KEYWORD_OPTIONAL, &input.Ngorder, setintValue},
-		{"NG_PERIOD", "1", FALSE, KEYWORD_OPTIONAL, &input.Ngperiod,
+		{"NG_DELAY", "0", FALSE, KEYWORD_OPTIONAL, &rh->input.Ngdelay, setintValue},
+		{"NG_ORDER", "0", FALSE, KEYWORD_OPTIONAL, &rh->input.Ngorder, setintValue},
+		{"NG_PERIOD", "1", FALSE, KEYWORD_OPTIONAL, &rh->input.Ngperiod,
 		 setintValue},
-		{"NG_MOLECULES", "FALSE", FALSE, KEYWORD_DEFAULT, &input.accelerate_mols,
+		{"NG_MOLECULES", "FALSE", FALSE, KEYWORD_DEFAULT, &rh->input.accelerate_mols,
 		 setboolValue},
-		{"COLL_RELAX_NSTEP", "0", FALSE, KEYWORD_OPTIONAL, &input.CR_Nstep,
+		{"COLL_RELAX_NSTEP", "0", FALSE, KEYWORD_OPTIONAL, &rh->input.CR_Nstep,
 		 setintValue},
-		{"COLL_RELAX_FACTOR", "1.0", FALSE, KEYWORD_OPTIONAL, &input.CR_factor,
+		{"COLL_RELAX_FACTOR", "1.0", FALSE, KEYWORD_OPTIONAL, &rh->input.CR_factor,
 		 setdoubleValue},
 
-		{"PRD_N_MAX_ITER", "3", FALSE, KEYWORD_OPTIONAL, &input.PRD_NmaxIter,
+		{"PRD_N_MAX_ITER", "3", FALSE, KEYWORD_OPTIONAL, &rh->input.PRD_NmaxIter,
 		 setintValue},
-		{"PRD_ITER_LIMIT", "1.0E-2", FALSE, KEYWORD_OPTIONAL, &input.PRDiterLimit,
+		{"PRD_ITER_LIMIT", "1.0E-2", FALSE, KEYWORD_OPTIONAL, &rh->input.PRDiterLimit,
 		 setdoubleValue},
-		{"PRD_DAMPING", "0.7", FALSE, KEYWORD_OPTIONAL, &input.PRD_damping,
+		{"PRD_DAMPING", "0.7", FALSE, KEYWORD_OPTIONAL, &rh->input.PRD_damping,
 		 setdoubleValue},
-		{"PRD_NG_DELAY", "0", FALSE, KEYWORD_OPTIONAL, &input.PRD_Ngdelay,
+		{"PRD_NG_DELAY", "0", FALSE, KEYWORD_OPTIONAL, &rh->input.PRD_Ngdelay,
 		 setintValue},
-		{"PRD_NG_ORDER", "0", FALSE, KEYWORD_OPTIONAL, &input.PRD_Ngorder,
+		{"PRD_NG_ORDER", "0", FALSE, KEYWORD_OPTIONAL, &rh->input.PRD_Ngorder,
 		 setintValue},
-		{"PRD_NG_PERIOD", "1", FALSE, KEYWORD_OPTIONAL, &input.PRD_Ngperiod,
+		{"PRD_NG_PERIOD", "1", FALSE, KEYWORD_OPTIONAL, &rh->input.PRD_Ngperiod,
 		 setintValue},
 		{"PRD_ANGLE_DEP", "FALSE", FALSE, KEYWORD_DEFAULT,
-		 &input.PRD_angle_dep, setPRDangle},
-		{"PRDH_LIMIT_MEM", "FALSE", FALSE, KEYWORD_OPTIONAL, &input.prdh_limit_mem,
+		 &rh->input.PRD_angle_dep, setPRDangle},
+		{"PRDH_LIMIT_MEM", "FALSE", FALSE, KEYWORD_OPTIONAL, &rh->input.prdh_limit_mem,
 		 setboolValue},
-		{"XRD", "FALSE", FALSE, KEYWORD_DEFAULT, &input.XRD, setboolValue},
+		{"XRD", "FALSE", FALSE, KEYWORD_DEFAULT, &rh->input.XRD, setboolValue},
 
-		{"J_FILE", "", FALSE, KEYWORD_REQUIRED, input.JFile, setcharValue},
-		{"BACKGROUND_FILE", "", FALSE, KEYWORD_REQUIRED, input.background_File,
+		{"J_FILE", "", FALSE, KEYWORD_REQUIRED, rh->input.JFile, setcharValue},
+		{"BACKGROUND_FILE", "", FALSE, KEYWORD_REQUIRED, rh->input.background_File,
 		 setcharValue},
 		{"BACKGROUND_RAY_FILE", "background.ray", FALSE,
-		 KEYWORD_OPTIONAL, input.background_ray_File,
+		 KEYWORD_OPTIONAL, rh->input.background_ray_File,
 		 setcharValue},
 		{"OLD_BACKGROUND", "FALSE", FALSE, KEYWORD_OPTIONAL,
-		 &input.old_background, setboolValue},
+		 &rh->input.old_background, setboolValue},
 		{"BACKGROUND_DOUBLE", "FALSE", FALSE, KEYWORD_DEFAULT,
-		 &input.background_double, setboolValue},
-		{"STARTING_J", "", FALSE, KEYWORD_REQUIRED, &input.startJ,
+		 &rh->input.background_double, setboolValue},
+		{"STARTING_J", "", FALSE, KEYWORD_REQUIRED, &rh->input.startJ,
 		 setstartValue},
-		{"HYDROGEN_LTE", "FALSE", FALSE, KEYWORD_DEFAULT, &atmos.H_LTE,
+		{"HYDROGEN_LTE", "FALSE", FALSE, KEYWORD_DEFAULT, &rh->atmos.H_LTE,
 		 setboolValue},
-		{"HYDROSTATIC", "FALSE", FALSE, KEYWORD_DEFAULT, &atmos.hydrostatic,
+		{"HYDROSTATIC", "FALSE", FALSE, KEYWORD_DEFAULT, &rh->atmos.hydrostatic,
 		 setboolValue},
-		{"KURUCZ_DATA", "none", FALSE, KEYWORD_OPTIONAL, &input.KuruczData,
+		{"KURUCZ_DATA", "none", FALSE, KEYWORD_OPTIONAL, &rh->input.KuruczData,
 		 setcharValue},
-		{"RLK_SCATTER", "FALSE", FALSE, KEYWORD_DEFAULT, &input.rlkscatter,
+		{"RLK_SCATTER", "FALSE", FALSE, KEYWORD_DEFAULT, &rh->input.rlkscatter,
 		 setboolValue},
 		{"KURUCZ_PF_DATA", "../../Atoms/pf_Kurucz.input", FALSE,
-		 KEYWORD_REQUIRED, &input.pfData, setcharValue},
+		 KEYWORD_REQUIRED, &rh->input.pfData, setcharValue},
 		{"HMINUS_BF_DATA", "../../Atoms/Hminus_bf.ecsv", FALSE,
-		 KEYWORD_DEFAULT, input.HminusBfData, setcharValue},
+		 KEYWORD_DEFAULT, rh->input.HminusBfData, setcharValue},
 		{"GAUNT_FF_DATA", "../../Atoms/gauntff.dat", FALSE, KEYWORD_DEFAULT,
-		 input.GauntFfData, setcharValue},
-		{"SOLVE_NE", "NONE", FALSE, KEYWORD_DEFAULT, &input.solve_ne,
+		 rh->input.GauntFfData, setcharValue},
+		{"SOLVE_NE", "NONE", FALSE, KEYWORD_DEFAULT, &rh->input.solve_ne,
 		 setnesolution},
 		/* --- ANDERSON in every geometry (S-10, S-11) -- -- */
-		{"SOLVER", "ANDERSON", FALSE, KEYWORD_DEFAULT, &input.solver, setsolver},
-		{"ANDERSON_DEPTH", "10", FALSE, KEYWORD_DEFAULT, &input.Anderson_depth,
+		{"SOLVER", "ANDERSON", FALSE, KEYWORD_DEFAULT, &rh->input.solver, setsolver},
+		{"ANDERSON_DEPTH", "10", FALSE, KEYWORD_DEFAULT, &rh->input.Anderson_depth,
 		 setintValue},
-		{"ANDERSON_DELAY", "2", FALSE, KEYWORD_DEFAULT, &input.Anderson_delay,
+		{"ANDERSON_DELAY", "2", FALSE, KEYWORD_DEFAULT, &rh->input.Anderson_delay,
 		 setintValue},
 		{"ANDERSON_COND_MAX", "1.0E+08", FALSE, KEYWORD_DEFAULT,
-		 &input.Anderson_cond_max, setdoubleValue},
+		 &rh->input.Anderson_cond_max, setdoubleValue},
 		{"ANDERSON_SAFEGUARD", "1.0", FALSE, KEYWORD_DEFAULT,
-		 &input.Anderson_safeguard, setdoubleValue},
+		 &rh->input.Anderson_safeguard, setdoubleValue},
 		{"ANDERSON_SAFEGUARD_WINDOW", "10", FALSE, KEYWORD_DEFAULT,
-		 &input.Anderson_safeguard_window, setintValue},
+		 &rh->input.Anderson_safeguard_window, setintValue},
 		{"ANDERSON_VARIABLES", "LOG", FALSE, KEYWORD_DEFAULT,
-		 &input.Anderson_variables, setSolverVariables},
+		 &rh->input.Anderson_variables, setSolverVariables},
 		{"ANDERSON_COEFFICIENTS", "GLOBAL", FALSE, KEYWORD_DEFAULT,
-		 &input.Anderson_coefficients, setAndersonCoefficients},
+		 &rh->input.Anderson_coefficients, setAndersonCoefficients},
 		/* --- POPULATIONS_RHO in 2-D and 3-D, set below (S-11) -- */
 		{"ANDERSON_EXTRAPOLATE", "ALL", FALSE, KEYWORD_DEFAULT,
-		 &input.Anderson_extrapolate, setAndersonExtrapolate},
-		{"NEWTON_NOISE", "1.0E-10", FALSE, KEYWORD_DEFAULT, &input.Newton_noise,
+		 &rh->input.Anderson_extrapolate, setAndersonExtrapolate},
+		{"NEWTON_NOISE", "1.0E-10", FALSE, KEYWORD_DEFAULT, &rh->input.Newton_noise,
 		 setdoubleValue},
 		{"NEWTON_KRYLOV_MAX", "20", FALSE, KEYWORD_DEFAULT,
-		 &input.Newton_krylov_max, setintValue},
-		{"NEWTON_ETA_MAX", "0.9", FALSE, KEYWORD_DEFAULT, &input.Newton_eta_max,
+		 &rh->input.Newton_krylov_max, setintValue},
+		{"NEWTON_ETA_MAX", "0.9", FALSE, KEYWORD_DEFAULT, &rh->input.Newton_eta_max,
 		 setdoubleValue},
 		{"NEWTON_VARIABLES", "LOG", FALSE, KEYWORD_DEFAULT,
-		 &input.Newton_variables, setSolverVariables},
-		{"OPACITY_FUDGE", "none", FALSE, KEYWORD_OPTIONAL, &input.fudgeData,
+		 &rh->input.Newton_variables, setSolverVariables},
+		{"OPACITY_FUDGE", "none", FALSE, KEYWORD_OPTIONAL, &rh->input.fudgeData,
 		 setcharValue},
-		{"METALLICITY", "0.0", FALSE, KEYWORD_DEFAULT, &input.metallicity,
+		{"METALLICITY", "0.0", FALSE, KEYWORD_DEFAULT, &rh->input.metallicity,
 		 setdoubleValue},
 
-		{"ATMOS_OUTPUT", "atmos.out", FALSE, KEYWORD_DEFAULT, input.atmos_output,
+		{"ATMOS_OUTPUT", "atmos.out", FALSE, KEYWORD_DEFAULT, rh->input.atmos_output,
 		 setcharValue},
 		{"GEOMETRY_OUTPUT", "geometry.out", FALSE, KEYWORD_OPTIONAL,
-		 input.geometry_output, setcharValue},
+		 rh->input.geometry_output, setcharValue},
 		{"SPECTRUM_OUTPUT", "spectrum.out", FALSE, KEYWORD_DEFAULT,
-		 input.spectrum_output, setcharValue},
-		{"OPACITY_OUTPUT", "none", FALSE, KEYWORD_OPTIONAL, input.opac_output,
+		 rh->input.spectrum_output, setcharValue},
+		{"OPACITY_OUTPUT", "none", FALSE, KEYWORD_OPTIONAL, rh->input.opac_output,
 		 setcharValue},
-		{"RADRATE_OUTPUT", "none", FALSE, KEYWORD_OPTIONAL, input.radrateFile,
+		{"RADRATE_OUTPUT", "none", FALSE, KEYWORD_OPTIONAL, rh->input.radrateFile,
 		 setcharValue},
-		{"COLLRATE_OUTPUT", "none", FALSE, KEYWORD_OPTIONAL, input.collrateFile,
+		{"COLLRATE_OUTPUT", "none", FALSE, KEYWORD_OPTIONAL, rh->input.collrateFile,
 		 setcharValue},
-		{"DAMPING_OUTPUT", "none", FALSE, KEYWORD_OPTIONAL, input.dampingFile,
+		{"DAMPING_OUTPUT", "none", FALSE, KEYWORD_OPTIONAL, rh->input.dampingFile,
 		 setcharValue},
-		{"COOLING_OUTPUT", "none", FALSE, KEYWORD_OPTIONAL, input.coolingFile,
+		{"COOLING_OUTPUT", "none", FALSE, KEYWORD_OPTIONAL, rh->input.coolingFile,
 		 setcharValue},
 
-		{"VMICRO_CHAR", "", FALSE, KEYWORD_REQUIRED, &atmos.vmicro_char,
+		{"VMICRO_CHAR", "", FALSE, KEYWORD_REQUIRED, &rh->atmos.vmicro_char,
 		 setdoubleValue},
-		{"VMACRO_TRESH", "0.0", FALSE, KEYWORD_OPTIONAL, &atmos.vmacro_tresh,
+		{"VMACRO_TRESH", "0.0", FALSE, KEYWORD_OPTIONAL, &rh->atmos.vmacro_tresh,
 		 setdoubleValue},
-		{"LAMBDA_REF", "500.0", FALSE, KEYWORD_DEFAULT, &atmos.lambda_ref,
+		{"LAMBDA_REF", "500.0", FALSE, KEYWORD_DEFAULT, &rh->atmos.lambda_ref,
 		 setdoubleValue},
-		{"VACUUM_TO_AIR", "0", FALSE, KEYWORD_OPTIONAL, &spectrum.vacuum_to_air,
+		{"VACUUM_TO_AIR", "0", FALSE, KEYWORD_OPTIONAL, &rh->spectrum.vacuum_to_air,
 		 setboolValue},
 
 		/* --- Magnetic field related inputs go here --     ------------- */
 
-		{"STOKES_INPUT", "none", FALSE, KEYWORD_OPTIONAL, input.Stokes_input,
+		{"STOKES_INPUT", "none", FALSE, KEYWORD_OPTIONAL, rh->input.Stokes_input,
 		 setcharValue},
-		{"B_STRENGTH_CHAR", "0.0", FALSE, KEYWORD_DEFAULT, &atmos.B_char,
+		{"B_STRENGTH_CHAR", "0.0", FALSE, KEYWORD_DEFAULT, &rh->atmos.B_char,
 		 setdoubleValue},
 		{"STOKES_MODE", "NO_STOKES", FALSE, KEYWORD_OPTIONAL,
-		 &input.StokesMode, setStokesMode},
+		 &rh->input.StokesMode, setStokesMode},
 		{"MAGNETO_OPTICAL", "TRUE", FALSE, KEYWORD_DEFAULT,
-		 &input.magneto_optical, setboolValue},
+		 &rh->input.magneto_optical, setboolValue},
 		{"BACKGROUND_POLARIZATION", "FALSE", FALSE, KEYWORD_DEFAULT,
-		 &input.backgr_pol, setboolValue},
+		 &rh->input.backgr_pol, setboolValue},
 		{"RLK_EXPLICIT", "FALSE", FALSE, KEYWORD_DEFAULT,
-		 &input.RLK_explicit, setboolValue},
+		 &rh->input.RLK_explicit, setboolValue},
 
 		{"XDR_ENDIAN", "TRUE", FALSE, KEYWORD_OPTIONAL,
-		 &input.xdr_endian, setboolValue},
+		 &rh->input.xdr_endian, setboolValue},
 
 		{"S_INTERPOLATION", "S_BEZIER3", FALSE, KEYWORD_DEFAULT,
-		 &input.S_interpolation, set_S_Interpolation},
+		 &rh->input.S_interpolation, set_S_Interpolation},
 		{"S_INTERPOLATION_STOKES", "DELO_BEZIER3", FALSE, KEYWORD_DEFAULT,
-		 &input.S_interpolation_stokes, set_S_interpolation_stokes},
+		 &rh->input.S_interpolation_stokes, set_S_interpolation_stokes},
 		{"S_INTERPOLATION_LONGCHAR", "S_LINEAR", FALSE, KEYWORD_DEFAULT,
-		 &input.S_interpolation_longchar, set_S_interpolation_longchar},
+		 &rh->input.S_interpolation_longchar, set_S_interpolation_longchar},
 
 		{"INTERPOLATE_2D", "BEZIER_2D", FALSE, KEYWORD_DEFAULT,
-		 &input.interpolate_2D, setInterpolate_2D},
+		 &rh->input.interpolate_2D, setInterpolate_2D},
 		{"INTERPOLATE_3D", "BICUBIC_3D", FALSE, KEYWORD_DEFAULT,
-		 &input.interpolate_3D, setInterpolate_3D},
+		 &rh->input.interpolate_3D, setInterpolate_3D},
 
-		{"PRINT_CPU", "0", FALSE, KEYWORD_OPTIONAL, &stats.printCPU,
+		{"PRINT_CPU", "0", FALSE, KEYWORD_OPTIONAL, &rh->stats.printCPU,
 		 setboolValue},
-		{"N_THREADS", "0", FALSE, KEYWORD_OPTIONAL, &input.Nthreads,
+		{"N_THREADS", "0", FALSE, KEYWORD_OPTIONAL, &rh->input.Nthreads,
 		 setThreadValue},
 
-		{"LIMIT_MEMORY", "FALSE", FALSE, KEYWORD_DEFAULT, &input.limit_memory,
+		{"LIMIT_MEMORY", "FALSE", FALSE, KEYWORD_DEFAULT, &rh->input.limit_memory,
 		 setboolValue},
 		{"ALLOW_PASSIVE_BB", "TRUE", FALSE, KEYWORD_DEFAULT,
-		 &input.allow_passive_bb, setboolValue}};
+		 &rh->input.allow_passive_bb, setboolValue}};
 	Nkeyword = sizeof(theKeywords) / sizeof(Keyword);
 
 	/* --- The default solver is ANDERSON in every geometry (S-10,
@@ -272,14 +266,14 @@ void readInput()
 		   and the PRD rho, and carries J from G: a history of the whole
 		   state does not fit in memory there (S-11, item 6) -- ----- */
 
-	if (topology != ONE_D_PLANE)
+	if (rh->topology != ONE_D_PLANE)
 		setKeywordValue(theKeywords, Nkeyword, "ANDERSON_EXTRAPOLATE", "POPULATIONS_RHO");
 
 	/* --- Open the input data file --                    ------------- */
 
-	if ((fp_keyword = fopen(commandline.keyword_input, "r")) == NULL) {
+	if ((fp_keyword = fopen(rh->commandline.keyword_input, "r")) == NULL) {
 		sprintf(messageStr, "Unable to open inputfile %s",
-				commandline.keyword_input);
+				rh->commandline.keyword_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
@@ -288,29 +282,29 @@ void readInput()
 
 	/* --- Perform some sanity checks --                 -------------- */
 
-	switch (topology) {
+	switch (rh->topology) {
 	case ONE_D_PLANE:
-		if (atmos.Nrays == 0)
+		if (rh->atmos.Nrays == 0)
 			Error(ERROR_LEVEL_2, routineName,
 				  "Must set keyword NRAYS in 1-D plane parallel geometry");
 
-		if (atmos.angleSet.set == SET_VERTICAL ||
-			atmos.angleSet.set == SET_GAUSS_LOBATTO ||
-			atmos.angleSet.set == SET_EDDINGTON) {
-			switch (atmos.angleSet.set) {
+		if (rh->atmos.angleSet.set == SET_VERTICAL ||
+			rh->atmos.angleSet.set == SET_GAUSS_LOBATTO ||
+			rh->atmos.angleSet.set == SET_EDDINGTON) {
+			switch (rh->atmos.angleSet.set) {
 			case SET_VERTICAL:
 
-				if (atmos.Nrays != 1) {
+				if (rh->atmos.Nrays != 1) {
 					Error(WARNING, routineName,
 						  "Ignoring value of NRAYS in 1-D plane geometry when"
 						  " SET_VERTICAL is specified\n. Setting NRAYS = 1");
 				}
-				atmos.Nrays = 1;
+				rh->atmos.Nrays = 1;
 				break;
 
 			case SET_GAUSS_LOBATTO:
 
-				if (atmos.Nrays != NRO_GLOB_4 && atmos.Nrays != NRO_GLOB_6) {
+				if (rh->atmos.Nrays != NRO_GLOB_4 && rh->atmos.Nrays != NRO_GLOB_6) {
 					sprintf(errorStr, "NRAYS must be %d or %d for SET_GAUSS_LOBATTO",
 							NRO_GLOB_4, NRO_GLOB_6);
 					Error(ERROR_LEVEL_2, routineName, errorStr);
@@ -321,13 +315,13 @@ void readInput()
 
 				/* --- One ray at muz = 1/sqrt(3) --         -------------- */
 
-				if (atmos.Nrays != 0 && atmos.Nrays != 1) {
+				if (rh->atmos.Nrays != 0 && rh->atmos.Nrays != 1) {
 					Error(WARNING, routineName,
 						  "Ignoring value of NRAYS in 1-D plane geometry when"
 						  " SET_EDDINGTON is specified.\n Setting NRAYS = 1 and"
 						  " muz = 1/sqrt(3)");
 				}
-				atmos.Nrays = 1;
+				rh->atmos.Nrays = 1;
 				break;
 
 			default:
@@ -340,17 +334,17 @@ void readInput()
 		break;
 
 	case TWO_D_PLANE:
-		if (atmos.angleSet.set == SET_EDDINGTON)
+		if (rh->atmos.angleSet.set == SET_EDDINGTON)
 			Error(ERROR_LEVEL_2, routineName, EDDINGTON_1D_ONLY);
 		break;
 
 	case THREE_D_PLANE:
-		if (atmos.angleSet.set == NO_SET)
+		if (rh->atmos.angleSet.set == NO_SET)
 			Error(ERROR_LEVEL_2, routineName,
 				  "Must set keyword ANGLE_SET in multi-D plane geometry");
-		if (atmos.angleSet.set == SET_EDDINGTON)
+		if (rh->atmos.angleSet.set == SET_EDDINGTON)
 			Error(ERROR_LEVEL_2, routineName, EDDINGTON_1D_ONLY);
-		if (atmos.Nrays > 0)
+		if (rh->atmos.Nrays > 0)
 			Error(WARNING, routineName,
 				  "Ignoring value of keyword NRAYS in multi-D plane geometry");
 		break;
@@ -365,59 +359,59 @@ void readInput()
 		   acceleration is applied every N_PERIOD iterations, so the
 		   period must be at least 1 --                  -------------- */
 
-	if (input.Ngorder < 0 || input.Ngdelay < 0)
+	if (rh->input.Ngorder < 0 || rh->input.Ngdelay < 0)
 		Error(ERROR_LEVEL_2, routineName,
 			  "Values of NG_ORDER and NG_DELAY should be at least 0");
-	if (input.PRD_Ngorder < 0 || input.PRD_Ngdelay < 0)
+	if (rh->input.PRD_Ngorder < 0 || rh->input.PRD_Ngdelay < 0)
 		Error(ERROR_LEVEL_2, routineName,
 			  "Values of PRD_NG_ORDER and PRD_NG_DELAY should be at least 0");
-	if (input.Ngorder > 0 && input.Ngperiod < 1)
+	if (rh->input.Ngorder > 0 && rh->input.Ngperiod < 1)
 		Error(ERROR_LEVEL_2, routineName,
 			  "Value of NG_PERIOD should be at least 1 when NG_ORDER > 0");
-	if (input.PRD_Ngorder > 0 && input.PRD_Ngperiod < 1)
+	if (rh->input.PRD_Ngorder > 0 && rh->input.PRD_Ngperiod < 1)
 		Error(ERROR_LEVEL_2, routineName,
 			  "Value of PRD_NG_PERIOD should be at least 1 when PRD_NG_ORDER > 0");
 
 	/* --- The PRD sub-iterations update rho by the fraction
 		   PRD_DAMPING of the change (N-38); 0 would freeze rho -- ---- */
 
-	if (!(input.PRD_damping > 0.0 && input.PRD_damping <= 1.0)) {
+	if (!(rh->input.PRD_damping > 0.0 && rh->input.PRD_damping <= 1.0)) {
 		sprintf(messageStr, "Value of PRD_DAMPING should be in (0, 1], not %g",
-				input.PRD_damping);
+				rh->input.PRD_damping);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
 	/* --- Lambda_ref should be positive since it is used for the conversion
 		   of depth scales in routine convertScales --    ------------- */
 
-	switch (topology) {
+	switch (rh->topology) {
 	case ONE_D_PLANE:
-		if (atmos.lambda_ref <= 0.0)
+		if (rh->atmos.lambda_ref <= 0.0)
 			Error(ERROR_LEVEL_2, routineName,
 				  "Value of LAMBDA_REF should be larger than 0.0");
 		break;
 	default:
-		if (atmos.lambda_ref < 0.0)
+		if (rh->atmos.lambda_ref < 0.0)
 			Error(ERROR_LEVEL_2, routineName,
 				  "Value of LAMBDA_REF should be larger than or equal 0.0");
 		break;
 	}
 
-	if (strcmp(input.Stokes_input, "none")) {
+	if (strcmp(rh->input.Stokes_input, "none")) {
 
 		/* --- Magnetic field is specified --              -------------- */
 
-		switch (topology) {
+		switch (rh->topology) {
 		case ONE_D_PLANE:
 		case TWO_D_PLANE:
 		case THREE_D_PLANE:
-			if (atmos.B_char == 0.0) {
+			if (rh->atmos.B_char == 0.0) {
 				Error(WARNING, routineName,
 					  "Parameter atmos.B_char not set or set to zero\n"
 					  " Wavelength grids of line profiles do not take account "
 					  " of Zeeman splitting");
 			}
-			if (input.StokesMode == NO_STOKES) {
+			if (rh->input.StokesMode == NO_STOKES) {
 				sprintf(messageStr, "%s",
 						"Keyword STOKES_MODE == NO_STOKES.\n"
 						" Set to FIELD_FREE or FULL_STOKES\n"
@@ -432,14 +426,14 @@ void readInput()
 
 		/* --- No magnetic field input specified --        -------------- */
 
-		if (atmos.B_char != 0.0) {
+		if (rh->atmos.B_char != 0.0) {
 			Error(WARNING, routineName,
 				  "Ignoring value of keyword B_STRENGTH_CHAR when no "
 				  "magnetic field is read");
 		}
-		if ((input.StokesMode == FIELD_FREE ||
-			 input.StokesMode == FULL_STOKES) &&
-			input.backgr_pol == FALSE) {
+		if ((rh->input.StokesMode == FIELD_FREE ||
+			 rh->input.StokesMode == FULL_STOKES) &&
+			rh->input.backgr_pol == FALSE) {
 			Error(ERROR_LEVEL_2, routineName,
 				  "Should not run STOKES_MODE == FIELD_FREE or FULL_STOKES\n "
 				  "when no magnetic field is read and "
@@ -448,11 +442,11 @@ void readInput()
 	}
 	/* --- Hydrostatic equilibrium only in 1-D plane parallel -- ------ */
 
-	switch (topology) {
+	switch (rh->topology) {
 	case ONE_D_PLANE:
 		break;
 	default:
-		if (atmos.hydrostatic)
+		if (rh->atmos.hydrostatic)
 			Error(ERROR_LEVEL_2, routineName,
 				  "Can only perform hydrostatic equilibrium calculation"
 				  " in 1-D Cartesian geometry");
@@ -467,15 +461,15 @@ void readInput()
 		   keyword file written for the old default (NG) explains
 		   itself (S-10) -- -------------------------------------- */
 
-	input.solver_default = !keywordSet(theKeywords, Nkeyword, "SOLVER");
-	input.Anderson_extrapolate_default =
+	rh->input.solver_default = !keywordSet(theKeywords, Nkeyword, "SOLVER");
+	rh->input.Anderson_extrapolate_default =
 		!keywordSet(theKeywords, Nkeyword, "ANDERSON_EXTRAPOLATE");
-	sprintf(sname, "%s%s", solverName(input.solver),
-			input.solver_default ? " (the default)" : "");
+	sprintf(sname, "%s%s", solverName(rh->input.solver),
+			rh->input.solver_default ? " (the default)" : "");
 	for (p = 0; p < 2; p++) {
 		prefix = (p == 0) ? "ANDERSON_" : "NEWTON_";
 		owner  = (p == 0) ? SOLVER_ANDERSON : SOLVER_NEWTON_KRYLOV;
-		if (input.solver == owner) continue;
+		if (rh->input.solver == owner) continue;
 		Nconflict = 0;
 		for (n = 0; n < Nkeyword; n++) {
 			if (!strncmp(theKeywords[n].keyword, prefix, strlen(prefix)) &&
@@ -505,10 +499,10 @@ void readInput()
 		   ERROR_LIMIT alone, and then ITER_LIMIT (also the limit of the
 		   background-scattering iterations) takes its value -- ----- */
 
-	input.iterLimit_set = keywordSet(theKeywords, Nkeyword, "ITER_LIMIT");
+	rh->input.iterLimit_set = keywordSet(theKeywords, Nkeyword, "ITER_LIMIT");
 	if (keywordSet(theKeywords, Nkeyword, "ERROR_LIMIT")) {
-		if (input.solver != SOLVER_ANDERSON &&
-			input.solver != SOLVER_NEWTON_KRYLOV) {
+		if (rh->input.solver != SOLVER_ANDERSON &&
+			rh->input.solver != SOLVER_NEWTON_KRYLOV) {
 			sprintf(messageStr,
 					"ERROR_LIMIT is set, but SOLVER = %s has no error"
 					" estimate. Set SOLVER =\n ANDERSON or NEWTON_KRYLOV, or"
@@ -516,22 +510,22 @@ void readInput()
 					sname);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
-		if (!(input.errorLimit > 0.0)) {
+		if (!(rh->input.errorLimit > 0.0)) {
 			sprintf(messageStr, "ERROR_LIMIT = %g: must be positive.",
-					input.errorLimit);
+					rh->input.errorLimit);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 	} else
-		input.errorLimit = 0.0;
-	if (!input.iterLimit_set) {
-		if (input.errorLimit > 0.0) {
+		rh->input.errorLimit = 0.0;
+	if (!rh->input.iterLimit_set) {
+		if (rh->input.errorLimit > 0.0) {
 			char value[32];
 
-			input.iterLimit = input.errorLimit;
-			snprintf(value, sizeof(value), "%.6E", input.errorLimit);
+			rh->input.iterLimit = rh->input.errorLimit;
+			snprintf(value, sizeof(value), "%.6E", rh->input.errorLimit);
 			setKeywordValue(theKeywords, Nkeyword, "ITER_LIMIT", value);
-		} else if (input.solver == SOLVER_ANDERSON ||
-				   input.solver == SOLVER_NEWTON_KRYLOV) {
+		} else if (rh->input.solver == SOLVER_ANDERSON ||
+				   rh->input.solver == SOLVER_NEWTON_KRYLOV) {
 			sprintf(messageStr,
 					"SOLVER = %s: set ITER_LIMIT (the residual of the"
 					" populations),\n ERROR_LIMIT (their estimated error, and"
@@ -557,32 +551,32 @@ void readInput()
 		   iteration that stops on a limit makes G noisy at that level
 		   (N-65, N-66) -- --                             -------------- */
 
-	input.bg_NmaxIter_set =
+	rh->input.bg_NmaxIter_set =
 		keywordSet(theKeywords, Nkeyword, "BACKGROUND_N_MAX_ITER");
 	if (!keywordSet(theKeywords, Nkeyword, "BACKGROUND_ITER_LIMIT")) {
 		char   value[32];
-		double target = input.iterLimit;
+		double target = rh->input.iterLimit;
 
-		if (input.errorLimit > 0.0 && !(target > 0.0 && target <= input.errorLimit))
-			target = input.errorLimit;
-		input.bg_iterLimit = BG_LIMIT_FACTOR * target;
-		if (input.solver == SOLVER_NEWTON_KRYLOV &&
-			input.Newton_noise < input.bg_iterLimit)
-			input.bg_iterLimit = input.Newton_noise;
-		snprintf(value, sizeof(value), "%.6E", input.bg_iterLimit);
+		if (rh->input.errorLimit > 0.0 && !(target > 0.0 && target <= rh->input.errorLimit))
+			target = rh->input.errorLimit;
+		rh->input.bg_iterLimit = BG_LIMIT_FACTOR * target;
+		if (rh->input.solver == SOLVER_NEWTON_KRYLOV &&
+			rh->input.Newton_noise < rh->input.bg_iterLimit)
+			rh->input.bg_iterLimit = rh->input.Newton_noise;
+		snprintf(value, sizeof(value), "%.6E", rh->input.bg_iterLimit);
 		setKeywordValue(theKeywords, Nkeyword, "BACKGROUND_ITER_LIMIT", value);
 	}
-	if (input.bg_NmaxIter < 0 || input.bg_depth < 0 || input.bg_depth > 50 ||
-		(input.bg_NmaxIter > 0 && !(input.bg_iterLimit > 0.0)) ||
-		!(input.bg_linearAlbedo >= 0.0) || !(input.bg_linearTau >= 0.0)) {
+	if (rh->input.bg_NmaxIter < 0 || rh->input.bg_depth < 0 || rh->input.bg_depth > 50 ||
+		(rh->input.bg_NmaxIter > 0 && !(rh->input.bg_iterLimit > 0.0)) ||
+		!(rh->input.bg_linearAlbedo >= 0.0) || !(rh->input.bg_linearTau >= 0.0)) {
 		sprintf(messageStr,
 				"BACKGROUND_N_MAX_ITER = %d (>= 0, 0 = lambda iteration),"
 				" BACKGROUND_ANDERSON_DEPTH = %d\n (0 .. 50),"
 				" BACKGROUND_ITER_LIMIT = %g (> 0),\n"
 				" BACKGROUND_LINEAR_ALBEDO = %g (>= 0, >= 1 = never),"
 				" BACKGROUND_LINEAR_TAU = %g (>= 0): a value is out of range.",
-				input.bg_NmaxIter, input.bg_depth, input.bg_iterLimit,
-				input.bg_linearAlbedo, input.bg_linearTau);
+				rh->input.bg_NmaxIter, rh->input.bg_depth, rh->input.bg_iterLimit,
+				rh->input.bg_linearAlbedo, rh->input.bg_linearTau);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
@@ -599,13 +593,13 @@ void readInput()
 		   SOLVER = NG, which damping slows by 1-29 % and whose results
 		   stay as they were (N-38) --                     -------------- */
 
-	if (input.solver == SOLVER_NG &&
+	if (rh->input.solver == SOLVER_NG &&
 		!keywordSet(theKeywords, Nkeyword, "PRD_DAMPING")) {
-		input.PRD_damping = 1.0;
+		rh->input.PRD_damping = 1.0;
 		setKeywordValue(theKeywords, Nkeyword, "PRD_DAMPING", "1.0");
 	}
 
-	if (input.solver != SOLVER_NG) {
+	if (rh->input.solver != SOLVER_NG) {
 		/* --- Keywords without an "off" value: an error when set.
 			   FIXED_POINT keeps Ng for the "Ng on G" control. (An
 			   "off" value states what the solver does and is
@@ -621,7 +615,7 @@ void readInput()
 
 		Nconflict = 0;
 		for (n = 0; n < (int) (sizeof(noOff) / sizeof(noOff[0])); n++) {
-			if (noOff[n].ng && input.solver == SOLVER_FIXED_POINT) continue;
+			if (noOff[n].ng && rh->input.solver == SOLVER_FIXED_POINT) continue;
 			if (keywordSet(theKeywords, Nkeyword, noOff[n].name)) {
 				sprintf(messageStr,
 						"%s is set, but SOLVER = %s does not use it. Set"
@@ -631,92 +625,92 @@ void readInput()
 				Nconflict++;
 			}
 		}
-		if ((input.solver == SOLVER_ANDERSON ||
-			 input.solver == SOLVER_NEWTON_KRYLOV) &&
-			input.Ngorder != 0) {
+		if ((rh->input.solver == SOLVER_ANDERSON ||
+			 rh->input.solver == SOLVER_NEWTON_KRYLOV) &&
+			rh->input.Ngorder != 0) {
 			sprintf(messageStr,
 					"SOLVER = %s: NG_ORDER = %d would extrapolate the"
 					" populations a second\n time after the solver's step."
 					" Set SOLVER = NG, or remove the keyword or set it\n to 0.",
-					sname, input.Ngorder);
+					sname, rh->input.Ngorder);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (input.solver == SOLVER_ANDERSON &&
-			(input.Anderson_depth < 0 || input.Anderson_depth > 50 ||
-			 input.Anderson_delay < 0 || !(input.Anderson_cond_max > 1.0) ||
-			 !(input.Anderson_safeguard >= 0.0) ||
-			 input.Anderson_safeguard_window < 1 ||
-			 input.Anderson_safeguard_window > ANDERSON_WINDOW_MAX)) {
+		if (rh->input.solver == SOLVER_ANDERSON &&
+			(rh->input.Anderson_depth < 0 || rh->input.Anderson_depth > 50 ||
+			 rh->input.Anderson_delay < 0 || !(rh->input.Anderson_cond_max > 1.0) ||
+			 !(rh->input.Anderson_safeguard >= 0.0) ||
+			 rh->input.Anderson_safeguard_window < 1 ||
+			 rh->input.Anderson_safeguard_window > ANDERSON_WINDOW_MAX)) {
 			sprintf(messageStr,
 					"SOLVER = ANDERSON: ANDERSON_DEPTH = %d (0 .. 50),"
 					" ANDERSON_DELAY = %d (>= 0),\n ANDERSON_COND_MAX = %g"
 					" (> 1), ANDERSON_SAFEGUARD = %g (>= 0, 0 = off),\n"
 					" ANDERSON_SAFEGUARD_WINDOW = %d (1 .. %d):"
 					" a value is out of range.",
-					input.Anderson_depth, input.Anderson_delay,
-					input.Anderson_cond_max, input.Anderson_safeguard,
-					input.Anderson_safeguard_window, ANDERSON_WINDOW_MAX);
+					rh->input.Anderson_depth, rh->input.Anderson_delay,
+					rh->input.Anderson_cond_max, rh->input.Anderson_safeguard,
+					rh->input.Anderson_safeguard_window, ANDERSON_WINDOW_MAX);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (input.solver == SOLVER_NEWTON_KRYLOV &&
-			(!(input.Newton_noise > 0.0 && input.Newton_noise < 1.0) ||
-			 input.Newton_krylov_max < 1 || input.Newton_krylov_max > 200 ||
-			 !(input.Newton_eta_max > 0.0 && input.Newton_eta_max < 1.0))) {
+		if (rh->input.solver == SOLVER_NEWTON_KRYLOV &&
+			(!(rh->input.Newton_noise > 0.0 && rh->input.Newton_noise < 1.0) ||
+			 rh->input.Newton_krylov_max < 1 || rh->input.Newton_krylov_max > 200 ||
+			 !(rh->input.Newton_eta_max > 0.0 && rh->input.Newton_eta_max < 1.0))) {
 			sprintf(messageStr,
 					"SOLVER = NEWTON_KRYLOV: NEWTON_NOISE = %g (0 .. 1),"
 					" NEWTON_KRYLOV_MAX = %d (1 .. 200),\n NEWTON_ETA_MAX"
 					" = %g (0 .. 1): a value is out of range.",
-					input.Newton_noise, input.Newton_krylov_max,
-					input.Newton_eta_max);
+					rh->input.Newton_noise, rh->input.Newton_krylov_max,
+					rh->input.Newton_eta_max);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
 		/* --- The default 1.0E-2 is the NG solver's; unset, the map
 			   does PRD_N_MAX_ITER sub-iterations -- -------------- */
 		if (!keywordSet(theKeywords, Nkeyword, "PRD_ITER_LIMIT")) {
-			input.PRDiterLimit = 0.0;
+			rh->input.PRDiterLimit = 0.0;
 			setKeywordValue(theKeywords, Nkeyword, "PRD_ITER_LIMIT", "0.0");
-		} else if (input.PRDiterLimit != 0.0) {
+		} else if (rh->input.PRDiterLimit != 0.0) {
 			sprintf(messageStr,
 					"SOLVER = %s: PRD_ITER_LIMIT = %g lets the PRD"
 					" sub-iterations stop early,\n which makes the map"
 					" discontinuous. Set SOLVER = NG, or remove the keyword\n or"
 					" set it to 0 (G then does PRD_N_MAX_ITER sub-iterations).",
-					sname, input.PRDiterLimit);
+					sname, rh->input.PRDiterLimit);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (input.PRD_Ngorder != 0) {
+		if (rh->input.PRD_Ngorder != 0) {
 			sprintf(messageStr,
 					"SOLVER = %s: PRD_NG_ORDER = %d, but there is no"
 					" acceleration inside\n the map. Set SOLVER = NG, or remove"
 					" the keyword or set it to 0.",
-					sname, input.PRD_Ngorder);
+					sname, rh->input.PRD_Ngorder);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
 		if (keywordSet(theKeywords, Nkeyword, "COLL_RELAX_FACTOR") &&
-			input.CR_factor != 1.0) {
+			rh->input.CR_factor != 1.0) {
 			sprintf(messageStr,
 					"SOLVER = %s: COLL_RELAX_FACTOR = %g, but the map has no"
 					" collisional\n relaxation. Set SOLVER = NG, or remove the"
 					" keyword or set it to 1.",
-					sname, input.CR_factor);
+					sname, rh->input.CR_factor);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (input.CR_Nstep != 0) {
+		if (rh->input.CR_Nstep != 0) {
 			sprintf(messageStr,
 					"SOLVER = %s: COLL_RELAX_NSTEP = %d makes the map"
 					" depend on the\n iteration number. Set SOLVER = NG, or"
 					" remove the keyword or set it to 0.",
-					sname, input.CR_Nstep);
+					sname, rh->input.CR_Nstep);
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (atmos.hydrostatic) {
+		if (rh->atmos.hydrostatic) {
 			sprintf(messageStr,
 					"SOLVER = %s: HYDROSTATIC = TRUE changes the"
 					" atmosphere between\n iterations. Set SOLVER = NG or"
@@ -725,7 +719,7 @@ void readInput()
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (input.limit_memory) {
+		if (rh->input.limit_memory) {
 			sprintf(messageStr,
 					"SOLVER = %s: the mean intensity J is part of the"
 					" state and must be\n kept in memory. Set SOLVER = NG or"
@@ -734,7 +728,7 @@ void readInput()
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (input.solve_ne == ITERATION && input.old_background) {
+		if (rh->input.solve_ne == ITERATION && rh->input.old_background) {
 			sprintf(messageStr,
 					"SOLVER = %s with SOLVE_NE = ITERATION recomputes the"
 					" background\n from the state. Set SOLVER = NG or"
@@ -743,7 +737,7 @@ void readInput()
 			Error(WARNING, routineName, messageStr);
 			Nconflict++;
 		}
-		if (input.solve_ne == ITERATION && input.NonICE) {
+		if (rh->input.solve_ne == ITERATION && rh->input.NonICE) {
 			sprintf(messageStr,
 					"SOLVER = %s with SOLVE_NE = ITERATION computes the"
 					" chemical\n equilibrium from the state. Set SOLVER = NG or"
@@ -756,9 +750,9 @@ void readInput()
 			   (docs/SOLVER.md §9 Q11, decided 2026-11-08): the float
 			   file makes G a step function of ne, which limits
 			   finite-difference Jacobian products to ~3e-3. -- -- */
-		if (input.solve_ne == ITERATION) {
+		if (rh->input.solve_ne == ITERATION) {
 			if (keywordSet(theKeywords, Nkeyword, "BACKGROUND_DOUBLE") &&
-				!input.background_double) {
+				!rh->input.background_double) {
 				sprintf(messageStr,
 						"SOLVER = %s with SOLVE_NE = ITERATION has ne in"
 						" the state, and\n the background must then be stored"
@@ -768,7 +762,7 @@ void readInput()
 				Error(WARNING, routineName, messageStr);
 				Nconflict++;
 			}
-			input.background_double = TRUE;
+			rh->input.background_double = TRUE;
 		}
 		if (Nconflict) {
 			sprintf(messageStr,
@@ -783,12 +777,12 @@ void readInput()
 
 	/* --- If called with -showkeywords commandline option -- --------- */
 
-	if (commandline.showkeywords) showValues(Nkeyword, theKeywords);
+	if (rh->commandline.showkeywords) showValues(Nkeyword, theKeywords);
 
 	/* --- Convert to MKSA units where necessary --       ------------- */
 
-	atmos.vmicro_char *= KM_TO_M;
-	atmos.vmacro_tresh *= KM_TO_M;
+	rh->atmos.vmicro_char *= KM_TO_M;
+	rh->atmos.vmacro_tresh *= KM_TO_M;
 }
 /* ------- end ---------------------------- readInput.c ------------- */
 

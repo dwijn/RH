@@ -45,14 +45,13 @@
 #include "geometry.h"
 #include "constant.h"
 #include "error.h"
+#include "state.h"
 
 #define N_GAUSS_QUADR 8
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
-
-extern Geometry geometry;
 
 /* ------- begin -------------------------- RII.c ------------------- */
 
@@ -75,8 +74,8 @@ double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2)
 		xg[N_GAUSS_QUADR], wg[N_GAUSS_QUADR], rii, mu12, muz1, muz2,
 		sin_theta, cos_theta, sec_theta, csc_theta2, theta, thetap;
 
-	muz1 = geometry.muz[mu1];
-	muz2 = geometry.muz[mu2];
+	muz1 = rh->geometry->muz[mu1];
+	muz2 = rh->geometry->muz[mu2];
 	mu12 = 1.0 - SQ(muz1) - SQ(muz2);
 
 	theta1     = acos(muz1);

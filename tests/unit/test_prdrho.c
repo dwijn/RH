@@ -33,10 +33,7 @@
 #include "error.h"
 #include "check.h"
 #include "negtau.h"
-
-extern Atmosphere  atmos;
-extern InputData   input;
-extern CommandLine commandline;
+#include "state.h"
 
 /* --- LeakSanitizer would report the buffers that Error() leaves in
 	   the child that it ends, and change its exit status -- -------- */
@@ -81,7 +78,7 @@ static int is_fatal(void (*f)(void))
 	if ((pid = fork()) == 0) {
 		in_child = 1;
 		if (!freopen("/dev/null", "w", stdout) || !freopen("/dev/null", "w", stderr)) _exit(1);
-		commandline.logfile = stderr;
+		rh->commandline.logfile = stderr;
 		f();
 		_exit(0);
 	}
@@ -134,10 +131,10 @@ static void check_all(const char *tag, bool_t angle)
 {
 	char name[80], where[80];
 
-	input.PRD_angle_dep = (angle) ? PRD_ANGLE_DEP : PRD_ANGLE_AVER;
-	Nrow                = (angle) ? 2L * NRAYS * NLAMBDA : NLAMBDA;
-	rho                 = matrix_double(Nrow, NSPACE);
-	line.rho_prd        = rho;
+	rh->input.PRD_angle_dep = (angle) ? PRD_ANGLE_DEP : PRD_ANGLE_AVER;
+	Nrow                    = (angle) ? 2L * NRAYS * NLAMBDA : NLAMBDA;
+	rho                     = matrix_double(Nrow, NSPACE);
+	line.rho_prd            = rho;
 
 	CHECK(PRDRhoSize(&line) == Nrow * NSPACE, "%s: PRDRhoSize %ld, rows %ld", tag,
 		  PRDRhoSize(&line), Nrow);
@@ -173,9 +170,9 @@ static void check_all(const char *tag, bool_t angle)
 
 int main(void)
 {
-	commandline.logfile = fopen("/dev/null", "w");
-	atmos.Nspace        = NSPACE;
-	atmos.Nrays         = NRAYS;
+	rh->commandline.logfile = fopen("/dev/null", "w");
+	rh->atmos.Nspace        = NSPACE;
+	rh->atmos.Nrays         = NRAYS;
 	memset(&atom, 0, sizeof(atom));
 	memset(&line, 0, sizeof(line));
 	strcpy(atom.ID, "XX");

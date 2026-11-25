@@ -20,14 +20,13 @@
 #include "error.h"
 #include "inputs.h"
 #include "statistics.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- determinate.c ----------- */
 
@@ -347,7 +346,7 @@ void adjustStokesMode()
 {
 	register int kr, nact;
 
-	enum StokesMode oldMode = input.StokesMode;
+	enum StokesMode oldMode = rh->input.StokesMode;
 	Atom           *atom;
 	AtomicLine     *line;
 
@@ -355,19 +354,19 @@ void adjustStokesMode()
 		   solved in case of input.StokesMode == FIELD_FREE --
 														-------------- */
 
-	if ((atmos.Nactiveatom == 0 || atmos.Stokes == FALSE ||
-		 input.StokesMode == NO_STOKES ||
-		 input.StokesMode == FULL_STOKES) &&
-		!input.backgr_pol)
+	if ((rh->atmos.Nactiveatom == 0 || rh->atmos.Stokes == FALSE ||
+		 rh->input.StokesMode == NO_STOKES ||
+		 rh->input.StokesMode == FULL_STOKES) &&
+		!rh->input.backgr_pol)
 		return;
 	else
-		input.StokesMode = FULL_STOKES;
+		rh->input.StokesMode = FULL_STOKES;
 
 	if (oldMode == FIELD_FREE) {
 		getCPU(2, TIME_START, NULL);
 
-		for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-			atom = atmos.activeatoms[nact];
+		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+			atom = rh->atmos.activeatoms[nact];
 
 			/* --- Recalculate the profiles of polarized lines in this case */
 
@@ -378,7 +377,7 @@ void adjustStokesMode()
 					/* --- First free up the space used in field-free
 							   calculation --                        -------------- */
 
-					if (!input.limit_memory) freeMatrix((void **) line->phi);
+					if (!rh->input.limit_memory) freeMatrix((void **) line->phi);
 					free(line->wphi);
 
 					Profile(line);

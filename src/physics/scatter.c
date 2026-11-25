@@ -34,6 +34,7 @@
 #include "statistics.h"
 #include "parallel.h"
 #include "prdfold.h"
+#include "state.h"
 
 #define PRD_FILE_TEMPLATE "PRD_%s_%d-%d.dat"
 
@@ -41,10 +42,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- prdInflow.c -------------- */
 
@@ -71,11 +69,11 @@ static void prdInflow(Atom *atom, AtomicLine *PRDline, AtomicLine **XRD,
 		   stays positive when the populations lag the radiation field
 		   during the PRD sub-iterations (B-29). --        -------------- */
 
-	for (k = 0; k < atmos.Nspace; k++)
+	for (k = 0; k < rh->atmos.Nspace; k++)
 		Yj[k] = atom->n[PRDline->j][k] * PRDline->Qelast[k];
 	for (ip = 0; ip < atom->Nlevel; ip++) {
 		if (ip == PRDline->j) continue;
-		for (k = 0; k < atmos.Nspace; k++)
+		for (k = 0; k < rh->atmos.Nspace; k++)
 			Yj[k] += atom->n[ip][k] * atom->C[PRDline->j * atom->Nlevel + ip][k];
 	}
 	for (kr = 0; kr < atom->Nline; kr++) {
@@ -85,20 +83,20 @@ static void prdInflow(Atom *atom, AtomicLine *PRDline, AtomicLine **XRD,
 			for (kxrd = 0; kxrd < Nsubordinate; kxrd++)
 				if (XRD[kxrd] == line) subordinate = TRUE;
 			if (!subordinate)
-				for (k = 0; k < atmos.Nspace; k++)
+				for (k = 0; k < rh->atmos.Nspace; k++)
 					Yj[k] += atom->n[line->i][k] * line->Rij[k];
 		}
 		if (line->i == PRDline->j)
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				Yj[k] += atom->n[line->j][k] * line->Rji[k];
 	}
 	for (kr = 0; kr < atom->Ncont; kr++) {
 		continuum = &atom->continuum[kr];
 		if (continuum->j == PRDline->j)
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				Yj[k] += atom->n[continuum->i][k] * continuum->Rij[k];
 		if (continuum->i == PRDline->j)
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				Yj[k] += atom->n[continuum->j][k] * continuum->Rji[k];
 	}
 }
@@ -286,7 +284,7 @@ static off_t prdOffsets(long *blocksize, off_t *kstart, off_t offset)
 {
 	int k;
 
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		kstart[k] = offset;
 		offset += blocksize[k] * sizeof(prdw_t);
 	}
@@ -399,9 +397,9 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 			   and absorption grid in Doppler units --     -------------- */
 
 		for (la = 0; la < XRDline->Nlambda; la++)
-			J_k[la] = (input.PRD_angle_dep == PRD_ANGLE_APPROX)
-						  ? spectrum.Jgas[XRDline->Nblue + la][k]
-						  : spectrum.J[XRDline->Nblue + la][k];
+			J_k[la] = (rh->input.PRD_angle_dep == PRD_ANGLE_APPROX)
+						  ? rh->spectrum.Jgas[XRDline->Nblue + la][k]
+						  : rh->spectrum.J[XRDline->Nblue + la][k];
 		prdAbsGrid(atom, XRDline, k, q_abs);
 
 		/* --- Loop over emission wavelengths --         -------------- */
@@ -488,14 +486,14 @@ void PRDScatter(AtomicLine *PRDline)
 
 	/* --- Set XRD line array --                         -------------- */
 
-	if (input.XRD)
+	if (rh->input.XRD)
 		Nsubordinate = 1 + PRDline->Nxrd;
 	else
 		Nsubordinate = 1;
 
 	XRD    = (AtomicLine **) malloc(Nsubordinate * sizeof(AtomicLine *));
 	XRD[0] = PRDline;
-	if (input.XRD) {
+	if (rh->input.XRD) {
 		for (kxrd = 0; kxrd < PRDline->Nxrd; kxrd++)
 			XRD[kxrd + 1] = PRDline->xrd[kxrd];
 	}
@@ -503,17 +501,17 @@ void PRDScatter(AtomicLine *PRDline)
 	/* --- Initialize the emission profile ratio rho --  -------------- */
 
 	for (la = 0; la < PRDline->Nlambda; la++) {
-		for (k = 0; k < atmos.Nspace; k++) {
+		for (k = 0; k < rh->atmos.Nspace; k++) {
 			PRDline->rho_prd[la][k] = 1.0;
 		}
 	}
-	Yj    = (double *) malloc(atmos.Nspace * sizeof(double));
-	denom = (double *) malloc(atmos.Nspace * sizeof(double));
-	adamp = (double *) malloc(atmos.Nspace * sizeof(double));
+	Yj    = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	denom = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	adamp = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	cDop  = (NM_TO_M * PRDline->lambda0) / (4.0 * PI);
 
 	prdInflow(atom, PRDline, XRD, Nsubordinate, Yj);
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		adamp[k] = (PRDline->Grad + PRDline->Qelast[k]) * cDop / atom->vbroad[k];
 
 		/* --- Denominator 1 + sum_x g_x Jbar(x) of rho (see prdInflow) - */
@@ -528,7 +526,7 @@ void PRDScatter(AtomicLine *PRDline)
 	job.initialize = prdOpenFile(PRDline, routineName);
 	job.Yj         = Yj;
 	job.adamp      = adamp;
-	job.kstart     = (off_t *) malloc(atmos.Nspace * sizeof(off_t));
+	job.kstart     = (off_t *) malloc(rh->atmos.Nspace * sizeof(off_t));
 
 	/* --- Sizes of the locations' blocks of weights, for each
 		   subordinate line: computed with the weights, kept with the
@@ -536,7 +534,7 @@ void PRDScatter(AtomicLine *PRDline)
 
 	if (job.initialize) {
 		free(PRDline->prd_block);
-		PRDline->prd_block = (long *) malloc((size_t) Nsubordinate * atmos.Nspace * sizeof(long));
+		PRDline->prd_block = (long *) malloc((size_t) Nsubordinate * rh->atmos.Nspace * sizeof(long));
 	}
 
 	/* --- Loop over subordinate lines --                -------------- */
@@ -545,19 +543,19 @@ void PRDScatter(AtomicLine *PRDline)
 	for (kxrd = 0; kxrd < Nsubordinate; kxrd++) {
 		job.XRDline   = XRD[kxrd];
 		job.waveratio = job.XRDline->lambda0 / PRDline->lambda0;
-		job.blocksize = PRDline->prd_block + (size_t) kxrd * atmos.Nspace;
+		job.blocksize = PRDline->prd_block + (size_t) kxrd * rh->atmos.Nspace;
 
 		/* --- Where each location's block of weights sits in the file -- */
 
-		if (job.initialize) parallelFor(atmos.Nspace, input.Nthreads, prdBlockSizes, &job);
+		if (job.initialize) parallelFor(rh->atmos.Nspace, rh->input.Nthreads, prdBlockSizes, &job);
 		offset = prdOffsets(job.blocksize, job.kstart, offset);
 
 		/* --- Loop over all spatial locations --          -------------- */
 
-		parallelFor(atmos.Nspace, input.Nthreads, prdIntegrate, &job);
+		parallelFor(rh->atmos.Nspace, rh->input.Nthreads, prdIntegrate, &job);
 	}
 	for (la = 0; la < PRDline->Nlambda; la++) {
-		for (k = 0; k < atmos.Nspace; k++) PRDline->rho_prd[la][k] /= denom[k];
+		for (k = 0; k < rh->atmos.Nspace; k++) PRDline->rho_prd[la][k] /= denom[k];
 	}
 
 	free(job.kstart);
@@ -636,7 +634,7 @@ static void prdAngleBlockSizes(int kbeg, int kend, int nt, void *arg)
 		for (d = 0; d < job->Ndir; d++) prdAngleAbsGrid(job, k, d, v_abs + d * line->Nlambda);
 		n = 0;
 		for (la = 0; la < line->Nlambda; la++) {
-			for (mu = 0; mu < atmos.Nrays; mu++) {
+			for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 				for (to_obs = 0; to_obs <= 1; to_obs++) {
 					v_emit = prdAngleEmit(job, k, la, mu, to_obs);
 					Np     = prdGrid(v_emit, 1.0, &v0, &vN);
@@ -679,9 +677,9 @@ static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
 
 		pos = 0;
 		for (la = 0; la < Nl; la++) {
-			for (mu = 0; mu < atmos.Nrays; mu++) {
+			for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 				for (to_obs = 0; to_obs <= 1; to_obs++) {
-					lamu   = 2 * (atmos.Nrays * la + mu) + to_obs;
+					lamu   = 2 * (rh->atmos.Nrays * la + mu) + to_obs;
 					v_emit = prdAngleEmit(job, k, la, mu, to_obs);
 					Np     = prdGrid(v_emit, 1.0, &v0, &vN);
 
@@ -700,7 +698,7 @@ static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
 							   the weight of the absorption direction; folded
 							   per direction, normalized over all of them -- */
 
-						phi = (atmos.moving || (line->polarizable && input.StokesMode == FULL_STOKES))
+						phi = (rh->atmos.moving || (line->polarizable && rh->input.StokesMode == FULL_STOKES))
 								  ? line->phi[lamu][k]
 								  : line->phi[la][k];
 						rii = (double *) realloc(rii, Np * sizeof(double));
@@ -710,7 +708,7 @@ static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
 						for (m = 0; m < Nrow; m++) W[m] = 0.0;
 						for (d = 0, start = 0; d < job->Ndir; start += len[d], d++) {
 							mup  = d / 2;
-							wmup = 0.5 * atmos.wmu[mup];
+							wmup = 0.5 * rh->atmos.wmu[mup];
 							for (lap = 0; lap < Np; lap++) {
 								rii[lap] = RII(v_emit, vp[lap], job->adamp[k], mu, mup) *
 										   (job->sv[k] / phi) * prdQuadWeight(lap, Np) * wmup;
@@ -776,25 +774,25 @@ void PRDAngleScatter(AtomicLine *PRDline)
 	job.atom       = atom;
 	job.PRDline    = PRDline;
 	job.initialize = prdOpenFile(PRDline, routineName);
-	job.Ndir       = 2 * atmos.Nrays;
-	job.g          = (double *) malloc(atmos.Nspace * sizeof(double));
-	job.denom      = (double *) malloc(atmos.Nspace * sizeof(double));
-	job.adamp      = (double *) malloc(atmos.Nspace * sizeof(double));
-	job.sv         = (double *) malloc(atmos.Nspace * sizeof(double));
-	job.v_los      = matrix_double(atmos.Nrays, atmos.Nspace);
-	job.kstart     = (off_t *) malloc(atmos.Nspace * sizeof(off_t));
+	job.Ndir       = 2 * rh->atmos.Nrays;
+	job.g          = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	job.denom      = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	job.adamp      = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	job.sv         = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	job.v_los      = matrix_double(rh->atmos.Nrays, rh->atmos.Nspace);
+	job.kstart     = (off_t *) malloc(rh->atmos.Nspace * sizeof(off_t));
 	if (job.initialize) {
 		free(PRDline->prd_block);
-		PRDline->prd_block = (long *) malloc(atmos.Nspace * sizeof(long));
+		PRDline->prd_block = (long *) malloc(rh->atmos.Nspace * sizeof(long));
 	}
 	job.blocksize = PRDline->prd_block;
-	Yj            = (double *) malloc(atmos.Nspace * sizeof(double));
+	Yj            = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 	/* --- Inflow Yj into the upper level and the weight g of the
 		   scattering integral (see prdInflow) --         -------------- */
 
 	prdInflow(atom, PRDline, &PRDline, 1, Yj);
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		job.g[k]     = atom->n[PRDline->i][k] * PRDline->Bij / Yj[k];
 		Jbar         = PRDline->Rij[k] / PRDline->Bij;
 		job.denom[k] = 1.0 + job.g[k] * Jbar;
@@ -804,8 +802,8 @@ void PRDAngleScatter(AtomicLine *PRDline)
 
 	/* --- Line-of-sight velocity in Doppler units --    -------------- */
 
-	for (mu = 0; mu < atmos.Nrays; mu++) {
-		for (k = 0; k < atmos.Nspace; k++)
+	for (mu = 0; mu < rh->atmos.Nrays; mu++) {
+		for (k = 0; k < rh->atmos.Nspace; k++)
 			job.v_los[mu][k] = vproject(k, mu) / atom->vbroad[k];
 	}
 
@@ -816,14 +814,14 @@ void PRDAngleScatter(AtomicLine *PRDline)
 		   old code held (one direction at a time), the same order as
 		   the line's per-ray profiles --                 -------------- */
 
-	job.Iall = (double *) malloc((size_t) job.Ndir * PRDline->Nlambda * atmos.Nspace *
+	job.Iall = (double *) malloc((size_t) job.Ndir * PRDline->Nlambda * rh->atmos.Nspace *
 								 sizeof(double));
-	Irow     = (double *) malloc(atmos.Nspace * sizeof(double));
+	Irow     = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	if (job.Iall == NULL || Irow == NULL) Error(ERROR_LEVEL_2, routineName, "Out of memory");
 	for (d = 0; d < job.Ndir; d++)
 		for (lap = 0; lap < PRDline->Nlambda; lap++) {
 			readImu(PRDline->Nblue + lap, d / 2, d % 2, Irow);
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				job.Iall[((size_t) k * job.Ndir + d) * PRDline->Nlambda + lap] = Irow[k];
 		}
 	free(Irow);
@@ -833,9 +831,9 @@ void PRDAngleScatter(AtomicLine *PRDline)
 
 	if (job.initialize) (void) RII(0.0, 0.0, job.adamp[0], 0, 0);
 
-	if (job.initialize) parallelFor(atmos.Nspace, input.Nthreads, prdAngleBlockSizes, &job);
+	if (job.initialize) parallelFor(rh->atmos.Nspace, rh->input.Nthreads, prdAngleBlockSizes, &job);
 	prdOffsets(job.blocksize, job.kstart, 0);
-	parallelFor(atmos.Nspace, input.Nthreads, prdAngleIntegrate, &job);
+	parallelFor(rh->atmos.Nspace, rh->input.Nthreads, prdAngleIntegrate, &job);
 
 	free(job.Iall);
 	free(job.g);

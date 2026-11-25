@@ -19,13 +19,13 @@
 #include "atmos.h"
 #include "constant.h"
 #include "error.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- VanderWaals.c ----------- */
 
@@ -63,9 +63,9 @@ void VanderWaals(AtomicLine *line, double *GvdW)
 
 	int    i, j, ic, Z;
 	double vrel35_H, vrel35_He       = 0.0, fourPIeps0, deltaR, cross, gammaCorrH,
-					 gammaCorrHe, *T = atmos.T, C625 = 0.0;
+					 gammaCorrHe, *T = rh->atmos.T, C625 = 0.0;
 	Atom    *atom = line->atom;
-	Element *He   = &atmos.elements[1];
+	Element *He   = &rh->atmos.elements[1];
 
 	j = line->j;
 	i = line->i;
@@ -94,12 +94,12 @@ void VanderWaals(AtomicLine *line, double *GvdW)
 			   velocity distributions --                   -------------- */
 
 		vrel35_H = pow(8.0 * KBOLTZMANN / (PI * AMU * atom->weight) *
-						   (1.0 + atom->weight / atmos.H->weight),
+						   (1.0 + atom->weight / rh->atmos.H->weight),
 					   0.3);
 
 		cross = 8.08 * (line->cvdWaals[0] * vrel35_H + line->cvdWaals[2] * He->abund * vrel35_He) * C625;
 
-		for (k = 0; k < atmos.Nspace; k++)
+		for (k = 0; k < rh->atmos.Nspace; k++)
 			GvdW[k] = cross * pow(T[k], 0.3);
 
 		break;
@@ -110,11 +110,11 @@ void VanderWaals(AtomicLine *line, double *GvdW)
 					 = 1.0E-9 * cvdW[1]  (Helium broadening) -- --------- */
 
 		gammaCorrH = 1.0E-8 * CUBE(CM_TO_M) *
-					 pow(1.0 + atmos.H->weight / atom->weight, line->cvdWaals[1]);
+					 pow(1.0 + rh->atmos.H->weight / atom->weight, line->cvdWaals[1]);
 		gammaCorrHe = 1.0E-9 * CUBE(CM_TO_M) *
 					  pow(1.0 + He->weight / atom->weight, line->cvdWaals[3]);
 
-		for (k = 0; k < atmos.Nspace; k++)
+		for (k = 0; k < rh->atmos.Nspace; k++)
 			GvdW[k] = gammaCorrH * line->cvdWaals[0] *
 						  pow(T[k], line->cvdWaals[1]) +
 					  gammaCorrHe * line->cvdWaals[2] *
@@ -128,9 +128,9 @@ void VanderWaals(AtomicLine *line, double *GvdW)
 
 		cross = 8.08 * line->cvdWaals[2] * He->abund * vrel35_He * C625;
 
-		for (k = 0; k < atmos.Nspace; k++)
+		for (k = 0; k < rh->atmos.Nspace; k++)
 			GvdW[k] = line->cvdWaals[0] *
-						  pow(atmos.T[k], (1.0 - line->cvdWaals[1]) / 2.0) +
+						  pow(rh->atmos.T[k], (1.0 - line->cvdWaals[1]) / 2.0) +
 					  cross * pow(T[k], 0.3);
 
 		break;
@@ -143,7 +143,7 @@ void VanderWaals(AtomicLine *line, double *GvdW)
 	}
 	/* --- Multiply with the Hydrogen ground level population -- ------ */
 
-	for (k = 0; k < atmos.Nspace; k++) GvdW[k] *= atmos.H->n[0][k];
+	for (k = 0; k < rh->atmos.Nspace; k++) GvdW[k] *= rh->atmos.H->n[0][k];
 }
 /* ------- end ---------------------------- VanderWaals.c ----------- */
 
@@ -183,8 +183,8 @@ void Stark(AtomicLine *line, double *GStark)
 
 	if (line->cStark < 0.0) {
 		cStark = fabs(line->cStark);
-		for (k = 0; k < atmos.Nspace; k++)
-			GStark[k] = cStark * atmos.ne[k];
+		for (k = 0; k < rh->atmos.Nspace; k++)
+			GStark[k] = cStark * rh->atmos.ne[k];
 	} else {
 		/* --- Constants for relative velocity. We assume that nion = ne
 			   (see Gray), and that the average atomic weight of ionic
@@ -222,9 +222,9 @@ void Stark(AtomicLine *line, double *GStark)
 				  SQ(neff_l * (5.0 * SQ(neff_l) + 1.0)));
 			cStark23 = 11.37 * pow(line->cStark * C4, 0.66666667);
 		}
-		for (k = 0; k < atmos.Nspace; k++) {
-			vrel      = pow(C * atmos.T[k], 0.16666667) * Cm;
-			GStark[k] = cStark23 * vrel * atmos.ne[k];
+		for (k = 0; k < rh->atmos.Nspace; k++) {
+			vrel      = pow(C * rh->atmos.T[k], 0.16666667) * Cm;
+			GStark[k] = cStark23 * vrel * rh->atmos.ne[k];
 		}
 	}
 }
@@ -273,8 +273,8 @@ void StarkLinear(AtomicLine *line, double *GStark)
 		a1 = 1.0;
 
 	C = a1 * 0.6 * (SQ(n_upper) - SQ(n_lower)) * SQ(CM_TO_M);
-	for (k = 0; k < atmos.Nspace; k++)
-		GStark[k] = C * pow(atmos.ne[k], 0.66666667);
+	for (k = 0; k < rh->atmos.Nspace; k++)
+		GStark[k] = C * pow(rh->atmos.ne[k], 0.66666667);
 }
 /* ------- end ---------------------------- StarkLinear.c ----------- */
 
@@ -290,33 +290,33 @@ void Damping(AtomicLine *line, double *adamp)
 	cDop = (NM_TO_M * line->lambda0) / (4.0 * PI);
 
 	atom   = line->atom;
-	Qelast = (double *) calloc(atmos.Nspace, sizeof(double));
+	Qelast = (double *) calloc(rh->atmos.Nspace, sizeof(double));
 
 	/* --- Add van der Waals broadening --             -------------- */
 
 	if ((line->cvdWaals[0] > 0.0) || (line->cvdWaals[2] > 0.0)) {
 		VanderWaals(line, adamp);
-		for (k = 0; k < atmos.Nspace; k++) Qelast[k] += adamp[k];
+		for (k = 0; k < rh->atmos.Nspace; k++) Qelast[k] += adamp[k];
 	}
 	/* --- Add Quadratic Stark broadening --           -------------- */
 
 	if (line->cStark != 0.0) {
 		Stark(line, adamp);
-		for (k = 0; k < atmos.Nspace; k++) Qelast[k] += adamp[k];
+		for (k = 0; k < rh->atmos.Nspace; k++) Qelast[k] += adamp[k];
 	}
 	/* --- Add Linear Stark broadening for hydrogen only -- --------- */
 
 	if (strstr(atom->ID, "H ")) {
 		StarkLinear(line, adamp);
-		for (k = 0; k < atmos.Nspace; k++) Qelast[k] += adamp[k];
+		for (k = 0; k < rh->atmos.Nspace; k++) Qelast[k] += adamp[k];
 	}
 	/* --- Store the total rate of elastic collisions in case of PRD  */
 
 	if (line->PRD && line->Qelast != NULL) {
-		for (k = 0; k < atmos.Nspace; k++)
+		for (k = 0; k < rh->atmos.Nspace; k++)
 			line->Qelast[k] = Qelast[k];
 	}
-	for (k = 0; k < atmos.Nspace; k++)
+	for (k = 0; k < rh->atmos.Nspace; k++)
 		adamp[k] = (line->Grad + Qelast[k]) * cDop / atom->vbroad[k];
 
 	free(Qelast);
@@ -337,7 +337,7 @@ void MolecularDamping(MolecularLine *mrt, double *adamp)
 
 	/* --- For now only natural broadening due to the line itself. -- - */
 
-	for (k = 0; k < atmos.Nspace; k++)
+	for (k = 0; k < rh->atmos.Nspace; k++)
 		adamp[k] = mrt->Aji * cDop / molecule->vbroad[k];
 }
 /* ------- end ---------------------------- MolecularDamping.c ------ */

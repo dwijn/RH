@@ -16,15 +16,13 @@
 #include "constant.h"
 #include "error.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Geometry   geometry;
-extern Spectrum   spectrum;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- writeFlux.c ------------- */
 
@@ -46,17 +44,17 @@ bool_t writeFlux(char *flux_output)
 	}
 	xdrstdio_create(&xdrs, fp_flux, XDR_ENCODE);
 
-	wmuz = (double *) malloc(atmos.Nrays * sizeof(double));
-	for (mu = 0; mu < atmos.Nrays; mu++)
-		wmuz[mu] = geometry.muz[mu] * geometry.wmu[mu];
+	wmuz = (double *) malloc(rh->atmos.Nrays * sizeof(double));
+	for (mu = 0; mu < rh->atmos.Nrays; mu++)
+		wmuz[mu] = rh->geometry->muz[mu] * rh->geometry->wmu[mu];
 
-	flux = (double *) calloc(spectrum.Nspect, sizeof(double));
-	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
-		for (mu = 0; mu < atmos.Nrays; mu++)
-			flux[nspect] += spectrum.I[nspect][mu] * wmuz[mu];
+	flux = (double *) calloc(rh->spectrum.Nspect, sizeof(double));
+	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
+		for (mu = 0; mu < rh->atmos.Nrays; mu++)
+			flux[nspect] += rh->spectrum.I[nspect][mu] * wmuz[mu];
 		flux[nspect] *= 2.0 * PI;
 	}
-	result &= xdr_vector(&xdrs, (char *) flux, spectrum.Nspect,
+	result &= xdr_vector(&xdrs, (char *) flux, rh->spectrum.Nspect,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	xdr_destroy(&xdrs);

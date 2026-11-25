@@ -17,6 +17,7 @@
 #include "error.h"
 #include "inputs.h"
 #include "constant.h"
+#include "state.h"
 
 #define COMMENT_CHAR     "#"
 #define DEGREE_TO_RADIAN 0.017453293
@@ -29,8 +30,9 @@ void writeMULTIatmos(Geometry *geometry, Atmosphere *atmos,
 
 /* --- Global variables --                             -------------- */
 
-CommandLine commandline;
-char        messageStr[MAX_MESSAGE_LENGTH];
+static RHState rh_state;
+RHState *const rh = &rh_state;
+char           messageStr[MAX_MESSAGE_LENGTH];
 
 /* ------- begin -------------------------- readTrujillo.c ---------- */
 
@@ -47,7 +49,7 @@ int main(int argc, char *argv[])
 	Geometry   geometry;
 	FILE      *fp_Trujillo;
 
-	commandline.logfile = stdout;
+	rh->commandline.logfile = stdout;
 	if (argc < 3) {
 		fprintf(stderr, "Usage : %s  Trujillo.model  MULTI_name\n\n", argv[0]);
 		exit(1);

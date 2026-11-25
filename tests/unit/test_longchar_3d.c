@@ -49,9 +49,7 @@
 #include "check.h"
 #include "bezier.h"
 #include "slab_exact.h"
-
-extern InputData   input;
-extern CommandLine commandline;
+#include "state.h"
 
 #define NRAYS 5
 static const double ray_mu[NRAYS][3] = {{0.6, 0.3, 0.7416198487095663},
@@ -476,24 +474,24 @@ int main(int argc, char *argv[])
 	const enum S_interpol sc[2]    = {S_LINEAR, S_BEZIER3};
 	const char           *sname[2] = {"LINEAR", "BEZIER3"};
 
-	commandline.logfile = stdout;
-	commandline.quiet   = TRUE;
+	rh->commandline.logfile = stdout;
+	rh->commandline.quiet   = TRUE;
 
 	for (int c = 0; c < NCHI; c++)
 		for (int i = 0; i < 2; i++) {
 			Mesh       *ms[NREFINE];
 			const char *iname = i ? "bicubic" : "linear";
 
-			input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
+			rh->input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
 			for (int r = 0; r < NREFINE; r++) ms[r] = mesh_new(mesh_N[r], chi_value[c]);
 
 			for (int a = 0; a < 2; a++) {
 				Errors  e[2][NREFINE];
 				double *Is[2][NREFINE];
 
-				input.S_interpolation = sc[a];
+				rh->input.S_interpolation = sc[a];
 				for (int b = 0; b < 2; b++) {
-					input.S_interpolation_longchar = sc[b];
+					rh->input.S_interpolation_longchar = sc[b];
 					for (int r = 0; r < NREFINE; r++) {
 						Is[b][r] = malloc(2 * NRAYS * (size_t) (ms[r]->Nz * ms[r]->N * ms[r]->N) *
 										  sizeof(double));

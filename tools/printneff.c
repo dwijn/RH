@@ -15,6 +15,7 @@
 #include "constant.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -22,8 +23,9 @@ void rawAtom(Atom *atom, char *atomFileName);
 
 /* --- Global variables --                             -------------- */
 
-CommandLine commandline;
-char        messageStr[MAX_LINE_SIZE];
+static RHState rh_state;
+RHState *const rh = &rh_state;
+char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- printneff.c ------------- */
 
@@ -37,8 +39,8 @@ int main(int argc, char *argv[])
 	Atom  atom;
 	FILE *fpOut;
 
-	commandline.quiet   = FALSE;
-	commandline.logfile = stderr;
+	rh->commandline.quiet   = FALSE;
+	rh->commandline.logfile = stderr;
 
 	if (argc >= 3)
 		fpOut = fopen(argv[2], "w");

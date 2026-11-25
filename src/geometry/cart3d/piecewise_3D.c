@@ -16,15 +16,13 @@
 #include "spectrum.h"
 #include "inputs.h"
 #include "error.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- ShortChar.c ------------- */
 
@@ -62,9 +60,9 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 
 				for (m = 0; m < geometry->Ny; m++) {
 					for (l = 0; l < geometry->Nx; l++) {
-						T_uw = Interpolate_3D(atmos.T, geometry, st_uw, l, m);
-						Planck(1, &T_uw, spectrum.lambda[nspect], &Bnu_uw);
-						Planck(1, &atmos.T[local], spectrum.lambda[nspect], &Bnu);
+						T_uw = Interpolate_3D(rh->atmos.T, geometry, st_uw, l, m);
+						Planck(1, &T_uw, rh->spectrum.lambda[nspect], &Bnu_uw);
+						Planck(1, &rh->atmos.T[local], rh->spectrum.lambda[nspect], &Bnu);
 
 						chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
 						dtau_uw = 0.5 * (chi_uw + chi[local]) * st_uw->ds;
@@ -105,7 +103,7 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 			break;
 
 		case THERMALIZED:
-			Planck(Nplane, atmos.T, spectrum.lambda[nspect], I);
+			Planck(Nplane, rh->atmos.T, rh->spectrum.lambda[nspect], I);
 			break;
 
 		case REFLECTIVE:
@@ -162,16 +160,16 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 					else
 						I_uw = Interpolate_3D(I, geometry, st_uw, l, m);
 
-					if (input.S_interpolation == S_LINEAR) {
+					if (rh->input.S_interpolation == S_LINEAR) {
 						Piecewise_Linear_3D(geometry, st_uw, st_dw,
 											k, kend, l, m, I_uw, chi, S, I, Psi);
-					} else if (input.S_interpolation == S_BEZIER3) {
+					} else if (rh->input.S_interpolation == S_BEZIER3) {
 						Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
 											 k, kend, l, m, I_uw, chi, S, I, Psi);
 					} else {
 						sprintf(messageStr,
 								"Unknown radiation solver: %d",
-								input.S_interpolation);
+								rh->input.S_interpolation);
 						Error(ERROR_LEVEL_1, routineName, messageStr);
 					}
 				}
@@ -188,16 +186,16 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 					else
 						I_uw = Interpolate_3D(I, geometry, st_uw, l, m);
 
-					if (input.S_interpolation == S_LINEAR) {
+					if (rh->input.S_interpolation == S_LINEAR) {
 						Piecewise_Linear_3D(geometry, st_uw, st_dw,
 											k, kend, l, m, I_uw, chi, S, I, Psi);
-					} else if (input.S_interpolation == S_BEZIER3) {
+					} else if (rh->input.S_interpolation == S_BEZIER3) {
 						Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
 											 k, kend, l, m, I_uw, chi, S, I, Psi);
 					} else {
 						sprintf(messageStr,
 								"Unknown radiation solver: %d",
-								input.S_interpolation);
+								rh->input.S_interpolation);
 						Error(ERROR_LEVEL_1, routineName, messageStr);
 					}
 				}

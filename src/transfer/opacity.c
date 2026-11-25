@@ -43,6 +43,7 @@
 #include "inputs.h"
 #include "prdh.h"
 #include "constant.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -53,10 +54,7 @@ double MolProfile(MolecularLine *mrt, int k, int mu, bool_t to_obs,
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* --- Loops over depth of the active opacity, factored out so that
 	   their arrays are restrict (they do not overlap) and the loops
@@ -167,44 +165,44 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 	twohc  = 2.0 * hc / CUBE(NM_TO_M);
 	hc_k   = hc / (KBOLTZMANN * NM_TO_M);
 
-	as = &spectrum.as[nspect];
-	nt = nspect % input.Nthreads;
+	as = &rh->spectrum.as[nspect];
+	nt = nspect % rh->input.Nthreads;
 
 	/* --- If polarized transition is present and we solve for polarized
 		   radiation we need to fill all four Stokes components -- ---- */
 
-	if (input.StokesMode == FULL_STOKES && containsPolarized(as)) {
+	if (rh->input.StokesMode == FULL_STOKES && containsPolarized(as)) {
 		NrecStokes = 4;
 
-		chi_Q = as->chi + atmos.Nspace;
-		chi_U = as->chi + 2 * atmos.Nspace;
-		chi_V = as->chi + 3 * atmos.Nspace;
+		chi_Q = as->chi + rh->atmos.Nspace;
+		chi_U = as->chi + 2 * rh->atmos.Nspace;
+		chi_V = as->chi + 3 * rh->atmos.Nspace;
 
-		if (input.magneto_optical) {
-			for (k = 0; k < 3 * atmos.Nspace; k++) as->chip[k] = 0.0;
+		if (rh->input.magneto_optical) {
+			for (k = 0; k < 3 * rh->atmos.Nspace; k++) as->chip[k] = 0.0;
 
 			chip_Q = as->chip;
-			chip_U = as->chip + atmos.Nspace;
-			chip_V = as->chip + 2 * atmos.Nspace;
+			chip_U = as->chip + rh->atmos.Nspace;
+			chip_V = as->chip + 2 * rh->atmos.Nspace;
 		}
 	} else
 		NrecStokes = 1;
 
-	for (k = 0; k < NrecStokes * atmos.Nspace; k++) {
+	for (k = 0; k < NrecStokes * rh->atmos.Nspace; k++) {
 		as->chi[k] = 0.0;
 		as->eta[k] = 0.0;
 	}
 
 	/* --- Loop over set of active transitions at current wavelength -- */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 
 		/* --- Zero the emissivities for each active atom,
 			   and the proper thread --                    -------------- */
 
 		if (as->Nactiveatomrt[nact] > 0) {
-			for (k = 0; k < NrecStokes * atmos.Nspace; k++)
+			for (k = 0; k < NrecStokes * rh->atmos.Nspace; k++)
 				atom->rhth[nt].eta[k] = 0.0;
 		}
 
@@ -224,34 +222,34 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 				/* --- Need all four (or seven) Stokes components -- -------- */
 
 				solveStokes =
-					(line->polarizable && input.StokesMode == FULL_STOKES);
+					(line->polarizable && rh->input.StokesMode == FULL_STOKES);
 
 				/* --- Required size of temporary profile array -- ---------- */
 
-				if (input.limit_memory) {
+				if (rh->input.limit_memory) {
 					if (solveStokes)
-						Nrecphi = (input.magneto_optical) ? 7 : 4;
+						Nrecphi = (rh->input.magneto_optical) ? 7 : 4;
 					else
 						Nrecphi = 1;
 
 					phi = (float *) malloc(Nrecphi *
-										   atmos.Nspace * sizeof(float));
+										   rh->atmos.Nspace * sizeof(float));
 				}
 
-				if (atmos.moving || solveStokes) {
-					lamu = 2 * (atmos.Nrays * la + mu) + to_obs;
+				if (rh->atmos.moving || solveStokes) {
+					lamu = 2 * (rh->atmos.Nrays * la + mu) + to_obs;
 
-					if (input.limit_memory) {
+					if (rh->input.limit_memory) {
 						readProfile(line, lamu, phi);
 						if (solveStokes) {
-							phi_Q = phi + atmos.Nspace;
-							phi_U = phi + 2 * atmos.Nspace;
-							phi_V = phi + 3 * atmos.Nspace;
+							phi_Q = phi + rh->atmos.Nspace;
+							phi_U = phi + 2 * rh->atmos.Nspace;
+							phi_V = phi + 3 * rh->atmos.Nspace;
 
-							if (input.magneto_optical) {
-								psi_Q = phi + 4 * atmos.Nspace;
-								psi_U = phi + 5 * atmos.Nspace;
-								psi_V = phi + 6 * atmos.Nspace;
+							if (rh->input.magneto_optical) {
+								psi_Q = phi + 4 * rh->atmos.Nspace;
+								psi_U = phi + 5 * rh->atmos.Nspace;
+								psi_V = phi + 6 * rh->atmos.Nspace;
 							}
 						}
 					} else {
@@ -262,7 +260,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 							phi_U = line->phi_U[lamu];
 							phi_V = line->phi_V[lamu];
 
-							if (input.magneto_optical) {
+							if (rh->input.magneto_optical) {
 								psi_Q = line->psi_Q[lamu];
 								psi_U = line->psi_U[lamu];
 								psi_V = line->psi_V[lamu];
@@ -270,7 +268,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 						}
 					}
 				} else {
-					if (input.limit_memory)
+					if (rh->input.limit_memory)
 						readProfile(line, la, phi);
 					else
 						phi = line->phi[la];
@@ -279,22 +277,22 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 				twohnu3_c2 = line->Aji / line->Bji;
 				gijk       = line->Bji / line->Bij;
 				Bijxhc_4PI = hc_4PI * line->Bij * line->isotope_frac;
-				lineVij(atmos.Nspace, gijk, Bijxhc_4PI, phi, atom->rhth[nt].gij[n],
+				lineVij(rh->atmos.Nspace, gijk, Bijxhc_4PI, phi, atom->rhth[nt].gij[n],
 						atom->rhth[nt].Vij[n]);
 
 				/* --- PRD correction to emission profile --   -------------- */
 
 				if (line->PRD) {
-					switch (input.PRD_angle_dep) {
+					switch (rh->input.PRD_angle_dep) {
 					case PRD_ANGLE_AVER:
-						for (k = 0; k < atmos.Nspace; k++)
+						for (k = 0; k < rh->atmos.Nspace; k++)
 							atom->rhth[nt].gij[n][k] *= line->rho_prd[la][k];
 
 						break;
 
 					case PRD_ANGLE_DEP:
-						lamu = 2 * (atmos.Nrays * la + mu) + to_obs;
-						for (k = 0; k < atmos.Nspace; k++)
+						lamu = 2 * (rh->atmos.Nrays * la + mu) + to_obs;
+						for (k = 0; k < rh->atmos.Nspace; k++)
 							atom->rhth[nt].gij[n][k] *= line->rho_prd[lamu][k];
 
 						break;
@@ -306,9 +304,9 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 							   PRDH_LIMIT_MEM, the same weights computed here
 							   (P-17) --                         -------------- */
 
-						lamu = 2 * (atmos.Nrays * la + mu) + to_obs;
-						for (k = 0; k < atmos.Nspace; k++) {
-							if (input.prdh_limit_mem)
+						lamu = 2 * (rh->atmos.Nrays * la + mu) + to_obs;
+						for (k = 0; k < rh->atmos.Nspace; k++) {
+							if (rh->input.prdh_limit_mem)
 								prdhRhoWeights(line, line->lambda[la] * prdhShift(mu, to_obs, k),
 											   &id0, &id1, &frac);
 							else {
@@ -329,7 +327,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 
 				if (initialize) {
 					wlambda = getwlambda_line(line, la);
-					for (k = 0; k < atmos.Nspace; k++)
+					for (k = 0; k < rh->atmos.Nspace; k++)
 						atom->rhth[nt].wla[n][k] = wlambda * line->wphi[k] / hc_4PI;
 				}
 
@@ -350,11 +348,11 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 
 				if (initialize) {
 					wlambda = getwlambda_cont(continuum, la);
-					for (k = 0; k < atmos.Nspace; k++) {
+					for (k = 0; k < rh->atmos.Nspace; k++) {
 						atom->rhth[nt].Vij[n][k] = continuum->alpha[la];
 						atom->rhth[nt].gij[n][k] =
 							atom->nstar[i][k] / atom->nstar[j][k] *
-							exp(-hc_k / (continuum->lambda[la] * atmos.T[k]));
+							exp(-hc_k / (continuum->lambda[la] * rh->atmos.T[k]));
 
 						atom->rhth[nt].wla[n][k] =
 							fourPI / HPLANCK * (wlambda / continuum->lambda[la]);
@@ -371,39 +369,39 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 			/* --- Always calculate total opacity and emissivity of set - - */
 
 			if (twohnu3_c2) {
-				addOpacity(atmos.Nspace, twohnu3_c2, atom->rhth[nt].Vij[n],
+				addOpacity(rh->atmos.Nspace, twohnu3_c2, atom->rhth[nt].Vij[n],
 						   atom->rhth[nt].gij[n], n_i, n_j, as->chi, atom->rhth[nt].eta);
 				/* --- Emission coefficients for Stokes Q, U, V -- ---------- */
 
 				if (as->art[nact][n].type == ATOMIC_LINE && solveStokes) {
-					lamu = 2 * (atmos.Nrays * la + mu) + to_obs;
+					lamu = 2 * (rh->atmos.Nrays * la + mu) + to_obs;
 
-					eta_Q = atom->rhth[nt].eta + atmos.Nspace;
-					eta_U = atom->rhth[nt].eta + 2 * atmos.Nspace;
-					eta_V = atom->rhth[nt].eta + 3 * atmos.Nspace;
+					eta_Q = atom->rhth[nt].eta + rh->atmos.Nspace;
+					eta_U = atom->rhth[nt].eta + 2 * rh->atmos.Nspace;
+					eta_V = atom->rhth[nt].eta + 3 * rh->atmos.Nspace;
 
-					if (input.magneto_optical)
-						addStokesOpacity(atmos.Nspace, Bijxhc_4PI, twohnu3_c2,
+					if (rh->input.magneto_optical)
+						addStokesOpacity(rh->atmos.Nspace, Bijxhc_4PI, twohnu3_c2,
 										 atom->rhth[nt].gij[n], n_i, n_j, phi_Q, phi_U, phi_V,
 										 psi_Q, psi_U, psi_V, chi_Q, chi_U, chi_V, chip_Q,
 										 chip_U, chip_V, eta_Q, eta_U, eta_V);
 					else
-						addStokesOpacity(atmos.Nspace, Bijxhc_4PI, twohnu3_c2,
+						addStokesOpacity(rh->atmos.Nspace, Bijxhc_4PI, twohnu3_c2,
 										 atom->rhth[nt].gij[n], n_i, n_j, phi_Q, phi_U, phi_V,
 										 NULL, NULL, NULL, chi_Q, chi_U, chi_V, NULL, NULL,
 										 NULL, eta_Q, eta_U, eta_V);
 				}
 			}
-			if (as->art[nact][n].type == ATOMIC_LINE && input.limit_memory)
+			if (as->art[nact][n].type == ATOMIC_LINE && rh->input.limit_memory)
 				free(phi);
 		}
 	}
 
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
 
 		if (as->Nactivemolrt[nact] > 0) {
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				molecule->rhth[nt].eta[k] = 0.0;
 		}
 
@@ -417,29 +415,29 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 				n_j = molecule->nv[vj];
 
 				la = nspect - mrt->Nblue;
-				if (atmos.moving) {
-					lamu = 2 * (atmos.Nrays * la + mu) + to_obs;
+				if (rh->atmos.moving) {
+					lamu = 2 * (rh->atmos.Nrays * la + mu) + to_obs;
 					phi  = mrt->phi[lamu];
 				} else
 					phi = mrt->phi[la];
 
 				if (initialize) {
 					wlambda = getwlambda_mrt(mrt, la);
-					for (k = 0; k < atmos.Nspace; k++)
+					for (k = 0; k < rh->atmos.Nspace; k++)
 						molecule->rhth[nt].wla[n][k] = wlambda * mrt->wphi[k] / hc_4PI;
 				}
 
 				twohnu3_c2 = mrt->Aji / mrt->Bji;
 				Bijxhc_4PI = hc_4PI * mrt->Bij * mrt->gi * mrt->isotope_frac;
 
-				for (k = 0; k < atmos.Nspace; k++) {
+				for (k = 0; k < rh->atmos.Nspace; k++) {
 					if (molecule->n[k]) {
 						molecule->rhth[nt].Vij[n][k] =
 							Bijxhc_4PI * phi[k] / molecule->pfv[vi][k] *
-							exp(-mrt->Ei / (KBOLTZMANN * atmos.T[k]));
+							exp(-mrt->Ei / (KBOLTZMANN * rh->atmos.T[k]));
 						molecule->rhth[nt].gij[n][k] =
 							molecule->nvstar[vi][k] / molecule->nvstar[vj][k] *
-							exp(-hc_k / (mrt->lambda0 * atmos.T[k]));
+							exp(-hc_k / (mrt->lambda0 * rh->atmos.T[k]));
 					}
 				}
 				break;
@@ -452,7 +450,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 			/* --- Always calculate total opacity and emissivity of set - - */
 
 			if (twohnu3_c2) {
-				for (k = 0; k < atmos.Nspace; k++) {
+				for (k = 0; k < rh->atmos.Nspace; k++) {
 					as->chi[k] += molecule->rhth[nt].Vij[n][k] *
 								  (n_i[k] - molecule->rhth[nt].gij[n][k] * n_j[k]);
 
@@ -467,17 +465,17 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 	/* --- Add all the active contributions into the total
 		   emissivities of this active set --            -------------- */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 		if (as->Nactiveatomrt[nact] > 0) {
-			for (k = 0; k < NrecStokes * atmos.Nspace; k++)
+			for (k = 0; k < NrecStokes * rh->atmos.Nspace; k++)
 				as->eta[k] += atom->rhth[nt].eta[k];
 		}
 	}
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
 		if (as->Nactivemolrt[nact] > 0) {
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				as->eta[k] += molecule->rhth[nt].eta[k];
 		}
 	}
@@ -503,7 +501,7 @@ static pthread_once_t as_pool_once = PTHREAD_ONCE_INIT;
 
 static void init_as_pool(void)
 {
-	as_pool = (AsPool *) calloc(input.Nthreads, sizeof(AsPool));
+	as_pool = (AsPool *) calloc(rh->input.Nthreads, sizeof(AsPool));
 }
 
 void alloc_as(int nspect, bool_t crosscoupling)
@@ -516,8 +514,8 @@ void alloc_as(int nspect, bool_t crosscoupling)
 	ActiveSet *as;
 	AsPool    *pool;
 
-	as = &spectrum.as[nspect];
-	nt = nspect % input.Nthreads;
+	as = &rh->spectrum.as[nspect];
+	nt = nspect % rh->input.Nthreads;
 
 	pthread_once(&as_pool_once, init_as_pool);
 	pool = &as_pool[nt];
@@ -527,13 +525,13 @@ void alloc_as(int nspect, bool_t crosscoupling)
 		   records than any earlier one in this slot.
 		   --                                             -------------- */
 
-	if (atmos.backgrflags[nspect].ispolarized &&
-		input.StokesMode == FULL_STOKES) {
+	if (rh->atmos.backgrflags[nspect].ispolarized &&
+		rh->input.StokesMode == FULL_STOKES) {
 		NrecStokes = 4;
 
-		if (input.magneto_optical) {
+		if (rh->input.magneto_optical) {
 			if (pool->chip_c == NULL)
-				pool->chip_c = (double *) malloc(3 * atmos.Nspace * sizeof(double));
+				pool->chip_c = (double *) malloc(3 * rh->atmos.Nspace * sizeof(double));
 			as->chip_c = pool->chip_c;
 		}
 	} else
@@ -542,12 +540,12 @@ void alloc_as(int nspect, bool_t crosscoupling)
 	if (NrecStokes > pool->Nrec_c) {
 		free(pool->chi_c);
 		free(pool->eta_c);
-		pool->chi_c  = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
-		pool->eta_c  = (double *) malloc(NrecStokes * atmos.Nspace * sizeof(double));
+		pool->chi_c  = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
+		pool->eta_c  = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
 		pool->Nrec_c = NrecStokes;
 	}
 	if (pool->sca_c == NULL)
-		pool->sca_c = (double *) malloc(atmos.Nspace * sizeof(double));
+		pool->sca_c = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 	as->chi_c = pool->chi_c;
 	as->eta_c = pool->eta_c;
@@ -555,12 +553,12 @@ void alloc_as(int nspect, bool_t crosscoupling)
 
 	/* --- Now for the active part --                    -------------- */
 
-	if (input.StokesMode == FULL_STOKES && containsPolarized(as)) {
+	if (rh->input.StokesMode == FULL_STOKES && containsPolarized(as)) {
 		NrecStokes_as = 4;
 
-		if (input.magneto_optical) {
+		if (rh->input.magneto_optical) {
 			if (pool->chip == NULL)
-				pool->chip = (double *) malloc(3 * atmos.Nspace * sizeof(double));
+				pool->chip = (double *) malloc(3 * rh->atmos.Nspace * sizeof(double));
 			as->chip = pool->chip;
 		}
 	} else
@@ -569,8 +567,8 @@ void alloc_as(int nspect, bool_t crosscoupling)
 	if (NrecStokes_as > pool->Nrec_as) {
 		free(pool->chi);
 		free(pool->eta);
-		pool->chi     = (double *) malloc(NrecStokes_as * atmos.Nspace * sizeof(double));
-		pool->eta     = (double *) malloc(NrecStokes_as * atmos.Nspace * sizeof(double));
+		pool->chi     = (double *) malloc(NrecStokes_as * rh->atmos.Nspace * sizeof(double));
+		pool->eta     = (double *) malloc(NrecStokes_as * rh->atmos.Nspace * sizeof(double));
 		pool->Nrec_as = NrecStokes_as;
 	}
 	as->chi = pool->chi;
@@ -580,8 +578,8 @@ void alloc_as(int nspect, bool_t crosscoupling)
 		   atom seperately. The contributions are needed individually
 		   in the approximate operator --                -------------- */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 
 		if (as->Nactiveatomrt[nact] > 0) {
 			/* --- The record count can change between calls: FIELD_FREE
@@ -592,7 +590,7 @@ void alloc_as(int nspect, bool_t crosscoupling)
 
 			if (atom->rhth[nt].eta == NULL)
 				atom->rhth[nt].eta =
-					(double *) malloc((atmos.Stokes ? 4 : 1) * atmos.Nspace *
+					(double *) malloc((rh->atmos.Stokes ? 4 : 1) * rh->atmos.Nspace *
 									  sizeof(double));
 
 			/* --- Per-thread rate-matrix accumulator. addtoGamma() writes
@@ -606,8 +604,8 @@ void alloc_as(int nspect, bool_t crosscoupling)
 				   it protected. With a single thread there is no copy: the
 				   shared Gamma is accumulated into directly. --  -------- */
 
-			if (input.Nthreads > 1 && atom->rhth[nt].Gamma == NULL)
-				atom->rhth[nt].Gamma = matrix_double(SQ(atom->Nlevel), atmos.Nspace);
+			if (rh->input.Nthreads > 1 && atom->rhth[nt].Gamma == NULL)
+				atom->rhth[nt].Gamma = matrix_double(SQ(atom->Nlevel), rh->atmos.Nspace);
 
 			/* --- Vij/gij/wla are sized by the number of this atom's
 				   transitions active AT THIS WAVELENGTH, which varies from
@@ -624,9 +622,9 @@ void alloc_as(int nspect, bool_t crosscoupling)
 					freeMatrix((void **) atom->rhth[nt].gij);
 					freeMatrix((void **) atom->rhth[nt].wla);
 				}
-				atom->rhth[nt].Vij       = matrix_double(Nrt, atmos.Nspace);
-				atom->rhth[nt].gij       = matrix_double(Nrt, atmos.Nspace);
-				atom->rhth[nt].wla       = matrix_double(Nrt, atmos.Nspace);
+				atom->rhth[nt].Vij       = matrix_double(Nrt, rh->atmos.Nspace);
+				atom->rhth[nt].gij       = matrix_double(Nrt, rh->atmos.Nspace);
+				atom->rhth[nt].wla       = matrix_double(Nrt, rh->atmos.Nspace);
 				atom->rhth[nt].Nrt_alloc = Nrt;
 			}
 
@@ -640,22 +638,22 @@ void alloc_as(int nspect, bool_t crosscoupling)
 
 				for (i = 0; i < atom->Nlevel; i++) {
 					atom->rhth[nt].Uji_down[i] =
-						(double *) malloc(atmos.Nspace * sizeof(double));
+						(double *) malloc(rh->atmos.Nspace * sizeof(double));
 				}
 			}
 		}
 	}
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
 
 		if (as->Nactivemolrt[nact] > 0) {
 			if (molecule->rhth[nt].eta == NULL)
 				molecule->rhth[nt].eta =
-					(double *) malloc(atmos.Nspace * sizeof(double));
+					(double *) malloc(rh->atmos.Nspace * sizeof(double));
 
-			if (input.Nthreads > 1 && molecule->rhth[nt].Gamma == NULL)
+			if (rh->input.Nthreads > 1 && molecule->rhth[nt].Gamma == NULL)
 				molecule->rhth[nt].Gamma =
-					matrix_double(SQ(molecule->Nv), atmos.Nspace);
+					matrix_double(SQ(molecule->Nv), rh->atmos.Nspace);
 
 			Nrt = as->Nactivemolrt[nact];
 			if (Nrt > molecule->rhth[nt].Nrt_alloc) {
@@ -664,9 +662,9 @@ void alloc_as(int nspect, bool_t crosscoupling)
 					freeMatrix((void **) molecule->rhth[nt].gij);
 					freeMatrix((void **) molecule->rhth[nt].wla);
 				}
-				molecule->rhth[nt].Vij       = matrix_double(Nrt, atmos.Nspace);
-				molecule->rhth[nt].gij       = matrix_double(Nrt, atmos.Nspace);
-				molecule->rhth[nt].wla       = matrix_double(Nrt, atmos.Nspace);
+				molecule->rhth[nt].Vij       = matrix_double(Nrt, rh->atmos.Nspace);
+				molecule->rhth[nt].gij       = matrix_double(Nrt, rh->atmos.Nspace);
+				molecule->rhth[nt].wla       = matrix_double(Nrt, rh->atmos.Nspace);
 				molecule->rhth[nt].Nrt_alloc = Nrt;
 			}
 		}
@@ -678,7 +676,7 @@ void alloc_as(int nspect, bool_t crosscoupling)
 
 void free_as(int nspect, bool_t crosscoupling)
 {
-	ActiveSet *as = &spectrum.as[nspect];
+	ActiveSet *as = &rh->spectrum.as[nspect];
 
 	(void) crosscoupling;
 
@@ -697,9 +695,9 @@ bool_t containsPolarized(ActiveSet *as)
 {
 	register int n, nact;
 
-	if (!atmos.Stokes || input.StokesMode == FIELD_FREE) return FALSE;
+	if (!rh->atmos.Stokes || rh->input.StokesMode == FIELD_FREE) return FALSE;
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		for (n = 0; n < as->Nactiveatomrt[nact]; n++) {
 			if (as->art[nact][n].type == ATOMIC_LINE &&
 				as->art[nact][n].ptype.line->polarizable) {
@@ -717,14 +715,14 @@ bool_t containsBoundBound(ActiveSet *as)
 {
 	register int n, nact;
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		for (n = 0; n < as->Nactiveatomrt[nact]; n++) {
 			if (as->art[nact][n].type == ATOMIC_LINE) {
 				return TRUE;
 			}
 		}
 	}
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 		for (n = 0; n < as->Nactivemolrt[nact]; n++) {
 			if (as->mrt[nact][n].type == VIBRATION_ROTATION) {
 				return TRUE;
@@ -741,12 +739,12 @@ bool_t containsActive(ActiveSet *as)
 {
 	register int nact;
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		if (as->Nactiveatomrt[nact] > 0)
 			return TRUE;
 	}
 
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 		if (as->Nactivemolrt[nact] > 0)
 			return TRUE;
 	}
@@ -761,7 +759,7 @@ bool_t containsPRDline(ActiveSet *as)
 {
 	register int n, nact;
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		for (n = 0; n < as->Nactiveatomrt[nact]; n++) {
 			if (as->art[nact][n].type == ATOMIC_LINE &&
 				as->art[nact][n].ptype.line->PRD) {
@@ -852,20 +850,20 @@ void molecularPrepare(void)
 		   the one in MolecularOpacity (it uses the range of the
 		   spectrum, not the individual wavelengths). -- -------------- */
 
-	if (!atmos.Stokes || spectrum.Nspect < 1) return;
+	if (!rh->atmos.Stokes || rh->spectrum.Nspect < 1) return;
 
-	lamin = lamax = spectrum.lambda[0];
-	for (la = 1; la < spectrum.Nspect; la++) {
-		lamin = MIN(lamin, spectrum.lambda[la]);
-		lamax = MAX(lamax, spectrum.lambda[la]);
+	lamin = lamax = rh->spectrum.lambda[0];
+	for (la = 1; la < rh->spectrum.Nspect; la++) {
+		lamin = MIN(lamin, rh->spectrum.lambda[la]);
+		lamax = MAX(lamax, rh->spectrum.lambda[la]);
 	}
-	for (n = 0; n < atmos.Nmolecule; n++) {
-		molecule = &atmos.molecules[n];
+	for (n = 0; n < rh->atmos.Nmolecule; n++) {
+		molecule = &rh->atmos.molecules[n];
 		if (molecule->Nrt > 0 && !molecule->active) {
 			for (kr = 0; kr < molecule->Nrt; kr++) {
 				mrt = &molecule->mrt[kr];
 				if (mrt->polarizable && mrt->zm == NULL) {
-					w     = mrt->qwing * (atmos.vmicro_char / CLIGHT);
+					w     = mrt->qwing * (rh->atmos.vmicro_char / CLIGHT);
 					ratio = (w < 1.0) ? 1.0 / (1.0 - w) : 1.0E+300;
 					if (mrt->lambda0 / (1.0 + w) <= lamax &&
 						mrt->lambda0 * ratio >= lamin)
@@ -913,51 +911,51 @@ flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
 
 	/* --- Initialize the contributions for this wavelength/angle -- -- */
 
-	if (atmos.Stokes) {
+	if (rh->atmos.Stokes) {
 		NrecStokes = 4;
 
 		/* --- Use pointers to sub-arrays for Q, U, and V -- ------------ */
 
-		chi_Q = chi + atmos.Nspace;
-		chi_U = chi + 2 * atmos.Nspace;
-		chi_V = chi + 3 * atmos.Nspace;
+		chi_Q = chi + rh->atmos.Nspace;
+		chi_U = chi + 2 * rh->atmos.Nspace;
+		chi_V = chi + 3 * rh->atmos.Nspace;
 
-		eta_Q = eta + atmos.Nspace;
-		eta_U = eta + 2 * atmos.Nspace;
-		eta_V = eta + 3 * atmos.Nspace;
+		eta_Q = eta + rh->atmos.Nspace;
+		eta_U = eta + 2 * rh->atmos.Nspace;
+		eta_V = eta + 3 * rh->atmos.Nspace;
 
-		if (input.magneto_optical) {
+		if (rh->input.magneto_optical) {
 			chip_Q = chip;
-			chip_U = chip + atmos.Nspace;
-			chip_V = chip + 2 * atmos.Nspace;
+			chip_U = chip + rh->atmos.Nspace;
+			chip_V = chip + 2 * rh->atmos.Nspace;
 
-			for (k = 0; k < 3 * atmos.Nspace; k++) chip[k] = 0.0;
+			for (k = 0; k < 3 * rh->atmos.Nspace; k++) chip[k] = 0.0;
 		}
 	} else
 		NrecStokes = 1;
 
-	for (k = 0; k < NrecStokes * atmos.Nspace; k++) {
+	for (k = 0; k < NrecStokes * rh->atmos.Nspace; k++) {
 		chi[k] = 0.0;
 		eta[k] = 0.0;
 	}
 
 	/* --- Loop through the list of molecules and their lines -- ------ */
 
-	for (n = 0; n < atmos.Nmolecule; n++) {
-		molecule = &atmos.molecules[n];
+	for (n = 0; n < rh->atmos.Nmolecule; n++) {
+		molecule = &rh->atmos.molecules[n];
 
 		if ((molecule->Nrt > 0 && !molecule->active)) {
 			dlamb_char0 = lambda * molecule->mrt[0].qwing *
-						  (atmos.vmicro_char / CLIGHT);
+						  (rh->atmos.vmicro_char / CLIGHT);
 			dlamb_charN = lambda * molecule->mrt[molecule->Nrt - 1].qwing *
-						  (atmos.vmicro_char / CLIGHT);
+						  (rh->atmos.vmicro_char / CLIGHT);
 
 			if (lambda >= molecule->mrt[0].lambda0 - dlamb_char0 &&
 				lambda <= molecule->mrt[molecule->Nrt - 1].lambda0 + dlamb_charN) {
 
 				for (kr = 0; kr < molecule->Nrt; kr++) {
 					mrt         = &molecule->mrt[kr];
-					dlamb_char0 = lambda * mrt->qwing * (atmos.vmicro_char / CLIGHT);
+					dlamb_char0 = lambda * mrt->qwing * (rh->atmos.vmicro_char / CLIGHT);
 
 					if (fabs(mrt->lambda0 - lambda) <= dlamb_char0) {
 						hc_la      = (HPLANCK * CLIGHT) / (mrt->lambda0 * NM_TO_M);
@@ -974,13 +972,13 @@ flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
 							}
 						}
 
-						for (k = 0; k < atmos.Nspace; k++) {
+						for (k = 0; k < rh->atmos.Nspace; k++) {
 							if (molecule->n[k] > 0.0) {
 								phi = MolProfile(mrt, k, mu, to_obs, lambda,
 												 &phi_Q, &phi_U, &phi_V,
 												 &psi_Q, &psi_U, &psi_V);
 
-								kT    = 1.0 / (KBOLTZMANN * atmos.T[k]);
+								kT    = 1.0 / (KBOLTZMANN * rh->atmos.T[k]);
 								ni_gi = molecule->n[k] * exp(-mrt->Ei * kT) /
 										molecule->pf[k];
 								nj_gj = ni_gi * exp(-hc_la * kT);
@@ -1000,7 +998,7 @@ flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
 									eta_U[k] += eta_l * phi_U;
 									eta_V[k] += eta_l * phi_V;
 
-									if (input.magneto_optical) {
+									if (rh->input.magneto_optical) {
 										chip_Q[k] += chi_l * psi_Q;
 										chip_U[k] += chi_l * psi_U;
 										chip_V[k] += chi_l * psi_V;
@@ -1036,7 +1034,7 @@ double MolProfile(MolecularLine *mrt, int k, int mu, bool_t to_obs,
 
 	adamp = mrt->Aji * (mrt->lambda0 * NM_TO_M) / (4.0 * PI * molecule->vbroad[k]);
 	v     = (lambda / mrt->lambda0 - 1.0) * CLIGHT / molecule->vbroad[k];
-	if (atmos.moving) {
+	if (rh->atmos.moving) {
 		if (to_obs)
 			v += vproject(k, mu) / molecule->vbroad[k];
 		else
@@ -1045,8 +1043,8 @@ double MolProfile(MolecularLine *mrt, int k, int mu, bool_t to_obs,
 	sv = 1.0 / (SQRTPI * molecule->vbroad[k]);
 
 	if (mrt->polarizable) {
-		sin2_gamma = 1.0 - SQ(atmos.cos_gamma[mu][k]);
-		vB         = (LARMOR * mrt->lambda0) * atmos.B[k] / molecule->vbroad[k];
+		sin2_gamma = 1.0 - SQ(rh->atmos.cos_gamma[mu][k]);
+		vB         = (LARMOR * mrt->lambda0) * rh->atmos.B[k] / molecule->vbroad[k];
 		sign       = (to_obs) ? 1.0 : -1.0;
 
 		phi_sm = phi_pi = phi_sp = 0.0;
@@ -1074,17 +1072,17 @@ double MolProfile(MolecularLine *mrt, int k, int mu, bool_t to_obs,
 
 		phi = (phi_delta * sin2_gamma + 0.5 * phi_sigma) * sv;
 
-		*phi_Q = sign * phi_delta * sin2_gamma * atmos.cos_2chi[mu][k] * sv;
-		*phi_U = phi_delta * sin2_gamma * atmos.sin_2chi[mu][k] * sv;
-		*phi_V = sign * 0.5 * (phi_sp - phi_sm) * atmos.cos_gamma[mu][k] * sv;
+		*phi_Q = sign * phi_delta * sin2_gamma * rh->atmos.cos_2chi[mu][k] * sv;
+		*phi_U = phi_delta * sin2_gamma * rh->atmos.sin_2chi[mu][k] * sv;
+		*phi_V = sign * 0.5 * (phi_sp - phi_sm) * rh->atmos.cos_gamma[mu][k] * sv;
 
-		if (input.magneto_optical) {
+		if (rh->input.magneto_optical) {
 			psi_sigma = psi_sp + psi_sm;
 			psi_delta = 0.5 * psi_pi - 0.25 * psi_sigma;
 
-			*psi_Q = sign * psi_delta * sin2_gamma * atmos.cos_2chi[mu][k] * sv;
-			*psi_U = psi_delta * sin2_gamma * atmos.sin_2chi[mu][k] * sv;
-			*psi_V = sign * 0.5 * (psi_sp - psi_sm) * atmos.cos_gamma[mu][k] * sv;
+			*psi_Q = sign * psi_delta * sin2_gamma * rh->atmos.cos_2chi[mu][k] * sv;
+			*psi_U = psi_delta * sin2_gamma * rh->atmos.sin_2chi[mu][k] * sv;
+			*psi_V = sign * 0.5 * (psi_sp - psi_sm) * rh->atmos.cos_gamma[mu][k] * sv;
 		}
 	} else
 		phi = Voigt(adamp, v, NULL) * sv;

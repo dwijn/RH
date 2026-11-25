@@ -20,6 +20,7 @@
 #include "spectrum.h"
 #include "error.h"
 #include "xdr.h"
+#include "state.h"
 
 #define BRS_DOT_OUT "brs.out"
 
@@ -27,9 +28,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- writeBRS.c -------------- */
 
@@ -94,42 +93,42 @@ bool_t xdr_BRS(XDR *xdrs)
 	int    Nspace, Nsp, Nrecno;
 
 	hasline =
-		(bool_t *) malloc(spectrum.Nspect * sizeof(bool_t));
+		(bool_t *) malloc(rh->spectrum.Nspect * sizeof(bool_t));
 	ispolarized =
-		(bool_t *) malloc(spectrum.Nspect * sizeof(bool_t));
+		(bool_t *) malloc(rh->spectrum.Nspect * sizeof(bool_t));
 
-	if (atmos.moving || atmos.Stokes)
-		Nrecno = 2 * spectrum.Nspect * atmos.Nrays;
+	if (rh->atmos.moving || rh->atmos.Stokes)
+		Nrecno = 2 * rh->spectrum.Nspect * rh->atmos.Nrays;
 	else
-		Nrecno = spectrum.Nspect;
+		Nrecno = rh->spectrum.Nspect;
 
 	if (xdrs->x_op == XDR_ENCODE) {
-		atmosID = atmos.ID;
+		atmosID = rh->atmos.ID;
 		result &= xdr_counted_string(xdrs, &atmosID);
-		result &= xdr_int(xdrs, &atmos.Nspace);
-		result &= xdr_int(xdrs, &spectrum.Nspect);
+		result &= xdr_int(xdrs, &rh->atmos.Nspace);
+		result &= xdr_int(xdrs, &rh->spectrum.Nspect);
 
 		/* --- Flags for presence of background line --    -------------- */
 
-		for (nspect = 0; nspect < spectrum.Nspect; nspect++)
-			hasline[nspect] = atmos.backgrflags[nspect].hasline;
-		result &= xdr_vector(xdrs, (char *) hasline, spectrum.Nspect,
+		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
+			hasline[nspect] = rh->atmos.backgrflags[nspect].hasline;
+		result &= xdr_vector(xdrs, (char *) hasline, rh->spectrum.Nspect,
 							 sizeof(bool_t), (xdrproc_t) rh_xdr_bool);
 
 		/* --- Flags for presence of polarized background -- ------------ */
 
-		for (nspect = 0; nspect < spectrum.Nspect; nspect++)
-			ispolarized[nspect] = atmos.backgrflags[nspect].ispolarized;
-		result &= xdr_vector(xdrs, (char *) ispolarized, spectrum.Nspect,
+		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
+			ispolarized[nspect] = rh->atmos.backgrflags[nspect].ispolarized;
+		result &= xdr_vector(xdrs, (char *) ispolarized, rh->spectrum.Nspect,
 							 sizeof(bool_t), (xdrproc_t) rh_xdr_bool);
 	} else {
-		free(atmos.backgrflags);
-		free(atmos.backgrrecno);
-		atmos.backgrflags = (flags *) malloc(spectrum.Nspect * sizeof(flags));
-		atmos.backgrrecno = (int *) malloc(Nrecno * sizeof(int));
+		free(rh->atmos.backgrflags);
+		free(rh->atmos.backgrrecno);
+		rh->atmos.backgrflags = (flags *) malloc(rh->spectrum.Nspect * sizeof(flags));
+		rh->atmos.backgrrecno = (int *) malloc(Nrecno * sizeof(int));
 
 		result &= xdr_counted_string(xdrs, &atmosID);
-		if (!strstr(atmosID, atmos.ID)) {
+		if (!strstr(atmosID, rh->atmos.ID)) {
 			sprintf(messageStr,
 					"Input was derived from different atmosphere (%s) than current",
 					atmosID);
@@ -139,26 +138,26 @@ bool_t xdr_BRS(XDR *xdrs)
 
 		result &= xdr_int(xdrs, &Nspace);
 		result &= xdr_int(xdrs, &Nsp);
-		if (Nspace != atmos.Nspace || Nsp != spectrum.Nspect) {
+		if (Nspace != rh->atmos.Nspace || Nsp != rh->spectrum.Nspect) {
 			free(hasline);
 			return FALSE;
 		}
 		/* --- Flags for presence of background line --    -------------- */
 
-		result &= xdr_vector(xdrs, (char *) hasline, spectrum.Nspect,
+		result &= xdr_vector(xdrs, (char *) hasline, rh->spectrum.Nspect,
 							 sizeof(bool_t), (xdrproc_t) rh_xdr_bool);
-		for (nspect = 0; nspect < spectrum.Nspect; nspect++)
-			atmos.backgrflags[nspect].hasline = hasline[nspect];
+		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
+			rh->atmos.backgrflags[nspect].hasline = hasline[nspect];
 
 		/* --- Flags for presence of polarized background -- ------------ */
 
-		result &= xdr_vector(xdrs, (char *) ispolarized, spectrum.Nspect,
+		result &= xdr_vector(xdrs, (char *) ispolarized, rh->spectrum.Nspect,
 							 sizeof(bool_t), (xdrproc_t) rh_xdr_bool);
-		for (nspect = 0; nspect < spectrum.Nspect; nspect++)
-			atmos.backgrflags[nspect].ispolarized = ispolarized[nspect];
+		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
+			rh->atmos.backgrflags[nspect].ispolarized = ispolarized[nspect];
 	}
 
-	result &= xdr_vector(xdrs, (char *) atmos.backgrrecno, Nrecno,
+	result &= xdr_vector(xdrs, (char *) rh->atmos.backgrrecno, Nrecno,
 						 sizeof(int), (xdrproc_t) rh_xdr_int);
 
 	/* --- Bytes per value in the background file (4 since M-1) and
@@ -167,21 +166,21 @@ bool_t xdr_BRS(XDR *xdrs)
 		   unscaled doubles --                            ------------ */
 
 	if (xdrs->x_op == XDR_ENCODE) {
-		result &= xdr_int(xdrs, &atmos.backgrbytes);
-		result &= xdr_int(xdrs, &atmos.backgretaexp);
+		result &= xdr_int(xdrs, &rh->atmos.backgrbytes);
+		result &= xdr_int(xdrs, &rh->atmos.backgretaexp);
 	} else if (result) {
-		if (!xdr_int(xdrs, &atmos.backgrbytes)) {
-			atmos.backgrbytes  = sizeof(double);
-			atmos.backgretaexp = 0;
+		if (!xdr_int(xdrs, &rh->atmos.backgrbytes)) {
+			rh->atmos.backgrbytes  = sizeof(double);
+			rh->atmos.backgretaexp = 0;
 		} else
-			result &= xdr_int(xdrs, &atmos.backgretaexp);
+			result &= xdr_int(xdrs, &rh->atmos.backgretaexp);
 
-		if (result && !((atmos.backgrbytes == sizeof(float)) ||
-						(atmos.backgrbytes == sizeof(double) &&
-						 atmos.backgretaexp == 0))) {
+		if (result && !((rh->atmos.backgrbytes == sizeof(float)) ||
+						(rh->atmos.backgrbytes == sizeof(double) &&
+						 rh->atmos.backgretaexp == 0))) {
 			sprintf(messageStr, "Unknown format of the background file: %d bytes"
 								" per value, emissivity scale 2^%d",
-					atmos.backgrbytes, atmos.backgretaexp);
+					rh->atmos.backgrbytes, rh->atmos.backgretaexp);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 	}

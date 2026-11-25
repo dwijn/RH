@@ -19,6 +19,7 @@
 #include "inputs.h"
 #include "error.h"
 #include "statistics.h"
+#include "state.h"
 
 #define CONTR_INPUT_FILE "contribute.input"
 
@@ -26,15 +27,11 @@
 
 /* --- Global variables --                             -------------- */
 
-enum Topology topology = TWO_D_PLANE;
+static Geometry geometry_data;
+static RHState  rh_state = RH_STATE_INIT(TWO_D_PLANE, &geometry_data);
+RHState *const  rh       = &rh_state;
 
-Atmosphere   atmos;
-Geometry     geometry;
-Spectrum     spectrum;
-InputData    input;
-ProgramStats stats;
-CommandLine  commandline;
-char         messageStr[MAX_LINE_SIZE];
+char messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- backgrcontr.c ----------- */
 
@@ -52,7 +49,7 @@ int main(int argc, char *argv[])
 	SetFPEtraps();
 
 	readInput();
-	readAtmos(&atmos, &geometry);
+	readAtmos(&rh->atmos, rh->geometry);
 	readAtomicModels();
 	readMolecularModels();
 

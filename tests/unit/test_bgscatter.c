@@ -35,12 +35,7 @@
 #include "bgscatter.h"
 #include "geometryops.h"
 #include "check.h"
-
-extern Geometry    geometry;
-extern Atmosphere  atmos;
-extern Spectrum    spectrum;
-extern InputData   input;
-extern CommandLine commandline;
+#include "state.h"
 
 /* --- bgscatter.c asks the geometry (geometryOps) whether it
 	   supports the iteration: here it does, with the linear fallback of
@@ -53,7 +48,7 @@ static const char *bgSupported(void)
 
 static bool_t bgLinearFallback(void)
 {
-	return input.S_interpolation != S_LINEAR;
+	return rh->input.S_interpolation != S_LINEAR;
 }
 
 const GeometryOps geometryOps = {.name               = "unit test",
@@ -97,14 +92,14 @@ static void slab_init(Slab *s, int N, double eps, bool_t bezier)
 	s->I      = malloc(N * sizeof(double));
 	s->Tri    = malloc(3 * N * sizeof(double));
 
-	geometry.Ndep   = N;
-	geometry.height = realloc(geometry.height, N * sizeof(double));
+	rh->geometry->Ndep   = N;
+	rh->geometry->height = realloc(rh->geometry->height, N * sizeof(double));
 	for (int k = 0; k < N; k++)
-		geometry.height[k] =
+		rh->geometry->height[k] =
 			-tau_min * pow(tau_max / tau_min, (double) k / (N - 1));
 	for (int mu = 0; mu < NMU; mu++) {
-		geometry.Itop[0][mu]    = 0.0;
-		geometry.Ibottom[0][mu] = 1.0;
+		rh->geometry->Itop[0][mu]    = 0.0;
+		rh->geometry->Ibottom[0][mu] = 1.0;
 	}
 }
 
@@ -288,10 +283,10 @@ static void check_iterate(double eps, enum bg_operator op, int depth,
 
 	slab_init(&s, N, eps, FALSE);
 	exact(&s, Jx, Lam);
-	input.bg_operator  = op;
-	input.bg_depth     = depth;
-	input.bg_iterLimit = 1.0e-10;
-	input.bg_NmaxIter  = 1000;
+	rh->input.bg_operator  = op;
+	rh->input.bg_depth     = depth;
+	rh->input.bg_iterLimit = 1.0e-10;
+	rh->input.bg_NmaxIter  = 1000;
 	for (int k = 0; k < N; k++) alb[k] = 1.0 - eps;
 
 	bgScatterStats(&st, TRUE);
@@ -315,8 +310,8 @@ static void check_iterate(double eps, enum bg_operator op, int depth,
 
 	/* --- BACKGROUND_N_MAX_ITER bounds the work; J stays positive -- */
 
-	input.bg_NmaxIter = 3;
-	kap               = 0.0;
+	rh->input.bg_NmaxIter = 3;
+	kap                   = 0.0;
 	bgScatterIterate(N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
 	bgScatterStats(&st, TRUE);
 	CHECK(st.Nsweeps == 3 && st.Nunconverged == 1, "N_MAX_ITER = 3: %ld solves",
@@ -350,14 +345,14 @@ static void check_error_bound(double eps, enum bg_operator op, int depth)
 
 	slab_init(&s, N, eps, FALSE);
 	exact(&s, Jx, Lam);
-	input.bg_operator = op;
-	input.bg_depth    = depth;
-	input.bg_NmaxIter = 5000;
+	rh->input.bg_operator = op;
+	rh->input.bg_depth    = depth;
+	rh->input.bg_NmaxIter = 5000;
 	for (int k = 0; k < N; k++) alb[k] = 1.0 - eps;
 
 	for (double tol = 1.0e-3; tol > 1.0e-8; tol *= 0.01) {
-		input.bg_iterLimit = tol;
-		kap                = 0.0;
+		rh->input.bg_iterLimit = tol;
+		kap                    = 0.0;
 		bgScatterStats(&st, TRUE);
 		sweep(&s, Jdag, Jfs, A, NULL);
 		bgScatterIterate(N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
@@ -405,10 +400,10 @@ static double warm_error(double eps, enum bg_operator op, double tol,
 		   err = 0.0, kap = 0.0;
 
 	slab_init(&s, N, eps, FALSE);
-	input.bg_operator  = op;
-	input.bg_depth     = 3;
-	input.bg_NmaxIter  = 5000;
-	input.bg_iterLimit = tol;
+	rh->input.bg_operator  = op;
+	rh->input.bg_depth     = 3;
+	rh->input.bg_NmaxIter  = 5000;
+	rh->input.bg_iterLimit = tol;
 	for (int k = 0; k < N; k++) alb[k] = 1.0 - eps;
 	sweep(&s, J0, Jfs, A, NULL);
 	bgScatterIterate(N, J0, Jfs, A, alb, J1, &kap, sweep, &s);
@@ -470,13 +465,13 @@ static void check_before_after(void)
 
 	slab_init(&s, N, eps, FALSE);
 	exact(&s, Jx, Lam);
-	commandline.logfile   = stderr; /* bgScatterSetup's message */
-	spectrum.Nspect       = 2;
-	input.S_interpolation = S_LINEAR;
-	input.bg_operator     = BG_OPERATOR_TRIDIAGONAL;
-	input.bg_depth        = 3;
-	input.bg_iterLimit    = 1.0e-10;
-	input.bg_NmaxIter     = 1000;
+	rh->commandline.logfile   = stderr; /* bgScatterSetup's message */
+	rh->spectrum.Nspect       = 2;
+	rh->input.S_interpolation = S_LINEAR;
+	rh->input.bg_operator     = BG_OPERATOR_TRIDIAGONAL;
+	rh->input.bg_depth        = 3;
+	rh->input.bg_iterLimit    = 1.0e-10;
+	rh->input.bg_NmaxIter     = 1000;
 	bgScatterSetup();
 	CHECK(bgScatterPending(0) && bgScatterPending(1),
 		  "the first sweep does not iterate first");
@@ -518,12 +513,12 @@ static void check_linear_choice(void)
 {
 	BgScatterStats st;
 
-	commandline.logfile   = stderr; /* bgScatterSetup's message */
-	spectrum.Nspect       = 4;
-	input.S_interpolation = S_BEZIER3;
-	input.bg_NmaxIter     = 50;
-	input.bg_linearAlbedo = 0.9;
-	input.bg_linearTau    = 1.0;
+	rh->commandline.logfile   = stderr; /* bgScatterSetup's message */
+	rh->spectrum.Nspect       = 4;
+	rh->input.S_interpolation = S_BEZIER3;
+	rh->input.bg_NmaxIter     = 50;
+	rh->input.bg_linearAlbedo = 0.9;
+	rh->input.bg_linearTau    = 1.0;
 	bgScatterSetup();
 
 	CHECK(!bgScatterLinear(0, -1.0), "query set the flag");
@@ -544,13 +539,13 @@ static void check_linear_choice(void)
 int main(void)
 {
 	gauss3();
-	geometry.Nrays             = NMU;
-	geometry.muz               = mus;
-	geometry.wmu               = wmus;
-	geometry.Itop              = matrix_double(1, NMU);
-	geometry.Ibottom           = matrix_double(1, NMU);
-	geometry.vboundary[TOP]    = ZERO;
-	geometry.vboundary[BOTTOM] = IRRADIATED;
+	rh->geometry->Nrays             = NMU;
+	rh->geometry->muz               = mus;
+	rh->geometry->wmu               = wmus;
+	rh->geometry->Itop              = matrix_double(1, NMU);
+	rh->geometry->Ibottom           = matrix_double(1, NMU);
+	rh->geometry->vboundary[TOP]    = ZERO;
+	rh->geometry->vboundary[BOTTOM] = IRRADIATED;
 
 	check_tri_linear(1.0e-4);
 	check_tri_bezier();

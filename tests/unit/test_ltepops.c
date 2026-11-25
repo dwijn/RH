@@ -39,13 +39,12 @@
 #include "atmos.h"
 #include "constant.h"
 #include "check.h"
+#include "state.h"
 
 #define NT     25
 #define NNE    18
 #define NSPACE (NT * NNE)
 #define NPF    3
-
-extern Atmosphere atmos;
 
 static bool_t table;
 
@@ -58,21 +57,21 @@ static const double CHI_C[6] = {11.2603, 24.3833, 47.8878, 64.4939, 392.087, 489
 
 static void setup_atmos(void)
 {
-	atmos.Nspace = NSPACE;
-	atmos.T      = (double *) malloc(NSPACE * sizeof(double));
-	atmos.ne     = (double *) malloc(NSPACE * sizeof(double));
-	atmos.nHtot  = (double *) malloc(NSPACE * sizeof(double));
-	atmos.Npf    = NPF;
-	atmos.Tpf    = (double *) T_PF;
+	rh->atmos.Nspace = NSPACE;
+	rh->atmos.T      = (double *) malloc(NSPACE * sizeof(double));
+	rh->atmos.ne     = (double *) malloc(NSPACE * sizeof(double));
+	rh->atmos.nHtot  = (double *) malloc(NSPACE * sizeof(double));
+	rh->atmos.Npf    = NPF;
+	rh->atmos.Tpf    = (double *) T_PF;
 
 	for (int it = 0; it < NT; it++) {
 		double T = 3000.0 * pow(1.0e6 / 3000.0, it / (double) (NT - 1));
 		for (int ie = 0; ie < NNE; ie++) {
 			int k = it * NNE + ie;
 
-			atmos.T[k]     = T;
-			atmos.ne[k]    = pow(10.0, -10.0 + 34.0 * ie / (NNE - 1.0));
-			atmos.nHtot[k] = 1.0e18 * (1.0 + 0.1 * k);
+			rh->atmos.T[k]     = T;
+			rh->atmos.ne[k]    = pow(10.0, -10.0 + 34.0 * ie / (NNE - 1.0));
+			rh->atmos.nHtot[k] = 1.0e18 * (1.0 + 0.1 * k);
 		}
 	}
 }
@@ -128,16 +127,16 @@ static void saha_reference(const Element *el, int k, long double *n)
 {
 	long double C1 = ((long double) HPLANCK / (2.0L * (long double) PI * (long double) M_ELECTRON)) *
 					 ((long double) HPLANCK / (long double) KBOLTZMANN);
-	long double T = atmos.T[k], m[SAHA_MAXSTAGE], sum = 0.0L;
+	long double T = rh->atmos.T[k], m[SAHA_MAXSTAGE], sum = 0.0L;
 	int         e[SAHA_MAXSTAGE], emax;
 
 	m[0] = 0.5L;
 	e[0] = 1; /* 1 = 0.5 * 2^1 */
 	emax = e[0];
 	for (int i = 1; i < el->Nstage; i++) {
-		long double CT_ne = 2.0L * powl(C1 / T, -1.5L) / (long double) atmos.ne[k];
+		long double CT_ne = 2.0L * powl(C1 / T, -1.5L) / (long double) rh->atmos.ne[k];
 		long double f     = CT_ne *
-						expl((long double) (lnU(i, atmos.T[k]) - lnU(i - 1, atmos.T[k])) -
+						expl((long double) (lnU(i, rh->atmos.T[k]) - lnU(i - 1, rh->atmos.T[k])) -
 							 (long double) el->ionpot[i - 1] / ((long double) KBOLTZMANN * T));
 		int de;
 
@@ -147,7 +146,7 @@ static void saha_reference(const Element *el, int k, long double *n)
 	}
 	for (int i = 0; i < el->Nstage; i++) sum += ldexpl(m[i], e[i] - emax);
 	for (int i = 0; i < el->Nstage; i++)
-		n[i] = ldexpl(m[i], e[i] - emax) / sum * (long double) el->abund * (long double) atmos.nHtot[k];
+		n[i] = ldexpl(m[i], e[i] - emax) / sum * (long double) el->abund * (long double) rh->atmos.nHtot[k];
 }
 
 /* --- The chain as it was before N-7: linear, double -- ----------- */
@@ -155,16 +154,16 @@ static void saha_reference(const Element *el, int k, long double *n)
 static void saha_old(const Element *el, int k, double *n)
 {
 	double C1    = (HPLANCK / (2.0 * PI * M_ELECTRON)) * (HPLANCK / KBOLTZMANN);
-	double CT_ne = 2.0 * pow(C1 / atmos.T[k], -1.5) / atmos.ne[k], sum = 1.0;
+	double CT_ne = 2.0 * pow(C1 / rh->atmos.T[k], -1.5) / rh->atmos.ne[k], sum = 1.0;
 
 	n[0] = 1.0;
 	for (int i = 1; i < el->Nstage; i++) {
 		n[i] = n[i - 1] * CT_ne *
-			   exp(lnU(i, atmos.T[k]) - lnU(i - 1, atmos.T[k]) -
-				   el->ionpot[i - 1] / (KBOLTZMANN * atmos.T[k]));
+			   exp(lnU(i, rh->atmos.T[k]) - lnU(i - 1, rh->atmos.T[k]) -
+				   el->ionpot[i - 1] / (KBOLTZMANN * rh->atmos.T[k]));
 		sum += n[i];
 	}
-	n[0] = el->abund * atmos.nHtot[k] / sum;
+	n[0] = el->abund * rh->atmos.nHtot[k] / sum;
 	for (int i = 1; i < el->Nstage; i++) n[i] *= n[0];
 }
 
@@ -196,10 +195,10 @@ static double compare_pops(const char *what, double **got, long double **ref, in
 				if (r > 1.0e-3 * total[k]) {
 					if (rel > worst) worst = rel;
 					CHECK(rel <= dom_tol, "%s: dominant n[%d][%d] rel. diff %g (T = %g, ne = %g)", what, i, k, rel,
-						  atmos.T[k], atmos.ne[k]);
+						  rh->atmos.T[k], rh->atmos.ne[k]);
 				}
 				CHECK(rel <= tol, "%s: n[%d][%d] = %.17g, want %.17g (rel. diff %g, T = %g, ne = %g)", what,
-					  i, k, g, r, rel, atmos.T[k], atmos.ne[k]);
+					  i, k, g, r, rel, rh->atmos.T[k], rh->atmos.ne[k]);
 			} else {
 				/* --- Underflowing alone: at most the clip -- */
 
@@ -229,7 +228,7 @@ static void test_element(const char *what, int Nstage, const double *chi)
 			CHECK(isfinite((double) col[i]) && col[i] >= 0.0L, "reference at k = %d not usable", k);
 			ref[i][k] = col[i];
 		}
-		total[k] = el.abund * atmos.nHtot[k];
+		total[k] = el.abund * rh->atmos.nHtot[k];
 
 		/* --- Where the old chain is wrong in the dominant stage -- */
 
@@ -239,8 +238,8 @@ static void test_element(const char *what, int Nstage, const double *chi)
 
 			if (r > 1.0e-3 * total[k] && !(fabs(old[i] - r) <= 1.0e-9 * r)) {
 				if (table && Nold < 6)
-					printf("%s old chain wrong: T = %g ne = %g stage %d: old %g, ref %g\n", what, atmos.T[k],
-						   atmos.ne[k], i, old[i], r);
+					printf("%s old chain wrong: T = %g ne = %g stage %d: old %g, ref %g\n", what, rh->atmos.T[k],
+						   rh->atmos.ne[k], i, old[i], r);
 				Nold++;
 				break;
 			}
@@ -298,14 +297,14 @@ static void test_atom(bool_t Debeye)
 	for (int k = 0; k < NSPACE; k++) {
 		/* --- One depth without atoms: all populations must be zero -- */
 
-		atom.ntotal[k] = (k == 3 * NNE + 2) ? 0.0 : 2.0e-5 * atmos.nHtot[k];
+		atom.ntotal[k] = (k == 3 * NNE + 2) ? 0.0 : 2.0e-5 * rh->atmos.nHtot[k];
 		total[k]       = atom.ntotal[k];
 	}
 	LTEpops(&atom, Debeye);
 
 	if (!Debeye) {
 		for (int k = 0; k < NSPACE; k++) {
-			long double T = atmos.T[k], cNe_T = 0.5L * atmos.ne[k] * powl(C1 / T, 1.5L), sum = 0.0L;
+			long double T = rh->atmos.T[k], cNe_T = 0.5L * rh->atmos.ne[k] * powl(C1 / T, 1.5L), sum = 0.0L;
 
 			for (int i = 0; i < NLEV; i++) {
 				ref[i][k] = ((long double) atom.g[i] / atom.g[0]) *

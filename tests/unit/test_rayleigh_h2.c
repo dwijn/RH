@@ -24,8 +24,7 @@
 #include "background.h"
 #include "constant.h"
 #include "check.h"
-
-extern Atmosphere atmos;
+#include "state.h"
 
 #define NT 21
 
@@ -53,9 +52,9 @@ int main(void)
 	double   nH2 = 1.0, prev = HUGE_VAL, worst_lin = 0.0, s;
 	int      ok_mono = 1;
 
-	H2.n         = &nH2;
-	atmos.H2     = &H2;
-	atmos.Nspace = 1;
+	H2.n             = &nH2;
+	rh->atmos.H2     = &H2;
+	rh->atmos.Nspace = 1;
 
 	for (int i = 0; i < NT; i++)
 		CHECK_CLOSE(sigma_at(lam[i]), sig[i], 1.0e-12, 0.0, "node %g nm", lam[i]);

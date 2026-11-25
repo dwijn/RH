@@ -16,6 +16,7 @@
 #include "atmos.h"
 #include "error.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -23,8 +24,7 @@ bool_t xdr_molecules(XDR *xdrs, Molecule *molecules);
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- writeMolecules.c -------- */
 
@@ -43,7 +43,7 @@ void writeMolecules(char *fileName)
 	}
 	xdrstdio_create(&xdrs, fp_molecules, XDR_ENCODE);
 
-	if (!xdr_molecules(&xdrs, atmos.molecules)) {
+	if (!xdr_molecules(&xdrs, rh->atmos.molecules)) {
 		sprintf(messageStr, "Unable to write to output file %s", fileName);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
@@ -70,7 +70,7 @@ void readMolecules(char *fileName)
 	}
 	xdrstdio_create(&xdrs, fp_molecules, XDR_DECODE);
 
-	if (!xdr_molecules(&xdrs, atmos.molecules)) {
+	if (!xdr_molecules(&xdrs, rh->atmos.molecules)) {
 		sprintf(messageStr, "Unable to read from input file %s", fileName);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
@@ -92,9 +92,9 @@ bool_t xdr_molecules(XDR *xdrs, Molecule *molecules)
 	Molecule      *molecule;
 	MolecularLine *mrt;
 
-	result &= xdr_int(xdrs, &atmos.Nmolecule);
+	result &= xdr_int(xdrs, &rh->atmos.Nmolecule);
 
-	for (n = 0; n < atmos.Nmolecule; n++) {
+	for (n = 0; n < rh->atmos.Nmolecule; n++) {
 		molecule = &molecules[n];
 
 		molecID = molecule->ID;
@@ -106,7 +106,7 @@ bool_t xdr_molecules(XDR *xdrs, Molecule *molecules)
 		result &= xdr_double(xdrs, &molecule->Tmin);
 		result &= xdr_double(xdrs, &molecule->Tmax);
 
-		result &= xdr_vector(xdrs, (char *) molecule->n, atmos.Nspace,
+		result &= xdr_vector(xdrs, (char *) molecule->n, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 		if (molecule->Nv > 0 && molecule->NJ > 0) {
@@ -125,7 +125,7 @@ bool_t xdr_molecules(XDR *xdrs, Molecule *molecules)
 			freeMatrix((void **) E);
 		}
 	}
-	result &= xdr_vector(xdrs, (char *) atmos.nHmin, atmos.Nspace,
+	result &= xdr_vector(xdrs, (char *) rh->atmos.nHmin, rh->atmos.Nspace,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 	return result;

@@ -14,16 +14,13 @@
 #include "spectrum.h"
 #include "inputs.h"
 #include "stokesgrid.h"
+#include "state.h"
 
 /* --- |p| of a grid value is taken at most P_MAX (atanh = 11.9):
 	   only a vector already outside the cone (or on it) reaches it,
 	   and its direction is kept -- -------------------------------- */
 
 #define P_MAX (1.0 - 1.0E-10)
-
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
 
 /* ------- begin -------------------------- Stokes_to_rapidity.c ---- */
 
@@ -78,7 +75,7 @@ void StokesGrid_init(StokesGrid *sg, int nspect, int Nspace, double *chi,
 		   I must hold the boundary values; the rest is updated as the
 		   sweep goes (StokesGrid_update_I) -- -------------------------- */
 
-	ActiveSet *as = &spectrum.as[nspect];
+	ActiveSet *as = &rh->spectrum.as[nspect];
 	double     K[4][4], w[3];
 
 	sg->nspect = nspect;
@@ -87,8 +84,8 @@ void StokesGrid_init(StokesGrid *sg, int nspect, int Nspace, double *chi,
 	sg->S      = S;
 	sg->I      = I;
 
-	sg->polarizedK      = containsPolarized(as) || atmos.backgrflags[nspect].ispolarized;
-	sg->magneto_optical = sg->polarizedK && input.magneto_optical;
+	sg->polarizedK      = containsPolarized(as) || rh->atmos.backgrflags[nspect].ispolarized;
+	sg->magneto_optical = sg->polarizedK && rh->input.magneto_optical;
 
 	sg->buffer = (double *) malloc(12 * (size_t) Nspace * sizeof(double));
 	for (int n = 0; n < 3; n++) {

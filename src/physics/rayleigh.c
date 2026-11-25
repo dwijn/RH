@@ -15,6 +15,7 @@
 #include "constant.h"
 #include "background.h"
 #include "error.h"
+#include "state.h"
 
 #define LONG_WAVELENGTH 1.0E6
 
@@ -22,8 +23,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- Rayleigh.c -------------- */
 
@@ -58,7 +58,7 @@ bool_t Rayleigh(double lambda, Atom *atom, double *scatt)
 			line = atom->line + kr;
 			if (line->i == 0) {
 				lambda_red   = line->lambda0 * (1.0 + line->qwing *
-                                                        atmos.vmicro_char / CLIGHT);
+                                                        rh->atmos.vmicro_char / CLIGHT);
 				lambda_limit = MIN(lambda_limit, lambda_red);
 			}
 		}
@@ -73,7 +73,7 @@ bool_t Rayleigh(double lambda, Atom *atom, double *scatt)
 		for (kr = 0; kr < atom->Nline; kr++) {
 			line       = atom->line + kr;
 			lambda_red = line->lambda0 * (1.0 + line->qwing *
-													atmos.vmicro_char / CLIGHT);
+													rh->atmos.vmicro_char / CLIGHT);
 			if (line->i == 0 && lambda > lambda_red) {
 				lambda2 = 1.0 / (SQ(lambda / line->lambda0) - 1.0);
 				f       = line->Aji * (atom->g[line->j] / atom->g[0]) *
@@ -83,7 +83,7 @@ bool_t Rayleigh(double lambda, Atom *atom, double *scatt)
 		}
 		sigma_Rayleigh = sigma_e * fomega;
 
-		for (k = 0; k < atmos.Nspace; k++)
+		for (k = 0; k < rh->atmos.Nspace; k++)
 			scatt[k] = sigma_Rayleigh * atom->n[0][k];
 
 		return TRUE;

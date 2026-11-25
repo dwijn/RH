@@ -22,13 +22,11 @@
 #include "geometry.h"
 #include "spectrum.h"
 #include "bezier.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
 
-extern Geometry   geometry;
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- Piece_Stokes_Bezier3_2D.c */
 
@@ -96,9 +94,9 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 			for (l = 0; l < geometry->Nx; l++) {
 				st = &geometry->stencil[mu][local];
 
-				T_uw = Interp_2D(atmos.T, st, UPWIND);
-				Planck(1, &T_uw, spectrum.lambda[nspect], &Bnu_uw);
-				Planck(1, &atmos.T[local], spectrum.lambda[nspect], &Bnu);
+				T_uw = Interp_2D(rh->atmos.T, st, UPWIND);
+				Planck(1, &T_uw, rh->spectrum.lambda[nspect], &Bnu_uw);
+				Planck(1, &rh->atmos.T[local], rh->spectrum.lambda[nspect], &Bnu);
 
 				chi_uw  = Interp_2D(chi, st, UPWIND);
 				dtau_uw = 0.5 * (chi_uw + chi[local]) * st->ds[UPWIND];
@@ -152,7 +150,7 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 	/* --- Grid arrays of the cone-preserving interpolation (B-63),
 		   with the boundary values of I set -- ------------------------ */
 
-	StokesGrid_init(&sg, nspect, atmos.Nspace, chi, S, I);
+	StokesGrid_init(&sg, nspect, rh->atmos.Nspace, chi, S, I);
 
 	/* --- Finally, go through the grid to solve the non-local transfer
 		   equation --                                   -------------- */
@@ -339,9 +337,9 @@ void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 			for (l = 0; l < Nx; l++) {
 				st = &geometry->stencil[mu][local];
 
-				T_uw = Interp_2D(atmos.T, st, UPWIND);
-				Planck(1, &T_uw, spectrum.lambda[nspect], &Bnu_uw);
-				Planck(1, &atmos.T[local], spectrum.lambda[nspect], &Bnu);
+				T_uw = Interp_2D(rh->atmos.T, st, UPWIND);
+				Planck(1, &T_uw, rh->spectrum.lambda[nspect], &Bnu_uw);
+				Planck(1, &rh->atmos.T[local], rh->spectrum.lambda[nspect], &Bnu);
 
 				chi_uw  = Interp_2D(chi, st, UPWIND);
 				dtau_uw = 0.5 * (chi_uw + chi[local]) * st->ds[UPWIND];

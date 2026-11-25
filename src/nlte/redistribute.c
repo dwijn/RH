@@ -21,16 +21,13 @@
 #include "accelerate.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere  atmos;
-extern Spectrum    spectrum;
-extern InputData   input;
-extern CommandLine commandline;
-extern char        messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- PRDDamp.c --------------- */
 
@@ -51,7 +48,7 @@ extern char        messageStr[];
 double PRDDamp(AtomicLine *line, const double *old, long N)
 {
 	const char    routineName[] = "PRDDamp";
-	const double  w             = input.PRD_damping;
+	const double  w             = rh->input.PRD_damping;
 	double       *rho = line->rho_prd[0], dmax = 0.0;
 	static bool_t told = FALSE;
 
@@ -85,8 +82,8 @@ void Redistribute(int NmaxIter, double iterLimit)
 	Atom       *atom;
 	AtomicLine *line;
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 
 		/* --- Initialize structures for Ng acceleration PRD iteration -- */
 
@@ -103,8 +100,8 @@ void Redistribute(int NmaxIter, double iterLimit)
 				}
 				Nlamu = (int) NlamuL;
 
-				line->Ng_prd = NgInit(Nlamu, input.PRD_Ngdelay,
-									  input.PRD_Ngorder, input.PRD_Ngperiod,
+				line->Ng_prd = NgInit(Nlamu, rh->input.PRD_Ngdelay,
+									  rh->input.PRD_Ngorder, rh->input.PRD_Ngperiod,
 									  line->rho_prd[0]);
 			}
 		}
@@ -116,18 +113,18 @@ void Redistribute(int NmaxIter, double iterLimit)
 	while (niter <= NmaxIter) {
 
 		drhomaxa = 0.0;
-		for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-			atom = atmos.activeatoms[nact];
+		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+			atom = rh->atmos.activeatoms[nact];
 
 			drhomax = 0.0;
 			for (kr = 0; kr < atom->Nline; kr++) {
 				line = &atom->line[kr];
 				if (line->PRD) {
-					if (input.PRD_damping != 1.0) {
+					if (rh->input.PRD_damping != 1.0) {
 						old = (double *) realloc(old, (size_t) line->Ng_prd->N * sizeof(double));
 						memcpy(old, line->rho_prd[0], (size_t) line->Ng_prd->N * sizeof(double));
 					}
-					if (input.PRD_angle_dep == PRD_ANGLE_DEP)
+					if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
 						PRDAngleScatter(line);
 					else
 						PRDScatter(line);
@@ -148,7 +145,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 							  "rho of a PRD line is invalid in a trial evaluation");
 					sprintf(messageStr, "  PRD: iter #%d, atom %s, line %d,",
 							line->Ng_prd->count - 1, atom->ID, kr);
-					if (input.PRD_damping == 1.0)
+					if (rh->input.PRD_damping == 1.0)
 						drho = MaxChange(line->Ng_prd, messageStr, quiet = FALSE);
 					else {
 						/* --- After an accepted Ng step, its jump counts
@@ -156,7 +153,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 
 						drho = accel ? MAX(dres, MaxChange(line->Ng_prd, messageStr, quiet = TRUE))
 									 : dres;
-						fprintf(commandline.logfile, "%s delta = %6.4E", messageStr, drho);
+						fprintf(rh->commandline.logfile, "%s delta = %6.4E", messageStr, drho);
 					}
 					sprintf(messageStr, "%s", NgStatus(line->Ng_prd, accel));
 					Error(MESSAGE, routineName, messageStr);

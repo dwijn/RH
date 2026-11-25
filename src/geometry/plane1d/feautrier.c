@@ -36,6 +36,7 @@
 #include "geometry.h"
 #include "spectrum.h"
 #include "error.h"
+#include "state.h"
 
 #define A_SIXTH 0.166666666667
 
@@ -43,10 +44,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char       messageStr[];
-extern Geometry   geometry;
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
+extern char messageStr[];
 
 /* ------- begin -------------------------- Feautrier.c ------------- */
 
@@ -56,7 +54,7 @@ double Feautrier(int nspect, int mu, double *chi, double *S,
 	const char   routineName[] = "Feautrier";
 	register int k;
 
-	int    Ndep = geometry.Ndep;
+	int    Ndep = rh->geometry->Ndep;
 	double r0 = 0.0, h0 = 0.0, rN = 0.0, hN = 0.0, f0, fN, Ak, Ck,
 		   tau0 = 0.0, Bnu[2], zmu, dtau_mid, Iplus, *dtau, *abc, *A1, *C1,
 		   *F, *G, *Q, *Stmp, *ztmp;
@@ -71,26 +69,26 @@ double Feautrier(int nspect, int mu, double *chi, double *S,
 	ztmp = (double *) malloc(Ndep * sizeof(double));
 	Stmp = (double *) malloc(Ndep * sizeof(double));
 
-	zmu = 0.5 / geometry.muz[mu];
+	zmu = 0.5 / rh->geometry->muz[mu];
 	for (k = 0; k < Ndep - 1; k++) {
 		dtau[k] = zmu * (chi[k] + chi[k + 1]) *
-				  (geometry.height[k] - geometry.height[k + 1]);
+				  (rh->geometry->height[k] - rh->geometry->height[k + 1]);
 	}
 
 	/* --- Upper boundary condition:  I^- = r0*I^+ + h0 --   ---------- */
 
-	switch (geometry.vboundary[TOP]) {
+	switch (rh->geometry->vboundary[TOP]) {
 	case ZERO:
 		r0 = h0 = 0.0;
 		break;
 	case THERMALIZED:
 		r0 = 0.0;
-		Planck(2, &atmos.T[0], spectrum.lambda[nspect], Bnu);
+		Planck(2, &rh->atmos.T[0], rh->spectrum.lambda[nspect], Bnu);
 		h0 = Bnu[0] - (Bnu[1] - Bnu[0]) / dtau[0];
 		break;
 	case IRRADIATED:
 		r0 = 0.0;
-		h0 = geometry.Itop[nspect][mu];
+		h0 = rh->geometry->Itop[nspect][mu];
 		break;
 	case REFLECTIVE:
 		r0 = 1.0;
@@ -106,18 +104,18 @@ double Feautrier(int nspect, int mu, double *chi, double *S,
 	}
 	/* --- Lower boundary condition:  I^+ = rN*I^- + hN --   ---------- */
 
-	switch (geometry.vboundary[BOTTOM]) {
+	switch (rh->geometry->vboundary[BOTTOM]) {
 	case ZERO:
 		rN = hN = 0.0;
 		break;
 	case THERMALIZED:
 		rN = 0.0;
-		Planck(2, &atmos.T[Ndep - 2], spectrum.lambda[nspect], Bnu);
+		Planck(2, &rh->atmos.T[Ndep - 2], rh->spectrum.lambda[nspect], Bnu);
 		hN = Bnu[1] - (Bnu[0] - Bnu[1]) / dtau[Ndep - 2];
 		break;
 	case IRRADIATED:
 		rN = 0.0;
-		hN = geometry.Ibottom[nspect][mu];
+		hN = rh->geometry->Ibottom[nspect][mu];
 		break;
 	case REFLECTIVE:
 		rN = 1.0;

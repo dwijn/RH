@@ -31,6 +31,7 @@
 #include "atmos.h"
 #include "error.h"
 #include "constant.h"
+#include "state.h"
 
 /* --- Collisional constants in Landau - Teller format -- ----------- */
 
@@ -51,8 +52,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- COcollisions.c ---------- */
 
@@ -71,9 +71,9 @@ void COcollisions(struct Molecule *molecule)
 	C_0 = KBOLTZMANN / ATM_TO_PA;
 
 	hcomega_k = HPLANCK * CLIGHT * OMEGA0 / KBOLTZMANN;
-	beta      = (double *) malloc(atmos.Nspace * sizeof(double));
-	for (k = 0; k < atmos.Nspace; k++)
-		beta[k] = hcomega_k / atmos.T[k];
+	beta      = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	for (k = 0; k < rh->atmos.Nspace; k++)
+		beta[k] = hcomega_k / rh->atmos.T[k];
 
 	/* --- For now only calculate a v-independent collisional
 		   de-excitation rate C_ul. The upward rate is then given by:
@@ -82,36 +82,36 @@ void COcollisions(struct Molecule *molecule)
 
 	   --                                            -------------- */
 
-	molecule->C_ul = (double *) malloc(atmos.Nspace * sizeof(double));
+	molecule->C_ul = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		if (molecule->n[k]) {
 
 			/* --- Neutral hydrogen contribution --          -------------- */
 
-			molecule->C_ul[k] = C_0 * atmos.T[k] *
-								exp(B_H - A_H * pow(atmos.T[k], -0.33333333)) /
-								(1.0 - exp(-beta[k])) * atmos.H->n[0][k];
+			molecule->C_ul[k] = C_0 * rh->atmos.T[k] *
+								exp(B_H - A_H * pow(rh->atmos.T[k], -0.33333333)) /
+								(1.0 - exp(-beta[k])) * rh->atmos.H->n[0][k];
 
 			/* --- Neutral helium contribution
 			   (assuming all helium is neutral) --       -------------- */
 
-			molecule->C_ul[k] += C_0 * atmos.T[k] *
-								 exp(B_HE - A_HE * pow(atmos.T[k], -0.33333333)) /
-								 (1.0 - exp(-beta[k])) * atmos.elements[1].abund * atmos.nHtot[k];
+			molecule->C_ul[k] += C_0 * rh->atmos.T[k] *
+								 exp(B_HE - A_HE * pow(rh->atmos.T[k], -0.33333333)) /
+								 (1.0 - exp(-beta[k])) * rh->atmos.elements[1].abund * rh->atmos.nHtot[k];
 
 			/* --- H2 contribution --                        -------------- */
 
-			molecule->C_ul[k] += C_0 * atmos.T[k] *
-								 exp(B_H2 - A_H2 * pow(atmos.T[k], -0.33333333)) /
-								 (1.0 - exp(-beta[k])) * atmos.H2->n[k];
+			molecule->C_ul[k] += C_0 * rh->atmos.T[k] *
+								 exp(B_H2 - A_H2 * pow(rh->atmos.T[k], -0.33333333)) /
+								 (1.0 - exp(-beta[k])) * rh->atmos.H2->n[k];
 
 			/* --- Electronic contribution --                -------------- */
 
 			molecule->C_ul[k] += (1.4E-09 * CUBE(CM_TO_M)) / sqrt(beta[k]) *
 								 ((1.0 + beta[k]) + 19.0 * exp(-3.22 * beta[k]) *
 														(1.0 + 4.22 * beta[k])) *
-								 atmos.ne[k];
+								 rh->atmos.ne[k];
 		}
 	}
 	free(beta);

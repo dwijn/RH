@@ -21,10 +21,7 @@
 #include "constant.h"
 #include "inputs.h"
 #include "check.h"
-
-extern Atmosphere  atmos;
-extern InputData   input;
-extern CommandLine commandline;
+#include "state.h"
 
 #ifndef RH_SOURCE_DIR
 #error "RH_SOURCE_DIR must be defined"
@@ -45,18 +42,18 @@ int main(void)
 	char            line[512];
 	FILE           *log = tmpfile();
 
-	H.n          = n;
-	H.Nlevel     = 2;
-	H2.n         = nm[0];
-	atmos.H      = &H;
-	atmos.H2     = &H2;
-	atmos.Nspace = NSPACE;
-	atmos.T      = T;
-	atmos.ne     = ne;
-	strcpy(input.GauntFfData, RH_SOURCE_DIR "/Atoms/gauntff.dat");
-	strcpy(input.HminusBfData, RH_SOURCE_DIR "/Atoms/Hminus_bf.ecsv");
+	H.n              = n;
+	H.Nlevel         = 2;
+	H2.n             = nm[0];
+	rh->atmos.H      = &H;
+	rh->atmos.H2     = &H2;
+	rh->atmos.Nspace = NSPACE;
+	rh->atmos.T      = T;
+	rh->atmos.ne     = ne;
+	strcpy(rh->input.GauntFfData, RH_SOURCE_DIR "/Atoms/gauntff.dat");
+	strcpy(rh->input.HminusBfData, RH_SOURCE_DIR "/Atoms/Hminus_bf.ecsv");
 	CHECK(log != NULL, "%s", "tmpfile");
-	commandline.logfile = log;
+	rh->commandline.logfile = log;
 	hydrogenPrepare();
 
 	/* --- Table nodes (theta = 0.5 for depth 0, T = 2500 K for depth 1) --- */

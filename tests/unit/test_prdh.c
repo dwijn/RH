@@ -32,10 +32,7 @@
 #include "inputs.h"
 #include "prdh.h"
 #include "check.h"
-
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
+#include "state.h"
 
 static double urand(void)
 {
@@ -50,15 +47,15 @@ static void makeGrid(int N)
 	int    n;
 	double l = 250.0;
 
-	spectrum.Nspect = N;
-	spectrum.lambda = (double *) realloc(spectrum.lambda, N * sizeof(double));
+	rh->spectrum.Nspect = N;
+	rh->spectrum.lambda = (double *) realloc(rh->spectrum.lambda, N * sizeof(double));
 	for (n = 0; n < N; n++) {
 		double u = urand(), step;
 
 		step = (u < 0.6) ? 1e-4 * (0.5 + urand()) : (u < 0.95) ? 2e-3 * urand() + 1e-6
 															   : 0.05;
 		l += step;
-		spectrum.lambda[n] = l;
+		rh->spectrum.lambda[n] = l;
 	}
 }
 
@@ -81,7 +78,7 @@ static void check_brackets(void)
 				   index, N-42), and likewise for the second -- ----- */
 
 			for (idx = 0; idx < N; idx++) {
-				const double *lambda = spectrum.lambda;
+				const double *lambda = rh->spectrum.lambda;
 				double        prv = b.prv, gas = b.gas, nxt = b.nxt;
 				int           in1  = (la != 0) ? (lambda[idx] > prv && lambda[idx] <= gas)
 											   : (lambda[idx] <= gas);
@@ -143,12 +140,12 @@ static void check_collapse(void)
 
 	W = (double *) malloc(N * sizeof(double));
 	makeGrid(N);
-	spectrum.lambda[n0 + 1] = nextafter(spectrum.lambda[n0], 1e300);
-	CHECK(spectrum.lambda[n0 + 1] < spectrum.lambda[n0 + 2], "grid not sorted");
+	rh->spectrum.lambda[n0 + 1] = nextafter(rh->spectrum.lambda[n0], 1e300);
+	CHECK(rh->spectrum.lambda[n0 + 1] < rh->spectrum.lambda[n0 + 2], "grid not sorted");
 
 	for (t = 1; t <= 10000 && !found; t++) {
 		fac   = 1.0 - 1e-7 * t;
-		found = (spectrum.lambda[n0] * fac == spectrum.lambda[n0 + 1] * fac);
+		found = (rh->spectrum.lambda[n0] * fac == rh->spectrum.lambda[n0 + 1] * fac);
 	}
 	CHECK(found, "no shift maps the pair to one wavelength");
 
@@ -177,17 +174,17 @@ static void check_jgas(void)
 	double  **Jtab, **Jmem, **J, *I, wmu, maxrel = 0.0;
 
 	makeGrid(N);
-	atmos.Nrays       = Nrays;
-	atmos.Nspace      = Nspace;
-	atmos.Nactiveatom = 0;
-	spectrum.v_los    = matrix_double(Nrays, Nspace);
+	rh->atmos.Nrays       = Nrays;
+	rh->atmos.Nspace      = Nspace;
+	rh->atmos.Nactiveatom = 0;
+	rh->spectrum.v_los    = matrix_double(Nrays, Nspace);
 	for (mu = 0; mu < Nrays; mu++)
 		for (k = 0; k < Nspace; k++)
-			spectrum.v_los[mu][k] = (k % 3 == 0) ? 0.0 : 2.0e4 * (2.0 * urand() - 1.0); /* m/s */
+			rh->spectrum.v_los[mu][k] = (k % 3 == 0) ? 0.0 : 2.0e4 * (2.0 * urand() - 1.0); /* m/s */
 
-	spectrum.Jgas = matrix_double(N, Nspace);
+	rh->spectrum.Jgas = matrix_double(N, Nspace);
 	initJgasLocks();
-	input.prdh_limit_mem = FALSE;
+	rh->input.prdh_limit_mem = FALSE;
 	initPRDhTables();
 
 	Jtab = matrix_double(N, Nspace);
@@ -196,8 +193,8 @@ static void check_jgas(void)
 	I    = (double *) malloc(Nspace * sizeof(double));
 
 	for (rest = 0; rest < 2; rest++) {
-		input.prdh_limit_mem = rest; /* first the table, then on the fly */
-		memset(spectrum.Jgas[0], 0, (size_t) N * Nspace * sizeof(double));
+		rh->input.prdh_limit_mem = rest; /* first the table, then on the fly */
+		memset(rh->spectrum.Jgas[0], 0, (size_t) N * Nspace * sizeof(double));
 		srand(7);
 		for (la = 0; la < N; la++) {
 			for (mu = 0; mu < Nrays; mu++) {
@@ -210,7 +207,7 @@ static void check_jgas(void)
 				}
 			}
 		}
-		memcpy((rest ? Jmem : Jtab)[0], spectrum.Jgas[0], (size_t) N * Nspace * sizeof(double));
+		memcpy((rest ? Jmem : Jtab)[0], rh->spectrum.Jgas[0], (size_t) N * Nspace * sizeof(double));
 	}
 	freeJgasBuffer();
 

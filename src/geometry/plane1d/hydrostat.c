@@ -19,6 +19,7 @@
 #include "accelerate.h"
 #include "error.h"
 #include "statistics.h"
+#include "state.h"
 
 /* --- Acceleration parameters --                      -------------- */
 
@@ -30,9 +31,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Geometry   geometry;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- Hydrostatic.c ----------- */
 
@@ -49,11 +48,11 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 	Atom      *atom;
 
 	C1 = AMU / (2.0 * KBOLTZMANN);
-	C2 = atmos.gravity / KBOLTZMANN;
-	if (atmos.Stokes) C3 = 1.0 / (2.0 * MU_0 * KBOLTZMANN);
+	C2 = rh->atmos.gravity / KBOLTZMANN;
+	if (rh->atmos.Stokes) C3 = 1.0 / (2.0 * MU_0 * KBOLTZMANN);
 
-	F     = (double *) malloc(atmos.Nspace * sizeof(double));
-	dFdne = (double *) malloc(atmos.Nspace * sizeof(double));
+	F     = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	dFdne = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 	/* --- Get the electron fraction F and its numerical derivative.
 		   ne^{met} = F(T, ne) n_H^{tot} --              -------------- */
@@ -64,10 +63,10 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 	/* --- Go through all depth points and iterate on the number
 		   densities of nH, ne, np, nH2, and nHtot --    -------------- */
 
-	np  = atmos.H->n[atmos.H->Nlevel - 1];
-	nH2 = atmos.H2->n;
+	np  = rh->atmos.H->n[rh->atmos.H->Nlevel - 1];
+	nH2 = rh->atmos.H2->n;
 
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 
 		/* --- H2 is part of the system at all temperatures: outside its
 			   fit range the equilibrium constant is extrapolated, so nH2
@@ -83,17 +82,17 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 			   keep temperature and radiation field constant during the
 			   hydrostatic equilibrium iterations --       -------------- */
 
-		beta = (atmos.totalAbund - 1.0) +
-			   atmos.wght_per_H * C1 * SQ(atmos.vturb[k]) / atmos.T[k];
+		beta = (rh->atmos.totalAbund - 1.0) +
+			   rh->atmos.wght_per_H * C1 * SQ(rh->atmos.vturb[k]) / rh->atmos.T[k];
 
 		/* --- Starting solution:
 			   Note: n_k[0] is the amount of neutral atomic hydrogen. -- */
 
-		n_k[0]        = atmos.H->ntotal[k] - np[k];
-		n_k[1]        = atmos.ne[k];
+		n_k[0]        = rh->atmos.H->ntotal[k] - np[k];
+		n_k[1]        = rh->atmos.ne[k];
 		n_k[2]        = np[k];
 		n_k[3]        = nH2[k];
-		n_k[Nhse - 1] = atmos.nHtot[k];
+		n_k[Nhse - 1] = rh->atmos.nHtot[k];
 
 		Phi_H = n_k[0] / (n_k[1] * n_k[2]);
 
@@ -162,8 +161,8 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 
 			/* --- Fill right hand side --                   -------------- */
 
-			f[0] -= C2 * geometry.cmass[k] / atmos.T[k];
-			if (atmos.Stokes) f[0] += C3 * SQ(atmos.B[k]) / atmos.T[k];
+			f[0] -= C2 * rh->geometry->cmass[k] / rh->atmos.T[k];
+			if (rh->atmos.Stokes) f[0] += C3 * SQ(rh->atmos.B[k]) / rh->atmos.T[k];
 
 			/* --- Solve linearized set --                   -------------- */
 
@@ -186,24 +185,24 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 					"Hydrostatic equilibrium iteration not converged:\n"
 					" temperature: %6.1f [K], \n"
 					" hydrogen density: %9.3E [m^-3],\n dnmax: %9.3E\n",
-					atmos.T[k], atmos.nHtot[k], dnmax);
+					rh->atmos.T[k], rh->atmos.nHtot[k], dnmax);
 			Error(WARNING, routineName, messageStr);
 		}
 		/* --- Store results --                            -------------- */
 
-		nHtot_old = atmos.H->ntotal[k];
+		nHtot_old = rh->atmos.H->ntotal[k];
 
-		atmos.H->ntotal[k] = n_k[0] + n_k[2];
-		atmos.ne[k]        = n_k[1];
-		np[k]              = n_k[2];
-		atmos.nHtot[k]     = n_k[Nhse - 1];
+		rh->atmos.H->ntotal[k] = n_k[0] + n_k[2];
+		rh->atmos.ne[k]        = n_k[1];
+		np[k]                  = n_k[2];
+		rh->atmos.nHtot[k]     = n_k[Nhse - 1];
 
 		nH2[k] = n_k[3];
 
 		/* --- Adjust Non-LTE hydrogen level popultions -- -------------- */
 
-		for (i = 0; i < atmos.H->Nlevel; i++)
-			atmos.H->n[i][k] *= atmos.H->ntotal[k] / nHtot_old;
+		for (i = 0; i < rh->atmos.H->Nlevel; i++)
+			rh->atmos.H->n[i][k] *= rh->atmos.H->ntotal[k] / nHtot_old;
 
 		NgFree(Nghse);
 		free(f);
@@ -213,12 +212,12 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 	/* --- Adjust total populations of background metals and recalculate
 		   all the LTE populations, including hydrogen -- ------------- */
 
-	LTEpops(atmos.H, Debeye = TRUE);
+	LTEpops(rh->atmos.H, Debeye = TRUE);
 
-	for (n = 1; n < atmos.Natom; n++) {
-		atom = &atmos.atoms[n];
-		for (k = 0; k < atmos.Nspace; k++)
-			atom->ntotal[k] = atom->abundance * atmos.nHtot[k];
+	for (n = 1; n < rh->atmos.Natom; n++) {
+		atom = &rh->atmos.atoms[n];
+		for (k = 0; k < rh->atmos.Nspace; k++)
+			atom->ntotal[k] = atom->abundance * rh->atmos.nHtot[k];
 
 		LTEpops(atom, Debeye = TRUE);
 	}

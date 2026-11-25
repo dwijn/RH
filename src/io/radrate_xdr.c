@@ -17,6 +17,7 @@
 #include "error.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -24,9 +25,7 @@ bool_t xdr_radrate(XDR *xdrs, Atom *atom);
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- writeRadRate.c - -------- */
 
@@ -40,7 +39,7 @@ bool_t writeRadRate(Atom *atom)
 
 	/* --- Write radiatve rates for transitions treated in detail.-- -- */
 
-	if (!strcmp(input.radrateFile, "none") &&
+	if (!strcmp(rh->input.radrateFile, "none") &&
 		atom->Nprd == 0) return FALSE;
 
 	sprintf(ratesfile, (atom->ID[1] == ' ') ? "radrate.%.1s.out" : "radrate.%.2s.out", atom->ID);
@@ -73,7 +72,7 @@ bool_t readRadRate(Atom *atom)
 	FILE *fp;
 	XDR   xdrs;
 
-	if (!strcmp(input.radrateFile, "none") &&
+	if (!strcmp(rh->input.radrateFile, "none") &&
 		atom->Nprd == 0) return FALSE;
 
 	sprintf(ratesfile, (atom->ID[1] == ' ') ? "radrate.%.1s.out" : "radrate.%.2s.out", atom->ID);
@@ -109,16 +108,16 @@ bool_t xdr_radrate(XDR *xdrs, Atom *atom)
 
 	for (kr = 0; kr < atom->Nline; kr++) {
 		line = &atom->line[kr];
-		result &= xdr_vector(xdrs, (char *) line->Rij, atmos.Nspace,
+		result &= xdr_vector(xdrs, (char *) line->Rij, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
-		result &= xdr_vector(xdrs, (char *) line->Rji, atmos.Nspace,
+		result &= xdr_vector(xdrs, (char *) line->Rji, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	}
 	for (kr = 0; kr < atom->Ncont; kr++) {
 		continuum = &atom->continuum[kr];
-		result &= xdr_vector(xdrs, (char *) continuum->Rij, atmos.Nspace,
+		result &= xdr_vector(xdrs, (char *) continuum->Rij, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
-		result &= xdr_vector(xdrs, (char *) continuum->Rji, atmos.Nspace,
+		result &= xdr_vector(xdrs, (char *) continuum->Rji, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	}
 	return result;

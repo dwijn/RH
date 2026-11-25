@@ -16,15 +16,13 @@
 #include "constant.h"
 #include "error.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Geometry   geometry;
-extern Spectrum   spectrum;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- writeFlux.c ------------- */
 
@@ -34,7 +32,7 @@ bool_t writeFlux(char *fileName)
 	register int k, mu, nspect;
 
 	bool_t  result = TRUE;
-	int     Nrays = geometry.Nrays, Nplane = geometry.Nplane;
+	int     Nrays = rh->geometry->Nrays, Nplane = rh->geometry->Nplane;
 	double *flux, *wmuz;
 	FILE   *fp_flux;
 	XDR     xdrs;
@@ -51,13 +49,13 @@ bool_t writeFlux(char *fileName)
 	flux = (double *) malloc(Nplane * sizeof(double));
 	wmuz = (double *) malloc(Nrays * sizeof(double));
 	for (mu = 0; mu < Nrays; mu++)
-		wmuz[mu] = geometry.muz[mu] * geometry.wmu[mu];
+		wmuz[mu] = rh->geometry->muz[mu] * rh->geometry->wmu[mu];
 
-	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
 		for (k = 0; k < Nplane; k++) flux[k] = 0.0;
-		for (mu = 0; mu < geometry.Nrays; mu++) {
+		for (mu = 0; mu < rh->geometry->Nrays; mu++) {
 			for (k = 0; k < Nplane; k++)
-				flux[k] += spectrum.I[nspect * Nrays + mu][k] * wmuz[mu];
+				flux[k] += rh->spectrum.I[nspect * Nrays + mu][k] * wmuz[mu];
 		}
 		for (k = 0; k < Nplane; k++) flux[k] *= 2.0 * PI;
 		result &= xdr_vector(&xdrs, (char *) flux, Nplane,

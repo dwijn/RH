@@ -16,15 +16,13 @@
 #include "spectrum.h"
 #include "inputs.h"
 #include "error.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- ShortChar_Stokes.c ------ */
 
@@ -63,9 +61,9 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 
 				for (m = 0; m < geometry->Ny; m++) {
 					for (l = 0; l < geometry->Nx; l++) {
-						T_uw = Interpolate_3D(atmos.T, geometry, st_uw, l, m);
-						Planck(1, &T_uw, spectrum.lambda[nspect], &Bnu_uw);
-						Planck(1, &atmos.T[local], spectrum.lambda[nspect], &Bnu);
+						T_uw = Interpolate_3D(rh->atmos.T, geometry, st_uw, l, m);
+						Planck(1, &T_uw, rh->spectrum.lambda[nspect], &Bnu_uw);
+						Planck(1, &rh->atmos.T[local], rh->spectrum.lambda[nspect], &Bnu);
 
 						chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
 						dtau_uw = 0.5 * (chi_uw + chi[local]) * st_uw->ds;
@@ -112,7 +110,7 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 			break;
 
 		case THERMALIZED:
-			Planck(Nplane, atmos.T, spectrum.lambda[nspect], I[0]);
+			Planck(Nplane, rh->atmos.T, rh->spectrum.lambda[nspect], I[0]);
 			break;
 
 		case REFLECTIVE:
@@ -140,7 +138,7 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 	/* --- Grid arrays of the cone-preserving interpolation (B-63),
 		   with the boundary values of I set -- ------------------------ */
 
-	StokesGrid_init(&sg, nspect, atmos.Nspace, chi, S, I);
+	StokesGrid_init(&sg, nspect, rh->atmos.Nspace, chi, S, I);
 
 	/* --- Figure out in which direction the grids have to be crossed - */
 
@@ -179,13 +177,13 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 					else
 						Interpolate_Stokes_3D(&sg, STOKES_INTENSITY, geometry,
 											  st_uw, l, m, I_uw);
-					if (input.S_interpolation_stokes == DELO_BEZIER3) {
+					if (rh->input.S_interpolation_stokes == DELO_BEZIER3) {
 						Piece_Stokes_Bezier3_3D(geometry, st_uw, st_dw, &sg,
 												k, kend, l, m, I_uw, Psi);
 					} else {
 						sprintf(messageStr,
 								"Unknown polarization solver: %d",
-								input.S_interpolation_stokes);
+								rh->input.S_interpolation_stokes);
 						Error(ERROR_LEVEL_1, routineName, messageStr);
 					}
 				}
@@ -202,13 +200,13 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 					else
 						Interpolate_Stokes_3D(&sg, STOKES_INTENSITY, geometry,
 											  st_uw, l, m, I_uw);
-					if (input.S_interpolation_stokes == DELO_BEZIER3) {
+					if (rh->input.S_interpolation_stokes == DELO_BEZIER3) {
 						Piece_Stokes_Bezier3_3D(geometry, st_uw, st_dw, &sg,
 												k, kend, l, m, I_uw, Psi);
 					} else {
 						sprintf(messageStr,
 								"Unknown polarization solver: %d",
-								input.S_interpolation_stokes);
+								rh->input.S_interpolation_stokes);
 						Error(ERROR_LEVEL_1, routineName, messageStr);
 					}
 				}
@@ -233,7 +231,7 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 
 static inline bool_t convex_weights(Stencil *st)
 {
-	return st->plane != XY || input.interpolate_3D == LINEAR_3D;
+	return st->plane != XY || rh->input.interpolate_3D == LINEAR_3D;
 }
 
 static void StokesK_3D_convex(StokesGrid *sg, Geometry *geometry, Stencil *st,
@@ -256,7 +254,7 @@ static void StokesK_3D_convex(StokesGrid *sg, Geometry *geometry, Stencil *st,
 
 		   This is the 3-D short characteristics version.
 		   --                                            -------------- */
-	as = &spectrum.as[nspect];
+	as = &rh->spectrum.as[nspect];
 
 	for (j = 0; j < 4; j++)
 		for (i = 0; i < 4; i++) K[j][i] = 0.0;
@@ -264,17 +262,17 @@ static void StokesK_3D_convex(StokesGrid *sg, Geometry *geometry, Stencil *st,
 	/* --- First the contribution from the active set -- -------------- */
 
 	if (containsPolarized(as)) {
-		K[0][1] = Interpolate_3D(as->chi + atmos.Nspace,
+		K[0][1] = Interpolate_3D(as->chi + rh->atmos.Nspace,
 								 geometry, st, l, m);
-		K[0][2] = Interpolate_3D(as->chi + 2 * atmos.Nspace,
+		K[0][2] = Interpolate_3D(as->chi + 2 * rh->atmos.Nspace,
 								 geometry, st, l, m);
-		K[0][3] = Interpolate_3D(as->chi + 3 * atmos.Nspace,
+		K[0][3] = Interpolate_3D(as->chi + 3 * rh->atmos.Nspace,
 								 geometry, st, l, m);
 
-		if (input.magneto_optical) {
-			K[1][2] = Interpolate_3D(as->chip + 2 * atmos.Nspace,
+		if (rh->input.magneto_optical) {
+			K[1][2] = Interpolate_3D(as->chip + 2 * rh->atmos.Nspace,
 									 geometry, st, l, m);
-			K[1][3] = Interpolate_3D(as->chip + atmos.Nspace,
+			K[1][3] = Interpolate_3D(as->chip + rh->atmos.Nspace,
 									 geometry, st, l, m);
 			K[2][3] = Interpolate_3D(as->chip,
 									 geometry, st, l, m);
@@ -282,18 +280,18 @@ static void StokesK_3D_convex(StokesGrid *sg, Geometry *geometry, Stencil *st,
 	}
 	/* --- Add possible contrubution from the background -- ----------- */
 
-	if (atmos.backgrflags[nspect].ispolarized) {
-		K[0][1] += Interpolate_3D(as->chi_c + atmos.Nspace,
+	if (rh->atmos.backgrflags[nspect].ispolarized) {
+		K[0][1] += Interpolate_3D(as->chi_c + rh->atmos.Nspace,
 								  geometry, st, l, m);
-		K[0][2] += Interpolate_3D(as->chi_c + 2 * atmos.Nspace,
+		K[0][2] += Interpolate_3D(as->chi_c + 2 * rh->atmos.Nspace,
 								  geometry, st, l, m);
-		K[0][3] += Interpolate_3D(as->chi_c + 3 * atmos.Nspace,
+		K[0][3] += Interpolate_3D(as->chi_c + 3 * rh->atmos.Nspace,
 								  geometry, st, l, m);
 
-		if (input.magneto_optical) {
-			K[1][2] += Interpolate_3D(as->chip_c + 2 * atmos.Nspace,
+		if (rh->input.magneto_optical) {
+			K[1][2] += Interpolate_3D(as->chip_c + 2 * rh->atmos.Nspace,
 									  geometry, st, l, m);
-			K[1][3] += Interpolate_3D(as->chip_c + atmos.Nspace,
+			K[1][3] += Interpolate_3D(as->chip_c + rh->atmos.Nspace,
 									  geometry, st, l, m);
 			K[2][3] += Interpolate_3D(as->chip_c,
 									  geometry, st, l, m);
@@ -309,7 +307,7 @@ static void StokesK_3D_convex(StokesGrid *sg, Geometry *geometry, Stencil *st,
 	}
 	/* --- Anti-symmetric magneto-optical elements --    -------------- */
 
-	if (input.magneto_optical) {
+	if (rh->input.magneto_optical) {
 		K[1][3] *= -1.0;
 		K[2][1] *= -1.0;
 		K[3][2] *= -1.0;

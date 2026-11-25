@@ -35,10 +35,7 @@
 #include "inputs.h"
 #include "prdh.h"
 #include "check.h"
-
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
+#include "state.h"
 
 #define NRAYS  2
 #define NSPACE 7
@@ -113,21 +110,21 @@ int main(void)
 	size_t n = (size_t) NWAVE * NSPACE * sizeof(double);
 
 	srand(3);
-	spectrum.Nspect = NWAVE;
-	spectrum.lambda = (double *) malloc(NWAVE * sizeof(double));
+	rh->spectrum.Nspect = NWAVE;
+	rh->spectrum.lambda = (double *) malloc(NWAVE * sizeof(double));
 	for (la = 0; la < NWAVE; la++) {
 		double u = urand();
 
 		l += (u < 0.6) ? 1e-4 * (0.5 + urand()) : (u < 0.95) ? 2e-3 * urand() + 1e-6
 															 : 0.05;
-		spectrum.lambda[la] = l;
+		rh->spectrum.lambda[la] = l;
 	}
-	atmos.Nrays       = NRAYS;
-	atmos.Nspace      = NSPACE;
-	atmos.Nactiveatom = 0;
-	spectrum.v_los    = matrix_double(NRAYS, NSPACE);
+	rh->atmos.Nrays       = NRAYS;
+	rh->atmos.Nspace      = NSPACE;
+	rh->atmos.Nactiveatom = 0;
+	rh->spectrum.v_los    = matrix_double(NRAYS, NSPACE);
 	for (mu = 0; mu < NRAYS; mu++)
-		for (k = 0; k < NSPACE; k++) spectrum.v_los[mu][k] = 2.0e4 * (2.0 * urand() - 1.0);
+		for (k = 0; k < NSPACE; k++) rh->spectrum.v_los[mu][k] = 2.0e4 * (2.0 * urand() - 1.0);
 
 	/* --- Every third wavelength has a PRD line, in two groups, and
 		   a block of 70 in a row, whose inner part no wavelength without
@@ -139,19 +136,19 @@ int main(void)
 	}
 	CHECK(nprd > 20 && nprd < NWAVE - 20, "%d wavelengths with a PRD line", nprd);
 
-	spectrum.Jgas        = matrix_double(NWAVE, NSPACE);
-	input.prdh_limit_mem = FALSE;
+	rh->spectrum.Jgas        = matrix_double(NWAVE, NSPACE);
+	rh->input.prdh_limit_mem = FALSE;
 	initPRDhTables();
 	initJgasRows(isPRD);
 	{
 		int nrow = 0, nnone = 0;
 
 		for (la = 0; la < NWAVE; la++) {
-			CHECK((spectrum.PRDrow[la] == -1) == !isPRD[la], "row of wavelength %d", la);
-			nrow += spectrum.PRDrow[la] >= 0;
-			nnone += spectrum.PRDrow[la] == -2;
+			CHECK((rh->spectrum.PRDrow[la] == -1) == !isPRD[la], "row of wavelength %d", la);
+			nrow += rh->spectrum.PRDrow[la] >= 0;
+			nnone += rh->spectrum.PRDrow[la] == -2;
 		}
-		CHECK(spectrum.Jgas_fixed != NULL && nrow > 20 && nnone > 10,
+		CHECK(rh->spectrum.Jgas_fixed != NULL && nrow > 20 && nnone > 10,
 			  "%d PRD wavelengths with a row of Jgas_fixed, %d without", nrow, nnone);
 	}
 	initJgasLocks();
@@ -162,13 +159,13 @@ int main(void)
 	full(0);
 	for (gen = 1; gen <= 3; gen++) {
 		subiter(gen);
-		memcpy(ref[0], spectrum.Jgas[0], n);
+		memcpy(ref[0], rh->spectrum.Jgas[0], n);
 
 		/* --- The full solution of the same intensities, from a
 			   clean slate; then back to the sub-iteration's state -- */
 
 		full(gen);
-		err = maxrel_prd(ref, spectrum.Jgas);
+		err = maxrel_prd(ref, rh->spectrum.Jgas);
 		CHECK(err <= 1e-13, "generation %d: sub-iteration Jgas differs from the full solution by %.2e",
 			  gen, err);
 	}
@@ -178,31 +175,31 @@ int main(void)
 
 	full(0);
 	{
-		double **save = spectrum.Jgas_fixed;
+		double **save = rh->spectrum.Jgas_fixed;
 
-		spectrum.Jgas_fixed = NULL;
-		memset(spectrum.Jgas[0], 0, n);
+		rh->spectrum.Jgas_fixed = NULL;
+		memset(rh->spectrum.Jgas[0], 0, n);
 		sweep(TRUE, 1);
-		spectrum.Jgas_fixed = save;
+		rh->spectrum.Jgas_fixed = save;
 	}
-	memcpy(ref[0], spectrum.Jgas[0], n);
+	memcpy(ref[0], rh->spectrum.Jgas[0], n);
 	full(1);
-	naive = maxrel_prd(ref, spectrum.Jgas);
+	naive = maxrel_prd(ref, rh->spectrum.Jgas);
 	CHECK(naive > 1e-3, "zeroing Jgas differs from the full solution by only %.2e", naive);
 
 	/* --- 4: without Jgas_fixed everything is in Jgas --------------- */
 
 	{
-		double **save = spectrum.Jgas_fixed;
+		double **save = rh->spectrum.Jgas_fixed;
 
 		full(2);
-		memcpy(ref[0], spectrum.Jgas[0], n);
-		spectrum.Jgas_fixed = NULL;
+		memcpy(ref[0], rh->spectrum.Jgas[0], n);
+		rh->spectrum.Jgas_fixed = NULL;
 		beginJgas(FALSE);
 		sweep(FALSE, 2);
 		endJgas(FALSE);
-		spectrum.Jgas_fixed = save;
-		err                 = maxrel_prd(ref, spectrum.Jgas);
+		rh->spectrum.Jgas_fixed = save;
+		err                     = maxrel_prd(ref, rh->spectrum.Jgas);
 		CHECK(err <= 1e-13, "without Jgas_fixed Jgas differs by %.2e", err);
 	}
 
