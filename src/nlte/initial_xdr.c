@@ -63,7 +63,7 @@ void initSolution(void)
 
 	char             permission[3];
 	bool_t           openJfile;
-	int              la, j, Nsr, Nplane, index, status, oflag;
+	int              la, j, Nsr, Nplane, index, oflag;
 	double           gijk, wla, twohnu3_c2, hc_k, twoc, fourPI, *J, *J20;
 	Atom            *atom;
 	Molecule        *molecule;
@@ -138,13 +138,6 @@ void initSolution(void)
 			spectrum.Stokes_Q = matrix_double(Nsr, Nplane);
 			spectrum.Stokes_U = matrix_double(Nsr, Nplane);
 			spectrum.Stokes_V = matrix_double(Nsr, Nplane);
-		}
-		break;
-	case SPHERICAL_SYMMETRIC:
-		spectrum.I = matrix_double(spectrum.Nspect, atmos.Nrays);
-		if (atmos.Stokes) {
-			Error(ERROR_LEVEL_2, routineName,
-				  "Cannot do a full Stokes solution in spherical geometry");
 		}
 		break;
 	default:
@@ -323,17 +316,6 @@ void initSolution(void)
 
 		atom->Gamma = matrix_double(SQ(atom->Nlevel), atmos.Nspace);
 
-		/* --- Initialize the mutex lock for the operator Gamma if there
-			   are more than one threads --                -------------- */
-
-		if (input.Nthreads > 0) {
-			if ((status = pthread_mutex_init(&atom->Gamma_lock, NULL))) {
-				sprintf(messageStr, "Unable to initialize mutex_lock, status = %d",
-						status);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
-			}
-		}
-
 		switch (atom->initial_solution) {
 		case LTE_POPULATIONS:
 			for (i = 0; i < atom->Nlevel; i++) {
@@ -426,17 +408,6 @@ void initSolution(void)
 		/* --- Allocate memory for the rate equation matrix -- ---------- */
 
 		molecule->Gamma = matrix_double(SQ(molecule->Nv), atmos.Nspace);
-
-		/* --- Initialize the mutex lock for the operator Gamma if there
-			   are more than one thread --                 -------------- */
-
-		if (input.Nthreads > 0) {
-			if ((status = pthread_mutex_init(&molecule->Gamma_lock, NULL))) {
-				sprintf(messageStr, "Unable to initialize mutex_lock, status = %d",
-						status);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
-			}
-		}
 
 		switch (molecule->initial_solution) {
 

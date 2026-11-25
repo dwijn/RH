@@ -6,8 +6,8 @@ peak memory, and the difference between the builds.
 
 usage: run_stress.py --tree NAME=DIR [--tree NAME=DIR ...] [options]
 
-  --tree NAME=DIR  a build of RH: a source tree with rhf1d, rhsc2d, rhsc3d
-                   and rhsphere built in place or in build/, or a CMake
+  --tree NAME=DIR  a build of RH: a source tree with rhf1d, rhsc2d and
+                   rhsc3d built in place or in build/, or a CMake
                    build directory. The first tree is the reference for
                    comparisons.
   --only PATTERN   only run cases whose name matches PATTERN (grep -E).

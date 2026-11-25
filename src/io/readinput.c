@@ -272,7 +272,7 @@ void readInput()
 		   and the PRD rho, and carries J from G: a history of the whole
 		   state does not fit in memory there (S-11, item 6) -- ----- */
 
-	if (topology != ONE_D_PLANE && topology != SPHERICAL_SYMMETRIC)
+	if (topology != ONE_D_PLANE)
 		setKeywordValue(theKeywords, Nkeyword, "ANDERSON_EXTRAPOLATE", "POPULATIONS_RHO");
 
 	/* --- Open the input data file --                    ------------- */
@@ -339,14 +339,6 @@ void readInput()
 		}
 		break;
 
-	case SPHERICAL_SYMMETRIC:
-		if (atmos.Nrays > 0 || atmos.angleSet.set != NO_SET) {
-			Error(WARNING, routineName,
-				  "Ignoring value of keywords ANGLE_SET and NRAYS in "
-				  "spherical geometry");
-		}
-		break;
-
 	case TWO_D_PLANE:
 		if (atmos.angleSet.set == SET_EDDINGTON)
 			Error(ERROR_LEVEL_2, routineName, EDDINGTON_1D_ONLY);
@@ -361,6 +353,9 @@ void readInput()
 		if (atmos.Nrays > 0)
 			Error(WARNING, routineName,
 				  "Ignoring value of keyword NRAYS in multi-D plane geometry");
+		break;
+
+	default: /* SPHERICAL_SYMMETRIC: retired (Q-43), no program sets it */
 		break;
 	}
 
@@ -397,7 +392,6 @@ void readInput()
 
 	switch (topology) {
 	case ONE_D_PLANE:
-	case SPHERICAL_SYMMETRIC:
 		if (atmos.lambda_ref <= 0.0)
 			Error(ERROR_LEVEL_2, routineName,
 				  "Value of LAMBDA_REF should be larger than 0.0");
@@ -431,9 +425,8 @@ void readInput()
 				Error(ERROR_LEVEL_1, routineName, messageStr);
 			}
 			break;
-		case SPHERICAL_SYMMETRIC:
-			Error(ERROR_LEVEL_2, routineName,
-				  "Cannot accomodate magnetic fields in this topology");
+		default:
+			break;
 		}
 	} else {
 

@@ -137,11 +137,6 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	BgCtx      bgc;
 	ActiveSet *as;
 
-	/* --- A geometry with a Formal() of its own (rhsphere) -- ------ */
-
-	if (geometryOps.formal)
-		return geometryOps.formal(nspect, eval_operator, redistribute);
-
 	/* --- Retrieve active set as of transitions at wavelength nspect - */
 
 	as = &spectrum.as[nspect];

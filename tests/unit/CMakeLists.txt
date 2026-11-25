@@ -92,11 +92,6 @@ rh_unit_test(test_longchar_3d GEOMETRY cart3d TOPOLOGY THREE_D_PLANE
   ${PROJECT_SOURCE_DIR}/src/geometry/cart3d/solvelong.c
   ${PROJECT_SOURCE_DIR}/src/geometry/cart3d/piecestokes_3D.c
   ${PROJECT_SOURCE_DIR}/src/geometry/cart3d/project.c)
-rh_unit_test(test_formal_sphere GEOMETRY sphere TOPOLOGY SPHERICAL_SYMMETRIC
-  test_formal_sphere.c
-  ${PROJECT_SOURCE_DIR}/src/geometry/sphere/feautrier.c
-  ${PROJECT_SOURCE_DIR}/src/geometry/sphere/geometry.c
-  ${PROJECT_SOURCE_DIR}/src/geometry/sphere/project.c)
 rh_unit_test(test_formal_stokes test_formal_stokes.c
   ${PROJECT_SOURCE_DIR}/src/geometry/plane1d/piecewise_1D.c
   ${PROJECT_SOURCE_DIR}/src/geometry/plane1d/bezier_1D.c

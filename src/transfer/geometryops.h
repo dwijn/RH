@@ -69,11 +69,6 @@ typedef struct GeometryOps {
 	void (*bg_add_operator)(int Nspace, bool_t to_obs, double wmu,
 							const double *Tri, const double *sca_c,
 							const double *chi, double *A);
-
-	/* --- Optional: a Formal() of its own that replaces the driver
-		   (rhsphere, until Q-43) --                   -------------- */
-
-	double (*formal)(int nspect, bool_t eval_operator, bool_t redistribute);
 } GeometryOps;
 
 extern const GeometryOps geometryOps;

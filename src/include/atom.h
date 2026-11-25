@@ -92,28 +92,23 @@ struct AtomicLine {
 	struct Ng       *Ng_prd;
 	Atom            *atom;
 	AtomicLine     **xrd;
-	pthread_mutex_t  rate_lock;
 	ZeemanMultiplet *zm;
 	/* --- Per-thread Rij/Rji accumulators (one row per thread, see
-		   addtoRates() in fillgamma.c): replaces rate_lock for the
-		   geometries that go through the shared addtoRates(), same
-		   pattern as rhth[nt].Gamma for addtoGamma(). rhsphere/formal.c
-		   has its own separate, unshared accumulation logic and still
-		   uses rate_lock directly, so that field is left in place.
+		   addtoRates() in fillgamma.c), the same pattern as
+		   rhth[nt].Gamma for addtoGamma(), so no lock is needed.
 		   Only allocated when N_THREADS > 1; with one thread the shared
 		   Rij/Rji are accumulated into directly. -- */
 	double **Rij_thread, **Rji_thread;
 };
 
 typedef struct {
-	bool_t          hydrogenic;
-	int             i, j, Nlambda, Nblue;
-	double          lambda0, *lambda, isotope_frac, alpha0, *alpha, *Rij, *Rji;
-	double         *wquad; /* as in AtomicLine (N-62) */
-	Atom           *atom;
-	pthread_mutex_t rate_lock;
-	double        **Rij_thread, **Rji_thread;
-	PchipTable      bftable; /* Cross-sections for passive Metal_bf */
+	bool_t     hydrogenic;
+	int        i, j, Nlambda, Nblue;
+	double     lambda0, *lambda, isotope_frac, alpha0, *alpha, *Rij, *Rji;
+	double    *wquad; /* as in AtomicLine (N-62) */
+	Atom      *atom;
+	double   **Rij_thread, **Rji_thread;
+	PchipTable bftable; /* Cross-sections for passive Metal_bf */
 } AtomicContinuum;
 
 typedef struct {
@@ -176,7 +171,6 @@ struct Atom {
 	FixedTransition    *ft;
 	struct Ng          *Ng_n;
 	rhthread           *rhth;
-	pthread_mutex_t     Gamma_lock;
 	FILE               *fp_input;
 	struct RateReports *rateReports;
 };
@@ -198,10 +192,9 @@ struct Molecule {
 		charge, Nconfig, Nv, NJ, activeindex;
 	double Ediss, Tmin, Tmax, weight, *vbroad, *pf_coef, *eqc_coef,
 		*pf, **pfv, *n, **nv, **nvstar, *C_ul, **Gamma;
-	MolecularLine  *mrt;
-	struct Ng      *Ng_nv;
-	rhthread       *rhth;
-	pthread_mutex_t Gamma_lock;
+	MolecularLine *mrt;
+	struct Ng     *Ng_nv;
+	rhthread      *rhth;
 };
 
 typedef struct {

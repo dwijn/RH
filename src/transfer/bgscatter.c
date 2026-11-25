@@ -71,8 +71,8 @@
 	   It underestimates the norm where that span misses the slowest
 	   mode; Anderson's own history (m + 1 pairs) is too short for it.
 	   a, the largest albedo: the iteration solves with the linear
-	   short characteristics in 1-D (also with S_BEZIER3, N-52) and
-	   with Feautrier in spherical symmetry, where Lambda sigma >= 0 and
+	   short characteristics in 1-D (also with S_BEZIER3, N-52),
+	   where Lambda sigma >= 0 and
 	   the step is a regular splitting of I - Lambda sigma, so that
 	   rho <= ||Lambda sigma||_inf <= a.
 	   kappa is computed only once the step is below the limit, and is

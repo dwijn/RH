@@ -27,9 +27,7 @@
 		  statistical equilibrium (fixed-point consistency);
 	   -- at other populations they are the preconditioned rates above,
 		  i.e. linear in the new populations as derived;
-	   -- Gamma has entries only between the two levels of a transition;
-	   -- the per-point angle weights (wk, spherical geometry) give the
-		  same result as the scalar weight.
+	   -- Gamma has entries only between the two levels of a transition.
 
 	   Run with --table to print the measured errors.
 	   --                                              -------------- */
@@ -81,12 +79,10 @@ static void net_from_gamma(double **Gam, double n[NLEVEL][NSPACE], int k,
 
 static void check_set(const char *name, int Nt, const int *tl, const int *tu)
 {
-	double V[MAXT][NSPACE], wla[MAXT][NSPACE], gij[MAXT][NSPACE], c2[MAXT];
-	double n0[NLEVEL][NSPACE], n1[NLEVEL][NSPACE], I[NSPACE], Psi[NSPACE],
-		wk[NSPACE];
+	double   V[MAXT][NSPACE], wla[MAXT][NSPACE], gij[MAXT][NSPACE], c2[MAXT];
+	double   n0[NLEVEL][NSPACE], n1[NLEVEL][NSPACE], I[NSPACE], Psi[NSPACE];
 	double **U   = matrix_double(NLEVEL, NSPACE),
-		   **Gam = matrix_double(NLEVEL * NLEVEL, NSPACE),
-		   **Gw  = matrix_double(NLEVEL * NLEVEL, NSPACE);
+		   **Gam = matrix_double(NLEVEL * NLEVEL, NSPACE);
 	double wmu = 0.37, err_fix = 0.0, err_lin = 0.0;
 	bool_t connected[NLEVEL][NLEVEL] = {{FALSE}};
 
@@ -102,7 +98,6 @@ static void check_set(const char *name, int Nt, const int *tl, const int *tu)
 	for (int k = 0; k < NSPACE; k++) {
 		I[k]   = 0.5 * (1.0 + uniform());
 		Psi[k] = 0.5 * (1.0 + uniform());
-		wk[k]  = 0.5 * (1.0 + uniform());
 		for (int c = 0; c < NLEVEL; c++) {
 			n0[c][k] = 1.0 + uniform();
 			n1[c][k] = 1.0 + uniform();
@@ -118,18 +113,15 @@ static void check_set(const char *name, int Nt, const int *tl, const int *tu)
 		for (int k = 0; k < NSPACE; k++) U[tu[t]][k] += c2[t] * gij[t][k] * V[t][k];
 	}
 
-	/* --- Gamma, with scalar weight wmu and with wmu = 1 times wk -- - */
+	/* --- Gamma with the angle weight wmu --          -------------- */
 
 	for (int ij = 0; ij < NLEVEL * NLEVEL; ij++) {
-		for (int k = 0; k < NSPACE; k++) Gam[ij][k] = Gw[ij][k] = 0.0;
+		for (int k = 0; k < NSPACE; k++) Gam[ij][k] = 0.0;
 	}
 	for (int t = 0; t < Nt; t++) {
 		addPreconditionedRates(NLEVEL, tl[t], tu[t], c2[t], V[t], wla[t], gij[t],
 							   n0[tl[t]], n0[tu[t]], U[tl[t]], U[tu[t]], I, Psi,
-							   wmu, NULL, NSPACE, Gam);
-		addPreconditionedRates(NLEVEL, tl[t], tu[t], c2[t], V[t], wla[t], gij[t],
-							   n0[tl[t]], n0[tu[t]], U[tl[t]], U[tu[t]], I, Psi,
-							   1.0, wk, NSPACE, Gw);
+							   wmu, NSPACE, Gam);
 	}
 
 	for (int k = 0; k < NSPACE; k++) {
@@ -179,9 +171,6 @@ static void check_set(const char *name, int Nt, const int *tl, const int *tu)
 						  "%s: Gamma[%d][%d] = %g at k = %d, no transition",
 						  name, c, a, Gam[ca][k], k);
 				}
-				CHECK_CLOSE(Gw[ca][k] * wmu, Gam[ca][k] * wk[k], 0.0, 1e-14 * scale,
-							"%s: per-point weight, Gamma[%d][%d] at k = %d", name,
-							c, a, k);
 			}
 		}
 	}
@@ -191,7 +180,6 @@ static void check_set(const char *name, int Nt, const int *tl, const int *tu)
 	}
 	freeMatrix((void **) U);
 	freeMatrix((void **) Gam);
-	freeMatrix((void **) Gw);
 }
 
 int main(int argc, char *argv[])

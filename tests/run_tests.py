@@ -29,7 +29,7 @@ usage: run_tests.py --baseline DIR --candidate DIR [options]
   --skip PATTERN   skip cases whose name contains PATTERN
   --work DIR      scratch directory (default tests/work)
 
-What is checked, per case (1-D, 2-D, 3-D and spherical geometries, with and without
+What is checked, per case (1-D, 2-D and 3-D geometries, with and without
 Stokes, CRD only, two active atoms, ...):
   * candidate at 1 thread runs cleanly and matches the baseline
   * candidate at each thread count runs cleanly and matches its own
@@ -407,7 +407,6 @@ class Suite:
             ("2d", "lcbezier", ["STOKES_INPUT=%s/field_2d.B" % w, "STOKES_MODE=FIELD_FREE",
                                 "S_INTERPOLATION_LONGCHAR=S_BEZIER3"]),
             ("2d", "fullstokes", ["STOKES_INPUT=%s/field_2d.B" % w, "STOKES_MODE=FULL_STOKES"]),
-            ("sph", "small", []),
         ]
 
     def main(self):

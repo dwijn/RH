@@ -224,7 +224,6 @@ endfunction()
 add_subdirectory(src/geometry/plane1d rhf1d)
 add_subdirectory(src/geometry/cart2d rhsc2d)
 add_subdirectory(src/geometry/cart3d rhsc3d)
-add_subdirectory(src/geometry/sphere rhsphere)
 if(RH_BUILD_TOOLS)
   add_subdirectory(tools)
 endif()
@@ -235,7 +234,7 @@ endif()
 # tests/run_tests.py.
 
 enable_testing()
-foreach(prog rhf1d rhsc2d rhsc3d rhsphere)
+foreach(prog rhf1d rhsc2d rhsc3d)
   add_test(NAME start_${prog} COMMAND ${prog}
            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
   set_tests_properties(start_${prog} PROPERTIES
@@ -278,7 +277,7 @@ if(Python3_Interpreter_FOUND)
   rh_add_e2e(convergence_report convergence_report
       --rhf1d $<TARGET_FILE:rhf1d>)
   rh_add_e2e(solver_default solver_default
-      --rhf1d $<TARGET_FILE:rhf1d> --rhsphere $<TARGET_FILE:rhsphere>
+      --rhf1d $<TARGET_FILE:rhf1d>
       --rhsc2d $<TARGET_FILE:rhsc2d> --rhsc3d $<TARGET_FILE:rhsc3d>)
   rh_add_e2e(solveray_cosines solveray_cosines
       --rhsc2d $<TARGET_FILE:rhsc2d>

@@ -39,7 +39,6 @@ computations committed as data together with the script that made them
 | `test_formal_3d` | the same for the 3-D solvers (`ShortChar`, linear and Bezier, bilinear and bicubic horizontal interpolation) |
 | `test_formal_stokes` | the polarized 1-D DELO-Bezier solver with a constant (and a depth-dependent) propagation matrix and an unpolarized polynomial source function, against the matrix form of the analytic solution (`stokes_exact.h`): equal to the unpolarized Bezier solver when K' = 0, exactness of I+ for linear S, fourth order for the emergent Stokes vector. `test_formal_2d` and `test_formal_3d` check the 2-D and 3-D polarized solvers the same way on their slabs |
 | `test_zeeman` | Zeeman splitting and polarized profiles of fictional lines (normal triplet, explicit g_eff, the anomalous patterns of Na D1 and D2, 5P2-5D2, 5P1-5D0, a g = 0 null line, a rejected J = 0-0 line): components, shifts and strengths against 3j symbols, g_eff, and phi_I,Q,U,V and psi_Q,U,V for several fields, two rays and both directions against the propagation matrix derived from the normal modes (RH writes V with the opposite sign to IAU). A Milne-Eddington slab built from RH's profiles and solved with the polarized solver against the Unno-Rachkovsky solution, and the weak-field relation for V |
-| `test_formal_sphere` | spherical Feautrier along the rays of `getRays()` in a shell of constant opacity and S = B(T), against the closed-form intensities on shell rays (reflection at the tangent point) and core rays (thermalized core): convergence of P and the emergent intensity; grazing rays near the top bounded separately |
 
 The other tests also take `--table` to print the measured errors. Error bounds in the tests are about twice what is measured, so that other
 compilers and FMA contraction (Apple silicon) pass, while a real change in
@@ -115,8 +114,8 @@ tests/build_upstream.sh upstream
 
 A build is given as a source tree with a CMake build in `build/`, as a CMake
 build directory, or as a source tree built in place with the old makefiles
-(upstream RH, the usual baseline). `rhf1d`, `rhsc2d`, `rhsc3d` and
-`rhsphere` must be built. Run `tests/run_tests.py --help` for the options.
+(upstream RH, the usual baseline). `rhf1d`, `rhsc2d` and `rhsc3d` must be
+built. Run `tests/run_tests.py --help` for the options.
 
 `run_tests.py` needs Python 3.8 or newer (CI has 3.12) and uses only the standard
 library, with the `rhtest` package like the end-to-end tests. Programs run with their output in
@@ -143,7 +142,7 @@ and (with `--asan`) that AddressSanitizer is clean at 1 thread and the
 largest count (3-D at the largest count only: the code that runs only with
 one thread is shared by all geometries). Outputs are compared per wavelength, relative
 to the peak. The defaults are based on the noise of unmodified code against
-itself (about 1e-11 in 1-D/3-D/spherical, 2e-9 in the ill-conditioned 2-D
+itself (about 1e-11 in 1-D and 3-D, 2e-9 in the ill-conditioned 2-D
 example), since floating-point sums depend on thread count. Use `--exact`
 for changes that must not alter a single bit (memory management).
 

@@ -66,7 +66,7 @@ void readAtom(Atom *atom, char *atom_file)
 	bool_t exit_on_EOF, match;
 	int    i, j, Nlevel, Nline, Ncont, Nfixed,
 		Nspace = atmos.Nspace,
-		Nread, Nrequired, checkPoint, status, Ndup;
+		Nread, Nrequired, checkPoint, Ndup;
 	double f, C, lambda0, lambdamin, vtherm,
 		c_sum, waveratio, lambda_air;
 
@@ -317,22 +317,11 @@ void readAtom(Atom *atom, char *atom_file)
 			line->Rji = (double *) malloc(Nspace * sizeof(double));
 
 			/* --- Per-thread accumulators used by the shared addtoRates()
-				   in place of rate_lock --                   -------------- */
+				   (no lock) --                   -------------- */
 
 			if (input.Nthreads > 1) {
 				line->Rij_thread = matrix_double(input.Nthreads, Nspace);
 				line->Rji_thread = matrix_double(input.Nthreads, Nspace);
-			}
-
-			/* --- Initialize the mutex lock for the radiative rates if there
-				   is more than one thread --                -------------- */
-
-			if (input.Nthreads > 1) {
-				if ((status = pthread_mutex_init(&line->rate_lock, NULL))) {
-					sprintf(messageStr, "Unable to initialize mutex_lock, status = %d",
-							status);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
-				}
 			}
 
 			if (atmos.Stokes) {
@@ -443,22 +432,11 @@ void readAtom(Atom *atom, char *atom_file)
 			continuum->Rji = (double *) malloc(Nspace * sizeof(double));
 
 			/* --- Per-thread accumulators used by the shared addtoRates()
-				   in place of rate_lock --                   -------------- */
+				   (no lock) --                   -------------- */
 
 			if (input.Nthreads > 1) {
 				continuum->Rij_thread = matrix_double(input.Nthreads, Nspace);
 				continuum->Rji_thread = matrix_double(input.Nthreads, Nspace);
-			}
-
-			/* --- Initialize the mutex lock for the radiative rates if there
-				   is more than one thread --                -------------- */
-
-			if (input.Nthreads > 1) {
-				if ((status = pthread_mutex_init(&continuum->rate_lock, NULL))) {
-					sprintf(messageStr, "Unable to initialize mutex_lock, status = %d",
-							status);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
-				}
 			}
 		}
 	}

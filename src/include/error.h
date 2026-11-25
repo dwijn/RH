@@ -18,8 +18,7 @@ enum errorlevel { MESSAGE,
 				  ERROR_LEVEL_1,
 				  ERROR_LEVEL_2 };
 
-/* --- Exit status of the RH programs (rhf1d, rhsc2d, rhsc3d,
-	   rhsphere):
+/* --- Exit status of the RH programs (rhf1d, rhsc2d, rhsc3d):
 
 		 0        the run completed and converged
 		 1 - 63   the run completed, with problems: a bitmask (several
