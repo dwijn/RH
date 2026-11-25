@@ -108,7 +108,7 @@ Each requirement is a test the design and the finished library must pass.
 
 | ID | Requirement |
 |---|---|
-| S1 | Runs every current configuration (1-D, 2-D, 3-D, spherical, all keywords that survive §7) with the results of the current programs, checked with `run_tests.py --exact` at every migration step that should not change results. |
+| S1 | Runs every current configuration (1-D, 2-D, 3-D, all keywords that survive §7; spherical symmetry is retired, Q-43) with the results of the current programs, checked with `run_tests.py --exact` at every migration step that should not change results. |
 | S2 | Writes its output through the I/O library: RH's XDR files for now, so `rhanalyze` keeps working (a structured output format is open, §8). |
 | S3 | Runs too large for memory remain possible through a file-backed store that the program, not the core, provides. |
 | S4 | **Self-contained runs.** Every input file is named in the configuration, relative to the run directory or absolute; no hard-coded paths such as `../../Atoms`. |
@@ -153,7 +153,7 @@ flowchart TB
   subgraph Core["librh (no files, no globals)"]
     MOD["model builder:\natoms, molecules, wavelength grid, active sets"]
     SOL["solver: per-atmosphere setup, map G, outer solvers, synthesis"]
-    TRN["transfer driver + geometry ops\n(plane 1-D, Cartesian 2-D, 3-D, sphere)"]
+    TRN["transfer driver + geometry ops\n(plane 1-D, Cartesian 2-D, 3-D)"]
     PHY["physics: opacity, profiles, background, chemistry, collisions, PRD"]
     NUM["numerics: formal-solution kernels, Voigt, GTH, Anderson, GMRES"]
     RT["runtime: thread pool, errors, log, stop, stats"]
@@ -245,7 +245,7 @@ flowchart LR
    stencils, long characteristics); n_e if asked; LTE populations; collision
    and fixed rates from the model's collision data; chemical equilibrium;
    background opacity at every wavelength (threaded); depth scales that need
-   τ at λ_ref (1-D, sphere); line profiles (threaded). Option
+   τ at λ_ref (1-D); line profiles (threaded). Option
    `RH_KEEP_STATE` keeps the current populations and J, for warm starts and
    response functions.
 2. **`init`**: LTE, zero radiation, populations or departure coefficients
@@ -273,7 +273,7 @@ operations:
 | Operation | What the geometry provides | Today |
 |---|---|---|
 | `setup` | rays and weights, stencils, long characteristics, depth scales, from `rh_atmos` and the angle-set options | `MULTIatmos`/`readAtmos` + `fillMesh` + `getAngleQuad(r)` + `getRays` + `convertScales` |
-| `rays` | number of rays; direction cosines; integration weights, per point where they vary (sphere) | `geometry.mux/muy/muz/wmu`, sphere `Ray` |
+| `rays` | number of rays; direction cosines; integration weights | `geometry.mux/muy/muz/wmu`, sphere `Ray` |
 | `vlos` | line-of-sight velocity of each point for each ray | the callback `vproject` |
 | `bproject` | cos γ, cos 2χ, sin 2χ of the field for each ray | `Bproject` |
 | `solve` | one ray, one direction: I and the diagonal operator Ψ (and the tridiagonal operator where the method has it) from χ and S, with linear or Bézier interpolation | `Piecewise_*`, `ShortChar`, `Feautrier` |
@@ -290,16 +290,24 @@ operations:
   numerics: a positive operator in 2-D and 3-D (linear stencils, or a
   fallback per wavelength as in 1-D), and memory and cost in 3-D. N-67
   remains the question of an operator for the Stokes solver.
-- **Decided (2026-11-24): `rhsphere` joins the shared driver only if it fits
-  cleanly, otherwise it is retired** (Q-43). Its rays are impact parameter
+- **Decided (2026-11-24): `rhsphere` is retired** (Q-43). The rule was: it
+  joins the shared driver if it fits cleanly, otherwise it is retired. Its rays are impact parameter
   rays with a μ and a weight that vary along the ray, and it accumulates Γ
   and the rates itself, under locks. With per-point weights in the driver it
   fits on paper; a prototype after the driver for 1-D, 2-D and 3-D (Q-42)
   decides. It treats static, unpolarized atmospheres with angle-averaged PRD
-  only, which limits its use.
+  only, which limits its use. The evaluation after Q-42 found six paths the
+  driver would need for it alone (per-point weights and lengths in J, Γ and
+  the rates, one Feautrier solve per ray, the emergent intensity from the
+  solver, a τ check over all rays, its own background-scattering sweep,
+  refusing the angle-dependent cases), so it does not fit cleanly. A
+  spherical geometry can come back later as a table of operations once the
+  state is explicit (phase 2 onward).
 - **Decided (2026-11-24): the 2-D Eddington approximation is retired**
   (Q-41, §7). It solves each column alone as a 1-D two-stream problem,
-  which a loop over columns does with any angle set.
+  which a loop over columns does with any angle set. In 1-D `SET_EDDINGTON`
+  stays: there it is only an angle set (one ray at μ = 1/√3, weight 1), and
+  with rays from the configuration it can become a preset (Q-44).
 - `Hydrostatic` is not a geometry operation: it changes the atmosphere. It
   stays a 1-D step that only the NG solver allows (§7).
 - The indirect call per ray costs nothing measurable: each call does
@@ -697,7 +705,7 @@ src/
     plane1d/   today's rhf1d/, with its main programs for now
     cart2d/    rhsc2d/
     cart3d/    rhsc3d/
-    sphere/    rhsphere/
+    sphere/    rhsphere/ (retired in phase 1, Q-43)
 tools/, tests/, docs/, python/, idl/   unchanged
 Atoms/, Molecules/, Atmos/             unchanged until runs are self-contained
 ```
@@ -746,7 +754,7 @@ flowchart TB
    copies of the driver (about 600 lines), and opens the way for N-68.
    In three steps: retire the 2-D Eddington branch (Q-41); one driver for
    1-D, 2-D and 3-D, with `rhsphere` behind an override (Q-42); then
-   `rhsphere` joins or is retired (Q-43, §3.4).
+   `rhsphere` is retired (Q-43, §3.4: it does not join cleanly).
 2. **Gather state.** Put the eight globals and the per-run statics into one
    struct with one global instance; references are rewritten mechanically
    (`atmos.T` becomes `rh->atmos.T` with `rh` the global instance). Nothing
@@ -823,7 +831,7 @@ on review (user, 2026-11-24).
 | `METALLICITY` | **Decided:** no longer scales helium; helium is its own parameter (§3.10, A2) | a solar mixture assumed |
 | `brs.out`, `metals.out`, `molecules.out` | **Decided:** written only when asked | analysis output, written in every run today |
 | 2-D `ANGLE_SET = SET_EDDINGTON` | **Decided:** retire (before phase 1, Q-41); 1-D keeps it | each column solved alone as 1-D two-stream, which a loop over columns gives |
-| `rhsphere` | **Decided:** joins the shared driver if it fits cleanly, else retired (Q-43) | static, unpolarized, angle-averaged PRD only |
+| `rhsphere` | **Decided:** retire (phase 1, Q-43); it does not fit the shared driver cleanly | static, unpolarized, angle-averaged PRD only; six special paths in the driver |
 | `HYDROSTATIC` | **Decided:** a 1-D step of the NG solver | changes the atmosphere; a block in G is a later question |
 | `N_THREADS` | **Decided:** an env setting; the configuration sets it for `rh` | threads are a runtime property |
 
@@ -831,9 +839,8 @@ on review (user, 2026-11-24).
 
 ## 8. Open questions
 
-1. Does `rhsphere` join the shared transfer driver (§3.4)? Decided after a
-   prototype in phase 1: it joins if it fits cleanly, else it is retired
-   (Q-43).
+1. *Settled 2026-11-24:* `rhsphere` does not join the shared transfer
+   driver cleanly and is retired (Q-43, §3.4).
 2. Block-ordered reductions (§3.5): default, option, or dropped, after
    measuring the merge cost for large atoms.
 3. Synthesis on wavelengths outside the model's grid (§3.3): when, and with
