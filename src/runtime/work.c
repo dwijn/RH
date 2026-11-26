@@ -36,7 +36,7 @@
 
 extern char messageStr[];
 
-static const char *phaseName[WORK_NPHASE] = {"initial", "iterate", "final"};
+static const char *const phaseName[WORK_NPHASE] = {"initial", "iterate", "final"};
 
 /* ------- begin -------------------------- wallClock.c ------------- */
 
@@ -107,8 +107,8 @@ void workBgScatter(long Nsolved)
 
 void printWork(void)
 {
-	static const char *kindName[WORK_NKIND] = {"operator", "plain", "PRD"};
-	int                phase, kind;
+	static const char *const kindName[WORK_NKIND] = {"operator", "plain", "PRD"};
+	int                      phase, kind;
 
 	/* --- One line per phase, a fixed format that
 		   tests/analyze_run.py parses --                -------------- */

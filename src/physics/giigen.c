@@ -6,9 +6,10 @@
 
 	   --------------------------                      ----------RH-- */
 
-/* --- Evaluates angle-averaged general redistribution function PII for
-	   ordinary and cross redistribution of lines with sharp lower and
-	   broadened upperlevels.
+/* --- Gouttebroze's fast approximation GII of the angle-averaged general
+	   redistribution function PII for ordinary and cross redistribution
+	   of lines with sharp lower and broadened upper levels. (The exact
+	   PII by Gauss quadrature, which nothing called, was removed: Q-47.)
 
   See: D. G. Hummer 1962, MNRAS, 125, 21-37.
 	   I. Huben\'y, 1982, JQSRT 27, 593.
@@ -32,49 +33,6 @@
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
-
-/* ------- begin -------------------------- PII --------------------- */
-
-#define NGAUSS 8
-
-double PII(double adamp, double waveRatio, double q_emit, double q_abs)
-{
-	register int n;
-
-	static bool_t initialize = TRUE;
-	double        theta, pii, a1, a2, b1, b2, c1;
-
-	/* --- Use 8-point Gaussian quadrature --           --------------- */
-
-	static double xg[NGAUSS / 2] =
-		{0.183434642495, 0.525532409916, 0.796666477413, 0.960289856497};
-	static double wg[NGAUSS / 2] =
-		{0.362683783378, 0.313706645877, 0.222381034453, 0.101228536290};
-	static double sn[NGAUSS], cs[NGAUSS];
-
-	if (initialize) {
-		for (n = 0; n < NGAUSS; n++) {
-			theta = (n % 2) ? 0.5 * PI * (1.0 - xg[n / 2]) : 0.5 * PI * (1.0 + xg[n / 2]);
-			sn[n] = sin(theta);
-			cs[n] = cos(theta);
-		}
-		initialize = FALSE;
-	}
-
-	pii = 0.0;
-	for (n = 0; n < NGAUSS; n++) {
-		a1 = 1.0 / sqrt(1.0 - waveRatio * (2.0 * cs[n] - waveRatio));
-		a2 = a1 * waveRatio;
-		b1 = (a2 - a1 * cs[n]) / sn[n];
-		b2 = (a1 - a2 * cs[n]) / sn[n];
-		c1 = a1 * q_abs - a2 * q_emit;
-
-		pii += Voigt(adamp / (a2 * sn[n]), b1 * q_abs + b2 * q_emit, NULL) *
-			   exp(-c1 * c1) * wg[n / 2];
-	}
-	return (0.25 * pii);
-}
-/* ------- end ---------------------------- PII --------------------- */
 
 /* ------- begin -------------------------- GII --------------------- */
 /*

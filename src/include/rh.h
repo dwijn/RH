@@ -121,8 +121,9 @@ enum GTHStatus SolveGTH(int N, double **R, int root, double ntotal, double *n,
 int qsascend(const void *v1, const void *v2);
 int qsdescend(const void *v1, const void *v2);
 
-void Hunt(int n, double *array, double value, int *iLower);
-void Locate(int n, double *array, double value, int *theIndex);
+void   Hunt(int n, const double *array, double value, int *iLower);
+void   Locate(int n, const double *array, double value, int *theIndex);
+double bilinear(int Ncol, int Nrow, const double *f, double x, double y);
 
 void Linear(int Ntable, double *xtable, double *ytable,
 			int N, double *x, double *y, bool_t hunt);

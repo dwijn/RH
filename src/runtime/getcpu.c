@@ -43,8 +43,8 @@ void getCPU(int level, enum CPUaction action, char *label)
 
 	int Nblanck, Nspace, Ndot;
 
-	static double scale = 1.0 / CLOCKS_PER_SEC;
-	clock_t       CPUtime;
+	static const double scale = 1.0 / CLOCKS_PER_SEC;
+	clock_t             CPUtime;
 
 	if (level == 0 && action == TIME_START && !rh->commandline.showkeywords) {
 		rh->stats.fp_CPU = fopen(TIME_DOT_OUT, "w");

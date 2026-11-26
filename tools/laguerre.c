@@ -28,10 +28,10 @@ double GaussLaguerre(double (*function)(double x))
 
 	double integral = 0.0;
 
-	static double x_Laguerre[N_LAGUERRE] =
+	static const double x_Laguerre[N_LAGUERRE] =
 		{0.170279632305, 0.903701776799, 2.251086629866, 4.266700170288,
 		 7.045905402393, 10.758516010181, 15.740678641278, 22.863131736889};
-	static double w_Laguerre[N_LAGUERRE] =
+	static const double w_Laguerre[N_LAGUERRE] =
 		{3.69188589342E-01, 4.18786780814E-01, 1.75794986637E-01,
 		 3.33434922612E-02, 2.79453623523E-03, 9.07650877336E-05,
 		 8.48574671627E-07, 1.04800117487E-09};
