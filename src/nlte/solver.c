@@ -67,54 +67,26 @@
 
 extern char messageStr[];
 
-/* --- One block of the state vector: a contiguous array of RH -- --- */
-
-enum BlockKind { BLOCK_ATOM,
-				 BLOCK_MOLECULE,
-				 BLOCK_RHO,
-				 BLOCK_J,
-				 BLOCK_J20,
-				 BLOCK_NE };
-
-typedef struct {
-	char           name[MAX_MESSAGE_LENGTH];
-	double        *data;
-	long           N;
-	enum BlockKind kind;
-	void          *owner; /* the Atom or Molecule of a population or rho block */
-} StateBlock;
-
-static StateBlock *blocks  = NULL;
-static int         Nblocks = 0;
-static long        Nstate  = 0;
-
-/* --- Nblocks + 1 offsets of the blocks into x, set by addBlock -- -- */
-
-static long *blockStart = NULL;
-
 /* --- Largest u with exp(u) finite: log(DBL_MAX) rounded down -- */
 
 #define LOG_DBL_MAX 709.0
-
-static long   Gcount   = 0;
-static double neChange = 0.0, chemChange = 0.0;
 
 /* ------- begin -------------------------- addBlock.c -------------- */
 
 static void addBlock(const char *name, double *data, long N,
 					 enum BlockKind kind, void *owner)
 {
-	blocks = (StateBlock *) realloc(blocks, (Nblocks + 1) * sizeof(StateBlock));
-	snprintf(blocks[Nblocks].name, MAX_MESSAGE_LENGTH, "%s", name);
-	blocks[Nblocks].data    = data;
-	blocks[Nblocks].N       = N;
-	blocks[Nblocks].kind    = kind;
-	blocks[Nblocks].owner   = owner;
-	blockStart              = (long *) realloc(blockStart, (Nblocks + 2) * sizeof(long));
-	blockStart[0]           = 0;
-	blockStart[Nblocks + 1] = blockStart[Nblocks] + N;
-	Nblocks++;
-	Nstate += N;
+	rh->solver.blocks = (StateBlock *) realloc(rh->solver.blocks, (rh->solver.Nblocks + 1) * sizeof(StateBlock));
+	snprintf(rh->solver.blocks[rh->solver.Nblocks].name, MAX_MESSAGE_LENGTH, "%s", name);
+	rh->solver.blocks[rh->solver.Nblocks].data    = data;
+	rh->solver.blocks[rh->solver.Nblocks].N       = N;
+	rh->solver.blocks[rh->solver.Nblocks].kind    = kind;
+	rh->solver.blocks[rh->solver.Nblocks].owner   = owner;
+	rh->solver.blockStart                         = (long *) realloc(rh->solver.blockStart, (rh->solver.Nblocks + 2) * sizeof(long));
+	rh->solver.blockStart[0]                      = 0;
+	rh->solver.blockStart[rh->solver.Nblocks + 1] = rh->solver.blockStart[rh->solver.Nblocks] + N;
+	rh->solver.Nblocks++;
+	rh->solver.Nstate += N;
 }
 /* ------- end ---------------------------- addBlock.c -------------- */
 
@@ -133,10 +105,10 @@ long stateInit(void)
 		   initSolution() (populations, rho) and the allocation of J,
 		   before the first G_eval. Returns the length of x -- ------- */
 
-	free(blocks);
-	blocks  = NULL;
-	Nblocks = 0;
-	Nstate  = 0;
+	free(rh->solver.blocks);
+	rh->solver.blocks  = NULL;
+	rh->solver.Nblocks = 0;
+	rh->solver.Nstate  = 0;
 
 	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		atom = rh->atmos.activeatoms[nact];
@@ -169,7 +141,7 @@ long stateInit(void)
 	if (rh->input.solve_ne == ITERATION)
 		addBlock("ne", rh->atmos.ne, rh->atmos.Nspace, BLOCK_NE, NULL);
 
-	return Nstate;
+	return rh->solver.Nstate;
 }
 /* ------- end ---------------------------- stateInit.c ------------- */
 
@@ -179,17 +151,17 @@ long stateInit(void)
 
 int stateNblocks(void)
 {
-	return Nblocks;
+	return rh->solver.Nblocks;
 }
 
 const char *stateBlockName(int n)
 {
-	return blocks[n].name;
+	return rh->solver.blocks[n].name;
 }
 
 long stateBlockSize(int n)
 {
-	return blocks[n].N;
+	return rh->solver.blocks[n].N;
 }
 /* ------- end ---------------------------- stateBlocks.c ----------- */
 
@@ -199,9 +171,9 @@ void stateGather(double *x)
 {
 	register int n;
 
-	for (n = 0; n < Nblocks; n++) {
-		memcpy(x, blocks[n].data, blocks[n].N * sizeof(double));
-		x += blocks[n].N;
+	for (n = 0; n < rh->solver.Nblocks; n++) {
+		memcpy(x, rh->solver.blocks[n].data, rh->solver.blocks[n].N * sizeof(double));
+		x += rh->solver.blocks[n].N;
 	}
 }
 /* ------- end ---------------------------- stateGather.c ----------- */
@@ -212,9 +184,9 @@ void stateScatter(const double *x)
 {
 	register int n;
 
-	for (n = 0; n < Nblocks; n++) {
-		memcpy(blocks[n].data, x, blocks[n].N * sizeof(double));
-		x += blocks[n].N;
+	for (n = 0; n < rh->solver.Nblocks; n++) {
+		memcpy(rh->solver.blocks[n].data, x, rh->solver.blocks[n].N * sizeof(double));
+		x += rh->solver.blocks[n].N;
 	}
 }
 /* ------- end ---------------------------- stateScatter.c ---------- */
@@ -247,23 +219,18 @@ static double relChange(const double *old, const double *new, long N)
 	   was measured to understate the error by up to 20 times, and is
 	   not made -- ----------------------------------------------- */
 
-#define RES_HIST_MAX 11
-
-static double resHist[RES_HIST_MAX];
-static int    NresHist = 0;
-
 static void resHistReset(void)
 {
-	NresHist = 0;
+	rh->solver.NresHist = 0;
 }
 
 static void resHistAdd(double r)
 {
-	if (NresHist == RES_HIST_MAX) {
-		memmove(resHist, resHist + 1, (RES_HIST_MAX - 1) * sizeof(double));
-		NresHist--;
+	if (rh->solver.NresHist == RES_HIST_MAX) {
+		memmove(rh->solver.resHist, rh->solver.resHist + 1, (RES_HIST_MAX - 1) * sizeof(double));
+		rh->solver.NresHist--;
 	}
-	resHist[NresHist++] = r;
+	rh->solver.resHist[rh->solver.NresHist++] = r;
 }
 
 static void printContraction(const char *routineName)
@@ -277,16 +244,16 @@ static void printContraction(const char *routineName)
 		   The residual bounds the error through the contraction:
 		   error ~ r / (1 - lambda) --                   -------------- */
 
-	m = NresHist - 1;
-	if (m < 2 || !(resHist[0] > 0.0) || !(resHist[NresHist - 1] >= 0.0) ||
-		!isfinite(resHist[0]) || !isfinite(resHist[NresHist - 1])) {
+	m = rh->solver.NresHist - 1;
+	if (m < 2 || !(rh->solver.resHist[0] > 0.0) || !(rh->solver.resHist[rh->solver.NresHist - 1] >= 0.0) ||
+		!isfinite(rh->solver.resHist[0]) || !isfinite(rh->solver.resHist[rh->solver.NresHist - 1])) {
 		sprintf(messageStr, " -- Estimated contraction: no estimate (fewer than 4"
 							" iterations, or no residual to compare)\n");
 		Error(MESSAGE, routineName, messageStr);
 		return;
 	}
-	rlast  = resHist[NresHist - 1];
-	lambda = pow(rlast / resHist[0], 1.0 / m);
+	rlast  = rh->solver.resHist[rh->solver.NresHist - 1];
+	lambda = pow(rlast / rh->solver.resHist[0], 1.0 / m);
 	if (!(lambda < 1.0)) {
 		sprintf(messageStr, " -- Estimated contraction: no estimate (the residual"
 							" did not decrease over the last %d iterations)\n",
@@ -310,8 +277,8 @@ static long rhoNeSize(void)
 
 	long N = 0;
 
-	for (n = 0; n < Nblocks; n++)
-		if (blocks[n].kind == BLOCK_RHO || blocks[n].kind == BLOCK_NE) N += blocks[n].N;
+	for (n = 0; n < rh->solver.Nblocks; n++)
+		if (rh->solver.blocks[n].kind == BLOCK_RHO || rh->solver.blocks[n].kind == BLOCK_NE) N += rh->solver.blocks[n].N;
 	return N;
 }
 
@@ -322,10 +289,10 @@ static void rhoNeSave(const double *x, double *buf)
 	/* --- The rho and ne blocks of x, one after the other, for a
 		   solver that overwrites x in place --         -------------- */
 
-	for (n = 0; n < Nblocks; n++) {
-		if (blocks[n].kind != BLOCK_RHO && blocks[n].kind != BLOCK_NE) continue;
-		memcpy(buf, x + blockStart[n], blocks[n].N * sizeof(double));
-		buf += blocks[n].N;
+	for (n = 0; n < rh->solver.Nblocks; n++) {
+		if (rh->solver.blocks[n].kind != BLOCK_RHO && rh->solver.blocks[n].kind != BLOCK_NE) continue;
+		memcpy(buf, x + rh->solver.blockStart[n], rh->solver.blocks[n].N * sizeof(double));
+		buf += rh->solver.blocks[n].N;
 	}
 }
 
@@ -348,14 +315,14 @@ static void printRhoNe(const double *x, const double *saved, const double *gx)
 
 		dpops = 0.0;
 		old   = saved;
-		for (n = 0; n < Nblocks; n++) {
-			if (blocks[n].kind != BLOCK_RHO && blocks[n].kind != BLOCK_NE) continue;
-			if (blocks[n].kind == BLOCK_RHO && blocks[n].owner == (void *) atom) {
-				dpops = MAX(dpops, relChange((saved) ? old : x + blockStart[n],
-											 gx + blockStart[n], blocks[n].N));
+		for (n = 0; n < rh->solver.Nblocks; n++) {
+			if (rh->solver.blocks[n].kind != BLOCK_RHO && rh->solver.blocks[n].kind != BLOCK_NE) continue;
+			if (rh->solver.blocks[n].kind == BLOCK_RHO && rh->solver.blocks[n].owner == (void *) atom) {
+				dpops = MAX(dpops, relChange((saved) ? old : x + rh->solver.blockStart[n],
+											 gx + rh->solver.blockStart[n], rh->solver.blocks[n].N));
 				any   = TRUE;
 			}
-			if (saved) old += blocks[n].N;
+			if (saved) old += rh->solver.blocks[n].N;
 		}
 		if (any) {
 			sprintf(messageStr, " rho %s: delta = %6.4E\n", atom->ID, dpops);
@@ -363,15 +330,15 @@ static void printRhoNe(const double *x, const double *saved, const double *gx)
 		}
 	}
 	old = saved;
-	for (n = 0; n < Nblocks; n++) {
-		if (blocks[n].kind != BLOCK_RHO && blocks[n].kind != BLOCK_NE) continue;
-		if (blocks[n].kind == BLOCK_NE) {
-			dpops = relChange((saved) ? old : x + blockStart[n], gx + blockStart[n],
-							  blocks[n].N);
+	for (n = 0; n < rh->solver.Nblocks; n++) {
+		if (rh->solver.blocks[n].kind != BLOCK_RHO && rh->solver.blocks[n].kind != BLOCK_NE) continue;
+		if (rh->solver.blocks[n].kind == BLOCK_NE) {
+			dpops = relChange((saved) ? old : x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n],
+							  rh->solver.blocks[n].N);
 			sprintf(messageStr, " ne: delta = %6.4E\n", dpops);
 			Error(MESSAGE, NULL, messageStr);
 		}
-		if (saved) old += blocks[n].N;
+		if (saved) old += rh->solver.blocks[n].N;
 	}
 }
 /* ------- end ---------------------------- printRhoNe.c ------------ */
@@ -468,7 +435,7 @@ bool_t G_eval(const double *x_in, double *x_out)
 
 			for (int kr = 0; kr < atom->Nline; kr++) {
 				if (atom->line[kr].PRD && !PRDRhoCheck(atom, kr)) {
-					Gcount++;
+					rh->solver.Gcount++;
 					return FALSE;
 				}
 			}
@@ -495,7 +462,7 @@ bool_t G_eval(const double *x_in, double *x_out)
 
 	solveSpectrum(eval_operator = TRUE, redistribute = FALSE);
 	if (negTauFound()) {
-		Gcount++;
+		rh->solver.Gcount++;
 		return FALSE;
 	}
 	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++)
@@ -515,7 +482,7 @@ bool_t G_eval(const double *x_in, double *x_out)
 			   of x_in back, as it is when the formal solution gives up -- */
 
 		stateScatter(x_in);
-		Gcount++;
+		rh->solver.Gcount++;
 		return FALSE;
 	}
 
@@ -524,7 +491,7 @@ bool_t G_eval(const double *x_in, double *x_out)
 	if (rh->atmos.NPRDactive > 0) prdSubIterations(rh->input.PRD_NmaxIter);
 	if (negTauFound()) {
 		stateScatter(x_in); /* rho of the sub-iterations goes too */
-		Gcount++;
+		rh->solver.Gcount++;
 		return FALSE;
 	}
 
@@ -532,11 +499,11 @@ bool_t G_eval(const double *x_in, double *x_out)
 		   the new populations, Newton from the ne of x_in -- ------- */
 
 	if (rh->input.solve_ne == ITERATION) {
-		neChange   = Solve_ne_OfState(rh->atmos.ne, N_NE_ITER_OF_STATE);
-		chemChange = chemLastChangeReset();
+		rh->solver.neChange   = Solve_ne_OfState(rh->atmos.ne, N_NE_ITER_OF_STATE);
+		rh->solver.chemChange = chemLastChangeReset();
 	}
 	stateGather(x_out);
-	Gcount++;
+	rh->solver.Gcount++;
 
 	return TRUE;
 }
@@ -546,7 +513,7 @@ bool_t G_eval(const double *x_in, double *x_out)
 
 long G_count(void)
 {
-	return Gcount;
+	return rh->solver.Gcount;
 }
 /* ------- end ---------------------------- G_count.c --------------- */
 
@@ -564,7 +531,7 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	Molecule *molecule;
 
 	stateInit();
-	x     = (double *) malloc(Nstate * sizeof(double));
+	x     = (double *) malloc(rh->solver.Nstate * sizeof(double));
 	saved = (double *) malloc(rhoNeSize() * sizeof(double) + 1);
 	resHistReset();
 
@@ -572,7 +539,7 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 			"\n -- SOLVER = FIXED_POINT: x <- G(x), %ld unknowns;"
 			" PRD sub-iterations per G: %d;\n    Ng on G: order %d,"
 			" delay %d, period %d%s\n",
-			Nstate, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
+			rh->solver.Nstate, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
 			rh->input.Ngorder, rh->input.Ngdelay, rh->input.Ngperiod,
 			(rh->input.Ngorder > 0) ? "" : " (none: plain G)");
 	Error(MESSAGE, routineName, messageStr);
@@ -631,7 +598,7 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 		if (rh->input.solve_ne == ITERATION) {
 			sprintf(messageStr, " ne: last Newton step %.2E, chemical"
 								" equilibrium: last Newton step %.2E\n",
-					neChange, chemChange);
+					rh->solver.neChange, rh->solver.chemChange);
 			Error(MESSAGE, NULL, messageStr);
 		}
 		printRhoNe(NULL, saved, x);
@@ -674,7 +641,7 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 		   no estimate, as for ANDERSON and NEWTON_KRYLOV --  ------- */
 
 	if (rh->input.Ngorder == 0) printContraction(routineName);
-	sprintf(messageStr, " -- G evaluations: %ld\n", Gcount);
+	sprintf(messageStr, " -- G evaluations: %ld\n", rh->solver.Gcount);
 	Error(MESSAGE, routineName, messageStr);
 
 	/* --- With ne in the state: the background of the final state, for
@@ -722,16 +689,6 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	   full x. With every block packed (ALL, and Newton-Krylov) the two
 	   tables are the same. --                         -------------- */
 
-static int                  *packBlock  = NULL; /* block of each packed block */
-static int                  *carryBlock = NULL; /* the other blocks: carried */
-static int                   Ncarry     = 0;
-static long                 *packStart  = NULL; /* Npack + 1 offsets into u */
-static int                   Npack      = 0;
-static long                  Npacked    = 0;    /* length of u */
-static long                  offJ       = -1;   /* offset of J in x */
-static double               *varScale   = NULL; /* RELATIVE: fixed scale per entry of u */
-static enum solver_variables varKind    = VARIABLES_LOG;
-
 static void toVars(const double *x, double *u, unsigned char *valid)
 {
 	register long i, j;
@@ -742,20 +699,20 @@ static void toVars(const double *x, double *u, unsigned char *valid)
 
 	/* --- x is the full state, u and valid the packed variables -- */
 
-	for (p = 0; p < Npack; p++) {
-		n   = packBlock[p];
-		off = blockStart[n];
-		for (i = off, j = packStart[p]; i < off + blocks[n].N; i++, j++) {
-			if (blocks[n].kind == BLOCK_J20) {
-				J        = x[offJ + (i - off)];
+	for (p = 0; p < rh->solver.Npack; p++) {
+		n   = rh->solver.packBlock[p];
+		off = rh->solver.blockStart[n];
+		for (i = off, j = rh->solver.packStart[p]; i < off + rh->solver.blocks[n].N; i++, j++) {
+			if (rh->solver.blocks[n].kind == BLOCK_J20) {
+				J        = x[rh->solver.offJ + (i - off)];
 				valid[j] = (J > 0.0 && isfinite(x[i]) && isfinite(J));
 				u[j]     = (valid[j]) ? x[i] / J : 0.0;
-			} else if (varKind == VARIABLES_LOG) {
+			} else if (rh->solver.varKind == VARIABLES_LOG) {
 				valid[j] = (x[i] > 0.0 && isfinite(x[i]));
 				u[j]     = (valid[j]) ? log(x[i]) : 0.0;
 			} else {
-				valid[j] = (varScale[j] > 0.0 && isfinite(x[i]));
-				u[j]     = (valid[j]) ? x[i] / varScale[j] : 0.0;
+				valid[j] = (rh->solver.varScale[j] > 0.0 && isfinite(x[i]));
+				u[j]     = (valid[j]) ? x[i] / rh->solver.varScale[j] : 0.0;
 			}
 		}
 	}
@@ -777,22 +734,22 @@ static void fromVars(const double *u, const double *gx,
 		   u and mask are packed, gx and x full. J comes before J20,
 		   and J20 is packed only when J is (ALL) -- ---------------- */
 
-	for (p = 0; p < Ncarry; p++) {
-		n = carryBlock[p];
-		memcpy(x + blockStart[n], gx + blockStart[n], blocks[n].N * sizeof(double));
+	for (p = 0; p < rh->solver.Ncarry; p++) {
+		n = rh->solver.carryBlock[p];
+		memcpy(x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n], rh->solver.blocks[n].N * sizeof(double));
 	}
-	for (p = 0; p < Npack; p++) {
-		n   = packBlock[p];
-		off = blockStart[n];
-		for (i = off, j = packStart[p]; i < off + blocks[n].N; i++, j++) {
+	for (p = 0; p < rh->solver.Npack; p++) {
+		n   = rh->solver.packBlock[p];
+		off = rh->solver.blockStart[n];
+		for (i = off, j = rh->solver.packStart[p]; i < off + rh->solver.blocks[n].N; i++, j++) {
 			if (!mask[j])
 				x[i] = gx[i];
-			else if (blocks[n].kind == BLOCK_J20)
-				x[i] = u[j] * x[offJ + (i - off)];
-			else if (varKind == VARIABLES_LOG)
+			else if (rh->solver.blocks[n].kind == BLOCK_J20)
+				x[i] = u[j] * x[rh->solver.offJ + (i - off)];
+			else if (rh->solver.varKind == VARIABLES_LOG)
 				x[i] = exp(u[j]);
 			else
-				x[i] = u[j] * varScale[j];
+				x[i] = u[j] * rh->solver.varScale[j];
 		}
 	}
 }
@@ -812,32 +769,32 @@ static void setVarScale(const double *x0)
 
 	/* --- x0 is the full state, the scales are packed -- -------- */
 
-	for (p = 0; p < Npack; p++) {
-		n    = packBlock[p];
-		off  = blockStart[n];
-		poff = packStart[p];
-		switch (blocks[n].kind) {
+	for (p = 0; p < rh->solver.Npack; p++) {
+		n    = rh->solver.packBlock[p];
+		off  = rh->solver.blockStart[n];
+		poff = rh->solver.packStart[p];
+		switch (rh->solver.blocks[n].kind) {
 		case BLOCK_ATOM:
-			atom = (Atom *) blocks[n].owner;
-			for (i = 0; i < blocks[n].N; i++)
-				varScale[poff + i] = atom->ntotal[i % Nspace];
+			atom = (Atom *) rh->solver.blocks[n].owner;
+			for (i = 0; i < rh->solver.blocks[n].N; i++)
+				rh->solver.varScale[poff + i] = atom->ntotal[i % Nspace];
 			break;
 		case BLOCK_MOLECULE:
-			molecule = (Molecule *) blocks[n].owner;
+			molecule = (Molecule *) rh->solver.blocks[n].owner;
 			for (k = 0; k < Nspace; k++) {
 				total = 0.0;
 				for (l = 0; l < molecule->Nv; l++) total += x0[off + l * Nspace + k];
-				for (l = 0; l < molecule->Nv; l++) varScale[poff + l * Nspace + k] = total;
+				for (l = 0; l < molecule->Nv; l++) rh->solver.varScale[poff + l * Nspace + k] = total;
 			}
 			break;
 		case BLOCK_J:
-			for (i = 0; i < blocks[n].N; i++) varScale[poff + i] = x0[off + i];
+			for (i = 0; i < rh->solver.blocks[n].N; i++) rh->solver.varScale[poff + i] = x0[off + i];
 			break;
 		case BLOCK_NE:
-			for (i = 0; i < blocks[n].N; i++) varScale[poff + i] = rh->atmos.nHtot[i];
+			for (i = 0; i < rh->solver.blocks[n].N; i++) rh->solver.varScale[poff + i] = rh->atmos.nHtot[i];
 			break;
 		default: /* rho, J20 (J20 / J is used instead) */
-			for (i = 0; i < blocks[n].N; i++) varScale[poff + i] = 1.0;
+			for (i = 0; i < rh->solver.blocks[n].N; i++) rh->solver.varScale[poff + i] = 1.0;
 			break;
 		}
 	}
@@ -873,35 +830,35 @@ static double *setupVariables(enum solver_variables     kind,
 		   1/sqrt(N)), x_0 in x, and the variables. Returns the
 		   weights, packed --                          -------------- */
 
-	offJ = -1;
-	for (n = 0; n < Nblocks; n++)
-		if (blocks[n].kind == BLOCK_J) offJ = blockStart[n];
-	packBlock    = (int *) realloc(packBlock, Nblocks * sizeof(int));
-	carryBlock   = (int *) realloc(carryBlock, Nblocks * sizeof(int));
-	packStart    = (long *) realloc(packStart, (Nblocks + 1) * sizeof(long));
-	Npack        = 0;
-	Ncarry       = 0;
-	packStart[0] = 0;
-	for (n = 0; n < Nblocks; n++) {
-		if (!extrapolated(blocks[n].kind, which)) {
-			carryBlock[Ncarry++] = n;
+	rh->solver.offJ = -1;
+	for (n = 0; n < rh->solver.Nblocks; n++)
+		if (rh->solver.blocks[n].kind == BLOCK_J) rh->solver.offJ = rh->solver.blockStart[n];
+	rh->solver.packBlock    = (int *) realloc(rh->solver.packBlock, rh->solver.Nblocks * sizeof(int));
+	rh->solver.carryBlock   = (int *) realloc(rh->solver.carryBlock, rh->solver.Nblocks * sizeof(int));
+	rh->solver.packStart    = (long *) realloc(rh->solver.packStart, (rh->solver.Nblocks + 1) * sizeof(long));
+	rh->solver.Npack        = 0;
+	rh->solver.Ncarry       = 0;
+	rh->solver.packStart[0] = 0;
+	for (n = 0; n < rh->solver.Nblocks; n++) {
+		if (!extrapolated(rh->solver.blocks[n].kind, which)) {
+			rh->solver.carryBlock[rh->solver.Ncarry++] = n;
 			continue;
 		}
-		packBlock[Npack]     = n;
-		packStart[Npack + 1] = packStart[Npack] + blocks[n].N;
-		Npack++;
+		rh->solver.packBlock[rh->solver.Npack]     = n;
+		rh->solver.packStart[rh->solver.Npack + 1] = rh->solver.packStart[rh->solver.Npack] + rh->solver.blocks[n].N;
+		rh->solver.Npack++;
 	}
-	Npacked = packStart[Npack];
+	rh->solver.Npacked = rh->solver.packStart[rh->solver.Npack];
 
-	w = (double *) malloc(MAX(Npacked, 1) * sizeof(double));
-	for (n = 0; n < Npack; n++)
-		for (i = packStart[n]; i < packStart[n + 1]; i++)
-			w[i] = 1.0 / sqrt((double) blocks[packBlock[n]].N);
+	w = (double *) malloc(MAX(rh->solver.Npacked, 1) * sizeof(double));
+	for (n = 0; n < rh->solver.Npack; n++)
+		for (i = rh->solver.packStart[n]; i < rh->solver.packStart[n + 1]; i++)
+			w[i] = 1.0 / sqrt((double) rh->solver.blocks[rh->solver.packBlock[n]].N);
 
-	varKind = kind;
+	rh->solver.varKind = kind;
 	stateGather(x);
 	if (kind == VARIABLES_RELATIVE) {
-		varScale = (double *) realloc(varScale, MAX(Npacked, 1) * sizeof(double));
+		rh->solver.varScale = (double *) realloc(rh->solver.varScale, MAX(rh->solver.Npacked, 1) * sizeof(double));
 		setVarScale(x);
 	}
 	return w;
@@ -942,16 +899,16 @@ static enum GuardResult guardTrial(const double *xt, const double *gx,
 		   it, so that a small enough lambda always passes; Anderson
 		   passes NULL. --                               -------------- */
 
-	for (i = 0; i < Nstate; i++)
+	for (i = 0; i < rh->solver.Nstate; i++)
 		if (!isfinite(xt[i])) return GUARD_NONFINITE;
 
-	for (n = 0; n < Nblocks; n++) {
-		long off = blockStart[n];
+	for (n = 0; n < rh->solver.Nblocks; n++) {
+		long off = rh->solver.blockStart[n];
 
-		if (blocks[n].kind != BLOCK_J20) {
-			for (i = off; i < off + blocks[n].N; i++)
+		if (rh->solver.blocks[n].kind != BLOCK_J20) {
+			for (i = off; i < off + rh->solver.blocks[n].N; i++)
 				if ((xt[i] < 0.0 && !(gx[i] < 0.0) && !(xb && xb[i] < 0.0)) ||
-					(varKind == VARIABLES_RELATIVE && xt[i] == 0.0 &&
+					(rh->solver.varKind == VARIABLES_RELATIVE && xt[i] == 0.0 &&
 					 gx[i] > 0.0 && !(xb && !(xb[i] > 0.0))))
 					return GUARD_NEGATIVE;
 		}
@@ -974,7 +931,7 @@ static void logSolve(int Nsolve, bool_t per_block, const AndersonSolve *info,
 		sprintf(messageStr,
 				"  Anderson%s%s: %d column%s, cond %.2E, %d dropped;"
 				" |f|_W %.3E\n",
-				(per_block) ? " " : "", (per_block) ? blocks[packBlock[b]].name : "",
+				(per_block) ? " " : "", (per_block) ? rh->solver.blocks[rh->solver.packBlock[b]].name : "",
 				info[b].Ncols, (info[b].Ncols == 1) ? "" : "s", info[b].cond,
 				info[b].Ndrop, fnorm);
 		Error(MESSAGE, NULL, messageStr);
@@ -997,15 +954,15 @@ static double printChange(const char *routineName, int niter, const double *x,
 
 	sprintf(messageStr, "\n -- Iteration %3d\n", niter);
 	Error(MESSAGE, routineName, messageStr);
-	for (n = 0; n < Nblocks; n++) {
-		if (blocks[n].kind != BLOCK_ATOM && blocks[n].kind != BLOCK_MOLECULE)
+	for (n = 0; n < rh->solver.Nblocks; n++) {
+		if (rh->solver.blocks[n].kind != BLOCK_ATOM && rh->solver.blocks[n].kind != BLOCK_MOLECULE)
 			continue;
-		dpops = relChange(x + blockStart[n], gx + blockStart[n], blocks[n].N);
+		dpops = relChange(x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n], rh->solver.blocks[n].N);
 		sprintf(messageStr,
-				(blocks[n].kind == BLOCK_ATOM) ? " %s, delta = %6.4E\n"
-											   : " %s , delta = %6.4E\n",
-				(blocks[n].kind == BLOCK_ATOM) ? ((Atom *) blocks[n].owner)->ID
-											   : ((Molecule *) blocks[n].owner)->ID,
+				(rh->solver.blocks[n].kind == BLOCK_ATOM) ? " %s, delta = %6.4E\n"
+														  : " %s , delta = %6.4E\n",
+				(rh->solver.blocks[n].kind == BLOCK_ATOM) ? ((Atom *) rh->solver.blocks[n].owner)->ID
+														  : ((Molecule *) rh->solver.blocks[n].owner)->ID,
 				dpops);
 		Error(MESSAGE, NULL, messageStr);
 		dpopsmax = MAX(dpops, dpopsmax);
@@ -1013,15 +970,15 @@ static double printChange(const char *routineName, int niter, const double *x,
 	if (rh->input.solve_ne == ITERATION) {
 		sprintf(messageStr, " ne: last Newton step %.2E, chemical"
 							" equilibrium: last Newton step %.2E\n",
-				neChange, chemChange);
+				rh->solver.neChange, rh->solver.chemChange);
 		Error(MESSAGE, NULL, messageStr);
 	}
 	printRhoNe(x, NULL, gx);
 	if (rh->input.errorLimit > 0.0) {
-		for (n = 0; n < Nblocks; n++) {
-			if (blocks[n].kind != BLOCK_J) continue;
+		for (n = 0; n < rh->solver.Nblocks; n++) {
+			if (rh->solver.blocks[n].kind != BLOCK_J) continue;
 			sprintf(messageStr, " J: delta = %6.4E\n",
-					relChange(x + blockStart[n], gx + blockStart[n], blocks[n].N));
+					relChange(x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n], rh->solver.blocks[n].N));
 			Error(MESSAGE, NULL, messageStr);
 		}
 	}
@@ -1074,8 +1031,8 @@ static long errorSize(void)
 
 	long N = 0;
 
-	for (n = 0; n < Nblocks; n++)
-		if (errorBlock(blocks[n].kind)) N += blocks[n].N;
+	for (n = 0; n < rh->solver.Nblocks; n++)
+		if (errorBlock(rh->solver.blocks[n].kind)) N += rh->solver.blocks[n].N;
 	return N;
 }
 
@@ -1098,7 +1055,7 @@ static void errorTestInit(ErrorTest *t, const char *routineName)
 										" ITER_LIMIT"
 									  : "",
 			ERROR_STEPS,
-			((double) ERROR_STEPS * errorSize() + 2.0 * Nstate) * sizeof(double) /
+			((double) ERROR_STEPS * errorSize() + 2.0 * rh->solver.Nstate) * sizeof(double) /
 				1.0E6);
 	Error(MESSAGE, routineName, messageStr);
 }
@@ -1111,10 +1068,10 @@ static double errorResidual(const double *x, const double *gx)
 
 	double r = 0.0;
 
-	for (n = 0; n < Nblocks; n++)
-		if (blocks[n].kind == BLOCK_RHO || blocks[n].kind == BLOCK_NE ||
-			blocks[n].kind == BLOCK_J)
-			r = MAX(r, relChange(x + blockStart[n], gx + blockStart[n], blocks[n].N));
+	for (n = 0; n < rh->solver.Nblocks; n++)
+		if (rh->solver.blocks[n].kind == BLOCK_RHO || rh->solver.blocks[n].kind == BLOCK_NE ||
+			rh->solver.blocks[n].kind == BLOCK_J)
+			r = MAX(r, relChange(x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n], rh->solver.blocks[n].N));
 	return r;
 }
 
@@ -1128,9 +1085,9 @@ static void errorLogDiff(const double *y, const double *y0, double *out)
 	register int  n;
 	register long i;
 
-	for (n = 0; n < Nblocks; n++) {
-		if (!errorBlock(blocks[n].kind)) continue;
-		for (i = blockStart[n]; i < blockStart[n + 1]; i++)
+	for (n = 0; n < rh->solver.Nblocks; n++) {
+		if (!errorBlock(rh->solver.blocks[n].kind)) continue;
+		for (i = rh->solver.blockStart[n]; i < rh->solver.blockStart[n + 1]; i++)
 			*out++ = (y[i] > 0.0 && y0[i] > 0.0)
 						 ? log(fmax(y[i], DBL_MIN)) - log(fmax(y0[i], DBL_MIN))
 						 : 0.0;
@@ -1152,11 +1109,11 @@ static double errorEstimate(ErrorTest *t, const double *gx)
 		   terms of G(x): D_j = log(y_(j+1) / G(x)) - log(y_j / G(x)).
 		   Returns the estimated error of G(x), or -1 -- ------------- */
 
-	y  = (double *) malloc(Nstate * sizeof(double));
-	gy = (double *) malloc(Nstate * sizeof(double));
+	y  = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	gy = (double *) malloc(rh->solver.Nstate * sizeof(double));
 	for (j = 0; j < ERROR_STEPS; j++) D[j] = (double *) malloc(N * sizeof(double));
 
-	memcpy(y, gx, Nstate * sizeof(double));
+	memcpy(y, gx, rh->solver.Nstate * sizeof(double));
 	for (j = 0; j < ERROR_STEPS && Gok; j++) {
 		negTauReset();
 		negTauTrial(TRUE);
@@ -1165,7 +1122,7 @@ static double errorEstimate(ErrorTest *t, const double *gx)
 		t->Geval++;
 		if (!Gok) break;
 		errorLogDiff(gy, gx, D[j]);
-		memcpy(y, gy, Nstate * sizeof(double));
+		memcpy(y, gy, rh->solver.Nstate * sizeof(double));
 	}
 	negTauReset();
 	if (Gok) {
@@ -1214,7 +1171,7 @@ static bool_t errorTestStop(ErrorTest *t, const char *routineName, int niter,
 
 		/* --- What G sets besides the state, that of G(x) -- -------- */
 
-		gy = (double *) malloc(Nstate * sizeof(double));
+		gy = (double *) malloc(rh->solver.Nstate * sizeof(double));
 		G_eval(x, gy);
 		t->Geval++;
 		free(gy);
@@ -1292,9 +1249,9 @@ static bool_t carriedEqual(const double *x, const double *y)
 
 	/* --- The carried blocks agree bit for bit -- --------------- */
 
-	for (p = 0; p < Ncarry; p++) {
-		n = carryBlock[p];
-		if (memcmp(x + blockStart[n], y + blockStart[n], blocks[n].N * sizeof(double)))
+	for (p = 0; p < rh->solver.Ncarry; p++) {
+		n = rh->solver.carryBlock[p];
+		if (memcmp(x + rh->solver.blockStart[n], y + rh->solver.blockStart[n], rh->solver.blocks[n].N * sizeof(double)))
 			return FALSE;
 	}
 	return TRUE;
@@ -1324,22 +1281,22 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		   the variables and the history cover the extrapolated blocks
 		   only (ANDERSON_EXTRAPOLATE, S-11) --         -------------- */
 
-	x      = (double *) malloc(Nstate * sizeof(double));
-	gx     = (double *) malloc(Nstate * sizeof(double));
-	gacc   = (double *) malloc(Nstate * sizeof(double));
+	x      = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	gx     = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	gacc   = (double *) malloc(rh->solver.Nstate * sizeof(double));
 	w      = setupVariables(rh->input.Anderson_variables, rh->input.Anderson_extrapolate, x);
-	u      = (double *) malloc(Npacked * sizeof(double));
-	gu     = (double *) malloc(Npacked * sizeof(double));
-	un     = (double *) malloc(Npacked * sizeof(double));
-	valid  = (unsigned char *) malloc(Npacked);
-	validg = (unsigned char *) malloc(Npacked);
-	Nsolve = (rh->input.Anderson_coefficients == ANDERSON_PER_BLOCK) ? Npack : 1;
+	u      = (double *) malloc(rh->solver.Npacked * sizeof(double));
+	gu     = (double *) malloc(rh->solver.Npacked * sizeof(double));
+	un     = (double *) malloc(rh->solver.Npacked * sizeof(double));
+	valid  = (unsigned char *) malloc(rh->solver.Npacked);
+	validg = (unsigned char *) malloc(rh->solver.Npacked);
+	Nsolve = (rh->input.Anderson_coefficients == ANDERSON_PER_BLOCK) ? rh->solver.Npack : 1;
 	gamma  = (double *) calloc((size_t) Nsolve * (m > 0 ? m : 1), sizeof(double));
 	info   = (AndersonSolve *) calloc(Nsolve, sizeof(AndersonSolve));
-	a      = andersonInit(Npacked, m);
+	a      = andersonInit(rh->solver.Npacked, m);
 
-	opt.Nblock    = Npack;
-	opt.start     = packStart;
+	opt.Nblock    = rh->solver.Npack;
+	opt.start     = rh->solver.packStart;
 	opt.per_block = (rh->input.Anderson_coefficients == ANDERSON_PER_BLOCK);
 	opt.cond_max  = rh->input.Anderson_cond_max;
 	opt.safeguard = rh->input.Anderson_safeguard;
@@ -1356,16 +1313,16 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			" %ld unknowns in %d blocks extrapolated;\n    memory: history"
 			" and variables %.1f MB, x, G(x) and G at the last accepted"
 			" point %.1f MB\n",
-			Nstate, Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0, m,
+			rh->solver.Nstate, rh->solver.Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0, m,
 			rh->input.Anderson_delay, rh->input.Anderson_cond_max,
 			rh->input.Anderson_safeguard, rh->input.Anderson_safeguard_window,
-			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
+			(rh->solver.varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
 			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
 			extrapolateName[rh->input.Anderson_extrapolate],
-			rh->input.Anderson_extrapolate_default ? " (the default)" : "", Npacked, Npack,
-			((3.0 * m + 7 + (varKind == VARIABLES_RELATIVE)) * sizeof(double) + m + 4) *
-				Npacked / 1.0E6,
-			3.0 * sizeof(double) * Nstate / 1.0E6);
+			rh->input.Anderson_extrapolate_default ? " (the default)" : "", rh->solver.Npacked, rh->solver.Npack,
+			((3.0 * m + 7 + (rh->solver.varKind == VARIABLES_RELATIVE)) * sizeof(double) + m + 4) *
+				rh->solver.Npacked / 1.0E6,
+			3.0 * sizeof(double) * rh->solver.Nstate / 1.0E6);
 	Error(MESSAGE, routineName, messageStr);
 	/* --- Without PRD lines there is no rho to extrapolate: say so
 		   when the keyword file asked for POPULATIONS_RHO, the run goes
@@ -1374,8 +1331,8 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 
 	if (rh->input.Anderson_extrapolate == EXTRAPOLATE_POPULATIONS_RHO &&
 		!rh->input.Anderson_extrapolate_default) {
-		for (n = 0; n < Nblocks && blocks[n].kind != BLOCK_RHO; n++);
-		if (n == Nblocks) {
+		for (n = 0; n < rh->solver.Nblocks && rh->solver.blocks[n].kind != BLOCK_RHO; n++);
+		if (n == rh->solver.Nblocks) {
 			sprintf(messageStr,
 					"ANDERSON_EXTRAPOLATE = POPULATIONS_RHO, but there are no PRD"
 					" lines:\n the same as POPULATIONS");
@@ -1384,14 +1341,14 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	}
 	/* --- The carried blocks, several lines if needed -- -------- */
 
-	for (t = 0; t < Ncarry;) {
+	for (t = 0; t < rh->solver.Ncarry;) {
 		sprintf(messageStr, "    %s", (t == 0) ? "carried from G:" : "               ");
 		do {
-			sprintf(messageStr + strlen(messageStr), " %s%s", blocks[carryBlock[t]].name,
-					(t < Ncarry - 1) ? ";" : "");
+			sprintf(messageStr + strlen(messageStr), " %s%s", rh->solver.blocks[rh->solver.carryBlock[t]].name,
+					(t < rh->solver.Ncarry - 1) ? ";" : "");
 			t++;
-		} while (t < Ncarry &&
-				 strlen(messageStr) + strlen(blocks[carryBlock[t]].name) + 4 < 80);
+		} while (t < rh->solver.Ncarry &&
+				 strlen(messageStr) + strlen(rh->solver.blocks[rh->solver.carryBlock[t]].name) + 4 < 80);
 		strcat(messageStr, "\n");
 		Error(MESSAGE, NULL, messageStr);
 	}
@@ -1408,7 +1365,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		/* --- The carried blocks of every point are those of G at the
 			   last accepted point (S-11), checked bit for bit -- ---- */
 
-		if (Ncarry > 0 && niter > 1) {
+		if (rh->solver.Ncarry > 0 && niter > 1) {
 			Ncarried++;
 			if (carriedEqual(x, gacc)) Ncarried_ok++;
 		}
@@ -1431,7 +1388,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			Nbadtrial++;
 			negTauReset();
 			andersonRejectTrial(a);
-			memcpy(x, gacc, Nstate * sizeof(double));
+			memcpy(x, gacc, rh->solver.Nstate * sizeof(double));
 			sprintf(messageStr, "Total Iteration %3d", niter);
 			getCPU(2, TIME_POLL, messageStr);
 			niter++;
@@ -1448,7 +1405,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 
 		toVars(x, u, valid);
 		toVars(gx, gu, validg);
-		for (i = 0; i < Npacked; i++) valid[i] &= validg[i];
+		for (i = 0; i < rh->solver.Npacked; i++) valid[i] &= validg[i];
 
 		action = andersonStep(a, &opt, u, gu, valid, w, (m > 0 && niter >= delay),
 							  un, gamma, info);
@@ -1457,15 +1414,15 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			sprintf(messageStr,
 					"  Anderson: point rejected, |f|_W %.3E > %g x %.3E;"
 					" plain step from the last accepted point\n",
-					andersonNorm(Npacked, u, gu, valid, w), opt.safeguard,
+					andersonNorm(rh->solver.Npacked, u, gu, valid, w), opt.safeguard,
 					a->fnorm_ref);
 			Error(MESSAGE, NULL, messageStr);
-			memcpy(x, gacc, Nstate * sizeof(double));
+			memcpy(x, gacc, rh->solver.Nstate * sizeof(double));
 			break;
 
 		case ANDERSON_EXTRAPOLATED:
 			logSolve(Nsolve, opt.per_block, info, a->fnorm_acc);
-			memcpy(gacc, gx, Nstate * sizeof(double));
+			memcpy(gacc, gx, rh->solver.Nstate * sizeof(double));
 			fromVars(un, gx, andersonMask(a), x);
 			guard = guardTrial(x, gx, NULL);
 			for (t = 1, theta = 0.5; guard != GUARD_OK && t <= 2; t++, theta *= 0.5) {
@@ -1484,7 +1441,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 				Error(MESSAGE, NULL, messageStr);
 				Nguardplain++;
 				andersonAbandon(a, un);
-				memcpy(x, gx, Nstate * sizeof(double));
+				memcpy(x, gx, rh->solver.Nstate * sizeof(double));
 				break;
 			}
 			break;
@@ -1492,8 +1449,8 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		default: /* plain step, copied --                 -------------- */
 			if (m > 0 && niter >= delay && andersonNcols(a) > 0)
 				logSolve(Nsolve, opt.per_block, info, a->fnorm_acc);
-			memcpy(gacc, gx, Nstate * sizeof(double));
-			memcpy(x, gx, Nstate * sizeof(double));
+			memcpy(gacc, gx, rh->solver.Nstate * sizeof(double));
+			memcpy(x, gx, rh->solver.Nstate * sizeof(double));
 			break;
 		}
 		niter++;
@@ -1527,7 +1484,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	sprintf(messageStr,
 			" -- G evaluations: %ld\n -- Anderson: extrapolated %ld, plain %ld,"
 			" rejected %ld; guard: damped %ld, plain %ld; columns dropped %ld\n",
-			Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
+			rh->solver.Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
 			a->Ndropped);
 	Error(MESSAGE, routineName, messageStr);
 	errorTestSummary(&et, routineName);
@@ -1539,7 +1496,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 				Nbadtrial);
 		Error(MESSAGE, routineName, messageStr);
 	}
-	if (Ncarry > 0) {
+	if (rh->solver.Ncarry > 0) {
 		sprintf(messageStr,
 				" -- Anderson: carried blocks equal to G at the last accepted"
 				" point in %ld of %ld evaluations\n",
@@ -1600,9 +1557,9 @@ static void fdProduct(void *vctx, const double *v, double *y)
 		   has no value in the variables (G <= 0 in LOG) is set to 0 and
 		   counted -- --                                -------------- */
 
-	vnorm = weightedNorm(Nstate, v, c->mask, c->w);
+	vnorm = weightedNorm(rh->solver.Nstate, v, c->mask, c->w);
 	eps   = c->h / ((vnorm > 0.0) ? vnorm : 1.0);
-	for (i = 0; i < Nstate; i++) c->up[i] = (c->mask[i]) ? c->u[i] + eps * v[i] : 0.0;
+	for (i = 0; i < rh->solver.Nstate; i++) c->up[i] = (c->mask[i]) ? c->u[i] + eps * v[i] : 0.0;
 	fromVars(c->up, c->x, c->mask, c->xp);
 
 	/* --- A probe whose total opacity is negative enough to overflow
@@ -1616,13 +1573,13 @@ static void fdProduct(void *vctx, const double *v, double *y)
 		negTauReset();
 		c->Nprobe++;
 		c->Nbadtrial++;
-		for (i = 0; i < Nstate; i++) y[i] = 0.0;
+		for (i = 0; i < rh->solver.Nstate; i++) y[i] = 0.0;
 		return;
 	}
 	negTauTrial(FALSE);
 	c->Nprobe++;
 	toVars(c->gp, c->gup, c->validp);
-	for (i = 0; i < Nstate; i++) {
+	for (i = 0; i < rh->solver.Nstate; i++) {
 		if (!c->mask[i]) {
 			y[i] = 0.0;
 		} else if (!c->validp[i]) {
@@ -1648,11 +1605,11 @@ static double residualOf(const double *x, const double *gx, double *u,
 
 	toVars(x, u, valid);
 	toVars(gx, gu, validg);
-	for (i = 0; i < Nstate; i++) {
+	for (i = 0; i < rh->solver.Nstate; i++) {
 		valid[i] &= validg[i];
 		r[i] = (valid[i]) ? gu[i] - u[i] : 0.0;
 	}
-	return weightedNorm(Nstate, r, valid, w);
+	return weightedNorm(rh->solver.Nstate, r, valid, w);
 }
 /* ------- end ---------------------------- residualOf.c ------------ */
 
@@ -1680,23 +1637,23 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	Gmres           *gm;
 
 	stateInit();
-	x       = (double *) malloc(Nstate * sizeof(double));
-	gx      = (double *) malloc(Nstate * sizeof(double));
-	u       = (double *) malloc(Nstate * sizeof(double));
-	gu      = (double *) malloc(Nstate * sizeof(double));
-	r       = (double *) malloc(Nstate * sizeof(double));
-	d       = (double *) malloc(Nstate * sizeof(double));
-	xt      = (double *) malloc(Nstate * sizeof(double));
-	gt      = (double *) malloc(Nstate * sizeof(double));
-	ut      = (double *) malloc(Nstate * sizeof(double));
-	gut     = (double *) malloc(Nstate * sizeof(double));
-	rt      = (double *) malloc(Nstate * sizeof(double));
+	x       = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	gx      = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	u       = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	gu      = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	r       = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	d       = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	xt      = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	gt      = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	ut      = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	gut     = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	rt      = (double *) malloc(rh->solver.Nstate * sizeof(double));
 	w       = setupVariables(rh->input.Newton_variables, EXTRAPOLATE_ALL, x);
-	valid   = (unsigned char *) malloc(Nstate);
-	validg  = (unsigned char *) malloc(Nstate);
-	validt  = (unsigned char *) malloc(Nstate);
-	validgt = (unsigned char *) malloc(Nstate);
-	gm      = gmresInit(Nstate, k);
+	valid   = (unsigned char *) malloc(rh->solver.Nstate);
+	validg  = (unsigned char *) malloc(rh->solver.Nstate);
+	validt  = (unsigned char *) malloc(rh->solver.Nstate);
+	validgt = (unsigned char *) malloc(rh->solver.Nstate);
+	gm      = gmresInit(rh->solver.Nstate, k);
 
 	/* --- The probes of fdProduct use the trial buffers: they are
 		   never alive at the same time --              -------------- */
@@ -1725,12 +1682,12 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			" safeguard above %g,\n    floor 0.5 x ITER_LIMIT / |R|_W;"
 			" line search: lambda = 1 ... 1/%d, Armijo %.0E;\n"
 			"    N_MAX_ITER caps G evaluations; memory %.1f MB\n",
-			Nstate, Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
-			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE", rh->input.Newton_noise,
+			rh->solver.Nstate, rh->solver.Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
+			(rh->solver.varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE", rh->input.Newton_noise,
 			h, k, rh->input.Newton_eta_max, NEWTON_EW_GAMMA, NEWTON_EW_ALPHA,
 			NEWTON_EW_SAFE, 1 << NEWTON_N_BACKTRACK, NEWTON_ARMIJO,
-			((k + 1.0 + 12 + (varKind == VARIABLES_RELATIVE)) * sizeof(double) + 4) *
-				Nstate / 1.0E6);
+			((k + 1.0 + 12 + (rh->solver.varKind == VARIABLES_RELATIVE)) * sizeof(double) + 4) *
+				rh->solver.Nstate / 1.0E6);
 	Error(MESSAGE, routineName, messageStr);
 
 	errorTestInit(&et, routineName);
@@ -1763,10 +1720,10 @@ void iterateNewton(int NmaxIter, double iterLimit)
 							  rh->input.Newton_eta_max,
                             (et.limit > 0.0) ? MIN(iterLimit, et.target) : iterLimit);
 		kmax  = (int) MIN((long) k, NmaxIter - Neval - 1);
-		for (i = 0; i < Nstate; i++) rt[i] = -r[i];
+		for (i = 0; i < rh->solver.Nstate; i++) rt[i] = -r[i];
 		memset(&gres, 0, sizeof(gres));
 		gres.rnorm0 = gres.rnorm = rnorm;
-		memset(d, 0, Nstate * sizeof(double));
+		memset(d, 0, rh->solver.Nstate * sizeof(double));
 		if (kmax >= 1) {
 			ctx.Nprobe = 0;
 			gres       = gmresSolve(gm, fdProduct, &ctx, rt, valid, w, kmax, eta * rnorm, d);
@@ -1784,8 +1741,8 @@ void iterateNewton(int NmaxIter, double iterLimit)
 		memset(Nreason, 0, sizeof(Nreason));
 		dinf = 0.0;
 		ninf = 0;
-		for (n = 0; n < Nblocks; n++)
-			for (i = blockStart[n]; i < blockStart[n + 1]; i++)
+		for (n = 0; n < rh->solver.Nblocks; n++)
+			for (i = rh->solver.blockStart[n]; i < rh->solver.blockStart[n + 1]; i++)
 				if (valid[i] && fabs(d[i]) > dinf) {
 					dinf = fabs(d[i]);
 					ninf = n;
@@ -1796,10 +1753,10 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			for (nback = 0; nback <= NEWTON_N_BACKTRACK && Neval < NmaxIter;
 				 nback++, lambda *= 0.5) {
 				guard = GUARD_OK;
-				for (n = 0; n < Nblocks; n++)
-					for (i = blockStart[n]; i < blockStart[n + 1]; i++) {
+				for (n = 0; n < rh->solver.Nblocks; n++)
+					for (i = rh->solver.blockStart[n]; i < rh->solver.blockStart[n + 1]; i++) {
 						ut[i] = (valid[i]) ? u[i] + lambda * d[i] : 0.0;
-						if (varKind == VARIABLES_LOG && blocks[n].kind != BLOCK_J20 &&
+						if (rh->solver.varKind == VARIABLES_LOG && rh->solver.blocks[n].kind != BLOCK_J20 &&
 							ut[i] > LOG_DBL_MAX)
 							guard = GUARD_NONFINITE; /* exp would overflow */
 					}
@@ -1832,9 +1789,9 @@ void iterateNewton(int NmaxIter, double iterLimit)
 					   loses one of the base's (G(trial) <= 0 in LOG)
 					   is not accepted, or dropping it could pass --  */
 
-				for (i = 0; i < Nstate; i++)
+				for (i = 0; i < rh->solver.Nstate; i++)
 					if (valid[i] && !validt[i]) break;
-				if (i < Nstate) {
+				if (i < rh->solver.Nstate) {
 					Nlost++;
 					continue;
 				}
@@ -1852,11 +1809,11 @@ void iterateNewton(int NmaxIter, double iterLimit)
 					" |R(trial)|_W %.3E; G evaluations %ld\n",
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
 					(gres.breakdown) ? " (invariant space)" : "", dinf,
-					blocks[ninf].name, lambda, Nhalve, Nreason[GUARD_NONFINITE],
+					rh->solver.blocks[ninf].name, lambda, Nhalve, Nreason[GUARD_NONFINITE],
 					Nreason[GUARD_NEGATIVE], Nbadtrial, rtnorm, Neval);
 			Error(MESSAGE, NULL, messageStr);
-			memcpy(x, xt, Nstate * sizeof(double));
-			memcpy(gx, gt, Nstate * sizeof(double));
+			memcpy(x, xt, rh->solver.Nstate * sizeof(double));
+			memcpy(gx, gt, rh->solver.Nstate * sizeof(double));
 		} else {
 			sprintf(messageStr,
 					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
@@ -1865,7 +1822,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 					" plain step; G evaluations %ld\n",
 					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
 					(gres.breakdown) ? " (invariant space)" : "", dinf,
-					blocks[ninf].name, Nhalve, Nreason[GUARD_NONFINITE],
+					rh->solver.blocks[ninf].name, Nhalve, Nreason[GUARD_NONFINITE],
 					Nreason[GUARD_NEGATIVE], Nbadtrial, Neval);
 			Error(MESSAGE, NULL, messageStr);
 			Nplain++;
@@ -1883,7 +1840,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 				getCPU(2, TIME_POLL, "Newton step");
 				break;
 			}
-			memcpy(x, gx, Nstate * sizeof(double));
+			memcpy(x, gx, rh->solver.Nstate * sizeof(double));
 			G_eval(x, gx);
 			Neval++;
 			Nbase++;

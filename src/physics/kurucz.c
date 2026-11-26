@@ -99,19 +99,6 @@ double getJK_K(char c);
 void   getUnsoldcross(RLK_Line *rlk);
 void   free_BS(Barklemstruct *bs);
 
-/* --- Per-point tables that depend only on the atmosphere, the
-	   element or the ionization stage, and not on wavelength. They
-	   are filled by rlk_prepare, are read-only afterwards, and are
-	   released by rlk_cleanup --                      -------------- */
-
-typedef struct {
-	double ***lnU;    /* [element][stage][k], only for (element, stage) used */
-	double  **vbroad; /* [element][k], only for elements used                */
-	double   *T03;    /* [k], pow(T, 0.3), only if Unsold lines are present  */
-} RLK_Tables;
-
-static RLK_Tables rlk_tab = {NULL, NULL, NULL};
-
 /* --- Global variables --                             -------------- */
 
 extern char messageStr[];
@@ -458,9 +445,9 @@ void rlk_prepare(void)
 		   are only allocated for the (element, stage) combinations
 		   that occur in the line list. --              -------------- */
 
-	rlk_tab.lnU    = (double ***) calloc(Nelem, sizeof(double **));
-	rlk_tab.vbroad = (double **) calloc(Nelem, sizeof(double *));
-	rlk_tab.T03    = NULL;
+	rh->kurucz.rlk_tab.lnU    = (double ***) calloc(Nelem, sizeof(double **));
+	rh->kurucz.rlk_tab.vbroad = (double **) calloc(Nelem, sizeof(double *));
+	rh->kurucz.rlk_tab.T03    = NULL;
 
 	for (n = 0; n < rh->atmos.Nrlk; n++) {
 		rlk     = &rh->atmos.rlk_lines[n];
@@ -477,30 +464,30 @@ void rlk_prepare(void)
 		}
 		if (rlk->polarizable && rlk->zm == NULL) RLKZeeman(rlk);
 
-		if (rlk_tab.lnU[rlk->pt_index - 1] == NULL)
-			rlk_tab.lnU[rlk->pt_index - 1] =
+		if (rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1] == NULL)
+			rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1] =
 				(double **) calloc(element->Nstage, sizeof(double *));
 
-		if (rlk_tab.lnU[rlk->pt_index - 1][rlk->stage] == NULL) {
+		if (rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1][rlk->stage] == NULL) {
 			double *pf = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 			Linear(rh->atmos.Npf, rh->atmos.Tpf, element->pf[rlk->stage],
 				   rh->atmos.Nspace, rh->atmos.T, pf, hunt = TRUE);
-			rlk_tab.lnU[rlk->pt_index - 1][rlk->stage] = pf;
+			rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1][rlk->stage] = pf;
 		}
-		if (rlk_tab.vbroad[rlk->pt_index - 1] == NULL) {
+		if (rh->kurucz.rlk_tab.vbroad[rlk->pt_index - 1] == NULL) {
 			double *vb = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 			vtherm = 2.0 * KBOLTZMANN / (AMU * element->weight);
 			for (k = 0; k < rh->atmos.Nspace; k++)
 				vb[k] = sqrt(vtherm * rh->atmos.T[k] + SQ(rh->atmos.vturb[k]));
-			rlk_tab.vbroad[rlk->pt_index - 1] = vb;
+			rh->kurucz.rlk_tab.vbroad[rlk->pt_index - 1] = vb;
 		}
 		if (rlk->Grad && rlk->vdwaals == UNSOLD) unsold = TRUE;
 	}
 	if (unsold) {
-		rlk_tab.T03 = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		rh->kurucz.rlk_tab.T03 = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 		for (k = 0; k < rh->atmos.Nspace; k++)
-			rlk_tab.T03[k] = pow(rh->atmos.T[k], 0.3);
+			rh->kurucz.rlk_tab.T03[k] = pow(rh->atmos.T[k], 0.3);
 	}
 }
 /* ------- end ---------------------------- rlk_prepare.c ---------- */
@@ -515,25 +502,25 @@ void rlk_cleanup(void)
 		   given entries for stages below the highest one, so the
 		   Nstage of each element bounds the scan. --  -------------- */
 
-	if (rlk_tab.lnU != NULL) {
+	if (rh->kurucz.rlk_tab.lnU != NULL) {
 		for (n = 0; n < rh->atmos.Nelem; n++) {
-			if (rlk_tab.lnU[n] != NULL) {
+			if (rh->kurucz.rlk_tab.lnU[n] != NULL) {
 				for (i = 0; i < rh->atmos.elements[n].Nstage; i++)
-					free(rlk_tab.lnU[n][i]);
-				free(rlk_tab.lnU[n]);
+					free(rh->kurucz.rlk_tab.lnU[n][i]);
+				free(rh->kurucz.rlk_tab.lnU[n]);
 			}
 		}
-		free(rlk_tab.lnU);
+		free(rh->kurucz.rlk_tab.lnU);
 	}
-	if (rlk_tab.vbroad != NULL) {
-		for (n = 0; n < rh->atmos.Nelem; n++) free(rlk_tab.vbroad[n]);
-		free(rlk_tab.vbroad);
+	if (rh->kurucz.rlk_tab.vbroad != NULL) {
+		for (n = 0; n < rh->atmos.Nelem; n++) free(rh->kurucz.rlk_tab.vbroad[n]);
+		free(rh->kurucz.rlk_tab.vbroad);
 	}
-	free(rlk_tab.T03);
+	free(rh->kurucz.rlk_tab.T03);
 
-	rlk_tab.lnU    = NULL;
-	rlk_tab.vbroad = NULL;
-	rlk_tab.T03    = NULL;
+	rh->kurucz.rlk_tab.lnU    = NULL;
+	rh->kurucz.rlk_tab.vbroad = NULL;
+	rh->kurucz.rlk_tab.T03    = NULL;
 }
 /* ------- end ---------------------------- rlk_cleanup.c ---------- */
 
@@ -690,7 +677,7 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 
 				/* --- Tables set up in rlk_prepare --   -------------- */
 
-				pf = rlk_tab.lnU[rlk->pt_index - 1][rlk->stage];
+				pf = rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1][rlk->stage];
 
 				for (k = 0; k < rh->atmos.Nspace; k++) {
 					phi = RLKProfile(rlk, k, mu, to_obs, lambda,
@@ -760,7 +747,7 @@ double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
 	/* --- Returns the normalized profile for a Kurucz line
 		   and calculates the Stokes profile components if necessary -- */
 
-	vbroad = rlk_tab.vbroad[rlk->pt_index - 1][k];
+	vbroad = rh->kurucz.rlk_tab.vbroad[rlk->pt_index - 1][k];
 
 	v = (lambda / rlk->lambda0 - 1.0) * CLIGHT / vbroad;
 	if (rh->atmos.moving) {
@@ -774,7 +761,7 @@ double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
 	if (rlk->Grad) {
 		switch (rlk->vdwaals) {
 		case UNSOLD:
-			GvdW = rlk->cross * rlk_tab.T03[k];
+			GvdW = rlk->cross * rh->kurucz.rlk_tab.T03[k];
 			break;
 
 		case BARKLEM:

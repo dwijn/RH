@@ -51,8 +51,8 @@ void   writeModelAtom(Atom *atom, FILE *fpOut);
 /* --- Global variables --                             -------------- */
 
 double         E_Rydberg;
-static RHState rh_state;
-RHState *const rh = &rh_state;
+static RHState rh_state = RH_STATE_INIT(ONE_D_PLANE, NULL);
+RHState *const rh       = &rh_state;
 char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- make_H.c ---------------- */

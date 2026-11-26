@@ -599,11 +599,10 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 
 /* ------- begin -------------------------- Background.c ------------ */
 
-/* --- State kept between calls of Background(): whether
-	   background.dat is open, and whether the Kurucz lines have been
-	   read (they are kept when Background() runs more than once) -- */
+/* --- Whether background.dat is open, kept between calls of
+	   Background() --                                 -------------- */
 
-static bool_t fd_open = FALSE, rlk_read = FALSE;
+static bool_t fd_open = FALSE;
 
 static void backgroundOpacities(bool_t write_analyze_output);
 
@@ -625,18 +624,17 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 {
 	const char routineName[] = "Background";
 
-	static int ne_iter = 0;
-	bool_t     fromscratch;
+	bool_t fromscratch;
 
 	getCPU(2, TIME_START, NULL);
 
 	if (rh->input.solve_ne == ONCE || rh->input.solve_ne == ITERATION) {
 		fromscratch = (rh->input.solve_ne == ONCE ||
-					   (rh->input.solve_ne == ITERATION && ne_iter == 0))
+					   (rh->input.solve_ne == ITERATION && rh->background.ne_iter == 0))
 						  ? TRUE
 						  : FALSE;
 		Solve_ne(rh->atmos.ne, fromscratch);
-		ne_iter++;
+		rh->background.ne_iter++;
 	}
 	SetLTEQuantities();
 
@@ -814,13 +812,13 @@ static void backgroundOpacities(bool_t write_analyze_output)
 		   not depend on the atmosphere: when Background() is called
 		   again it is kept from the first call (B-39) -- -------------- */
 
-	if (!rlk_read) {
+	if (!rh->background.rlk_read) {
 		rh->atmos.Nrlk = 0;
 		readKuruczLines(rh->input.KuruczData);
 		if (rh->atmos.Nrlk > 0) {
 			qsort(rh->atmos.rlk_lines, rh->atmos.Nrlk, sizeof(RLK_Line), rlk_ascend);
 		}
-		rlk_read = TRUE;
+		rh->background.rlk_read = TRUE;
 	}
 	/* --- Allocate memory for the boolean array that stores whether
 		   a wavelength overlaps with a Bound-Bound transition in the
@@ -980,9 +978,9 @@ static void backgroundOpacities(bool_t write_analyze_output)
 			if (rh->atmos.rlk_lines[n].zm != NULL) freeZeeman(rh->atmos.rlk_lines[n].zm);
 		}
 		free(rh->atmos.rlk_lines);
-		rh->atmos.rlk_lines = NULL;
-		rh->atmos.Nrlk      = 0;
-		rlk_read            = FALSE;
+		rh->atmos.rlk_lines     = NULL;
+		rh->atmos.Nrlk          = 0;
+		rh->background.rlk_read = FALSE;
 	}
 
 	/* --- The formal solutions read the file through a mapping (P-18) */

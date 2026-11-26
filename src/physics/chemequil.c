@@ -113,17 +113,11 @@
 
 extern char messageStr[];
 
-/* --- Largest change of a log density in the last Newton step of the
-	   chemical equilibrium of state (ChemicalEquilibriumOfState), over
-	   all points, since the last chemLastChangeReset() -- ---------- */
-
-static double chemLastChange = 0.0;
-
 double chemLastChangeReset(void)
 {
-	double d = chemLastChange;
+	double d = rh->chemequil.chemLastChange;
 
-	chemLastChange = 0.0;
+	rh->chemequil.chemLastChange = 0.0;
 	return d;
 }
 
@@ -510,7 +504,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 		}
 		for (i = 0; i < Nnuclei; i++) n[i] = cs.n[i];
 		for (i = 0; i < rh->atmos.Nmolecule; i++) n[Nnuclei + i] = cs.n[Nnuclei + 1 + i];
-		if (ofState) chemLastChange = MAX(chemLastChange, step);
+		if (ofState) rh->chemequil.chemLastChange = MAX(rh->chemequil.chemLastChange, step);
 
 		/* --- Store population numbers nuclei --          -------------- */
 

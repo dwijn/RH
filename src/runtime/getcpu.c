@@ -43,9 +43,8 @@ void getCPU(int level, enum CPUaction action, char *label)
 
 	int Nblanck, Nspace, Ndot;
 
-	static clock_t CPU[N_TIME_LEVELS];
-	static double  scale = 1.0 / CLOCKS_PER_SEC;
-	clock_t        CPUtime;
+	static double scale = 1.0 / CLOCKS_PER_SEC;
+	clock_t       CPUtime;
 
 	if (level == 0 && action == TIME_START && !rh->commandline.showkeywords) {
 		rh->stats.fp_CPU = fopen(TIME_DOT_OUT, "w");
@@ -62,10 +61,10 @@ void getCPU(int level, enum CPUaction action, char *label)
 
 		switch (action) {
 		case TIME_START:
-			CPU[level] = CPUtime;
+			rh->getcpu.CPU[level] = CPUtime;
 			return;
 		case TIME_POLL:
-			CPUtime = CPUtime - CPU[level];
+			CPUtime = CPUtime - rh->getcpu.CPU[level];
 			break;
 		case TIME_ADD:
 			break;

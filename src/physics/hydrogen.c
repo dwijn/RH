@@ -907,7 +907,6 @@ bool_t Hminus_ff(double lambda, double *chi)
 #define NFF_H2    19
 #define NTHETA_H2 8
 
-static double     *H2mff_theta_index = NULL;
 static atomic_flag H2mff_beyond_told = ATOMIC_FLAG_INIT;
 
 static double thetaFF_H2m[NTHETA_H2] = {
@@ -921,17 +920,17 @@ static void H2minus_ff_prepare(void)
 	double theta;
 
 	atomic_flag_clear(&H2mff_beyond_told);
-	H2mff_theta_index = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	rh->hydrogen.H2mff_theta_index = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		theta = THETA0 / rh->atmos.T[k];
 		if (theta <= thetaFF_H2m[0])
-			H2mff_theta_index[k] = 0;
+			rh->hydrogen.H2mff_theta_index[k] = 0;
 		else if (theta >= thetaFF_H2m[NTHETA_H2 - 1])
-			H2mff_theta_index[k] = NTHETA_H2 - 1;
+			rh->hydrogen.H2mff_theta_index[k] = NTHETA_H2 - 1;
 		else {
 			Hunt(NTHETA_H2, thetaFF_H2m, theta, &index);
-			H2mff_theta_index[k] = index + (theta - thetaFF_H2m[index]) /
-											   (thetaFF_H2m[index + 1] - thetaFF_H2m[index]);
+			rh->hydrogen.H2mff_theta_index[k] = index + (theta - thetaFF_H2m[index]) /
+															(thetaFF_H2m[index + 1] - thetaFF_H2m[index]);
 		}
 	}
 }
@@ -1027,7 +1026,7 @@ bool_t H2minus_ff(double lambda, double *chi)
 	int    Nspace = rh->atmos.Nspace, index = 0;
 	double pe, lambda_index, kappa, *nH2, scale = 1.0;
 
-	if (H2mff_theta_index == NULL) {
+	if (rh->hydrogen.H2mff_theta_index == NULL) {
 		sprintf(messageStr, "Index table not set up "
 							"(call hydrogenPrepare first)");
 		Error(ERROR_LEVEL_2, routineName, messageStr);
@@ -1054,7 +1053,7 @@ bool_t H2minus_ff(double lambda, double *chi)
 		if (nH2[k] > 0.0) {
 			pe     = rh->atmos.ne[k] * KBOLTZMANN * rh->atmos.T[k];
 			kappa  = bilinear(NTHETA_H2, NFF_H2, kappaFF,
-							  H2mff_theta_index[k], lambda_index);
+							  rh->hydrogen.H2mff_theta_index[k], lambda_index);
 			chi[k] = (nH2[k] * 1.0E-29) * pe * (scale * kappa);
 		} else
 			chi[k] = 0.0;
@@ -1068,7 +1067,6 @@ bool_t H2minus_ff(double lambda, double *chi)
 #define NFF_H2P   15
 #define NTEMP_H2P 10
 
-static double     *H2pff_temp_index  = NULL;
 static atomic_flag H2pff_beyond_told = ATOMIC_FLAG_INIT;
 
 static double tempFF_H2p[NTEMP_H2P] = {
@@ -1083,17 +1081,17 @@ static void H2plus_ff_prepare(void)
 	double T;
 
 	atomic_flag_clear(&H2pff_beyond_told);
-	H2pff_temp_index = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	rh->hydrogen.H2pff_temp_index = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		T = rh->atmos.T[k];
 		if (T <= tempFF_H2p[0])
-			H2pff_temp_index[k] = 0;
+			rh->hydrogen.H2pff_temp_index[k] = 0;
 		else if (T >= tempFF_H2p[NTEMP_H2P - 1])
-			H2pff_temp_index[k] = NTEMP_H2P - 1;
+			rh->hydrogen.H2pff_temp_index[k] = NTEMP_H2P - 1;
 		else {
 			Hunt(NTEMP_H2P, tempFF_H2p, T, &index);
-			H2pff_temp_index[k] = index + (T - tempFF_H2p[index]) /
-											  (tempFF_H2p[index + 1] - tempFF_H2p[index]);
+			rh->hydrogen.H2pff_temp_index[k] = index + (T - tempFF_H2p[index]) /
+														   (tempFF_H2p[index + 1] - tempFF_H2p[index]);
 		}
 	}
 }
@@ -1163,7 +1161,7 @@ bool_t H2plus_ff(double lambda, double *chi)
 	int    Nspace = rh->atmos.Nspace, index = 0;
 	double lambda_index, kappa, *np;
 
-	if (H2pff_temp_index == NULL) {
+	if (rh->hydrogen.H2pff_temp_index == NULL) {
 		sprintf(messageStr, "Index table not set up "
 							"(call hydrogenPrepare first)");
 		Error(ERROR_LEVEL_2, routineName, messageStr);
@@ -1187,7 +1185,7 @@ bool_t H2plus_ff(double lambda, double *chi)
 	np = rh->atmos.H->n[rh->atmos.H->Nlevel - 1];
 	for (k = 0; k < Nspace; k++) {
 		kappa  = bilinear(NTEMP_H2P, NFF_H2P, kappaFF,
-						  H2pff_temp_index[k], lambda_index);
+						  rh->hydrogen.H2pff_temp_index[k], lambda_index);
 		chi[k] = (rh->atmos.H->n[0][k] * 1.0E-29) * (np[k] * 1.0E-20) * kappa;
 	}
 
@@ -1336,8 +1334,8 @@ void hydrogenCleanup(void)
 		   table, which does not depend on the atmosphere, is kept.
 		   --                                            -------------- */
 
-	free(H2mff_theta_index);
-	free(H2pff_temp_index);
-	H2mff_theta_index = H2pff_temp_index = NULL;
+	free(rh->hydrogen.H2mff_theta_index);
+	free(rh->hydrogen.H2pff_temp_index);
+	rh->hydrogen.H2mff_theta_index = rh->hydrogen.H2pff_temp_index = NULL;
 }
 /* ------- end ---------------------------- hydrogenCleanup.c ------- */

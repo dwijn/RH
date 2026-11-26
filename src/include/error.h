@@ -47,6 +47,13 @@ _Noreturn void ErrorExit(enum errorlevel level, const char *routineName,
 void           SetExitFlag(int flag);
 int            ExitStatus(void);
 
+/* --- Problems of the run so far (SetExitFlag), its part of RHState
+	   (rh->error, Q-46) --                            -------------- */
+
+typedef struct {
+	int exitFlags;
+} ErrorState;
+
 /* --- Print a message (MESSAGE) or warning (WARNING) and return, or
 	   print an error (ERROR_LEVEL_1, ERROR_LEVEL_2) and exit with status
 	   RH_EXIT_FATAL. Inline, so that the compiler knows that the

@@ -81,6 +81,21 @@ bool_t containsActive(ActiveSet *as);
 void init_as(ActiveSet *as);
 void alloc_as(int nspect, bool_t crosscoupling);
 void free_as(int nspect, bool_t crosscoupling);
+
+/* --- The opacity buffers of alloc_as, pooled per thread slot (see
+	   opacity.c), its part of RHState (rh->opacity, Q-46) -- ------ */
+
+typedef struct {
+	double *chi_c, *eta_c, *sca_c, *chip_c, *chi, *eta, *chip;
+	int     Nrec_c, Nrec_as;
+} AsPool;
+
+typedef struct {
+	AsPool        *as_pool; /* input.Nthreads slots, made at first use */
+	pthread_once_t as_pool_once;
+} OpacityState;
+
+#define OPACITY_STATE_INIT {.as_pool_once = PTHREAD_ONCE_INIT}
 void initSpectrum(void);
 void Opacity(int nspect, int mu, bool_t top_to_bottom, bool_t activate);
 void Planck(int Nspace, double *T, double lambda0, double *Bnu);

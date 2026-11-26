@@ -9,6 +9,8 @@
 #ifndef __STATISTICS_H__
 #define __STATISTICS_H__
 
+#include <time.h>
+
 /* --- Keep track of program statistics like CPU time and memory usage
 	   (not yet implemented).
 	   --                                              -------------- */
@@ -29,6 +31,13 @@ typedef struct {
 
 void getCPU(int level, enum CPUaction action, char *label);
 void printTotalCPU(void);
+
+/* --- Start of each timer level of getCPU, its part of RHState
+	   (rh->getcpu, Q-46) --                           -------------- */
+
+typedef struct {
+	clock_t CPU[N_TIME_LEVELS];
+} GetCPUState;
 
 /* --- Work counters (work.c): wavelength solves per phase of the run
 	   and kind of sweep, calls and wall time of Background() and
