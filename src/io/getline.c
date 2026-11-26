@@ -83,23 +83,3 @@ void UpperCase(char *string)
 		string[n] = toupper(string[n]);
 }
 /* ------- end ---------------------------- UpperCase.c ------------- */
-
-/* ------- begin -------------------------- substring.c ------------- */
-
-char *substring(const char *string, int N0, int Nchar)
-{
-	static char destination[MAX_LINE_SIZE];
-	int         length = strlen(string);
-
-	/* --- Extract a substring of length Nchar from source string,
-		   starting at position N0. --                   -------------- */
-
-	if (N0 >= length) N0 = length;
-	if (N0 + Nchar >= length) Nchar = length - N0;
-
-	memcpy(destination, string + N0, Nchar);
-	destination[Nchar] = '\0';
-
-	return destination;
-}
-/* ------- end ---------------------------- substring.c ------------- */

@@ -54,8 +54,6 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double bilinear(int Ncol, int Nrow, double *f, double x, double y);
-
 /* --- Global variables --                             -------------- */
 
 extern char messageStr[];
@@ -909,7 +907,7 @@ bool_t Hminus_ff(double lambda, double *chi)
 
 static atomic_flag H2mff_beyond_told = ATOMIC_FLAG_INIT;
 
-static double thetaFF_H2m[NTHETA_H2] = {
+static const double thetaFF_H2m[NTHETA_H2] = {
 	0.5, 0.8, 1.0, 1.2, 1.6, 2.0, 2.8, 3.6};
 
 static void H2minus_ff_prepare(void)
@@ -959,12 +957,12 @@ bool_t H2minus_ff(double lambda, double *chi)
 		   row at lambda = 0 interpolates linearly below 350.5 nm and is
 		   left as it is. --                           -------------- */
 
-	static double lambdaFF[NFF_H2] = {
+	static const double lambdaFF[NFF_H2] = {
 		0.0, 350.5, 414.2, 506.3, 569.6, 650.9, 759.4, 911.3,
 		1139.1, 1518.8, 1822.6, 2278.3, 3037.7, 3645.2, 4556.5, 6075.3,
 		9113.0, 11391.3, 15188.3};
 
-	static double kappaFF[NFF_H2 * NTHETA_H2] = {
+	static const double kappaFF[NFF_H2 * NTHETA_H2] = {
 		/* --- lambda =     0.0 [nm] --                    -------------- */
 		0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00, 0.00e+00,
 		0.00e+00, 0.00e+00, 0.00e+00,
@@ -1069,7 +1067,7 @@ bool_t H2minus_ff(double lambda, double *chi)
 
 static atomic_flag H2pff_beyond_told = ATOMIC_FLAG_INIT;
 
-static double tempFF_H2p[NTEMP_H2P] = {
+static const double tempFF_H2p[NTEMP_H2P] = {
 	2.5E+03, 3.0E+03, 3.5E+03, 4.0E+03, 5.0E+03,
 	6.0E+03, 7.0E+03, 8.0E+03, 1.0E+04, 1.2E+04};
 
@@ -1122,11 +1120,11 @@ bool_t H2plus_ff(double lambda, double *chi)
 		   zero row at lambda = 0 interpolates linearly below 384.6 nm
 		   and is left as it is. --                    -------------- */
 
-	static double lambdaFF[NFF_H2P] = {
+	static const double lambdaFF[NFF_H2P] = {
 		0.0, 384.6, 555.6, 833.3, 1111.1, 1428.6, 1666.7,
 		2000.0, 2500.0, 2857.1, 3333.3, 4000.0, 5000.0, 6666.7, 10000.0};
 
-	static double kappaFF[NFF_H2P * NTEMP_H2P] = {
+	static const double kappaFF[NFF_H2P * NTEMP_H2P] = {
 		/* --- lambda =      0.0 [nm] --                   -------------- */
 		0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00,
 		/* --- lambda =    384.6 [nm] --                   -------------- */
@@ -1202,14 +1200,14 @@ bool_t Rayleigh_H2(double lambda, double *scatt)
 {
 	register int k;
 
-	static double a[3] = {8.779E+01, 1.323E+06, 2.245E+10};
+	static const double a[3] = {8.779E+01, 1.323E+06, 2.245E+10};
 
-	static double lambdaRH2[N_RAYLEIGH_H2] = {
+	static const double lambdaRH2[N_RAYLEIGH_H2] = {
 		121.57, 130.00, 140.00, 150.00, 160.00, 170.00, 185.46,
 		186.27, 193.58, 199.05, 230.29, 237.91, 253.56, 275.36,
 		296.81, 334.24, 404.77, 407.90, 435.96, 546.23, 632.80};
 
-	static double sigma[N_RAYLEIGH_H2] = {
+	static const double sigma[N_RAYLEIGH_H2] = {
 		2.35E-06, 1.22E-06, 6.80E-07, 4.24E-07, 2.84E-07, 2.00E-07, 1.25E-07,
 		1.22E-07, 1.00E-07, 8.70E-08, 4.29E-08, 3.68E-08, 2.75E-08, 1.89E-08,
 		1.36E-08, 8.11E-09, 3.60E-09, 3.48E-09, 2.64E-09, 1.04E-09, 5.69E-10};
@@ -1261,7 +1259,7 @@ bool_t Rayleigh_H2(double lambda, double *scatt)
 
 /* ------- begin -------------------------- bilinear.c -------------- */
 
-double bilinear(int Ncol, int Nrow, double *f, double x, double y)
+double bilinear(int Ncol, int Nrow, const double *f, double x, double y)
 {
 	int    i, j, i1, j1;
 	double fx, fy;

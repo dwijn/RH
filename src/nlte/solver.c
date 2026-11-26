@@ -872,7 +872,7 @@ enum GuardResult { GUARD_OK,
 				   GUARD_NEGATIVE,
 				   GUARD_NRESULT };
 
-static const char *guardName[GUARD_NRESULT] = {"ok", "not finite", "negative"};
+static const char *const guardName[GUARD_NRESULT] = {"ok", "not finite", "negative"};
 
 static enum GuardResult guardTrial(const double *xt, const double *gx,
 								   const double *xb)
@@ -1241,7 +1241,7 @@ static void errorTestSummary(const ErrorTest *t, const char *routineName)
 
 /* ------- begin -------------------------- iterateAnderson.c ------- */
 
-static const char *extrapolateName[] = {"ALL", "POPULATIONS", "POPULATIONS_RHO"};
+static const char *const extrapolateName[] = {"ALL", "POPULATIONS", "POPULATIONS_RHO"};
 
 static bool_t carriedEqual(const double *x, const double *y)
 {

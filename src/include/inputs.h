@@ -179,9 +179,8 @@ void set_S_Interpolation(char *value, void *pointer);
 void set_S_interpolation_longchar(char *value, void *pointer);
 void set_S_interpolation_stokes(char *value, void *pointer);
 
-void  showValues(int Nkeyword, Keyword *theKeywords);
-char *substring(const char *string, int N0, int Nchar);
-void  UpperCase(char *string);
+void showValues(int Nkeyword, Keyword *theKeywords);
+void UpperCase(char *string);
 
 void writeInput();
 

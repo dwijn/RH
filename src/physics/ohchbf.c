@@ -44,8 +44,6 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double bilinear(int Ncol, int Nrow, double *f, double x, double y);
-
 /* --- Global variables --                             -------------- */
 
 extern char messageStr[];
@@ -62,12 +60,12 @@ bool_t OH_bf_opac(double lambda, double *chi, double *eta)
 	int    index = 0, index2 = 0;
 	double Eev, e_index, t_index, hc_kla, twohnu3_c2, kappa, stimEmis, Tk;
 
-	static double TOH[NTOH] = {
+	static const double TOH[NTOH] = {
 		2000.00, 2500.00, 3000.00, 3500.00, 4000.00, 4500.00,
 		5000.00, 5500.00, 6000.00, 6500.00, 7000.00, 7500.00,
 		8000.00, 8500.00, 9000.00};
 
-	static double EOH[NEOH] = {
+	static const double EOH[NEOH] = {
 		2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3.0,
 		3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 4.0,
 		4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 5.0,
@@ -82,7 +80,7 @@ bool_t OH_bf_opac(double lambda, double *chi, double *eta)
 		13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 14.0,
 		14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7, 14.8, 14.9, 15.0};
 
-	static double OH_cross[NEOH][NTOH] = {
+	static const double OH_cross[NEOH][NTOH] = {
 		{-30.855, -29.121, -27.976, -27.166, -26.566, -26.106, -25.742,
 		 -25.448, -25.207, -25.006, -24.836, -24.691, -24.566, -24.457, -24.363},
 		{-30.494, -28.760, -27.615, -26.806, -26.206, -25.745, -25.381,
@@ -394,12 +392,12 @@ bool_t CH_bf_opac(double lambda, double *chi, double *eta)
 	int    index = 0, index2 = 0;
 	double Eev, e_index, t_index, hc_kla, twohnu3_c2, kappa, stimEmis, Tk;
 
-	static double TCH[NTCH] = {
+	static const double TCH[NTCH] = {
 		2000.00, 2500.00, 3000.00, 3500.00, 4000.00, 4500.00,
 		5000.00, 5500.00, 6000.00, 6500.00, 7000.00, 7500.00,
 		8000.00, 8500.00, 9000.00};
 
-	static double ECH[NECH] = {
+	static const double ECH[NECH] = {
 		0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
 		1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0,
 		2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3.0,
@@ -412,7 +410,7 @@ bool_t CH_bf_opac(double lambda, double *chi, double *eta)
 		9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 10.0,
 		10.1, 10.2, 10.3, 10.4, 10.5};
 
-	static double CH_cross[NECH][NTCH] = {
+	static const double CH_cross[NECH][NTCH] = {
 		{-38.000, -38.000, -38.000, -38.000, -38.000, -38.000, -38.000,
 		 -38.000, -38.000, -38.000, -38.000, -38.000, -38.000, -38.000, -38.000},
 		{-32.727, -31.151, -30.133, -29.432, -28.925, -28.547, -28.257,

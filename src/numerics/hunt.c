@@ -24,7 +24,7 @@ static inline bool_t at_or_past(bool_t ascend, double value, double a)
 
 /* ------- begin -------------------------- Hunt.c ------------------ */
 
-void Hunt(int n, double *array, double value, int *ilow)
+void Hunt(int n, const double *array, double value, int *ilow)
 {
 	bool_t ascend;
 	int    ihigh, index, increment;
@@ -105,7 +105,7 @@ void Hunt(int n, double *array, double value, int *ilow)
 
 /* ------- begin -------------------------- Locate.c ---------------- */
 
-void Locate(int n, double *array, double value, int *ilow)
+void Locate(int n, const double *array, double value, int *ilow)
 {
 	bool_t ascend;
 	int    ihigh, index;

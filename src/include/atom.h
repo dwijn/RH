@@ -326,7 +326,6 @@ void   writeMolPops(Molecule *molecule);
 /* --- Redistribution function --                      -------------- */
 
 double GII(double adamp, double waveRatio, double q_emit, double q_abs);
-double PII(double adamp, double waveRatio, double q_emit, double q_abs);
 double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2);
 void   Redistribute(int NmaxIter, double iterLimit);
 double PRDDamp(AtomicLine *line, const double *old, long N);
