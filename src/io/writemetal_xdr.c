@@ -22,8 +22,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- writeMetals.c ----------- */
 
 bool_t writeMetals(char *fileName)
@@ -39,8 +37,7 @@ bool_t writeMetals(char *fileName)
 	if (!strcmp(fileName, "none")) return result;
 
 	if ((fp_out = fopen(fileName, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open output file %s", fileName);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", fileName);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);

@@ -28,8 +28,6 @@ bool_t xdr_adamp(XDR *xdrs, struct Atom *atom);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- writeAtom.c ------------- */
 
 void writeAtom(struct Atom *atom)
@@ -43,17 +41,15 @@ void writeAtom(struct Atom *atom)
 	sprintf(atomoutfile, (atom->ID[1] == ' ') ? "atom.%.1s.out" : "atom.%.2s.out", atom->ID);
 
 	if ((fp_out = fopen(atomoutfile, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open output file %s",
-				atomoutfile);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+			  atomoutfile);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
 	if (!xdr_atom(&xdrs, atom)) {
-		sprintf(messageStr, "Unable to write to output file %s",
-				atomoutfile);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to write to output file %s",
+			  atomoutfile);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp_out);

@@ -27,8 +27,6 @@ int is_big_endian(void);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- writeInput.c ------------ */
 
 void writeInput(void)
@@ -42,9 +40,8 @@ void writeInput(void)
 	if (!strcmp(INPUT_DOT_OUT, "none")) return;
 
 	if ((fp_out = fopen(INPUT_DOT_OUT, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open output file %s",
-				INPUT_DOT_OUT);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+			  INPUT_DOT_OUT);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
@@ -72,9 +69,8 @@ void writeInput(void)
 	result &= xdr_bool(&xdrs, &big_endian);
 
 	if (!result) {
-		sprintf(messageStr, "Unable to write proper amount to output file %s",
-				INPUT_DOT_OUT);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to write proper amount to output file %s",
+			  INPUT_DOT_OUT);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp_out);

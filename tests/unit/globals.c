@@ -18,5 +18,3 @@
 static Geometry geometry_data;
 static RHState  rh_state = RH_STATE_INIT(RH_TOPOLOGY, &geometry_data);
 RHState *const  rh       = &rh_state;
-
-char messageStr[MAX_MESSAGE_LENGTH];

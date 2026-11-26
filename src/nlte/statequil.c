@@ -49,8 +49,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* --- The first location of a call where GTH could not be used, for
 	   the message --                                  -------------- */
 
@@ -165,10 +163,9 @@ static void reportFallback(const char *ID, const SEFallback *fb,
 	default:
 		why[0] = '\0';
 	}
-	sprintf(messageStr, " %s: rate equations solved with LU at %d of %d"
-						" locations (first: %s)\n",
-			ID, fb->Nlu, rh->atmos.Nspace, why);
-	Error(MESSAGE, NULL, messageStr);
+	Error(MESSAGE, NULL, " %s: rate equations solved with LU at %d of %d"
+						 " locations (first: %s)\n",
+		  ID, fb->Nlu, rh->atmos.Nspace, why);
 }
 /* ------- end ---------------------------- reportFallback.c -------- */
 
@@ -206,8 +203,7 @@ static void badPopulations(const char *ID, const char *level, long Nsolved,
 		negTauInvalid(what);
 		return;
 	}
-	snprintf(messageStr, MAX_MESSAGE_LENGTH, "\n  %s", what);
-	Error(ERROR_LEVEL_2, routineName, messageStr);
+	Error(ERROR_LEVEL_2, routineName, "\n  %s", what);
 }
 /* ------- end ---------------------------- badPopulations.c ------- */
 

@@ -26,8 +26,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- Piece_Stokes_Bezier3_2D.c */
 
 void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,

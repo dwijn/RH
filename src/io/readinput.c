@@ -38,8 +38,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* --- Function prototypes --                          -------------- */
 
 static bool_t keywordSet(const Keyword *theKeywords, int Nkeyword,
@@ -272,9 +270,8 @@ void readInput()
 	/* --- Open the input data file --                    ------------- */
 
 	if ((fp_keyword = fopen(rh->commandline.keyword_input, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open inputfile %s",
-				rh->commandline.keyword_input);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to open inputfile %s",
+			  rh->commandline.keyword_input);
 	}
 
 	readValues(fp_keyword, Nkeyword, theKeywords);
@@ -376,9 +373,8 @@ void readInput()
 		   PRD_DAMPING of the change (N-38); 0 would freeze rho -- ---- */
 
 	if (!(rh->input.PRD_damping > 0.0 && rh->input.PRD_damping <= 1.0)) {
-		sprintf(messageStr, "Value of PRD_DAMPING should be in (0, 1], not %g",
-				rh->input.PRD_damping);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Value of PRD_DAMPING should be in (0, 1], not %g",
+			  rh->input.PRD_damping);
 	}
 
 	/* --- Lambda_ref should be positive since it is used for the conversion
@@ -412,11 +408,10 @@ void readInput()
 					  " of Zeeman splitting");
 			}
 			if (rh->input.StokesMode == NO_STOKES) {
-				sprintf(messageStr, "%s",
-						"Keyword STOKES_MODE == NO_STOKES.\n"
-						" Set to FIELD_FREE or FULL_STOKES\n"
-						" when doing polarization calculations");
-				Error(ERROR_LEVEL_1, routineName, messageStr);
+				Error(ERROR_LEVEL_1, routineName, "%s",
+					  "Keyword STOKES_MODE == NO_STOKES.\n"
+					  " Set to FIELD_FREE or FULL_STOKES\n"
+					  " when doing polarization calculations");
 			}
 			break;
 		default:
@@ -474,20 +469,16 @@ void readInput()
 		for (n = 0; n < Nkeyword; n++) {
 			if (!strncmp(theKeywords[n].keyword, prefix, strlen(prefix)) &&
 				theKeywords[n].set) {
-				sprintf(messageStr,
-						"%s is set, but SOLVER = %s does not use it. Set"
-						" SOLVER = %s\n or remove the keyword.",
-						theKeywords[n].keyword, sname, solverName(owner));
-				Error(WARNING, routineName, messageStr);
+				Error(WARNING, routineName, "%s is set, but SOLVER = %s does not use it. Set"
+											" SOLVER = %s\n or remove the keyword.",
+					  theKeywords[n].keyword, sname, solverName(owner));
 				Nconflict++;
 			}
 		}
 		if (Nconflict) {
-			sprintf(messageStr,
-					"%s* keywords without SOLVER = %s; see the"
-					" warnings above.",
-					prefix, solverName(owner));
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "%s* keywords without SOLVER = %s; see the"
+											  " warnings above.",
+				  prefix, solverName(owner));
 		}
 	}
 
@@ -503,17 +494,14 @@ void readInput()
 	if (keywordSet(theKeywords, Nkeyword, "ERROR_LIMIT")) {
 		if (rh->input.solver != SOLVER_ANDERSON &&
 			rh->input.solver != SOLVER_NEWTON_KRYLOV) {
-			sprintf(messageStr,
-					"ERROR_LIMIT is set, but SOLVER = %s has no error"
-					" estimate. Set SOLVER =\n ANDERSON or NEWTON_KRYLOV, or"
-					" remove the keyword and use ITER_LIMIT.",
-					sname);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "ERROR_LIMIT is set, but SOLVER = %s has no error"
+											  " estimate. Set SOLVER =\n ANDERSON or NEWTON_KRYLOV, or"
+											  " remove the keyword and use ITER_LIMIT.",
+				  sname);
 		}
 		if (!(rh->input.errorLimit > 0.0)) {
-			sprintf(messageStr, "ERROR_LIMIT = %g: must be positive.",
-					rh->input.errorLimit);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "ERROR_LIMIT = %g: must be positive.",
+				  rh->input.errorLimit);
 		}
 	} else
 		rh->input.errorLimit = 0.0;
@@ -526,18 +514,14 @@ void readInput()
 			setKeywordValue(theKeywords, Nkeyword, "ITER_LIMIT", value);
 		} else if (rh->input.solver == SOLVER_ANDERSON ||
 				   rh->input.solver == SOLVER_NEWTON_KRYLOV) {
-			sprintf(messageStr,
-					"SOLVER = %s: set ITER_LIMIT (the residual of the"
-					" populations),\n ERROR_LIMIT (their estimated error, and"
-					" that of rho, ne and J), or both.",
-					sname);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "SOLVER = %s: set ITER_LIMIT (the residual of the"
+											  " populations),\n ERROR_LIMIT (their estimated error, and"
+											  " that of rho, ne and J), or both.",
+				  sname);
 		} else {
-			sprintf(messageStr,
-					"Missing input value for required keyword ITER_LIMIT"
-					" (SOLVER = %s)",
-					sname);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Missing input value for required keyword ITER_LIMIT"
+											  " (SOLVER = %s)",
+				  sname);
 		}
 	}
 
@@ -569,15 +553,13 @@ void readInput()
 	if (rh->input.bg_NmaxIter < 0 || rh->input.bg_depth < 0 || rh->input.bg_depth > 50 ||
 		(rh->input.bg_NmaxIter > 0 && !(rh->input.bg_iterLimit > 0.0)) ||
 		!(rh->input.bg_linearAlbedo >= 0.0) || !(rh->input.bg_linearTau >= 0.0)) {
-		sprintf(messageStr,
-				"BACKGROUND_N_MAX_ITER = %d (>= 0, 0 = lambda iteration),"
-				" BACKGROUND_ANDERSON_DEPTH = %d\n (0 .. 50),"
-				" BACKGROUND_ITER_LIMIT = %g (> 0),\n"
-				" BACKGROUND_LINEAR_ALBEDO = %g (>= 0, >= 1 = never),"
-				" BACKGROUND_LINEAR_TAU = %g (>= 0): a value is out of range.",
-				rh->input.bg_NmaxIter, rh->input.bg_depth, rh->input.bg_iterLimit,
-				rh->input.bg_linearAlbedo, rh->input.bg_linearTau);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "BACKGROUND_N_MAX_ITER = %d (>= 0, 0 = lambda iteration),"
+										  " BACKGROUND_ANDERSON_DEPTH = %d\n (0 .. 50),"
+										  " BACKGROUND_ITER_LIMIT = %g (> 0),\n"
+										  " BACKGROUND_LINEAR_ALBEDO = %g (>= 0, >= 1 = never),"
+										  " BACKGROUND_LINEAR_TAU = %g (>= 0): a value is out of range.",
+			  rh->input.bg_NmaxIter, rh->input.bg_depth, rh->input.bg_iterLimit,
+			  rh->input.bg_linearAlbedo, rh->input.bg_linearTau);
 	}
 
 	/* --- SOLVER = FIXED_POINT, ANDERSON and NEWTON_KRYLOV iterate the
@@ -617,23 +599,19 @@ void readInput()
 		for (n = 0; n < (int) (sizeof(noOff) / sizeof(noOff[0])); n++) {
 			if (noOff[n].ng && rh->input.solver == SOLVER_FIXED_POINT) continue;
 			if (keywordSet(theKeywords, Nkeyword, noOff[n].name)) {
-				sprintf(messageStr,
-						"%s is set, but SOLVER = %s does not use it. Set"
-						" SOLVER = NG\n or remove the keyword.",
-						noOff[n].name, sname);
-				Error(WARNING, routineName, messageStr);
+				Error(WARNING, routineName, "%s is set, but SOLVER = %s does not use it. Set"
+											" SOLVER = NG\n or remove the keyword.",
+					  noOff[n].name, sname);
 				Nconflict++;
 			}
 		}
 		if ((rh->input.solver == SOLVER_ANDERSON ||
 			 rh->input.solver == SOLVER_NEWTON_KRYLOV) &&
 			rh->input.Ngorder != 0) {
-			sprintf(messageStr,
-					"SOLVER = %s: NG_ORDER = %d would extrapolate the"
-					" populations a second\n time after the solver's step."
-					" Set SOLVER = NG, or remove the keyword or set it\n to 0.",
-					sname, rh->input.Ngorder);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "SOLVER = %s: NG_ORDER = %d would extrapolate the"
+										" populations a second\n time after the solver's step."
+										" Set SOLVER = NG, or remove the keyword or set it\n to 0.",
+				  sname, rh->input.Ngorder);
 			Nconflict++;
 		}
 		if (rh->input.solver == SOLVER_ANDERSON &&
@@ -642,29 +620,25 @@ void readInput()
 			 !(rh->input.Anderson_safeguard >= 0.0) ||
 			 rh->input.Anderson_safeguard_window < 1 ||
 			 rh->input.Anderson_safeguard_window > ANDERSON_WINDOW_MAX)) {
-			sprintf(messageStr,
-					"SOLVER = ANDERSON: ANDERSON_DEPTH = %d (0 .. 50),"
-					" ANDERSON_DELAY = %d (>= 0),\n ANDERSON_COND_MAX = %g"
-					" (> 1), ANDERSON_SAFEGUARD = %g (>= 0, 0 = off),\n"
-					" ANDERSON_SAFEGUARD_WINDOW = %d (1 .. %d):"
-					" a value is out of range.",
-					rh->input.Anderson_depth, rh->input.Anderson_delay,
-					rh->input.Anderson_cond_max, rh->input.Anderson_safeguard,
-					rh->input.Anderson_safeguard_window, ANDERSON_WINDOW_MAX);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "SOLVER = ANDERSON: ANDERSON_DEPTH = %d (0 .. 50),"
+										" ANDERSON_DELAY = %d (>= 0),\n ANDERSON_COND_MAX = %g"
+										" (> 1), ANDERSON_SAFEGUARD = %g (>= 0, 0 = off),\n"
+										" ANDERSON_SAFEGUARD_WINDOW = %d (1 .. %d):"
+										" a value is out of range.",
+				  rh->input.Anderson_depth, rh->input.Anderson_delay,
+				  rh->input.Anderson_cond_max, rh->input.Anderson_safeguard,
+				  rh->input.Anderson_safeguard_window, ANDERSON_WINDOW_MAX);
 			Nconflict++;
 		}
 		if (rh->input.solver == SOLVER_NEWTON_KRYLOV &&
 			(!(rh->input.Newton_noise > 0.0 && rh->input.Newton_noise < 1.0) ||
 			 rh->input.Newton_krylov_max < 1 || rh->input.Newton_krylov_max > 200 ||
 			 !(rh->input.Newton_eta_max > 0.0 && rh->input.Newton_eta_max < 1.0))) {
-			sprintf(messageStr,
-					"SOLVER = NEWTON_KRYLOV: NEWTON_NOISE = %g (0 .. 1),"
-					" NEWTON_KRYLOV_MAX = %d (1 .. 200),\n NEWTON_ETA_MAX"
-					" = %g (0 .. 1): a value is out of range.",
-					rh->input.Newton_noise, rh->input.Newton_krylov_max,
-					rh->input.Newton_eta_max);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "SOLVER = NEWTON_KRYLOV: NEWTON_NOISE = %g (0 .. 1),"
+										" NEWTON_KRYLOV_MAX = %d (1 .. 200),\n NEWTON_ETA_MAX"
+										" = %g (0 .. 1): a value is out of range.",
+				  rh->input.Newton_noise, rh->input.Newton_krylov_max,
+				  rh->input.Newton_eta_max);
 			Nconflict++;
 		}
 		/* --- The default 1.0E-2 is the NG solver's; unset, the map
@@ -673,77 +647,61 @@ void readInput()
 			rh->input.PRDiterLimit = 0.0;
 			setKeywordValue(theKeywords, Nkeyword, "PRD_ITER_LIMIT", "0.0");
 		} else if (rh->input.PRDiterLimit != 0.0) {
-			sprintf(messageStr,
-					"SOLVER = %s: PRD_ITER_LIMIT = %g lets the PRD"
-					" sub-iterations stop early,\n which makes the map"
-					" discontinuous. Set SOLVER = NG, or remove the keyword\n or"
-					" set it to 0 (G then does PRD_N_MAX_ITER sub-iterations).",
-					sname, rh->input.PRDiterLimit);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "SOLVER = %s: PRD_ITER_LIMIT = %g lets the PRD"
+										" sub-iterations stop early,\n which makes the map"
+										" discontinuous. Set SOLVER = NG, or remove the keyword\n or"
+										" set it to 0 (G then does PRD_N_MAX_ITER sub-iterations).",
+				  sname, rh->input.PRDiterLimit);
 			Nconflict++;
 		}
 		if (rh->input.PRD_Ngorder != 0) {
-			sprintf(messageStr,
-					"SOLVER = %s: PRD_NG_ORDER = %d, but there is no"
-					" acceleration inside\n the map. Set SOLVER = NG, or remove"
-					" the keyword or set it to 0.",
-					sname, rh->input.PRD_Ngorder);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "SOLVER = %s: PRD_NG_ORDER = %d, but there is no"
+										" acceleration inside\n the map. Set SOLVER = NG, or remove"
+										" the keyword or set it to 0.",
+				  sname, rh->input.PRD_Ngorder);
 			Nconflict++;
 		}
 		if (keywordSet(theKeywords, Nkeyword, "COLL_RELAX_FACTOR") &&
 			rh->input.CR_factor != 1.0) {
-			sprintf(messageStr,
-					"SOLVER = %s: COLL_RELAX_FACTOR = %g, but the map has no"
-					" collisional\n relaxation. Set SOLVER = NG, or remove the"
-					" keyword or set it to 1.",
-					sname, rh->input.CR_factor);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "SOLVER = %s: COLL_RELAX_FACTOR = %g, but the map has no"
+										" collisional\n relaxation. Set SOLVER = NG, or remove the"
+										" keyword or set it to 1.",
+				  sname, rh->input.CR_factor);
 			Nconflict++;
 		}
 		if (rh->input.CR_Nstep != 0) {
-			sprintf(messageStr,
-					"SOLVER = %s: COLL_RELAX_NSTEP = %d makes the map"
-					" depend on the\n iteration number. Set SOLVER = NG, or"
-					" remove the keyword or set it to 0.",
-					sname, rh->input.CR_Nstep);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "SOLVER = %s: COLL_RELAX_NSTEP = %d makes the map"
+										" depend on the\n iteration number. Set SOLVER = NG, or"
+										" remove the keyword or set it to 0.",
+				  sname, rh->input.CR_Nstep);
 			Nconflict++;
 		}
 		if (rh->atmos.hydrostatic) {
-			sprintf(messageStr,
-					"SOLVER = %s: HYDROSTATIC = TRUE changes the"
-					" atmosphere between\n iterations. Set SOLVER = NG or"
-					" HYDROSTATIC = FALSE.",
-					sname);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "SOLVER = %s: HYDROSTATIC = TRUE changes the"
+										" atmosphere between\n iterations. Set SOLVER = NG or"
+										" HYDROSTATIC = FALSE.",
+				  sname);
 			Nconflict++;
 		}
 		if (rh->input.limit_memory) {
-			sprintf(messageStr,
-					"SOLVER = %s: the mean intensity J is part of the"
-					" state and must be\n kept in memory. Set SOLVER = NG or"
-					" LIMIT_MEMORY = FALSE.",
-					sname);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "SOLVER = %s: the mean intensity J is part of the"
+										" state and must be\n kept in memory. Set SOLVER = NG or"
+										" LIMIT_MEMORY = FALSE.",
+				  sname);
 			Nconflict++;
 		}
 		if (rh->input.solve_ne == ITERATION && rh->input.old_background) {
-			sprintf(messageStr,
-					"SOLVER = %s with SOLVE_NE = ITERATION recomputes the"
-					" background\n from the state. Set SOLVER = NG or"
-					" OLD_BACKGROUND = FALSE.",
-					sname);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "SOLVER = %s with SOLVE_NE = ITERATION recomputes the"
+										" background\n from the state. Set SOLVER = NG or"
+										" OLD_BACKGROUND = FALSE.",
+				  sname);
 			Nconflict++;
 		}
 		if (rh->input.solve_ne == ITERATION && rh->input.NonICE) {
-			sprintf(messageStr,
-					"SOLVER = %s with SOLVE_NE = ITERATION computes the"
-					" chemical\n equilibrium from the state. Set SOLVER = NG or"
-					" NON_ICE = FALSE.",
-					sname);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "SOLVER = %s with SOLVE_NE = ITERATION computes the"
+										" chemical\n equilibrium from the state. Set SOLVER = NG or"
+										" NON_ICE = FALSE.",
+				  sname);
 			Nconflict++;
 		}
 		/* --- With ne in the state the background is stored in double
@@ -753,25 +711,21 @@ void readInput()
 		if (rh->input.solve_ne == ITERATION) {
 			if (keywordSet(theKeywords, Nkeyword, "BACKGROUND_DOUBLE") &&
 				!rh->input.background_double) {
-				sprintf(messageStr,
-						"SOLVER = %s with SOLVE_NE = ITERATION has ne in"
-						" the state, and\n the background must then be stored"
-						" in double. Set BACKGROUND_DOUBLE = TRUE\n or leave it"
-						" out.",
-						sname);
-				Error(WARNING, routineName, messageStr);
+				Error(WARNING, routineName, "SOLVER = %s with SOLVE_NE = ITERATION has ne in"
+											" the state, and\n the background must then be stored"
+											" in double. Set BACKGROUND_DOUBLE = TRUE\n or leave it"
+											" out.",
+					  sname);
 				Nconflict++;
 			}
 			rh->input.background_double = TRUE;
 		}
 		if (Nconflict) {
-			sprintf(messageStr,
-					"SOLVER = %s: %d keyword setting%s conflict with"
-					" it; see the\n warning%s above. docs/SOLVER.md describes"
-					" the solvers and their keywords.",
-					sname, Nconflict, (Nconflict > 1) ? "s" : "",
-					(Nconflict > 1) ? "s" : "");
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "SOLVER = %s: %d keyword setting%s conflict with"
+											  " it; see the\n warning%s above. docs/SOLVER.md describes"
+											  " the solvers and their keywords.",
+				  sname, Nconflict, (Nconflict > 1) ? "s" : "",
+				  (Nconflict > 1) ? "s" : "");
 		}
 	}
 

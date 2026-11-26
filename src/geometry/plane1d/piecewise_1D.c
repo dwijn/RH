@@ -31,8 +31,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- Piecewise_Linear_1D.c --- */
 
 void Piecewise_Linear_1D(int nspect, int mu, bool_t to_obs,
@@ -91,9 +89,8 @@ void Piecewise_Linear_1D_tri(int nspect, int mu, bool_t to_obs,
 			I_uw = rh->geometry->Ibottom[nspect][mu];
 			break;
 		case REFLECTIVE:
-			sprintf(messageStr, "Boundary condition not implemented: %d",
-					rh->geometry->vboundary[BOTTOM]);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+				  rh->geometry->vboundary[BOTTOM]);
 		}
 	} else {
 		switch (rh->geometry->vboundary[TOP]) {
@@ -108,9 +105,8 @@ void Piecewise_Linear_1D_tri(int nspect, int mu, bool_t to_obs,
 			I_uw = rh->geometry->Itop[nspect][mu];
 			break;
 		case REFLECTIVE:
-			sprintf(messageStr, "Boundary condition not implemented: %d",
-					rh->geometry->vboundary[BOTTOM]);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+				  rh->geometry->vboundary[BOTTOM]);
 		}
 	}
 

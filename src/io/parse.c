@@ -19,8 +19,6 @@ void ShowUsage(char *programName, int Noption, Option *theOptions);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- parse.c ----------------- */
 
 void parse(int argc, char *argv[], int Noption, Option *theOptions)
@@ -75,9 +73,8 @@ void parse(int argc, char *argv[], int Noption, Option *theOptions)
 					if (theOptions[nopt].value_required) {
 						/* --- An error results if value is not given when required */
 
-						sprintf(messageStr, "Option %s requires value",
-								theOptions[nopt].name);
-						Error(ERROR_LEVEL_2, routineName, messageStr);
+						Error(ERROR_LEVEL_2, routineName, "Option %s requires value",
+							  theOptions[nopt].name);
 					} else
 						/* --- Options that require no value are assumed to be
 								   boolean and are set to TRUE --      -------------- */
@@ -88,8 +85,7 @@ void parse(int argc, char *argv[], int Noption, Option *theOptions)
 		}
 
 		if (!recognized) {
-			sprintf(messageStr, "Unknown command line option %s", options[n]);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "Unknown command line option %s", options[n]);
 		}
 	}
 	/* --- Finally, set the internal options with either the

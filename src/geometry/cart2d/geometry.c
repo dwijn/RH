@@ -71,8 +71,6 @@ void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- fillMesh.c -------------- */
 
 void fillMesh(Geometry *geometry)
@@ -355,8 +353,7 @@ void fillMesh(Geometry *geometry)
 		}
 	}
 
-	sprintf(messageStr, "\n-Used %d Long Characteristics\n\n", Nlongchar);
-	Error(MESSAGE, NULL, messageStr);
+	Error(MESSAGE, NULL, "\n-Used %d Long Characteristics\n\n", Nlongchar);
 	getCPU(2, TIME_POLL, "Geometry");
 }
 /* ------- end ---------------------------- fillMesh.c -------------- */

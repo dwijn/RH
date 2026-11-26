@@ -37,8 +37,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- writeOpacity.c ---------- */
 
 void writeOpacity(void)
@@ -56,9 +54,8 @@ void writeOpacity(void)
 	if (!strcmp(rh->input.opac_output, "none")) return;
 
 	if ((fp_out = fopen(rh->input.opac_output, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open output file %s",
-				rh->input.opac_output);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+			  rh->input.opac_output);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
@@ -123,16 +120,14 @@ void writeOpacity(void)
 		}
 	}
 	if (!result) {
-		sprintf(messageStr, "Unable to write opacities to file %s",
-				rh->input.opac_output);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to write opacities to file %s",
+			  rh->input.opac_output);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp_out);
 
 	if ((fp_out = fopen(ASRS_DOT_OUT, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open output file %s", ASRS_DOT_OUT);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", ASRS_DOT_OUT);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
@@ -141,9 +136,8 @@ void writeOpacity(void)
 						 sizeof(int), (xdrproc_t) rh_xdr_int);
 	free(as_rn);
 	if (!result) {
-		sprintf(messageStr, "Unable to write record numbers to file %s",
-				ASRS_DOT_OUT);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to write record numbers to file %s",
+			  ASRS_DOT_OUT);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp_out);

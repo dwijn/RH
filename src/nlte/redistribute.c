@@ -27,8 +27,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- PRDDamp.c --------------- */
 
 /* --- Damped update of rho after PRDScatter or PRDAngleScatter
@@ -53,8 +51,7 @@ double PRDDamp(AtomicLine *line, const double *old, long N)
 	static bool_t told = FALSE;
 
 	if (!told) {
-		sprintf(messageStr, " PRD sub-iterations: PRD_DAMPING = %g\n", w);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, " PRD sub-iterations: PRD_DAMPING = %g\n", w);
 		told = TRUE;
 	}
 	if (old == NULL) return 0.0;

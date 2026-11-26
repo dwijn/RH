@@ -26,8 +26,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[MAX_LINE_SIZE];
-
 /* ------- begin -------------------------- rawAtom.c --------------- */
 
 void rawAtom(Atom *atom, char *atomFileName)
@@ -49,8 +47,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 	/* --- Open the data file for current model atom --  -------------- */
 
 	if ((atomFile = fopen(atomFileName, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open input file %s", atomFileName);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s", atomFileName);
 	}
 	/* --- Read atom ID and convert to uppercase --      -------------- */
 
@@ -70,8 +67,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 		}
 	}
 	if (!match) {
-		sprintf(messageStr, "Found no matching element for %s", atom->ID);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Found no matching element for %s", atom->ID);
 	}
 	/* --- Get Number of levels, lines fixed transitions, and continua  */
 
@@ -102,8 +98,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 		atom->E[i] *= (HPLANCK * CLIGHT) / CM_TO_M;
 	}
 	if (atom->stage[Nlevel - 1] != (atom->stage[Nlevel - 2] + 1)) {
-		sprintf(messageStr, "Found no overlying continuum for atom %s", atom->ID);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Found no overlying continuum for atom %s", atom->ID);
 	}
 
 	C = 2 * PI * (Q_ELECTRON / EPSILON_0) * (Q_ELECTRON / M_ELECTRON) / CLIGHT;
@@ -136,9 +131,8 @@ void rawAtom(Atom *atom, char *atomFileName)
 
 		if (!strstr(shapeStr, "PRD") &&
 			!strstr(shapeStr, "VOIGT") && !strstr(shapeStr, "GAUSS")) {
-			sprintf(messageStr, "Invalid value for line-shape string: %s",
-					shapeStr);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Invalid value for line-shape string: %s",
+				  shapeStr);
 		}
 		if (strstr(shapeStr, "PRD")) {
 			atom->Nprd++;
@@ -197,18 +191,14 @@ void rawAtom(Atom *atom, char *atomFileName)
 			}
 			for (la = 1; la < continuum->Nlambda; la++) {
 				if (continuum->lambda[la] < continuum->lambda[la - 1]) {
-					sprintf(messageStr,
-							"Continuum %d does not have monotonous wavelengths",
-							kr - Nline);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
+					Error(ERROR_LEVEL_2, routineName, "Continuum %d does not have monotonous wavelengths",
+						  kr - Nline);
 				}
 			}
 		} else {
 			continuum->hydrogenic = TRUE;
 			if (lambdamin >= continuum->lambda0) {
-				sprintf(messageStr,
-						"Minimum wavelength for continuum %d too long", kr - Nline);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Minimum wavelength for continuum %d too long", kr - Nline);
 			}
 			dlamb                = (continuum->lambda0 - lambdamin) / (continuum->Nlambda - 1);
 			continuum->lambda[0] = lambdamin;
@@ -238,19 +228,16 @@ void rawAtom(Atom *atom, char *atomFileName)
 			for (kr = 0; kr < Nline; kr++) {
 				line = atom->line + kr;
 				if (line->i == i && line->j == j) {
-					sprintf(messageStr,
-							"Fixed transition j = %d, i = %d duplicates active line",
-							j, i);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
+					Error(ERROR_LEVEL_2, routineName, "Fixed transition j = %d, i = %d duplicates active line",
+						  j, i);
 				}
 			}
 			for (kr = 0; kr < Ncont; kr++) {
 				continuum = atom->continuum + kr;
 				if (continuum->i == i && continuum->j == j) {
-					sprintf(messageStr, "Fixed transition j = %d,  i = %d"
-										" duplicates active continuum",
-							j, i);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
+					Error(ERROR_LEVEL_2, routineName, "Fixed transition j = %d,  i = %d"
+													  " duplicates active continuum",
+						  j, i);
 				}
 			}
 			lambda0        = (HPLANCK * CLIGHT) / (atom->E[j] - atom->E[i]);
@@ -268,8 +255,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 			else if (strstr(optionStr, "TRAD_CHROMOSPHERIC"))
 				fixed->option = TRAD_CHROMOSPHERIC;
 			else {
-				sprintf(messageStr, "Inavlid value for TRAD option: %s", optionStr);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Inavlid value for TRAD option: %s", optionStr);
 			}
 		}
 	}

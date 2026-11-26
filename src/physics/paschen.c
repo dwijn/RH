@@ -35,8 +35,6 @@ void   Paschen(double L, double S, double *E0, double B,
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- Paschen_Back.c ---------- */
 
 void Paschen_Back()
@@ -163,9 +161,7 @@ void tqli(double *d, double *e, int N, double **z)
 
 			if (m != l) {
 				if (iter++ == N_MAX_ITER_TQLI) {
-					sprintf(messageStr,
-							"  Too many iterations in tqli: %d\n", iter - 1);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
+					Error(ERROR_LEVEL_2, routineName, "  Too many iterations in tqli: %d\n", iter - 1);
 				}
 
 				g = (d[l + 1] - d[l]) / (2.0 * e[l]);

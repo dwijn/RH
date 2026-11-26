@@ -67,7 +67,6 @@ double *n_eff, E_Rydberg, f, deltaE, R0, x0, ERkT, PIa0square;
 
 static RHState rh_state = RH_STATE_INIT(ONE_D_PLANE, NULL);
 RHState *const rh       = &rh_state;
-char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- impact.c ---------------- */
 
@@ -87,8 +86,7 @@ int main(int argc, char *argv[])
 
 	if (argc >= 3) {
 		if ((fp_out = fopen(argv[2], "w")) == NULL) {
-			sprintf(messageStr, "Unable to open output file %s", argv[1]);
-			Error(ERROR_LEVEL_2, argv[0], messageStr);
+			Error(ERROR_LEVEL_2, argv[0], "Unable to open output file %s", argv[1]);
 		}
 	} else if (argc == 2)
 		fp_out = stdout;
@@ -133,9 +131,8 @@ void quantumNumbers(Atom *atom)
 		if (ptr > multiplet)
 			*(ptr + 1) = '\0';
 		else {
-			sprintf(messageStr, "Unable to determine whether level is even or odd %s",
-					atom->label[i]);
-			Error(ERROR_LEVEL_2, "quantumNumbers", messageStr);
+			Error(ERROR_LEVEL_2, "quantumNumbers", "Unable to determine whether level is even or odd %s",
+				  atom->label[i]);
 		}
 
 		words = getWords(multiplet, " ", &count);
@@ -157,9 +154,8 @@ void quantumNumbers(Atom *atom)
 		while ((atom->stage[ic] < atom->stage[i] + 1) && (ic < atom->Nlevel))
 			ic++;
 		if (atom->stage[ic] == atom->stage[i]) {
-			sprintf(messageStr, "Found no overlying continuum for level %s",
-					atom->label[i]);
-			Error(ERROR_LEVEL_2, "quantumNumbers", messageStr);
+			Error(ERROR_LEVEL_2, "quantumNumbers", "Found no overlying continuum for level %s",
+				  atom->label[i]);
 		} else {
 			Z        = (double) (atom->stage[i] + 1);
 			n_eff[i] = Z * sqrt(E_Rydberg / (atom->E[ic] - atom->E[i]));

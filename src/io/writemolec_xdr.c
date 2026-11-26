@@ -24,8 +24,6 @@ bool_t xdr_molecules(XDR *xdrs, Molecule *molecules);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- writeMolecules.c -------- */
 
 void writeMolecules(char *fileName)
@@ -38,14 +36,12 @@ void writeMolecules(char *fileName)
 	if (!strcmp(fileName, "none")) return;
 
 	if ((fp_molecules = fopen(fileName, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open output file %s", fileName);
-		Error(ERROR_LEVEL_1, "writeMolecules", messageStr);
+		Error(ERROR_LEVEL_1, "writeMolecules", "Unable to open output file %s", fileName);
 	}
 	xdrstdio_create(&xdrs, fp_molecules, XDR_ENCODE);
 
 	if (!xdr_molecules(&xdrs, rh->atmos.molecules)) {
-		sprintf(messageStr, "Unable to write to output file %s", fileName);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to write to output file %s", fileName);
 	}
 
 	xdr_destroy(&xdrs);
@@ -65,14 +61,12 @@ void readMolecules(char *fileName)
 	if (!strcmp(fileName, "none")) return;
 
 	if ((fp_molecules = fopen(fileName, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open intput file %s", fileName);
-		Error(ERROR_LEVEL_1, "readMolecules", messageStr);
+		Error(ERROR_LEVEL_1, "readMolecules", "Unable to open intput file %s", fileName);
 	}
 	xdrstdio_create(&xdrs, fp_molecules, XDR_DECODE);
 
 	if (!xdr_molecules(&xdrs, rh->atmos.molecules)) {
-		sprintf(messageStr, "Unable to read from input file %s", fileName);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to read from input file %s", fileName);
 	}
 
 	xdr_destroy(&xdrs);

@@ -32,8 +32,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- bgSupported.c ----------- */
 
 static const char *bgSupported(void)
@@ -68,9 +66,8 @@ static void solve_2D(int nspect, int mu, bool_t to_obs, double *chi,
 	} else if (rh->input.S_interpolation == S_BEZIER3) {
 		Piecewise_Bezier3_2D(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
 	} else {
-		sprintf(messageStr, "Unknown radiation solver: %d",
-				rh->input.S_interpolation);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
+			  rh->input.S_interpolation);
 	}
 }
 /* ------- end ---------------------------- solve_2D.c -------------- */
@@ -85,9 +82,8 @@ static void solveStokes_2D(int nspect, int mu, bool_t to_obs, double *chi,
 	if (rh->input.S_interpolation_stokes == DELO_BEZIER3) {
 		Piece_Stokes_Bezier3_2D(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
 	} else {
-		sprintf(messageStr, "Unknown polarization solver: %d",
-				rh->input.S_interpolation_stokes);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unknown polarization solver: %d",
+			  rh->input.S_interpolation_stokes);
 	}
 }
 /* ------- end ---------------------------- solveStokes_2D.c -------- */
@@ -159,9 +155,7 @@ void Hydrostatic(int NmaxIter, double iterLimit)
 	(void) iterLimit;
 
 	if (rh->atmos.hydrostatic) {
-		sprintf(messageStr,
-				"Can only establish hydrostatic equilibrium in 1-D geometry");
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Can only establish hydrostatic equilibrium in 1-D geometry");
 	}
 }
 /* ------- end ---------------------------- Hydrostatic.c ----------- */

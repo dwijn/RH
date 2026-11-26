@@ -24,8 +24,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- writeGeometry.c --------- */
 
 void writeGeometry(Geometry *geometry)
@@ -40,9 +38,8 @@ void writeGeometry(Geometry *geometry)
 	if (!strcmp(rh->input.geometry_output, "none")) return;
 
 	if ((fp_out = fopen(rh->input.geometry_output, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open output file %s",
-				rh->input.geometry_output);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+			  rh->input.geometry_output);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
@@ -73,8 +70,7 @@ void writeGeometry(Geometry *geometry)
 	result &= xdr_vector(&xdrs, (char *) geometry->vz, Nspace,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
-		sprintf(messageStr, "Unable to write geometry to file %s", rh->input.geometry_output);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to write geometry to file %s", rh->input.geometry_output);
 	}
 
 	xdr_destroy(&xdrs);

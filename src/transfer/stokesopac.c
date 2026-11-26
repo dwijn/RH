@@ -17,8 +17,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- StokesK.c --------------- */
 
 void StokesK(int nspect, int k, double chi_I, double K[4][4])

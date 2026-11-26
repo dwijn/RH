@@ -65,8 +65,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* --- Largest u with exp(u) finite: log(DBL_MAX) rounded down -- */
 
 #define LOG_DBL_MAX 709.0
@@ -247,25 +245,22 @@ static void printContraction(const char *routineName)
 	m = rh->solver.NresHist - 1;
 	if (m < 2 || !(rh->solver.resHist[0] > 0.0) || !(rh->solver.resHist[rh->solver.NresHist - 1] >= 0.0) ||
 		!isfinite(rh->solver.resHist[0]) || !isfinite(rh->solver.resHist[rh->solver.NresHist - 1])) {
-		sprintf(messageStr, " -- Estimated contraction: no estimate (fewer than 4"
-							" iterations, or no residual to compare)\n");
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, " -- Estimated contraction: no estimate (fewer than 4"
+									" iterations, or no residual to compare)\n");
 		return;
 	}
 	rlast  = rh->solver.resHist[rh->solver.NresHist - 1];
 	lambda = pow(rlast / rh->solver.resHist[0], 1.0 / m);
 	if (!(lambda < 1.0)) {
-		sprintf(messageStr, " -- Estimated contraction: no estimate (the residual"
-							" did not decrease over the last %d iterations)\n",
-				m);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, " -- Estimated contraction: no estimate (the residual"
+									" did not decrease over the last %d iterations)\n",
+			  m);
 		return;
 	}
-	sprintf(messageStr, " -- Estimated contraction %.3f per iteration (last %d"
-						" iterations); the error of the populations may be up to"
-						" about %.1E (residual / (1 - contraction))\n",
-			lambda, m, rlast / (1.0 - lambda));
-	Error(MESSAGE, routineName, messageStr);
+	Error(MESSAGE, routineName, " -- Estimated contraction %.3f per iteration (last %d"
+								" iterations); the error of the populations may be up to"
+								" about %.1E (residual / (1 - contraction))\n",
+		  lambda, m, rlast / (1.0 - lambda));
 }
 /* ------- end ---------------------------- residualHistory.c ------- */
 
@@ -325,8 +320,7 @@ static void printRhoNe(const double *x, const double *saved, const double *gx)
 			if (saved) old += rh->solver.blocks[n].N;
 		}
 		if (any) {
-			sprintf(messageStr, " rho %s: delta = %6.4E\n", atom->ID, dpops);
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, " rho %s: delta = %6.4E\n", atom->ID, dpops);
 		}
 	}
 	old = saved;
@@ -335,8 +329,7 @@ static void printRhoNe(const double *x, const double *saved, const double *gx)
 		if (rh->solver.blocks[n].kind == BLOCK_NE) {
 			dpops = relChange((saved) ? old : x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n],
 							  rh->solver.blocks[n].N);
-			sprintf(messageStr, " ne: delta = %6.4E\n", dpops);
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, " ne: delta = %6.4E\n", dpops);
 		}
 		if (saved) old += rh->solver.blocks[n].N;
 	}
@@ -379,10 +372,9 @@ static double prdSubIterations(int Nsub)
 				else
 					PRDScatter(line);
 				drho = PRDDamp(line, old, N);
-				sprintf(messageStr, "  PRD: sub-iteration %d, atom %s, line %d,"
-									" delta = %6.4E\n",
-						nsub, atom->ID, kr, drho);
-				Error(MESSAGE, NULL, messageStr);
+				Error(MESSAGE, NULL, "  PRD: sub-iteration %d, atom %s, line %d,"
+									 " delta = %6.4E\n",
+					  nsub, atom->ID, kr, drho);
 				drhomax = MAX(drho, drhomax);
 
 				/* --- rho <= 0 or not finite: stops the run, or at a
@@ -921,13 +913,11 @@ static void logSolve(int Nsolve, bool_t per_block, const AndersonSolve *info,
 		   iteration that solved (also when all were left out) -- --- */
 
 	for (b = 0; b < Nsolve; b++) {
-		sprintf(messageStr,
-				"  Anderson%s%s: %d column%s, cond %.2E, %d dropped;"
-				" |f|_W %.3E\n",
-				(per_block) ? " " : "", (per_block) ? rh->solver.blocks[rh->solver.packBlock[b]].name : "",
-				info[b].Ncols, (info[b].Ncols == 1) ? "" : "s", info[b].cond,
-				info[b].Ndrop, fnorm);
-		Error(MESSAGE, NULL, messageStr);
+		Error(MESSAGE, NULL, "  Anderson%s%s: %d column%s, cond %.2E, %d dropped;"
+							 " |f|_W %.3E\n",
+			  (per_block) ? " " : "", (per_block) ? rh->solver.blocks[rh->solver.packBlock[b]].name : "",
+			  info[b].Ncols, (info[b].Ncols == 1) ? "" : "s", info[b].cond,
+			  info[b].Ndrop, fnorm);
 	}
 }
 /* ------- end ---------------------------- logSolve.c -------------- */
@@ -945,34 +935,28 @@ static double printChange(const char *routineName, int niter, const double *x,
 		   definition on (x, G(x)), in the format of the other
 		   solvers. Returns the largest --            -------------- */
 
-	sprintf(messageStr, "\n -- Iteration %3d\n", niter);
-	Error(MESSAGE, routineName, messageStr);
+	Error(MESSAGE, routineName, "\n -- Iteration %3d\n", niter);
 	for (n = 0; n < rh->solver.Nblocks; n++) {
 		if (rh->solver.blocks[n].kind != BLOCK_ATOM && rh->solver.blocks[n].kind != BLOCK_MOLECULE)
 			continue;
 		dpops = relChange(x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n], rh->solver.blocks[n].N);
-		sprintf(messageStr,
-				(rh->solver.blocks[n].kind == BLOCK_ATOM) ? " %s, delta = %6.4E\n"
-														  : " %s , delta = %6.4E\n",
-				(rh->solver.blocks[n].kind == BLOCK_ATOM) ? ((Atom *) rh->solver.blocks[n].owner)->ID
-														  : ((Molecule *) rh->solver.blocks[n].owner)->ID,
-				dpops);
-		Error(MESSAGE, NULL, messageStr);
+		Error(MESSAGE, NULL, (rh->solver.blocks[n].kind == BLOCK_ATOM) ? " %s, delta = %6.4E\n" : " %s , delta = %6.4E\n",
+			  (rh->solver.blocks[n].kind == BLOCK_ATOM) ? ((Atom *) rh->solver.blocks[n].owner)->ID
+														: ((Molecule *) rh->solver.blocks[n].owner)->ID,
+			  dpops);
 		dpopsmax = MAX(dpops, dpopsmax);
 	}
 	if (rh->input.solve_ne == ITERATION) {
-		sprintf(messageStr, " ne: last Newton step %.2E, chemical"
-							" equilibrium: last Newton step %.2E\n",
-				rh->solver.neChange, rh->solver.chemChange);
-		Error(MESSAGE, NULL, messageStr);
+		Error(MESSAGE, NULL, " ne: last Newton step %.2E, chemical"
+							 " equilibrium: last Newton step %.2E\n",
+			  rh->solver.neChange, rh->solver.chemChange);
 	}
 	printRhoNe(x, NULL, gx);
 	if (rh->input.errorLimit > 0.0) {
 		for (n = 0; n < rh->solver.Nblocks; n++) {
 			if (rh->solver.blocks[n].kind != BLOCK_J) continue;
-			sprintf(messageStr, " J: delta = %6.4E\n",
-					relChange(x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n], rh->solver.blocks[n].N));
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, " J: delta = %6.4E\n",
+				  relChange(x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n], rh->solver.blocks[n].N));
 		}
 	}
 	return dpopsmax;
@@ -1039,18 +1023,16 @@ static void errorTestInit(ErrorTest *t, const char *routineName)
 	t->Geval     = 0;
 	if (t->limit <= 0.0) return;
 
-	sprintf(messageStr,
-			" -- ERROR_LIMIT = %.2E: the run stops when the estimated error"
-			" of the\n    populations, rho, ne and J is below it%s; each"
-			" estimate takes %d plain G\n    steps (memory %.1f MB)\n",
-			t->limit,
-			(rh->input.iterLimit_set) ? " and the residual of the populations below"
-										" ITER_LIMIT"
-									  : "",
-			ERROR_STEPS,
-			((double) ERROR_STEPS * errorSize() + 2.0 * rh->solver.Nstate) * sizeof(double) /
-				1.0E6);
-	Error(MESSAGE, routineName, messageStr);
+	Error(MESSAGE, routineName, " -- ERROR_LIMIT = %.2E: the run stops when the estimated error"
+								" of the\n    populations, rho, ne and J is below it%s; each"
+								" estimate takes %d plain G\n    steps (memory %.1f MB)\n",
+		  t->limit,
+		  (rh->input.iterLimit_set) ? " and the residual of the populations below"
+									  " ITER_LIMIT"
+									: "",
+		  ERROR_STEPS,
+		  ((double) ERROR_STEPS * errorSize() + 2.0 * rh->solver.Nstate) * sizeof(double) /
+			  1.0E6);
 }
 
 /* --- The residual of rho, ne and J (relChange) -- ----------------- */
@@ -1223,9 +1205,8 @@ static void errorTestLimits(const ErrorTest *t, char *s, size_t n, double dpopsm
 static void errorTestSummary(const ErrorTest *t, const char *routineName)
 {
 	if (t->limit <= 0.0) return;
-	sprintf(messageStr, " -- ERROR_LIMIT: %d error estimate%s, %ld G evaluations\n",
-			t->Nestimate, (t->Nestimate == 1) ? "" : "s", t->Geval);
-	Error(MESSAGE, routineName, messageStr);
+	Error(MESSAGE, routineName, " -- ERROR_LIMIT: %d error estimate%s, %ld G evaluations\n",
+		  t->Nestimate, (t->Nestimate == 1) ? "" : "s", t->Geval);
 }
 /* ------- end ---------------------------- errorTest.c ------------- */
 

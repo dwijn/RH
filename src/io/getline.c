@@ -21,8 +21,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- getLine.c --------------- */
 
 int getLine(FILE *inputFile, char *commentChar, char *line,
@@ -43,9 +41,7 @@ int getLine(FILE *inputFile, char *commentChar, char *line,
 	}
 	if (linePtr == NULL) {
 		if (exit_on_EOF) {
-			sprintf(messageStr,
-					"Reached end of input file before all data was read");
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Reached end of input file before all data was read");
 		} else
 			return EOF;
 	} else
@@ -63,10 +59,9 @@ void checkNread(int Nread, int Nrequired, const char *routineName,
 		   error otherwise --                           --------------- */
 
 	if (Nread < Nrequired) {
-		sprintf(messageStr, "Unable to read input file\n"
-							" At checkpoint %d. Needed at least %d, read %d item%s",
-				checkPoint, Nrequired, Nread, (Nread > 1) ? "s" : "");
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to read input file\n"
+										  " At checkpoint %d. Needed at least %d, read %d item%s",
+			  checkPoint, Nrequired, Nread, (Nread > 1) ? "s" : "");
 	}
 }
 /* ------- end ---------------------------- checkNread.c ------------ */

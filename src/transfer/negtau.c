@@ -21,8 +21,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- negTauRun.c ------------- */
 
 double negTauRun(int Ninterval, const double *dtau, int *kfirst, int *klast)
@@ -335,11 +333,9 @@ void negTauStop(void)
 	if (!rh->negtau.detected.found || rh->negtau.trial) return; /* (invalid only in a trial) */
 
 	negTauMessage(what, sizeof(what));
-	sprintf(messageStr,
-			"\n  %s.\n  The formal solution would overflow there. A negative"
-			" total opacity\n  comes from a strong inverted line (population"
-			" inversion) in\n  the current populations (SOLVER.md, trap 5)",
-			what);
-	Error(ERROR_LEVEL_2, routineName, messageStr);
+	Error(ERROR_LEVEL_2, routineName, "\n  %s.\n  The formal solution would overflow there. A negative"
+									  " total opacity\n  comes from a strong inverted line (population"
+									  " inversion) in\n  the current populations (SOLVER.md, trap 5)",
+		  what);
 }
 /* ------- end ---------------------------- negTauStop.c ------------ */

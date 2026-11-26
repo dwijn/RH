@@ -32,7 +32,6 @@ void writeMULTIatmos(Geometry *geometry, Atmosphere *atmos,
 
 static RHState rh_state = RH_STATE_INIT(ONE_D_PLANE, NULL);
 RHState *const rh       = &rh_state;
-char           messageStr[MAX_MESSAGE_LENGTH];
 
 /* ------- begin -------------------------- readTrujillo.c ---------- */
 
@@ -56,8 +55,7 @@ int main(int argc, char *argv[])
 	}
 
 	if ((fp_Trujillo = fopen(argv[1], "r")) == NULL) {
-		sprintf(messageStr, "Unable to open input file %s", argv[1]);
-		Error(ERROR_LEVEL_2, argv[0], messageStr);
+		Error(ERROR_LEVEL_2, argv[0], "Unable to open input file %s", argv[1]);
 	}
 
 	strncpy(atmos.ID, "Atmospheric model from Javier Trujillo Bueno",
@@ -67,8 +65,7 @@ int main(int argc, char *argv[])
 	getLine(fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF = TRUE);
 	Nread = sscanf(line, "%d", &geometry.Ndep);
 	if (Nread != 1) {
-		sprintf(messageStr, "Malformed input line:\n %.200s", line);
-		Error(ERROR_LEVEL_2, argv[0], messageStr);
+		Error(ERROR_LEVEL_2, argv[0], "Malformed input line:\n %.200s", line);
 	}
 	atmos.Nspace = geometry.Ndep;
 
@@ -92,8 +89,7 @@ int main(int argc, char *argv[])
 					   &atmos.B[k], &geometry.vel[k], &atmos.gamma_B[k],
 					   &atmos.chi_B[k]);
 		if (Nread != 8) {
-			sprintf(messageStr, "Malformed input line:\n %.200s", line);
-			Error(ERROR_LEVEL_2, argv[0], messageStr);
+			Error(ERROR_LEVEL_2, argv[0], "Malformed input line:\n %.200s", line);
 		}
 
 		geometry.tau_ref[k] = POW10(geometry.tau_ref[k]);

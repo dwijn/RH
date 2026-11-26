@@ -54,8 +54,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- profileWorker.c -------- */
 
 /* --- The absorption profile at one grid point depends only on that

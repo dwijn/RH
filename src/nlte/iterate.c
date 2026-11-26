@@ -38,8 +38,6 @@ void *Formal_pthread(void *argument);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 static void   iterateNg(int NmaxIter, double iterLimit);
 static bool_t moreIterations(int niter, int NmaxIter);
 
@@ -68,9 +66,8 @@ void Iterate(int NmaxIter, double iterLimit)
 		workPhase(WORK_FINAL);
 		return;
 	}
-	sprintf(messageStr, " -- SOLVER = %s%s\n", solverName(rh->input.solver),
-			rh->input.solver_default ? " (the default)" : "");
-	Error(MESSAGE, "Iterate", messageStr);
+	Error(MESSAGE, "Iterate", " -- SOLVER = %s%s\n", solverName(rh->input.solver),
+		  rh->input.solver_default ? " (the default)" : "");
 
 	getCPU(1, TIME_START, NULL);
 	workPhase(WORK_ITERATE);
@@ -440,9 +437,8 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 
 	negTauStop();
 
-	sprintf(messageStr, " Spectrum max delta J = %6.4E (lambda#: %d)\n",
-			dJmax, lambda_max);
-	Error(MESSAGE, NULL, messageStr);
+	Error(MESSAGE, NULL, " Spectrum max delta J = %6.4E (lambda#: %d)\n",
+		  dJmax, lambda_max);
 
 	/* --- The background scattering iteration of the sweep (N-51) -- */
 
@@ -451,18 +447,14 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 
 		bgScatterStats(&bs, TRUE);
 		if (bs.Niterated > 0) {
-			sprintf(messageStr,
-					"  Background scattering: %ld wavelengths iterated,"
-					" %ld solves%s%s",
-					bs.Niterated, bs.Nsweeps, linearNote(&bs),
-					(bs.Nunconverged > 0) ? "" : "\n");
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, "  Background scattering: %ld wavelengths iterated,"
+								 " %ld solves%s%s",
+				  bs.Niterated, bs.Nsweeps, linearNote(&bs),
+				  (bs.Nunconverged > 0) ? "" : "\n");
 			if (bs.Nunconverged > 0) {
-				sprintf(messageStr,
-						"; %ld not converged at BACKGROUND_N_MAX_ITER"
-						" (estimated error up to %.2E)\n",
-						bs.Nunconverged, bs.rmax);
-				Error(MESSAGE, NULL, messageStr);
+				Error(MESSAGE, NULL, "; %ld not converged at BACKGROUND_N_MAX_ITER"
+									 " (estimated error up to %.2E)\n",
+					  bs.Nunconverged, bs.rmax);
 			}
 			workBgScatter(bs.Nsweeps);
 		}

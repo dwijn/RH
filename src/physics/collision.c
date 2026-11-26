@@ -77,8 +77,6 @@ void   rowcol(int i, int *row, int *col);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin ---------------------------rowcol.c ---------------- */
 
 void rowcol(int anr, int *row, int *col)
@@ -100,11 +98,9 @@ void rowcol(int anr, int *row, int *col)
 			return;
 		}
 	}
-	sprintf(messageStr,
-			"Iso-electronic sequence with %d electrons is outside the six rows"
-			" of the periodic table that SUMMERS covers",
-			anr);
-	Error(ERROR_LEVEL_2, "rowcol", messageStr);
+	Error(ERROR_LEVEL_2, "rowcol", "Iso-electronic sequence with %d electrons is outside the six rows"
+								   " of the periodic table that SUMMERS covers",
+		  anr);
 }
 /* ------- end ---------------------------- rowcol.c ---------------- */
 
@@ -440,11 +436,9 @@ double summers(int i, int j, double nne, struct Atom *atom)
 
 	isoseq = iz - atom->stage[i];
 	if (isoseq < 1 || isoseq > 86) {
-		sprintf(messageStr,
-				"Atom %s, SUMMERS for levels %d and %d: the recombined ion has %d"
-				" electrons; the density factor covers 1 to 86",
-				atom->ID, i, j, isoseq);
-		Error(ERROR_LEVEL_2, "summers", messageStr);
+		Error(ERROR_LEVEL_2, "summers", "Atom %s, SUMMERS for levels %d and %d: the recombined ion has %d"
+										" electrons; the density factor covers 1 to 86",
+			  atom->ID, i, j, isoseq);
 	}
 	atomnm(isoseq - 1, &cseq[0]);
 
@@ -812,10 +806,9 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			i1 = atoi(strtok(NULL, " "));
 			i2 = atoi(strtok(NULL, " "));
 			if (Ntemp <= 0) {
-				sprintf(messageStr, "Atom %s: %s collision data for levels %d %d"
-									" before any TEMP line",
-						atom->ID, keyword, i1, i2);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Atom %s: %s collision data for levels %d %d"
+												  " before any TEMP line",
+					  atom->ID, keyword, i1, i2);
 			}
 			Nitem = Ntemp;
 			coeff = (double *) realloc(coeff, Nitem * sizeof(double));
@@ -895,10 +888,9 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			Ncoef = atoi(strtok(NULL, " "));
 
 			if (Ncoef < 1) {
-				sprintf(messageStr, "Atom %s: collision record BADNELL %d %d: the"
-									" number of coefficients must be positive (%d)",
-						atom->ID, i1, i2, Ncoef);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Atom %s: collision record BADNELL %d %d: the"
+												  " number of coefficients must be positive (%d)",
+					  atom->ID, i1, i2, Ncoef);
 			}
 			Nrow  = 2;
 			Nitem = Nrow * Ncoef;
@@ -939,11 +931,10 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 				   sumscl * summers + 1 - sumscl between 0 and 1 (N-34) -- */
 
 			if (!(sumscl >= 0.0 && sumscl <= 1.0)) {
-				sprintf(messageStr, "Atom %s: the scale factor of the density dependence"
-									" of the dielectronic recombination (SUMMERS) must be"
-									" between 0 and 1 (%g)",
-						atom->ID, sumscl);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Atom %s: the scale factor of the density dependence"
+												  " of the dielectronic recombination (SUMMERS) must be"
+												  " between 0 and 1 (%g)",
+					  atom->ID, sumscl);
 			}
 
 		} else if (!strcmp(keyword, "AR85-CDI")) {
@@ -953,15 +944,13 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			Nrow = atoi(strtok(NULL, " "));
 
 			if (Nrow < 1) {
-				sprintf(messageStr, "Atom %s: collision record AR85-CDI %d %d: the"
-									" number of shells must be positive (%d)",
-						atom->ID, i1, i2, Nrow);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Atom %s: collision record AR85-CDI %d %d: the"
+												  " number of shells must be positive (%d)",
+					  atom->ID, i1, i2, Nrow);
 			}
 			if (Nrow > MSHELL) {
-				sprintf(messageStr, "Nrow: %i greater than mshell %i",
-						Nrow, MSHELL);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Nrow: %i greater than mshell %i",
+					  Nrow, MSHELL);
 			}
 
 			Nitem = Nrow * MSHELL;
@@ -986,14 +975,12 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 		} else if (strstr(keyword, "END")) {
 			break;
 		} else {
-			sprintf(messageStr, "Unknown keyword: !%s!", keyword);
-			Error(ERROR_LEVEL_1, routineName, messageStr);
+			Error(ERROR_LEVEL_1, routineName, "Unknown keyword: !%s!", keyword);
 		}
 
 		if (nitem != Nitem) {
-			sprintf(messageStr, "\n Read %d, not %d items (keyword = %s)\n",
-					nitem, Nitem, keyword);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "\n Read %d, not %d items (keyword = %s)\n",
+				  nitem, Nitem, keyword);
 		}
 		/* --- Records with formulas: the coefficients must be finite and
 			   have the signs that the formula needs (N-34). The sign of
@@ -1366,8 +1353,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 	}
 
 	if (status == EOF) {
-		sprintf(messageStr, "Reached end of datafile before all data was read");
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Reached end of datafile before all data was read");
 	}
 	for (n = 0; n < NTABLE_TYPES; n++)
 		tableRangeReport(&tabrange[n], atom, n, Nspace);

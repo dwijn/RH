@@ -21,8 +21,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- MaxChange.c ------------- */
 
 double MaxChange(struct Ng *Ngs, char *text, bool_t quiet)

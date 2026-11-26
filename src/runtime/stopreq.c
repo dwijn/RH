@@ -25,8 +25,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- StopRequested.c --------- */
 
 bool_t StopRequested()
@@ -34,9 +32,8 @@ bool_t StopRequested()
 	const char routineName[] = "StopRequested";
 
 	if (access(STOP_REQUEST_FILE, F_OK) == 0) {
-		sprintf(messageStr, "Stopping iterations because file %s is present",
-				STOP_REQUEST_FILE);
-		Error(WARNING, routineName, messageStr);
+		Error(WARNING, routineName, "Stopping iterations because file %s is present",
+			  STOP_REQUEST_FILE);
 		return TRUE;
 	} else {
 		return FALSE;

@@ -25,8 +25,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- VanderWaals.c ----------- */
 
 void VanderWaals(AtomicLine *line, double *GvdW)
@@ -136,10 +134,8 @@ void VanderWaals(AtomicLine *line, double *GvdW)
 		break;
 
 	default:
-		sprintf(messageStr,
-				"Unknown method for van der Waals broadening %d, line %d -> %d",
-				line->vdWaals, line->j, line->i);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unknown method for van der Waals broadening %d, line %d -> %d",
+			  line->vdWaals, line->j, line->i);
 	}
 	/* --- Multiply with the Hydrogen ground level population -- ------ */
 
@@ -203,9 +199,8 @@ void Stark(AtomicLine *line, double *GStark)
 			  (ic < atom->Nlevel));
 			 ic++);
 		if (atom->stage[ic] == atom->stage[line->i]) {
-			sprintf(messageStr, "Cannot find overlying continuum for level %d",
-					line->i);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Cannot find overlying continuum for level %d",
+				  line->i);
 		}
 
 		if ((atom->E[ic] - atom->E[line->i]) <= 0.0 ||
@@ -250,8 +245,7 @@ void StarkLinear(AtomicLine *line, double *GStark)
 	Atom  *atom = line->atom;
 
 	if (strstr(atom->ID, "H ") == NULL) {
-		sprintf(messageStr, "Model is not a hydrogen atom: %s", atom->ID);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Model is not a hydrogen atom: %s", atom->ID);
 	}
 	/* --- Find principal quantum number of lower and upper level -- -- */
 

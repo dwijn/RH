@@ -16,8 +16,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- PRDRhoSize.c ----------- */
 
 long PRDRhoSize(const AtomicLine *line)
@@ -84,8 +82,7 @@ bool_t PRDRhoCheck(const Atom *atom, int kr)
 		negTauInvalid(what);
 		return FALSE;
 	}
-	snprintf(messageStr, MAX_MESSAGE_LENGTH, "\n  %s", what);
-	Error(ERROR_LEVEL_2, routineName, messageStr);
+	Error(ERROR_LEVEL_2, routineName, "\n  %s", what);
 	return FALSE;
 }
 /* ------- end ---------------------------- PRDRhoCheck.c ----------- */

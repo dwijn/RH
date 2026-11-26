@@ -131,8 +131,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- backgroundRange.c ------- */
 
 /* --- Per-worker scratch space of the main loop in Background(). The
@@ -661,9 +659,8 @@ static void computeBackground(bool_t write_analyze_output, bool_t equilibria_onl
 	if (rh->input.old_background) {
 		if ((rh->atmos.fd_background =
 				 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
-			sprintf(messageStr, "Unable to open input file %s",
-					rh->input.background_File);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s",
+				  rh->input.background_File);
 		}
 		fd_open = TRUE;
 		readBRS();
@@ -705,13 +702,10 @@ static void backgroundOpacities(bool_t write_analyze_output)
 			   missing UV backround line haze --           -------------- */
 
 		if ((fp_fudge = fopen(rh->input.fudgeData, "r")) == NULL) {
-			sprintf(messageStr, "Unable to open input file %s", rh->input.fudgeData);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s", rh->input.fudgeData);
 		}
-		sprintf(messageStr,
-				"\n-Fudging background opacities with file\n  %s\n\n",
-				rh->input.fudgeData);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, "\n-Fudging background opacities with file\n  %s\n\n",
+			  rh->input.fudgeData);
 
 		/* --- The table is interpolated with Linear (at least two
 			   wavelengths, strictly monotonic), and each value is the
@@ -723,11 +717,9 @@ static void backgroundOpacities(bool_t write_analyze_output)
 
 		getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		if (sscanf(inputLine, "%d", &Nfudge) != 1 || Nfudge < 2) {
-			sprintf(messageStr,
-					"Opacity fudge file %.200s: the first line must give the number"
-					" of wavelengths, at least 2 (read \"%.40s\")",
-					rh->input.fudgeData, inputLine);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Opacity fudge file %.200s: the first line must give the number"
+											  " of wavelengths, at least 2 (read \"%.40s\")",
+				  rh->input.fudgeData, inputLine);
 		}
 		lambda_fudge = (double *) malloc(Nfudge * sizeof(double));
 		fudge        = matrix_double(3, Nfudge);
@@ -737,38 +729,30 @@ static void backgroundOpacities(bool_t write_analyze_output)
 					   &fudge[0][n], &fudge[1][n], &fudge[2][n]) != 4 ||
 				!isfinite(lambda_fudge[n]) || !isfinite(fudge[0][n]) ||
 				!isfinite(fudge[1][n]) || !isfinite(fudge[2][n])) {
-				sprintf(messageStr,
-						"Opacity fudge file %.200s, wavelength %d of %d: need four"
-						" numbers, wavelength and three factors minus 1 (read \"%.60s\")",
-						rh->input.fudgeData, n + 1, Nfudge, inputLine);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Opacity fudge file %.200s, wavelength %d of %d: need four"
+												  " numbers, wavelength and three factors minus 1 (read \"%.60s\")",
+					  rh->input.fudgeData, n + 1, Nfudge, inputLine);
 			}
 			for (int i = 0; i < 3; i++) {
 				if (fudge[i][n] < -1.0) {
-					sprintf(messageStr,
-							"Opacity fudge file %.200s, wavelength %g nm: value %g"
-							" below -1 (the file gives factor - 1, and the factor"
-							" multiplies an opacity: it must be >= 0)",
-							rh->input.fudgeData, lambda_fudge[n], fudge[i][n]);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
+					Error(ERROR_LEVEL_2, routineName, "Opacity fudge file %.200s, wavelength %g nm: value %g"
+													  " below -1 (the file gives factor - 1, and the factor"
+													  " multiplies an opacity: it must be >= 0)",
+						  rh->input.fudgeData, lambda_fudge[n], fudge[i][n]);
 				}
 			}
 			if (n >= 2 && (lambda_fudge[n] - lambda_fudge[n - 1]) *
 								  (lambda_fudge[1] - lambda_fudge[0]) <=
 							  0.0) {
-				sprintf(messageStr,
-						"Opacity fudge file %.200s: wavelengths must be strictly"
-						" increasing or decreasing (%g nm after %g nm)",
-						rh->input.fudgeData, lambda_fudge[n], lambda_fudge[n - 1]);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Opacity fudge file %.200s: wavelengths must be strictly"
+												  " increasing or decreasing (%g nm after %g nm)",
+					  rh->input.fudgeData, lambda_fudge[n], lambda_fudge[n - 1]);
 			}
 		}
 		if (lambda_fudge[1] == lambda_fudge[0]) {
-			sprintf(messageStr,
-					"Opacity fudge file %.200s: wavelengths must be strictly"
-					" increasing or decreasing (%g nm repeated)",
-					rh->input.fudgeData, lambda_fudge[0]);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Opacity fudge file %.200s: wavelengths must be strictly"
+											  " increasing or decreasing (%g nm repeated)",
+				  rh->input.fudgeData, lambda_fudge[0]);
 		}
 		for (n = 0; n < 3 * Nfudge; n++) fudge[0][n] += 1.0;
 		fclose(fp_fudge);
@@ -865,9 +849,8 @@ static void backgroundOpacities(bool_t write_analyze_output)
 	if ((rh->atmos.fd_background =
 			 open(rh->input.background_File, O_RDWR | O_CREAT | O_TRUNC,
 				  PERMISSIONS)) == -1) {
-		sprintf(messageStr, "Unable to open output file %s",
-				rh->input.background_File);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to open output file %s",
+			  rh->input.background_File);
 	}
 	fd_open = TRUE;
 

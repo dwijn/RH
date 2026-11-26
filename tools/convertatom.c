@@ -37,7 +37,6 @@ void writeCollisions(FILE *atomFile, struct Atom *atom, FILE *fpOut);
 
 static RHState rh_state = RH_STATE_INIT(ONE_D_PLANE, NULL);
 RHState *const rh       = &rh_state;
-char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- convertAtom.c ----------- */
 
@@ -60,8 +59,7 @@ int main(int argc, char *argv[])
 	/* --- Open the data file for model atom --          -------------- */
 
 	if ((atomFile = fopen(argv[1], "r")) == NULL) {
-		sprintf(messageStr, "Unable to open input file %s", argv[1]);
-		Error(ERROR_LEVEL_2, "convertAtom", messageStr);
+		Error(ERROR_LEVEL_2, "convertAtom", "Unable to open input file %s", argv[1]);
 	}
 
 	MULTIatom(atomFile, &atom);
@@ -111,8 +109,7 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 	getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
 	Nread = sscanf(input, "%2s", atom->ID);
 	if (Nread != 1) {
-		sprintf(messageStr, "Malformed input line:\n %.200s", input);
-		Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+		Error(ERROR_LEVEL_2, "MULTIatom", "Malformed input line:\n %.200s", input);
 	}
 	if (strlen(atom->ID) == 1) strcat(atom->ID, " ");
 	for (n = 0; n < ATOM_ID_WIDTH; n++)
@@ -123,8 +120,7 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 	getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
 	Nread = sscanf(input, "%lf %lf", &atom->abundance, &atom->weight);
 	if (Nread != 2) {
-		sprintf(messageStr, "Malformed input line:\n %.200s", input);
-		Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+		Error(ERROR_LEVEL_2, "MULTIatom", "Malformed input line:\n %.200s", input);
 	}
 	atom->abundance = POW10(atom->abundance - 12.0);
 
@@ -134,8 +130,7 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 	Nread = sscanf(input, "%d %d %d %d",
 				   &atom->Nlevel, &atom->Nline, &atom->Ncont, &atom->Nfixed);
 	if (Nread != 4) {
-		sprintf(messageStr, "Malformed input line:\n %.200s", input);
-		Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+		Error(ERROR_LEVEL_2, "MULTIatom", "Malformed input line:\n %.200s", input);
 	}
 
 	/* --- Read in the level energies, statistical weights, labels,
@@ -152,8 +147,7 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 		Nread = sscanf(input, "%lf %lf '%20c' %d",
 					   &atom->E[i], &atom->g[i], atom->label[i], &atom->stage[i]);
 		if (Nread != 4) {
-			sprintf(messageStr, "Malformed input line:\n %.200s", input);
-			Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+			Error(ERROR_LEVEL_2, "MULTIatom", "Malformed input line:\n %.200s", input);
 		}
 
 		*(atom->label[i] + ATOM_LABEL_WIDTH) = '\0';
@@ -178,8 +172,7 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 					   &line->qcore, &iw,
 					   &line->Grad, &line->cvdWaals[0], &line->cStark);
 		if (Nread < 7) {
-			sprintf(messageStr, "Malformed input line:\n %.200s", input);
-			Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+			Error(ERROR_LEVEL_2, "MULTIatom", "Malformed input line:\n %.200s", input);
 		}
 
 		line->j = MAX(i, j);
@@ -196,8 +189,7 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 			for (la = 0; la < line->Nlambda; la++) {
 				Nread = fscanf(atomFile, "%lf", line->lambda + la);
 				if (Nread != 1) {
-					sprintf(messageStr, "Unable to read wavelength table for line %d", kr);
-					Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+					Error(ERROR_LEVEL_2, "MULTIatom", "Unable to read wavelength table for line %d", kr);
 				}
 			}
 			line->symmetric = FALSE;
@@ -222,8 +214,7 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 					   &j, &i, &continuum->alpha0,
 					   &continuum->Nlambda, &lambdaMin);
 		if (Nread != 5) {
-			sprintf(messageStr, "Malformed input line:\n %.200s", input);
-			Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+			Error(ERROR_LEVEL_2, "MULTIatom", "Malformed input line:\n %.200s", input);
 		}
 
 		continuum->j = MAX(i, j);
@@ -267,8 +258,7 @@ void MULTIatom(FILE *atomFile, Atom *atom)
 		Nread = sscanf(input, "%d %d %d %lf %lf %d",
 					   &j, &i, &phot, &A0, &fixed->Trad, &Trad_option);
 		if (Nread != 6) {
-			sprintf(messageStr, "Malformed input line:\n %.200s", input);
-			Error(ERROR_LEVEL_2, "MULTIatom", messageStr);
+			Error(ERROR_LEVEL_2, "MULTIatom", "Malformed input line:\n %.200s", input);
 		}
 
 		fixed->j = MAX(i, j);

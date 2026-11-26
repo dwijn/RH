@@ -49,8 +49,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- getAngleQuadr.c --------- */
 
 void getAngleQuadr(Geometry *geometry)
@@ -136,13 +134,11 @@ void getAngleQuadr(Geometry *geometry)
 	case SET_B6: geometry->Nrays = 4 * NRO_B6; break;
 	case SET_B8: geometry->Nrays = 4 * NRO_B8; break;
 	case NO_SET:
-		sprintf(messageStr, "No angleset was specified: %d\n", NO_SET);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "No angleset was specified: %d\n", NO_SET);
 		break;
 	default:
-		sprintf(messageStr, "Did not recognize angleset: %d\n",
-				rh->atmos.angleSet.set);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Did not recognize angleset: %d\n",
+			  rh->atmos.angleSet.set);
 	}
 
 	geometry->mux = (double *) malloc(geometry->Nrays * sizeof(double));
@@ -268,11 +264,9 @@ void getAngleQuadr(Geometry *geometry)
 	for (mu = 0; mu < geometry->Nrays; mu++) {
 		sumsq = SQ(geometry->mux[mu]) + SQ(geometry->muy[mu]);
 		if (sumsq >= 1.0) {
-			sprintf(messageStr,
-					"Ray %d has no upward component: "
-					"mux^2 + muy^2 = %.12g is not below 1\n",
-					mu, sumsq);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Ray %d has no upward component: "
+											  "mux^2 + muy^2 = %.12g is not below 1\n",
+				  mu, sumsq);
 		}
 		geometry->muz[mu] = sqrt(1.0 - sumsq);
 	}

@@ -111,8 +111,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 double chemLastChangeReset(void)
 {
 	double d = rh->chemequil.chemLastChange;
@@ -634,11 +632,9 @@ double partfunction(struct Molecule *molecule, double T)
 	case TSUJI_73:
 		break;
 	default:
-		sprintf(messageStr,
-				"Unknown method for calculation of partition function\n"
-				"for molecule %s: %d",
-				molecule->ID, molecule->fit);
-		Error(ERROR_LEVEL_2, "partfunction", messageStr);
+		Error(ERROR_LEVEL_2, "partfunction", "Unknown method for calculation of partition function\n"
+											 "for molecule %s: %d",
+			  molecule->ID, molecule->fit);
 	}
 	return pf;
 }
@@ -695,11 +691,9 @@ static double lnEquilConstant(struct Molecule *molecule, double T)
 		break;
 
 	default:
-		sprintf(messageStr,
-				"Unknown method for calculation of equilibrium constant\n"
-				"for molecule %s: %d",
-				molecule->ID, molecule->fit);
-		Error(ERROR_LEVEL_2, "lnEquilConstant", messageStr);
+		Error(ERROR_LEVEL_2, "lnEquilConstant", "Unknown method for calculation of equilibrium constant\n"
+												"for molecule %s: %d",
+			  molecule->ID, molecule->fit);
 	}
 	return lneqc;
 }
@@ -804,11 +798,9 @@ double equilconstant(struct Molecule *molecule, double T)
 		break;
 
 	default:
-		sprintf(messageStr,
-				"Unknown method for calculation of equilibrium constant\n"
-				"for molecule %s: %d",
-				molecule->ID, molecule->fit);
-		Error(ERROR_LEVEL_2, "equilconstant", messageStr);
+		Error(ERROR_LEVEL_2, "equilconstant", "Unknown method for calculation of equilibrium constant\n"
+											  "for molecule %s: %d",
+			  molecule->ID, molecule->fit);
 	}
 
 	return eqc * cgs_to_SI;

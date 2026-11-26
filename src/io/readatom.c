@@ -49,8 +49,6 @@ char *getAtomID(char *atom_file);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- readAtom.c -------------- */
 
 void readAtom(Atom *atom, char *atom_file)
@@ -824,9 +822,8 @@ void readAtomicModels(void)
 	/* --- Open input file for atomic models --          -------------- */
 
 	if ((fp_atoms = fopen(rh->input.atoms_input, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open input file %s",
-				rh->input.atoms_input);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s",
+			  rh->input.atoms_input);
 	}
 	/* --- Get the number of atomic models to be read -- -------------- */
 
@@ -847,17 +844,14 @@ void readAtomicModels(void)
 
 		atomID = getAtomID(filename);
 		if (n == 0 && !strstr(atomID, "H ")) {
-			sprintf(messageStr, "First atomic model is not hydrogen: %s",
-					atomID);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "First atomic model is not hydrogen: %s",
+				  atomID);
 		}
 		/* --- Check for duplicate atomic ID --            -------------- */
 
 		for (m = 0; m < n; m++) {
 			if (strstr(atomID, rh->atmos.atoms[m].ID)) {
-				sprintf(messageStr,
-						"Aready read atomic model for element %s\n", atomID);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Aready read atomic model for element %s\n", atomID);
 			}
 		}
 		/* --- Set active flag. Active set to TRUE means atom will be
@@ -880,10 +874,8 @@ void readAtomicModels(void)
 		/* --- If popsKey is not recognized --             -------------- */
 
 		if (atom->initial_solution == UNKNOWN) {
-			sprintf(messageStr,
-					"Unknown initial solution specified for atom: %s\n",
-					atomID);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Unknown initial solution specified for atom: %s\n",
+				  atomID);
 		}
 		/* --- A PASSIVE atom keeps the populations it starts with: LTE,
 			   or (OLD_POPULATIONS) read from a file. ZERO_RADIATION
@@ -896,27 +888,21 @@ void readAtomicModels(void)
 
 		if (!atom->active) {
 			if (atom->initial_solution == ZERO_RADIATION) {
-				sprintf(messageStr,
-						"ZERO_RADIATION is for ACTIVE atoms only (PASSIVE atom %s).\n"
-						" A PASSIVE atom keeps its populations: LTE_POPULATIONS,\n"
-						" or OLD_POPULATIONS with a file of populations to read",
-						atomID);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "ZERO_RADIATION is for ACTIVE atoms only (PASSIVE atom %s).\n"
+												  " A PASSIVE atom keeps its populations: LTE_POPULATIONS,\n"
+												  " or OLD_POPULATIONS with a file of populations to read",
+					  atomID);
 			}
 			if (n == 0 && atom->initial_solution == OLD_POPULATIONS) {
-				sprintf(messageStr,
-						"PASSIVE hydrogen cannot read OLD_POPULATIONS: its\n"
-						" populations come from the atmosphere, or are LTE with\n"
-						" HYDROGEN_LTE = TRUE. Use LTE_POPULATIONS, or make\n"
-						" hydrogen ACTIVE");
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "PASSIVE hydrogen cannot read OLD_POPULATIONS: its\n"
+												  " populations come from the atmosphere, or are LTE with\n"
+												  " HYDROGEN_LTE = TRUE. Use LTE_POPULATIONS, or make\n"
+												  " hydrogen ACTIVE");
 			}
 			if (atom->initial_solution == LTE_POPULATIONS && Nread == 4) {
-				sprintf(messageStr,
-						"Populations file %s of PASSIVE atom %s is not read\n"
-						" with LTE_POPULATIONS (OLD_POPULATIONS reads it)",
-						popsFile, atomID);
-				Error(WARNING, routineName, messageStr);
+				Error(WARNING, routineName, "Populations file %s of PASSIVE atom %s is not read\n"
+											" with LTE_POPULATIONS (OLD_POPULATIONS reads it)",
+					  popsFile, atomID);
 			}
 		}
 		/* --- If input.startJ == OLD_J then enforce OLD_POPULATIONAS - - */
@@ -928,10 +914,8 @@ void readAtomicModels(void)
 
 		if (atom->initial_solution == OLD_POPULATIONS) {
 			if (Nread < 4) {
-				sprintf(messageStr,
-						"No file with OLD_POPULATIONS specified for atom: %s\n",
-						atomID);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "No file with OLD_POPULATIONS specified for atom: %s\n",
+					  atomID);
 			}
 			atom->popsinFile =
 				(char *) malloc((strlen(popsFile) + 1) * sizeof(char));
@@ -972,8 +956,7 @@ char *getAtomID(char *atom_file)
 	FILE  *fp_atom;
 
 	if ((fp_atom = fopen(atom_file, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open inputfile %s", atom_file);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to open inputfile %s", atom_file);
 	}
 	/* --- Read atom ID and convert to uppercase --     -------------- */
 

@@ -15,8 +15,6 @@
 #include "error.h"
 #include "prdfold.h"
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- prdGrid.c --------------- */
 
 int prdGrid(double q_emit, double waveratio, double *q0, double *qN)
@@ -157,10 +155,9 @@ void prdFold(int N, double *qtab, int Np, double *qp, double *gw, int m0, int le
 	for (lap = 0; lap < Np; lap++) {
 		prdFoldIndex(N, qtab, qp[lap], &j, &fx);
 		if (j < m0 || ((fx < 1.0) ? j + 1 : j) >= m0 + len) {
-			sprintf(messageStr, "Fine-grid point %g outside the range [%d, %d) of"
-								" the redistribution weights",
-					qp[lap], m0, m0 + len);
-			Error(ERROR_LEVEL_2, "prdFold", messageStr);
+			Error(ERROR_LEVEL_2, "prdFold", "Fine-grid point %g outside the range [%d, %d) of"
+											" the redistribution weights",
+				  qp[lap], m0, m0 + len);
 		}
 		W[j - m0] += gw[lap] * fx;
 		if (fx < 1.0) W[j + 1 - m0] += gw[lap] * (1.0 - fx);

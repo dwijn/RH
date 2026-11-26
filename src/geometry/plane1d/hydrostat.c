@@ -31,8 +31,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- Hydrostatic.c ----------- */
 
 static void solveHydrostatic(int NmaxIter, double iterLimit)

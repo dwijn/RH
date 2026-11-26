@@ -26,8 +26,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- determinate.c ----------- */
 
 bool_t determinate(char *label, double g, int *n, double *S, int *L,
@@ -47,8 +45,7 @@ bool_t determinate(char *label, double g, int *n, double *S, int *L,
 	if (ptr > multiplet)
 		*(ptr + 1) = '\0';
 	else {
-		sprintf(messageStr, "Cannot determine parity of atomic level %s", label);
-		Error(WARNING, routineName, messageStr);
+		Error(WARNING, routineName, "Cannot determine parity of atomic level %s", label);
 		return FALSE;
 	}
 
@@ -212,8 +209,7 @@ double ZeemanStrength(double Ju, double Mu, double Jl, double Ml)
 		break;
 
 	default:
-		sprintf(messageStr, "Invalid dJ: %d", dJ);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
 	}
 	return s;
 }
@@ -284,9 +280,8 @@ void Zeeman(AtomicLine *line)
 			/* --- readAtom only marks a line polarizable when both
 				   labels can be parsed, so this cannot happen -- ------- */
 
-			sprintf(messageStr, "Atom %s: no quantum numbers for line %d -> %d",
-					atom->ID, line->j, line->i);
-			Error(ERROR_LEVEL_2, "Zeeman", messageStr);
+			Error(ERROR_LEVEL_2, "Zeeman", "Atom %s: no quantum numbers for line %d -> %d",
+				  atom->ID, line->j, line->i);
 		}
 
 		/* --- Count the number of components --           -------------- */
@@ -444,8 +439,7 @@ int getOrbital(char orbit)
 	case 'W': L = 18; break;
 	case 'X': L = 19; break;
 	default:
-		sprintf(messageStr, "Invalid orbital: %c", orbit);
-		Error(WARNING, routineName, messageStr);
+		Error(WARNING, routineName, "Invalid orbital: %c", orbit);
 	}
 	return L;
 }

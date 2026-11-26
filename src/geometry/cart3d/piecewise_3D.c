@@ -22,8 +22,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- ShortChar.c ------------- */
 
 void ShortChar(Geometry *geometry, int nspect, int mu,
@@ -167,10 +165,8 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 						Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
 											 k, kend, l, m, I_uw, chi, S, I, Psi);
 					} else {
-						sprintf(messageStr,
-								"Unknown radiation solver: %d",
-								rh->input.S_interpolation);
-						Error(ERROR_LEVEL_1, routineName, messageStr);
+						Error(ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
+							  rh->input.S_interpolation);
 					}
 				}
 			}
@@ -193,10 +189,8 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 						Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
 											 k, kend, l, m, I_uw, chi, S, I, Psi);
 					} else {
-						sprintf(messageStr,
-								"Unknown radiation solver: %d",
-								rh->input.S_interpolation);
-						Error(ERROR_LEVEL_1, routineName, messageStr);
+						Error(ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
+							  rh->input.S_interpolation);
 					}
 				}
 			}

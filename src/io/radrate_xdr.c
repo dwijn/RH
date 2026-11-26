@@ -25,8 +25,6 @@ bool_t xdr_radrate(XDR *xdrs, Atom *atom);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- writeRadRate.c - -------- */
 
 bool_t writeRadRate(Atom *atom)
@@ -45,15 +43,13 @@ bool_t writeRadRate(Atom *atom)
 	sprintf(ratesfile, (atom->ID[1] == ' ') ? "radrate.%.1s.out" : "radrate.%.2s.out", atom->ID);
 
 	if ((fp = fopen(ratesfile, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open output file %s", ratesfile);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", ratesfile);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp, XDR_ENCODE);
 
 	if (!xdr_radrate(&xdrs, atom)) {
-		sprintf(messageStr, "Unable to write to output file %s", ratesfile);
-		Error(WARNING, routineName, messageStr);
+		Error(WARNING, routineName, "Unable to write to output file %s", ratesfile);
 	}
 
 	xdr_destroy(&xdrs);
@@ -80,15 +76,13 @@ bool_t readRadRate(Atom *atom)
 	/* --- Read radiative rates for transitions treated in detail. -- - */
 
 	if ((fp = fopen(ratesfile, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open input file %s", ratesfile);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s", ratesfile);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp, XDR_DECODE);
 
 	if (!xdr_radrate(&xdrs, atom)) {
-		sprintf(messageStr, "Unable to read from input file %s", ratesfile);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to read from input file %s", ratesfile);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp);
