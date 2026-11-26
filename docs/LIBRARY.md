@@ -339,7 +339,7 @@ operations:
 
 ```mermaid
 flowchart LR
-  W["worker: rh_fail(ctx, code, msg)"] --> P["pool: first error wins,\nremaining work skipped"]
+  W["worker: Fail(rh, code, msg)"] --> P["pool: first error wins,\nremaining work skipped"]
   P --> D["driver returns status"]
   D --> G["G returns status;\nRH_E_TRIAL: outer solver rejects the point"]
   G --> A["API returns status + rh_error"]
@@ -347,9 +347,11 @@ flowchart LR
 ```
 
 - **Proposed:** every function that can fail returns an `rh_status`, and
-  `rh_fail` records the code, the routine and the message in the error
+  `Fail` records the code, the routine and the message in the error
   record of the current solver (the first error wins; callers may add
   context on the way up). Functions that cannot fail stay as they are.
+  *Agreed 2026-11-26 (phase 3):* a function that can fail and computes a
+  value returns the status, and the value through an out-parameter.
 - In worker threads the error goes into the worker's slot; the pool stops
   handing out work; the caller gets the error of the lowest-numbered failed
   task, so the report is deterministic.
@@ -359,8 +361,17 @@ flowchart LR
 - Non-convergence is reported in `rh_solve_info` (converged, iterations,
   residual, error estimate); the stand-alone program maps it to exit-status
   bit 1 as now.
-- Warnings and messages go through `rh_log(ctx, level, ...)` to the env's
-  callback (serialized by the env). `messageStr` disappears.
+- Warnings and messages go through `Error(level, routine, format, ...)`
+  (Q-48) and, from phase 6, to the env's callback (serialized by the
+  env). `messageStr` disappears (Q-48).
+- *Agreed 2026-11-26:* internal and public functions differ. Only the
+  API of §4 has `rh_` names; it checks its arguments, never exits or
+  aborts, copies the recorded error into the caller's `rh_error`, and is
+  all the library exports (`-fvisibility=hidden`). The internal
+  functions (`Error`, `Fail`, and all others) take `rh` first and may
+  trust what the boundary has checked; only the status codes are
+  shared. A broken invariant inside is a bug, not a status:
+  `RH_ASSERT` prints the message and aborts, also in Release builds.
 - Allocation failure is `RH_E_NOMEM`, not an exit.
 - Floating-point traps move to the stand-alone program, which may set
   them around its calls (CI relies on them).
@@ -742,7 +753,7 @@ otherwise and carries `changes-results`.
 flowchart TB
   P0["0 Source layout\n(retire solve1d & co. first)"] --> P1["1 One transfer driver\n(Q-5; unblocks N-68)"]
   P1 --> P2["2 Gather state\nglobals + statics into one struct"]
-  P2 --> P3["3 Pass it explicitly, return status, stop path\n(Q-4, Q-7, Q-16, T-1..3, B-41)"]
+  P2 --> P3["3 Pass it explicitly, return status, stop path\n(Q-4, Q-7, T-1, B-14, B-41)"]
   P3 --> P4["4 Split lifetimes, free everything\n(Q-8, B-71)"]
   P4 --> P5["5 The stand-alone program and its files\nlibrh_io, TOML, one rh, self-contained runs, timing"]
   P5 --> P6["6 API and clients\nthread pool, Python, inversion driver, checkpoints"]
@@ -782,6 +793,20 @@ flowchart TB
    the stop callback is polled between wavelength blocks (C11). Most of the
    ~600 fatal call sites are input checks in `readinput.c`, `readatom.c` and
    `readmolecule.c`, where returning is natural.
+   *Agreed 2026-11-26 (survey and proposal: `claude/RH/evidence/lib-phase3-survey`):*
+   446 functions need `rh` and 275 can fail, at 390 fatal sites. Five
+   steps, each with results unchanged: messages with format arguments,
+   `messageStr` removed (Q-48); `rh` the first parameter of the 446
+   functions in one generated sweep, and the global removed (Q-49); the
+   statics left (Q-50); errors that return, by hand, module by module
+   from the leaves, with a macro that exits as today in callers not yet
+   converted (Q-51, and a row per later module group); the stop path
+   (Q-52). So the parameter and the status returns are no longer done
+   together (below). A function that can fail and computes a value
+   returns it through an out-parameter. The fatal sites are classified
+   first, and broken invariants become `RH_ASSERT` instead of statuses
+   (§3.6). Internal functions keep internal names; `rh_` is for the API
+   of phase 6. `ERROR_LEVEL_1` stays fatal; Q-16 follows phase 3.
 4. **Split lifetimes and free everything.** Model, atmosphere and solver
    become separate objects (§3.2): atom data without `Nspace` arrays,
    collision data parsed into memory, `Background()` no longer frees model
@@ -819,7 +844,11 @@ Why this order:
 - Error returns and the explicit context change the same function
   signatures; doing them together touches each function once. (The order
   agreed on 2026-11-11 put Q-7 first; on its own it would need a place for
-  error state and would touch every signature twice.)
+  error state and would touch every signature twice.) *Revised
+  2026-11-26:* the parameter comes first, in one generated sweep, and the
+  returns by hand after it. A generated first touch costs little, and a
+  parameter added module by module would sit beside the global of the
+  same name, which a missed function would silently use.
 - Lifetimes can only be split once the state is explicit; files can only
   leave the core once each array has an owner; the API comes last because
   it exposes all of it.
