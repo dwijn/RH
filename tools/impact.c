@@ -65,8 +65,8 @@ double square(double x)
 int    *n, *l;
 double *n_eff, E_Rydberg, f, deltaE, R0, x0, ERkT, PIa0square;
 
-static RHState rh_state;
-RHState *const rh = &rh_state;
+static RHState rh_state = RH_STATE_INIT(ONE_D_PLANE, NULL);
+RHState *const rh       = &rh_state;
 char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- impact.c ---------------- */

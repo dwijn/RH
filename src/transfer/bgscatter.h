@@ -42,6 +42,22 @@ int  bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 					  double *kappa, BgSweep sweep, void *ctx);
 void bgScatterStats(BgScatterStats *s, int reset);
 
+/* --- The state of the background scattering between calls, its part
+	   of RHState (rh->bgscatter, Q-46). The per-wavelength arrays are
+	   made by bgScatterSetup; one thread works on a wavelength at a
+	   time, so only the counters need the mutex -- -------------- */
+
+typedef struct {
+	pthread_mutex_t lock;    /* guards stats and Nlinear */
+	BgScatterStats  stats;   /* since the last bgScatterStats(.., TRUE) */
+	unsigned char  *pending; /* per wavelength: iterate before the sweep */
+	unsigned char  *linear;  /* per wavelength, with S_BEZIER3 (N-52) */
+	float          *kappa;   /* per wavelength: the last kappa, 0: none */
+	long            Nlinear;
+} BgScatterState;
+
+#define BGSCATTER_STATE_INIT {.lock = PTHREAD_MUTEX_INITIALIZER}
+
 /* --- Iterate before the main sweep (N-51): bgScatterPending says
 	   whether wavelength nspect is to be iterated first; then
 	   bgScatterBefore gives the source J* of the main sweep (from Jdag,

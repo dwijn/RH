@@ -77,6 +77,32 @@ void   negTauReset(void);
 void   negTauMessage(char *message, size_t size);
 void   negTauStop(void);
 
+/* --- The state of the detector between calls, its part of RHState
+	   (rh->negtau, Q-46). The threads of solveSpectrum write detected
+	   and read invalid under the mutex; reset and the messages run in
+	   the main thread between sweeps -- --------------- */
+
+typedef struct {
+	bool_t found;
+	int    nspect, mu, kfirst, klast;
+	int    to_obs;
+	long   column;
+	double tau;
+} NegTauDetection;
+
+typedef struct {
+	NegTauDetection detected;            /* the most negative since the last reset */
+	bool_t          invalid;             /* a trial point invalid for another reason */
+	char            invalidMessage[512]; /* the message of the first one */
+	pthread_mutex_t lock;
+	bool_t          trial; /* G is evaluated at a trial point */
+} NegTauState;
+
+#define NEGTAU_STATE_INIT {.detected = {FALSE, -1, -1, -1, -1, -1, -1, 0.0}, \
+						   .invalid  = FALSE,                                \
+						   .lock     = PTHREAD_MUTEX_INITIALIZER,            \
+						   .trial    = FALSE}
+
 #endif /* !NEGTAU_H */
 
 /* ------- end ---------------------------- negtau.h ---------------- */

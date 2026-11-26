@@ -491,11 +491,6 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 	   enough. Pooling per wavelength would grow memory as
 	   Nspect * Nspace.  --                            -------------- */
 
-typedef struct {
-	double *chi_c, *eta_c, *sca_c, *chip_c, *chi, *eta, *chip;
-	int     Nrec_c, Nrec_as;
-} AsPool;
-
 static AsPool        *as_pool      = NULL;
 static pthread_once_t as_pool_once = PTHREAD_ONCE_INIT;
 

@@ -67,23 +67,6 @@
 
 extern char messageStr[];
 
-/* --- One block of the state vector: a contiguous array of RH -- --- */
-
-enum BlockKind { BLOCK_ATOM,
-				 BLOCK_MOLECULE,
-				 BLOCK_RHO,
-				 BLOCK_J,
-				 BLOCK_J20,
-				 BLOCK_NE };
-
-typedef struct {
-	char           name[MAX_MESSAGE_LENGTH];
-	double        *data;
-	long           N;
-	enum BlockKind kind;
-	void          *owner; /* the Atom or Molecule of a population or rho block */
-} StateBlock;
-
 static StateBlock *blocks  = NULL;
 static int         Nblocks = 0;
 static long        Nstate  = 0;
@@ -246,8 +229,6 @@ static double relChange(const double *old, const double *new, long N)
 	   contraction of G: for ANDERSON and NEWTON_KRYLOV the same estimate
 	   was measured to understate the error by up to 20 times, and is
 	   not made -- ----------------------------------------------- */
-
-#define RES_HIST_MAX 11
 
 static double resHist[RES_HIST_MAX];
 static int    NresHist = 0;

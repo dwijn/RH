@@ -67,6 +67,52 @@ int    chemSolve(ChemSystem *cs, const double *a, double *u, int maxIter, double
 void   BackgroundOfState(bool_t write_analyze_output);
 double chemLastChangeReset(void);
 
+/* --- The state of the background opacities between calls, their
+	   parts of RHState (Q-46) --                      -------------- */
+
+/* --- rh->background (background.c): whether the Kurucz lines have
+	   been read (they are kept when Background() runs more than once),
+	   and the ne solves so far (with SOLVE_NE = ITERATION the first
+	   starts from scratch) --                         -------------- */
+
+typedef struct {
+	bool_t rlk_read;
+	int    ne_iter;
+} BackgroundState;
+
+/* --- rh->kurucz (kurucz.c): per-point tables that depend only on
+	   the atmosphere, the element or the ionization stage, and not on
+	   wavelength. They are filled by rlk_prepare, are read-only
+	   afterwards, and are released by rlk_cleanup -- -------------- */
+
+typedef struct {
+	double ***lnU;    /* [element][stage][k], only for (element, stage) used */
+	double  **vbroad; /* [element][k], only for elements used                */
+	double   *T03;    /* [k], pow(T, 0.3), only if Unsold lines are present  */
+} RLK_Tables;
+
+typedef struct {
+	RLK_Tables rlk_tab;
+} KuruczState;
+
+/* --- rh->hydrogen (hydrogen.c): per depth point, the fractional
+	   index into the theta table of H2- free-free and into the
+	   temperature table of H2+ free-free, made by hydrogenPrepare from
+	   atmos.T --                                      -------------- */
+
+typedef struct {
+	double *H2mff_theta_index;
+	double *H2pff_temp_index;
+} HydrogenState;
+
+/* --- rh->chemequil (chemequil.c): the largest change of a log
+	   density in the last Newton step of the chemical equilibrium of
+	   state, since chemLastChangeReset --             -------------- */
+
+typedef struct {
+	double chemLastChange;
+} ChemEquilState;
+
 double Gaunt_bf(double lambda, double n_eff, int charge);
 double Gaunt_ff(double lambda, int charge, double T);
 int    Gaunt_ff_readTable(const char *fileName, char *errmsg, size_t len);

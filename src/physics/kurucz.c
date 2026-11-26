@@ -99,17 +99,6 @@ double getJK_K(char c);
 void   getUnsoldcross(RLK_Line *rlk);
 void   free_BS(Barklemstruct *bs);
 
-/* --- Per-point tables that depend only on the atmosphere, the
-	   element or the ionization stage, and not on wavelength. They
-	   are filled by rlk_prepare, are read-only afterwards, and are
-	   released by rlk_cleanup --                      -------------- */
-
-typedef struct {
-	double ***lnU;    /* [element][stage][k], only for (element, stage) used */
-	double  **vbroad; /* [element][k], only for elements used                */
-	double   *T03;    /* [k], pow(T, 0.3), only if Unsold lines are present  */
-} RLK_Tables;
-
 static RLK_Tables rlk_tab = {NULL, NULL, NULL};
 
 /* --- Global variables --                             -------------- */

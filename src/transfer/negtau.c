@@ -26,13 +26,7 @@ extern char messageStr[];
 /* --- The most negative detection since the last reset, filled by the
 	   threads of solveSpectrum under the mutex --    -------------- */
 
-static struct {
-	bool_t found;
-	int    nspect, mu, kfirst, klast;
-	int    to_obs;
-	long   column;
-	double tau;
-} detected = {FALSE, -1, -1, -1, -1, -1, -1, 0.0};
+static NegTauDetection detected = {FALSE, -1, -1, -1, -1, -1, -1, 0.0};
 
 /* --- A trial point invalid for another reason (negTauInvalid), with
 	   the message of the first one since the last reset -- -------- */
