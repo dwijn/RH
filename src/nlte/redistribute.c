@@ -75,6 +75,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 	const char   routineName[] = "Redistribute";
 	register int kr, nact;
 
+	char        label[MAX_MESSAGE_LENGTH];
 	bool_t      quiet, accel, eval_operator, redistribute;
 	int         niter, Nlamu;
 	long        NlamuL;
@@ -92,11 +93,9 @@ void Redistribute(int NmaxIter, double iterLimit)
 			if (line->PRD && line->Ng_prd == NULL) {
 				NlamuL = PRDRhoSize(line);
 				if (NlamuL > INT_MAX) {
-					sprintf(messageStr,
-							"PRD line %d -> %d: %ld values of rho, too many for"
-							" the Ng acceleration of the PRD iteration",
-							line->j, line->i, NlamuL);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
+					Error(ERROR_LEVEL_2, routineName, "PRD line %d -> %d: %ld values of rho, too many for"
+													  " the Ng acceleration of the PRD iteration",
+						  line->j, line->i, NlamuL);
 				}
 				Nlamu = (int) NlamuL;
 
@@ -143,20 +142,20 @@ void Redistribute(int NmaxIter, double iterLimit)
 					if (!PRDRhoCheck(atom, kr))
 						Error(ERROR_LEVEL_2, routineName,
 							  "rho of a PRD line is invalid in a trial evaluation");
-					sprintf(messageStr, "  PRD: iter #%d, atom %s, line %d,",
-							line->Ng_prd->count - 1, atom->ID, kr);
+					snprintf(label, sizeof(label),
+							 "  PRD: iter #%d, atom %s, line %d,",
+							 line->Ng_prd->count - 1, atom->ID, kr);
 					if (rh->input.PRD_damping == 1.0)
-						drho = MaxChange(line->Ng_prd, messageStr, quiet = FALSE);
+						drho = MaxChange(line->Ng_prd, label, quiet = FALSE);
 					else {
 						/* --- After an accepted Ng step, its jump counts
 							   too (code review) --          -------------- */
 
-						drho = accel ? MAX(dres, MaxChange(line->Ng_prd, messageStr, quiet = TRUE))
+						drho = accel ? MAX(dres, MaxChange(line->Ng_prd, label, quiet = TRUE))
 									 : dres;
-						fprintf(rh->commandline.logfile, "%s delta = %6.4E", messageStr, drho);
+						fprintf(rh->commandline.logfile, "%s delta = %6.4E", label, drho);
 					}
-					sprintf(messageStr, "%s", NgStatus(line->Ng_prd, accel));
-					Error(MESSAGE, routineName, messageStr);
+					Error(MESSAGE, routineName, "%s", NgStatus(line->Ng_prd, accel));
 
 					drhomax = MAX(drho, drhomax);
 				}

@@ -307,7 +307,7 @@ void readInput()
 				if (rh->atmos.Nrays != NRO_GLOB_4 && rh->atmos.Nrays != NRO_GLOB_6) {
 					sprintf(errorStr, "NRAYS must be %d or %d for SET_GAUSS_LOBATTO",
 							NRO_GLOB_4, NRO_GLOB_6);
-					Error(ERROR_LEVEL_2, routineName, errorStr);
+					Error(ERROR_LEVEL_2, routineName, "%s", errorStr);
 				}
 				break;
 

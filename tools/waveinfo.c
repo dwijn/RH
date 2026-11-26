@@ -50,8 +50,7 @@ int main(int argc, char *argv[])
 {
 	register int i;
 
-	char format[] = "%9.3f   %9.3f   %9.3f   %9.3f   %9.3f\n",
-		 messageStr[132];
+	char    format[] = "%9.3f   %9.3f   %9.3f   %9.3f   %9.3f\n";
 	bool_t  showfull = FALSE, to_air = FALSE, result = TRUE;
 	int     Nlambda;
 	double *lambda;
@@ -93,10 +92,10 @@ int main(int argc, char *argv[])
 	result &= xdr_vector(&xdrs, (char *) lambda, Nlambda,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
-	if (!result) {
-		sprintf(messageStr, "Unable to read from input file %s",
-				argv[argc - 1]);
-	}
+	/* --- A failed read goes unreported, as before: the message was
+		   formatted into messageStr but never printed (Q-48) -- ---- */
+
+	(void) result;
 
 	xdr_destroy(&xdrs);
 	fclose(fp_wave);

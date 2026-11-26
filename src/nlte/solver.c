@@ -524,6 +524,7 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	const char   routineName[] = "iterateFixedPoint";
 	register int niter, nact;
 
+	char      label[MAX_MESSAGE_LENGTH];
 	bool_t    accel, quiet, converged = FALSE, stopped = FALSE;
 	int       Ngorder;
 	double   *x, *saved, dpops, dpopsmax = 0.0;
@@ -535,14 +536,12 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	saved = (double *) malloc(rhoNeSize() * sizeof(double) + 1);
 	resHistReset();
 
-	sprintf(messageStr,
-			"\n -- SOLVER = FIXED_POINT: x <- G(x), %ld unknowns;"
-			" PRD sub-iterations per G: %d;\n    Ng on G: order %d,"
-			" delay %d, period %d%s\n",
-			rh->solver.Nstate, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
-			rh->input.Ngorder, rh->input.Ngdelay, rh->input.Ngperiod,
-			(rh->input.Ngorder > 0) ? "" : " (none: plain G)");
-	Error(MESSAGE, routineName, messageStr);
+	Error(MESSAGE, routineName, "\n -- SOLVER = FIXED_POINT: x <- G(x), %ld unknowns;"
+								" PRD sub-iterations per G: %d;\n    Ng on G: order %d,"
+								" delay %d, period %d%s\n",
+		  rh->solver.Nstate, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
+		  rh->input.Ngorder, rh->input.Ngdelay, rh->input.Ngperiod,
+		  (rh->input.Ngorder > 0) ? "" : " (none: plain G)");
 
 	/* --- Ng histories on the populations, as in the default solver.
 		   With NG_ORDER = 0 they only keep the previous iterate for
@@ -576,30 +575,28 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 		/* --- Change measure (and optional Ng) per atom, printed in
 			   the format of the default solver --        -------------- */
 
-		sprintf(messageStr, "\n -- Iteration %3d\n", niter);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, "\n -- Iteration %3d\n", niter);
 		dpopsmax = 0.0;
 		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 			atom  = rh->atmos.activeatoms[nact];
 			accel = Accelerate(atom->Ng_n, atom->n[0]);
-			sprintf(messageStr, " %s,", atom->ID);
-			dpops = MaxChange(atom->Ng_n, messageStr, quiet = FALSE);
-			Error(MESSAGE, NULL, NgStatus(atom->Ng_n, accel));
+			snprintf(label, sizeof(label), " %s,", atom->ID);
+			dpops = MaxChange(atom->Ng_n, label, quiet = FALSE);
+			Error(MESSAGE, NULL, "%s", NgStatus(atom->Ng_n, accel));
 			dpopsmax = MAX(dpops, dpopsmax);
 		}
 		for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 			molecule = rh->atmos.activemols[nact];
 			accel    = Accelerate(molecule->Ng_nv, molecule->nv[0]);
-			sprintf(messageStr, " %s ,", molecule->ID);
-			dpops = MaxChange(molecule->Ng_nv, messageStr, quiet = FALSE);
-			Error(MESSAGE, NULL, NgStatus(molecule->Ng_nv, accel));
+			snprintf(label, sizeof(label), " %s ,", molecule->ID);
+			dpops = MaxChange(molecule->Ng_nv, label, quiet = FALSE);
+			Error(MESSAGE, NULL, "%s", NgStatus(molecule->Ng_nv, accel));
 			dpopsmax = MAX(dpops, dpopsmax);
 		}
 		if (rh->input.solve_ne == ITERATION) {
-			sprintf(messageStr, " ne: last Newton step %.2E, chemical"
-								" equilibrium: last Newton step %.2E\n",
-					rh->solver.neChange, rh->solver.chemChange);
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, " ne: last Newton step %.2E, chemical"
+								 " equilibrium: last Newton step %.2E\n",
+				  rh->solver.neChange, rh->solver.chemChange);
 		}
 		printRhoNe(NULL, saved, x);
 		if (niter > 1) resHistAdd(dpopsmax); /* not the jump from the start */
@@ -608,8 +605,8 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 
 		stateGather(x);
 
-		sprintf(messageStr, "Total Iteration %3d", niter);
-		getCPU(2, TIME_POLL, messageStr);
+		snprintf(label, sizeof(label), "Total Iteration %3d", niter);
+		getCPU(2, TIME_POLL, label);
 
 		if (dpopsmax < iterLimit) {
 			converged = TRUE;
@@ -619,30 +616,26 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	}
 
 	if (converged) {
-		sprintf(messageStr, "\n -- Converged in %d iterations: max change"
-							" %.4E < ITER_LIMIT = %.4E\n",
-				niter, dpopsmax, iterLimit);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, "\n -- Converged in %d iterations: max change"
+									" %.4E < ITER_LIMIT = %.4E\n",
+			  niter, dpopsmax, iterLimit);
 	} else if (stopped) {
-		sprintf(messageStr, "Stopped on request (STOP_RH) after %d iterations:"
-							" NOT CONVERGED.\n The output is not a converged solution",
-				niter - 1);
-		Error(WARNING, routineName, messageStr);
+		Error(WARNING, routineName, "Stopped on request (STOP_RH) after %d iterations:"
+									" NOT CONVERGED.\n The output is not a converged solution",
+			  niter - 1);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	} else {
-		sprintf(messageStr, "NOT CONVERGED after %d iterations: max change"
-							" %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"
-							" solution; increase N_MAX_ITER or see what limits convergence",
-				niter - 1, dpopsmax, iterLimit);
-		Error(WARNING, routineName, messageStr);
+		Error(WARNING, routineName, "NOT CONVERGED after %d iterations: max change"
+									" %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"
+									" solution; increase N_MAX_ITER or see what limits convergence",
+			  niter - 1, dpopsmax, iterLimit);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	}
 	/* --- With Ng the residuals are those of accelerated iterates:
 		   no estimate, as for ANDERSON and NEWTON_KRYLOV --  ------- */
 
 	if (rh->input.Ngorder == 0) printContraction(routineName);
-	sprintf(messageStr, " -- G evaluations: %ld\n", rh->solver.Gcount);
-	Error(MESSAGE, routineName, messageStr);
+	Error(MESSAGE, routineName, " -- G evaluations: %ld\n", rh->solver.Gcount);
 
 	/* --- With ne in the state: the background of the final state, for
 		   the final formal solution and the output --   -------------- */
@@ -1163,11 +1156,9 @@ static bool_t errorTestStop(ErrorTest *t, const char *routineName, int niter,
 	t->residual = r;
 	t->estimate = e;
 	if (e >= 0.0 && e < t->limit) {
-		sprintf(messageStr,
-				" -- Iteration %d: residual %.2E, estimated error %.2E <"
-				" ERROR_LIMIT\n",
-				niter, r, e);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, " -- Iteration %d: residual %.2E, estimated error %.2E <"
+									" ERROR_LIMIT\n",
+			  niter, r, e);
 
 		/* --- What G sets besides the state, that of G(x) -- -------- */
 
@@ -1179,17 +1170,16 @@ static bool_t errorTestStop(ErrorTest *t, const char *routineName, int niter,
 	}
 	t->target = (e > 0.0) ? MIN(0.8 * r * t->limit / e, 0.8 * r) : 0.5 * r;
 	if (e >= 0.0)
-		sprintf(messageStr,
-				" -- Iteration %d: residual %.2E, estimated error %.2E >="
-				" ERROR_LIMIT;\n    next estimate at residual %.2E\n",
-				niter, r, e, t->target);
+		Error(MESSAGE, routineName,
+			  " -- Iteration %d: residual %.2E, estimated error %.2E >="
+			  " ERROR_LIMIT;\n    next estimate at residual %.2E\n",
+			  niter, r, e, t->target);
 	else
-		sprintf(messageStr,
-				" -- Iteration %d: residual %.2E, no error estimate (a plain"
-				" step failed,\n    or no finite limit); next estimate at"
-				" residual %.2E\n",
-				niter, r, t->target);
-	Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName,
+			  " -- Iteration %d: residual %.2E, no error estimate (a plain"
+			  " step failed,\n    or no finite limit); next estimate at"
+			  " residual %.2E\n",
+			  niter, r, t->target);
 	return FALSE;
 }
 
@@ -1264,6 +1254,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 
 	bool_t    converged = FALSE, stopped = FALSE, Gok;
 	char      what[256], limits[256];
+	char      line[2 * MAX_MESSAGE_LENGTH], piece[MAX_MESSAGE_LENGTH + 4];
 	int       m = rh->input.Anderson_depth, Nsolve, delay, t;
 	ErrorTest et;
 	long      i, Ndamped = 0, Nguardplain = 0, Ncarried = 0, Ncarried_ok = 0,
@@ -1303,27 +1294,25 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	opt.window    = rh->input.Anderson_safeguard_window;
 	delay         = MAX(rh->input.Anderson_delay, 2);
 
-	sprintf(messageStr,
-			"\n -- SOLVER = ANDERSON: %ld unknowns in %d blocks; PRD"
-			" sub-iterations per G: %d;\n    ANDERSON_DEPTH = %d,"
-			" ANDERSON_DELAY = %d, ANDERSON_COND_MAX = %.1E,\n"
-			"    ANDERSON_SAFEGUARD = %g, ANDERSON_SAFEGUARD_WINDOW = %d,\n"
-			"    ANDERSON_VARIABLES = %s,"
-			" ANDERSON_COEFFICIENTS = %s,\n    ANDERSON_EXTRAPOLATE = %s%s:"
-			" %ld unknowns in %d blocks extrapolated;\n    memory: history"
-			" and variables %.1f MB, x, G(x) and G at the last accepted"
-			" point %.1f MB\n",
-			rh->solver.Nstate, rh->solver.Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0, m,
-			rh->input.Anderson_delay, rh->input.Anderson_cond_max,
-			rh->input.Anderson_safeguard, rh->input.Anderson_safeguard_window,
-			(rh->solver.varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
-			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
-			extrapolateName[rh->input.Anderson_extrapolate],
-			rh->input.Anderson_extrapolate_default ? " (the default)" : "", rh->solver.Npacked, rh->solver.Npack,
-			((3.0 * m + 7 + (rh->solver.varKind == VARIABLES_RELATIVE)) * sizeof(double) + m + 4) *
-				rh->solver.Npacked / 1.0E6,
-			3.0 * sizeof(double) * rh->solver.Nstate / 1.0E6);
-	Error(MESSAGE, routineName, messageStr);
+	Error(MESSAGE, routineName, "\n -- SOLVER = ANDERSON: %ld unknowns in %d blocks; PRD"
+								" sub-iterations per G: %d;\n    ANDERSON_DEPTH = %d,"
+								" ANDERSON_DELAY = %d, ANDERSON_COND_MAX = %.1E,\n"
+								"    ANDERSON_SAFEGUARD = %g, ANDERSON_SAFEGUARD_WINDOW = %d,\n"
+								"    ANDERSON_VARIABLES = %s,"
+								" ANDERSON_COEFFICIENTS = %s,\n    ANDERSON_EXTRAPOLATE = %s%s:"
+								" %ld unknowns in %d blocks extrapolated;\n    memory: history"
+								" and variables %.1f MB, x, G(x) and G at the last accepted"
+								" point %.1f MB\n",
+		  rh->solver.Nstate, rh->solver.Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0, m,
+		  rh->input.Anderson_delay, rh->input.Anderson_cond_max,
+		  rh->input.Anderson_safeguard, rh->input.Anderson_safeguard_window,
+		  (rh->solver.varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
+		  (opt.per_block) ? "PER_BLOCK" : "GLOBAL",
+		  extrapolateName[rh->input.Anderson_extrapolate],
+		  rh->input.Anderson_extrapolate_default ? " (the default)" : "", rh->solver.Npacked, rh->solver.Npack,
+		  ((3.0 * m + 7 + (rh->solver.varKind == VARIABLES_RELATIVE)) * sizeof(double) + m + 4) *
+			  rh->solver.Npacked / 1.0E6,
+		  3.0 * sizeof(double) * rh->solver.Nstate / 1.0E6);
 	/* --- Without PRD lines there is no rho to extrapolate: say so
 		   when the keyword file asked for POPULATIONS_RHO, the run goes
 		   on as POPULATIONS (S-11). The 2-D and 3-D default says
@@ -1333,24 +1322,25 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		!rh->input.Anderson_extrapolate_default) {
 		for (n = 0; n < rh->solver.Nblocks && rh->solver.blocks[n].kind != BLOCK_RHO; n++);
 		if (n == rh->solver.Nblocks) {
-			sprintf(messageStr,
-					"ANDERSON_EXTRAPOLATE = POPULATIONS_RHO, but there are no PRD"
-					" lines:\n the same as POPULATIONS");
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "ANDERSON_EXTRAPOLATE = POPULATIONS_RHO, but there are no PRD"
+										" lines:\n the same as POPULATIONS");
 		}
 	}
 	/* --- The carried blocks, several lines if needed -- -------- */
 
 	for (t = 0; t < rh->solver.Ncarry;) {
-		sprintf(messageStr, "    %s", (t == 0) ? "carried from G:" : "               ");
+		snprintf(line, sizeof(line), "    %s", (t == 0) ? "carried from G:" : "               ");
 		do {
-			sprintf(messageStr + strlen(messageStr), " %s%s", rh->solver.blocks[rh->solver.carryBlock[t]].name,
-					(t < rh->solver.Ncarry - 1) ? ";" : "");
+			snprintf(piece, sizeof(piece), " %s%s",
+					 rh->solver.blocks[rh->solver.carryBlock[t]].name,
+					 (t < rh->solver.Ncarry - 1) ? ";" : "");
+			strcat(line, piece); /* fits: room for the first piece, and the
+									test below adds others only below 80 */
 			t++;
 		} while (t < rh->solver.Ncarry &&
-				 strlen(messageStr) + strlen(rh->solver.blocks[rh->solver.carryBlock[t]].name) + 4 < 80);
-		strcat(messageStr, "\n");
-		Error(MESSAGE, NULL, messageStr);
+				 strlen(line) + strlen(rh->solver.blocks[rh->solver.carryBlock[t]].name) + 4 < 80);
+		strcat(line, "\n");
+		Error(MESSAGE, NULL, "%s", line);
 	}
 	errorTestInit(&et, routineName);
 
@@ -1380,17 +1370,15 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		negTauTrial(FALSE);
 		if (!Gok) {
 			negTauMessage(what, sizeof(what));
-			sprintf(messageStr,
-					"\n -- Iteration %3d\n  Anderson: %s at the extrapolated point:"
-					" point rejected; plain step from the last accepted point\n",
-					niter, what);
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, "\n -- Iteration %3d\n  Anderson: %s at the extrapolated point:"
+								 " point rejected; plain step from the last accepted point\n",
+				  niter, what);
 			Nbadtrial++;
 			negTauReset();
 			andersonRejectTrial(a);
 			memcpy(x, gacc, rh->solver.Nstate * sizeof(double));
-			sprintf(messageStr, "Total Iteration %3d", niter);
-			getCPU(2, TIME_POLL, messageStr);
+			snprintf(line, sizeof(line), "Total Iteration %3d", niter);
+			getCPU(2, TIME_POLL, line);
 			niter++;
 			continue;
 		}
@@ -1398,8 +1386,8 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		dpopsmax = printChange(routineName, niter, x, gx);
 		if (errorTestStop(&et, routineName, niter, x, gx, dpopsmax, iterLimit))
 			converged = TRUE;
-		sprintf(messageStr, "Total Iteration %3d", niter);
-		getCPU(2, TIME_POLL, messageStr);
+		snprintf(line, sizeof(line), "Total Iteration %3d", niter);
+		getCPU(2, TIME_POLL, line);
 		if (converged) break;
 		/* --- The next point --                          -------------- */
 
@@ -1411,12 +1399,10 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 							  un, gamma, info);
 		switch (action) {
 		case ANDERSON_REJECTED:
-			sprintf(messageStr,
-					"  Anderson: point rejected, |f|_W %.3E > %g x %.3E;"
-					" plain step from the last accepted point\n",
-					andersonNorm(rh->solver.Npacked, u, gu, valid, w), opt.safeguard,
-					a->fnorm_ref);
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, "  Anderson: point rejected, |f|_W %.3E > %g x %.3E;"
+								 " plain step from the last accepted point\n",
+				  andersonNorm(rh->solver.Npacked, u, gu, valid, w), opt.safeguard,
+				  a->fnorm_ref);
 			memcpy(x, gacc, rh->solver.Nstate * sizeof(double));
 			break;
 
@@ -1426,19 +1412,17 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			fromVars(un, gx, andersonMask(a), x);
 			guard = guardTrial(x, gx, NULL);
 			for (t = 1, theta = 0.5; guard != GUARD_OK && t <= 2; t++, theta *= 0.5) {
-				sprintf(messageStr, "  Anderson: guard: %s; step damped to %g\n",
-						guardName[guard], theta);
-				Error(MESSAGE, NULL, messageStr);
+				Error(MESSAGE, NULL, "  Anderson: guard: %s; step damped to %g\n",
+					  guardName[guard], theta);
 				Ndamped++;
 				andersonDamp(a, &opt, gamma, info, theta, un);
 				fromVars(un, gx, andersonMask(a), x);
 				guard = guardTrial(x, gx, NULL);
 			}
 			if (guard != GUARD_OK) {
-				sprintf(messageStr, "  Anderson: guard: %s; plain step,"
-									" history restarted\n",
-						guardName[guard]);
-				Error(MESSAGE, NULL, messageStr);
+				Error(MESSAGE, NULL, "  Anderson: guard: %s; plain step,"
+									 " history restarted\n",
+					  guardName[guard]);
 				Nguardplain++;
 				andersonAbandon(a, un);
 				memcpy(x, gx, rh->solver.Nstate * sizeof(double));
@@ -1458,8 +1442,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 
 	if (converged) {
 		errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, TRUE);
-		sprintf(messageStr, "\n -- Converged in %d iterations: %s\n", niter, limits);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, "\n -- Converged in %d iterations: %s\n", niter, limits);
 	} else {
 		/* --- The output is G of the last accepted point: the state
 			   arrays may hold the image of a rejected one -- ------- */
@@ -1467,41 +1450,36 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		if (!stopped && niter > 1) errorTestFinal(&et, gacc);
 		if (niter > 1) stateScatter(gacc);
 		if (stopped) {
-			sprintf(messageStr, "Stopped on request (STOP_RH) after %d iterations:"
-								" NOT CONVERGED.\n The output is not a converged"
-								" solution",
-					niter - 1);
+			Error(WARNING, routineName,
+				  "Stopped on request (STOP_RH) after %d iterations:"
+				  " NOT CONVERGED.\n The output is not a converged"
+				  " solution",
+				  niter - 1);
 		} else {
 			errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, FALSE);
-			sprintf(messageStr, "NOT CONVERGED after %d iterations: %s.\n The output"
-								" is not a converged solution; increase N_MAX_ITER or"
-								" see what limits convergence",
-					niter - 1, limits);
+			Error(WARNING, routineName,
+				  "NOT CONVERGED after %d iterations: %s.\n The output"
+				  " is not a converged solution; increase N_MAX_ITER or"
+				  " see what limits convergence",
+				  niter - 1, limits);
 		}
-		Error(WARNING, routineName, messageStr);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	}
-	sprintf(messageStr,
-			" -- G evaluations: %ld\n -- Anderson: extrapolated %ld, plain %ld,"
-			" rejected %ld; guard: damped %ld, plain %ld; columns dropped %ld\n",
-			rh->solver.Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
-			a->Ndropped);
-	Error(MESSAGE, routineName, messageStr);
+	Error(MESSAGE, routineName, " -- G evaluations: %ld\n -- Anderson: extrapolated %ld, plain %ld,"
+								" rejected %ld; guard: damped %ld, plain %ld; columns dropped %ld\n",
+		  rh->solver.Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
+		  a->Ndropped);
 	errorTestSummary(&et, routineName);
 	if (Nbadtrial > 0) {
-		sprintf(messageStr,
-				" -- Anderson: %ld of the rejected points were invalid trial points"
-				" (negative total opacity, negative populations or non-positive PRD rho;"
-				" N-40, N-8, N-4)\n",
-				Nbadtrial);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, " -- Anderson: %ld of the rejected points were invalid trial points"
+									" (negative total opacity, negative populations or non-positive PRD rho;"
+									" N-40, N-8, N-4)\n",
+			  Nbadtrial);
 	}
 	if (rh->solver.Ncarry > 0) {
-		sprintf(messageStr,
-				" -- Anderson: carried blocks equal to G at the last accepted"
-				" point in %ld of %ld evaluations\n",
-				Ncarried_ok, Ncarried);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, " -- Anderson: carried blocks equal to G at the last accepted"
+									" point in %ld of %ld evaluations\n",
+			  Ncarried_ok, Ncarried);
 	}
 
 	if (rh->input.solve_ne == ITERATION) BackgroundOfState(TRUE);
@@ -1673,22 +1651,20 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	ctx.Ninvalid  = 0;
 	ctx.Nbadtrial = 0;
 
-	sprintf(messageStr,
-			"\n -- SOLVER = NEWTON_KRYLOV: %ld unknowns in %d blocks; PRD"
-			" sub-iterations per G: %d;\n    NEWTON_VARIABLES = %s,"
-			" NEWTON_NOISE = %.2E (finite-difference step h = %.2E),\n"
-			"    NEWTON_KRYLOV_MAX = %d (no restart), NEWTON_ETA_MAX = %g;\n"
-			"    forcing: Eisenstat-Walker choice 2, gamma = %g, alpha = %g,"
-			" safeguard above %g,\n    floor 0.5 x ITER_LIMIT / |R|_W;"
-			" line search: lambda = 1 ... 1/%d, Armijo %.0E;\n"
-			"    N_MAX_ITER caps G evaluations; memory %.1f MB\n",
-			rh->solver.Nstate, rh->solver.Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
-			(rh->solver.varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE", rh->input.Newton_noise,
-			h, k, rh->input.Newton_eta_max, NEWTON_EW_GAMMA, NEWTON_EW_ALPHA,
-			NEWTON_EW_SAFE, 1 << NEWTON_N_BACKTRACK, NEWTON_ARMIJO,
-			((k + 1.0 + 12 + (rh->solver.varKind == VARIABLES_RELATIVE)) * sizeof(double) + 4) *
-				rh->solver.Nstate / 1.0E6);
-	Error(MESSAGE, routineName, messageStr);
+	Error(MESSAGE, routineName, "\n -- SOLVER = NEWTON_KRYLOV: %ld unknowns in %d blocks; PRD"
+								" sub-iterations per G: %d;\n    NEWTON_VARIABLES = %s,"
+								" NEWTON_NOISE = %.2E (finite-difference step h = %.2E),\n"
+								"    NEWTON_KRYLOV_MAX = %d (no restart), NEWTON_ETA_MAX = %g;\n"
+								"    forcing: Eisenstat-Walker choice 2, gamma = %g, alpha = %g,"
+								" safeguard above %g,\n    floor 0.5 x ITER_LIMIT / |R|_W;"
+								" line search: lambda = 1 ... 1/%d, Armijo %.0E;\n"
+								"    N_MAX_ITER caps G evaluations; memory %.1f MB\n",
+		  rh->solver.Nstate, rh->solver.Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
+		  (rh->solver.varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE", rh->input.Newton_noise,
+		  h, k, rh->input.Newton_eta_max, NEWTON_EW_GAMMA, NEWTON_EW_ALPHA,
+		  NEWTON_EW_SAFE, 1 << NEWTON_N_BACKTRACK, NEWTON_ARMIJO,
+		  ((k + 1.0 + 12 + (rh->solver.varKind == VARIABLES_RELATIVE)) * sizeof(double) + 4) *
+			  rh->solver.Nstate / 1.0E6);
 
 	errorTestInit(&et, routineName);
 
@@ -1802,29 +1778,25 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			}
 		}
 		if (accepted) {
-			sprintf(messageStr,
-					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
-					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); lambda %g"
-					" (guard halvings %d: %d not finite, %d negative, %d invalid trial),"
-					" |R(trial)|_W %.3E; G evaluations %ld\n",
-					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
-					(gres.breakdown) ? " (invariant space)" : "", dinf,
-					rh->solver.blocks[ninf].name, lambda, Nhalve, Nreason[GUARD_NONFINITE],
-					Nreason[GUARD_NEGATIVE], Nbadtrial, rtnorm, Neval);
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, "  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
+								 " |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); lambda %g"
+								 " (guard halvings %d: %d not finite, %d negative, %d invalid trial),"
+								 " |R(trial)|_W %.3E; G evaluations %ld\n",
+				  Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
+				  (gres.breakdown) ? " (invariant space)" : "", dinf,
+				  rh->solver.blocks[ninf].name, lambda, Nhalve, Nreason[GUARD_NONFINITE],
+				  Nreason[GUARD_NEGATIVE], Nbadtrial, rtnorm, Neval);
 			memcpy(x, xt, rh->solver.Nstate * sizeof(double));
 			memcpy(gx, gt, rh->solver.Nstate * sizeof(double));
 		} else {
-			sprintf(messageStr,
-					"  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
-					" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); no lambda accepted"
-					" (guard halvings %d: %d not finite, %d negative, %d invalid trial):"
-					" plain step; G evaluations %ld\n",
-					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
-					(gres.breakdown) ? " (invariant space)" : "", dinf,
-					rh->solver.blocks[ninf].name, Nhalve, Nreason[GUARD_NONFINITE],
-					Nreason[GUARD_NEGATIVE], Nbadtrial, Neval);
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, "  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
+								 " |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); no lambda accepted"
+								 " (guard halvings %d: %d not finite, %d negative, %d invalid trial):"
+								 " plain step; G evaluations %ld\n",
+				  Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
+				  (gres.breakdown) ? " (invariant space)" : "", dinf,
+				  rh->solver.blocks[ninf].name, Nhalve, Nreason[GUARD_NONFINITE],
+				  Nreason[GUARD_NEGATIVE], Nbadtrial, Neval);
 			Nplain++;
 			if (Neval >= NmaxIter) {
 
@@ -1862,39 +1834,35 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	stateScatter(gx);
 	if (converged) {
 		errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, TRUE);
-		sprintf(messageStr, "\n -- Converged at base point %d: %s\n", niter, limits);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, "\n -- Converged at base point %d: %s\n", niter, limits);
 	} else {
 		if (stopped) {
-			sprintf(messageStr, "Stopped on request (STOP_RH) after %ld G"
-								" evaluations: NOT CONVERGED.\n The output is not a"
-								" converged solution",
-					Neval);
+			Error(WARNING, routineName,
+				  "Stopped on request (STOP_RH) after %ld G"
+				  " evaluations: NOT CONVERGED.\n The output is not a"
+				  " converged solution",
+				  Neval);
 		} else {
 			errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, FALSE);
-			sprintf(messageStr, "NOT CONVERGED after %ld G evaluations"
-								" (N_MAX_ITER = %d): %s.\n The output is not a converged"
-								" solution; increase N_MAX_ITER or see what limits"
-								" convergence",
-					Neval, NmaxIter, limits);
+			Error(WARNING, routineName,
+				  "NOT CONVERGED after %ld G evaluations"
+				  " (N_MAX_ITER = %d): %s.\n The output is not a converged"
+				  " solution; increase N_MAX_ITER or see what limits"
+				  " convergence",
+				  Neval, NmaxIter, limits);
 		}
-		Error(WARNING, routineName, messageStr);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	}
-	sprintf(messageStr,
-			" -- G evaluations: %ld\n -- Newton: steps %ld, G evaluations base %ld,"
-			" Krylov %ld, line search %ld (lost an entry %ld); plain steps %ld;"
-			" guard halvings %ld; invalid probe entries %ld; restoring %ld\n",
-			Neval, Nsteps, Nbase, Nkrylov, Nline, Nlost, Nplain, Nguard,
-			ctx.Ninvalid, Nrestore);
-	Error(MESSAGE, routineName, messageStr);
+	Error(MESSAGE, routineName, " -- G evaluations: %ld\n -- Newton: steps %ld, G evaluations base %ld,"
+								" Krylov %ld, line search %ld (lost an entry %ld); plain steps %ld;"
+								" guard halvings %ld; invalid probe entries %ld; restoring %ld\n",
+		  Neval, Nsteps, Nbase, Nkrylov, Nline, Nlost, Nplain, Nguard,
+		  ctx.Ninvalid, Nrestore);
 	errorTestSummary(&et, routineName);
 	if (ctx.Nbadtrial > 0) {
-		sprintf(messageStr,
-				" -- Newton: %ld Jacobian probes were invalid trial points (negative"
-				" total opacity, populations or PRD rho, N-40, N-8, N-4) and gave a zero product\n",
-				ctx.Nbadtrial);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, " -- Newton: %ld Jacobian probes were invalid trial points (negative"
+									" total opacity, populations or PRD rho, N-40, N-8, N-4) and gave a zero product\n",
+			  ctx.Nbadtrial);
 	}
 
 	if (rh->input.solve_ne == ITERATION) BackgroundOfState(TRUE);

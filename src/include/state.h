@@ -20,8 +20,6 @@
 	   src/geometry/<geometry>), so the library holds a pointer to it
 	   and never looks inside.
 
-	 - messageStr stays a global until errors return (phase 3).
-
 	   And what the modules kept in static variables for the length of
 	   a run (Q-46): one part per module, of a type declared in the
 	   module's header, as rh->solver.Nstate. Their initial values are

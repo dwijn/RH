@@ -1297,26 +1297,25 @@ void hydrogenPrepare(void)
 		   atmos.T, which should not change until hydrogenCleanup. - - */
 
 	const char routineName[] = "hydrogenPrepare";
+	char       msg[MAX_MESSAGE_LENGTH];
 	double     short_ratio, long_ratio;
 
 	hydrogenCleanup();
 
 	if (gff_lng == NULL &&
-		Gaunt_ff_readTable(rh->input.GauntFfData, messageStr, MAX_MESSAGE_LENGTH) != 0)
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Gaunt_ff_readTable(rh->input.GauntFfData, msg, MAX_MESSAGE_LENGTH) != 0)
+		Error(ERROR_LEVEL_2, routineName, "%s", msg);
 	if (Hmbf_lambda == NULL) {
-		if (Hminus_bf_readTable(rh->input.HminusBfData, messageStr,
+		if (Hminus_bf_readTable(rh->input.HminusBfData, msg,
 								MAX_MESSAGE_LENGTH) != 0)
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "%s", msg);
 		Hminus_bf_joins(&short_ratio, &long_ratio);
 		if (fabs(short_ratio - 1.0) > HMBF_JOIN_WARN ||
 			fabs(long_ratio - 1.0) > HMBF_JOIN_WARN) {
-			sprintf(messageStr,
-					"H-minus bound-free table %s does not join its fits: "
-					"fit/table = %.4f at %.2f nm, %.4f at %.2f nm",
-					rh->input.HminusBfData, short_ratio, Hmbf_lambda[0], long_ratio,
-					Hmbf_lambda[Hmbf_N - 1]);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "H-minus bound-free table %s does not join its fits: "
+										"fit/table = %.4f at %.2f nm, %.4f at %.2f nm",
+				  rh->input.HminusBfData, short_ratio, Hmbf_lambda[0], long_ratio,
+				  Hmbf_lambda[Hmbf_N - 1]);
 		}
 	}
 	H2minus_ff_prepare();

@@ -296,7 +296,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	const char   routineName[] = "ChemicalEquilibrium";
 	register int k, i, j, nu, pass;
 
-	char    tmpStr[13];
+	char    tmpStr[13], msg[MAX_MESSAGE_LENGTH];
 	int     Nequation, **nucl_index, niter, Nnuclei, Nmaxstage, s;
 	double *a, *n, *u, *Phi, PhiHmin, fHmin, CI, res = 0.0, step = 0.0, sum, lnc,
 												 *fn0, fraction, *fjk = NULL, *dfjk = NULL;
@@ -329,21 +329,18 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	/* --- Check that first Nucleus is hydrogen --       -------------- */
 
 	if (!strstr(nuclei[0]->ID, "H ")) {
-		sprintf(messageStr, "First nucleus must be H not %s "
-							"(check H2.molecule)",
-				nuclei[0]->ID);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "First nucleus must be H not %s "
+										  "(check H2.molecule)",
+			  nuclei[0]->ID);
 	}
 
 	Nmaxstage = 0;
 	for (j = 0; j < Nnuclei; j++) {
 		if (nuclei[j]->model != NULL) {
 			if (nuclei[j]->model->stage[0] > 0) {
-				sprintf(messageStr,
-						"Model for element %s does not have a neutral stage\n"
-						" needed for molecular formation\n",
-						nuclei[j]->ID);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Model for element %s does not have a neutral stage\n"
+												  " needed for molecular formation\n",
+					  nuclei[j]->ID);
 			}
 		} else
 			Nmaxstage = MAX(Nmaxstage, nuclei[j]->Nstage);
@@ -492,15 +489,15 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 		for (i = 0; i < Nnuclei; i++) u[i] = log(a[i]);
 		niter = chemSolve(&cs, a, u, NmaxIter, iterLimit, &res, &step);
 		if (niter < 0) {
-			snprintf(messageStr, MAX_MESSAGE_LENGTH,
+			snprintf(msg, sizeof(msg),
 					 "\n  Chemical equilibrium did not converge in %d Newton"
 					 " steps at location %d: T = %.1f K, nHtot = %.4E m^-3,"
 					 " ne = %.4E m^-3, relative residual %.3E",
 					 NmaxIter, k, rh->atmos.T[k], rh->atmos.nHtot[k], rh->atmos.ne[k], res);
 			if (negTauInTrial()) {
-				negTauInvalid(messageStr + 3);
+				negTauInvalid(msg + 3);
 			} else
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "%s", msg);
 		}
 		for (i = 0; i < Nnuclei; i++) n[i] = cs.n[i];
 		for (i = 0; i < rh->atmos.Nmolecule; i++) n[Nnuclei + i] = cs.n[Nnuclei + 1 + i];
@@ -537,16 +534,16 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	for (nu = 0; nu < Nnuclei; nu++) {
 		atom = nuclei[nu]->model;
 		if (atom && atom->active) {
-			sprintf(messageStr, "\nReduced number density of"
-								" active atom %s due to molecule%s\n  ",
-					atom->ID, (nuclei[nu]->Nmolecule > 1) ? "s" : "");
+			snprintf(msg, sizeof(msg), "\nReduced number density of"
+									   " active atom %s due to molecule%s\n  ",
+					 atom->ID, (nuclei[nu]->Nmolecule > 1) ? "s" : "");
 			for (i = 0; i < nuclei[nu]->Nmolecule; i++) {
 				sprintf(tmpStr, "%s%s",
 						rh->atmos.molecules[nuclei[nu]->mol_index[i]].ID,
 						(i == nuclei[nu]->Nmolecule - 1) ? "\n\n" : ", ");
-				strcat(messageStr, tmpStr);
+				snprintf(msg + strlen(msg), sizeof(msg) - strlen(msg), "%s", tmpStr);
 			}
-			Error(MESSAGE, routineName, messageStr);
+			Error(MESSAGE, routineName, "%s", msg);
 		}
 	}
 

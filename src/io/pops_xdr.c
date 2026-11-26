@@ -53,23 +53,21 @@ bool_t xdr_populations(XDR *xdrs, char *atmosID, int Nlevel, int Nspace,
 			return FALSE;
 		}
 		if (strcmp(ID, atmosID) != 0) {
-			snprintf(messageStr, MAX_MESSAGE_LENGTH,
-					 "Populations were computed with atmosphere \"%s\",\n"
-					 " not with the current one, \"%s\"",
-					 ID, atmosID);
+			Error(ERROR_LEVEL_2, routineName,
+				  "Populations were computed with atmosphere \"%s\",\n"
+				  " not with the current one, \"%s\"",
+				  ID, atmosID);
 			free(ID);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		free(ID);
 
 		result &= xdr_int(xdrs, &Nl);
 		result &= xdr_int(xdrs, &Ns);
 		if (result && ((Nl != Nlevel) || (Ns != Nspace))) {
-			sprintf(messageStr,
-					"Populations have %d levels at %d depths, the model and\n"
-					" atmosphere %d levels at %d depths",
-					Nl, Ns, Nlevel, Nspace);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName,
+				  "Populations have %d levels at %d depths, the model and\n"
+				  " atmosphere %d levels at %d depths",
+				  Nl, Ns, Nlevel, Nspace);
 		}
 	}
 	/* --- Exit if true populations do not exist --      -------------- */

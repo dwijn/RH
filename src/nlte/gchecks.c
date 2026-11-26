@@ -168,13 +168,13 @@ static void compare(const char *what, const double *a, const double *b,
 		}
 	}
 	if (Ndiff == 0)
-		sprintf(messageStr, "gcheck: %-8s bit-identical (%ld values)\n",
-				what, N);
+		Error(MESSAGE, NULL, "gcheck: %-8s bit-identical (%ld values)\n",
+			  what, N);
 	else
-		sprintf(messageStr, "gcheck: %-8s DIFFERS: %ld of %ld values,"
-							" max relative difference %.3E\n",
-				what, Ndiff, N, dmax);
-	Error(MESSAGE, NULL, messageStr);
+		Error(MESSAGE, NULL,
+			  "gcheck: %-8s DIFFERS: %ld of %ld values,"
+			  " max relative difference %.3E\n",
+			  what, Ndiff, N, dmax);
 }
 /* ------- end ---------------------------- compare.c --------------- */
 

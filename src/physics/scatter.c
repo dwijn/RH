@@ -466,6 +466,7 @@ void PRDScatter(AtomicLine *PRDline)
 {
 	const char   routineName[] = "PRDScatter";
 	register int la, k, kxrd;
+	char         label[MAX_MESSAGE_LENGTH];
 	int          Nsubordinate;
 	off_t        offset;
 	double       cDop, *adamp, *Yj, *denom;
@@ -478,9 +479,8 @@ void PRDScatter(AtomicLine *PRDline)
 
 	atom = PRDline->atom;
 	if (!PRDline->PRD) {
-		sprintf(messageStr, "Line %d -> %d of %2s is not a PRD line",
-				PRDline->j, PRDline->i, atom->ID);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
+			  PRDline->j, PRDline->i, atom->ID);
 	}
 	getCPU(3, TIME_START, NULL);
 
@@ -564,8 +564,8 @@ void PRDScatter(AtomicLine *PRDline)
 	free(denom);
 	free(adamp);
 
-	sprintf(messageStr, "Scatter Int %5.1f", PRDline->lambda0);
-	getCPU(3, TIME_POLL, messageStr);
+	snprintf(label, sizeof(label), "Scatter Int %5.1f", PRDline->lambda0);
+	getCPU(3, TIME_POLL, label);
 }
 /* ------- end ---------------------------- PRDScatter.c ------------ */
 
@@ -753,6 +753,7 @@ void PRDAngleScatter(AtomicLine *PRDline)
 {
 	const char   routineName[] = "PRDAngleScatter";
 	register int k, mu, lap, d;
+	char         label[MAX_MESSAGE_LENGTH];
 	double       cDop, Jbar, *Yj, *Irow;
 	Atom        *atom;
 	PRDAngleJob  job;
@@ -763,9 +764,8 @@ void PRDAngleScatter(AtomicLine *PRDline)
 	atom = PRDline->atom;
 
 	if (!PRDline->PRD) {
-		sprintf(messageStr, "Line %d -> %d of %2s is not a PRD line",
-				PRDline->j, PRDline->i, atom->ID);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
+			  PRDline->j, PRDline->i, atom->ID);
 	}
 	getCPU(3, TIME_START, NULL);
 
@@ -844,7 +844,7 @@ void PRDAngleScatter(AtomicLine *PRDline)
 	free(job.kstart);
 	free(Yj);
 
-	sprintf(messageStr, "Scatter Int %5.1f", PRDline->lambda0);
-	getCPU(3, TIME_POLL, messageStr);
+	snprintf(label, sizeof(label), "Scatter Int %5.1f", PRDline->lambda0);
+	getCPU(3, TIME_POLL, label);
 }
 /* ------- end ---------------------------- PRDAngleScatter.c ------- */

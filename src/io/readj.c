@@ -771,17 +771,12 @@ static double *jgasRow(int src, int row)
 	if (rh->spectrum.Jgas_fixed != NULL && rh->spectrum.PRDrow[src] == -1 && rh->spectrum.PRDrow[row] != -1) {
 		if (rh->spectrum.PRDrow[row] == -2) {
 
-			/* --- Called by worker threads, never with a lock held; the
-				   message goes in a buffer of its own, not the shared
-				   messageStr --                         -------------- */
+			/* --- Called by worker threads, never with a lock held -- */
 
-			char msg[256];
-
-			snprintf(msg, sizeof(msg),
-					 "Wavelength %d (%g nm) without PRD line gives to wavelength %d (%g nm) "
-					 "with PRD line, which the reach computed at the start excludes",
-					 src, rh->spectrum.lambda[src], row, rh->spectrum.lambda[row]);
-			Error(ERROR_LEVEL_2, "jgasRow", msg);
+			Error(ERROR_LEVEL_2, "jgasRow",
+				  "Wavelength %d (%g nm) without PRD line gives to wavelength %d (%g nm) "
+				  "with PRD line, which the reach computed at the start excludes",
+				  src, rh->spectrum.lambda[src], row, rh->spectrum.lambda[row]);
 		}
 		return rh->spectrum.Jgas_fixed[rh->spectrum.PRDrow[row]];
 	}

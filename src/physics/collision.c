@@ -571,7 +571,7 @@ static void checkFiniteValues(const Atom *atom, const char *keyword, int i1,
 					 " coefficient (%g, number %d).\n Fix or remove this record"
 					 " in the atom file",
 					 atom->ID, keyword, i1, i2, v[m], m + 1);
-		Error(ERROR_LEVEL_2, "CollisionRate", msg);
+		Error(ERROR_LEVEL_2, "CollisionRate", "%s", msg);
 	}
 }
 
@@ -584,7 +584,7 @@ static void rateCheckCoeffError(const Atom *atom, const char *keyword, int i1,
 			 "Atom %s: collision record %.20s %d %d: %.200s (%g).\n Fix or remove this"
 			 " record in the atom file",
 			 atom->ID, keyword, i1, i2, what, value);
-	Error(ERROR_LEVEL_2, "CollisionRate", msg);
+	Error(ERROR_LEVEL_2, "CollisionRate", "%s", msg);
 }
 
 /* --- A contribution x (s^-1) to C at temperature T: stops when it is
@@ -600,7 +600,7 @@ static double rateChecked(double x, RateCheck *rc, const Atom *atom,
 				 "Atom %s: collision record %.20s %d %d gives a rate that is not"
 				 " finite (%g s^-1) at T = %g K.\n Check its coefficients",
 				 atom->ID, keyword, i1, i2, x, T);
-		Error(ERROR_LEVEL_2, "CollisionRate", msg);
+		Error(ERROR_LEVEL_2, "CollisionRate", "%s", msg);
 	}
 	if (x < 0.0) {
 		if (rc->Nneg == 0 || x < rc->minVal) {
@@ -634,7 +634,7 @@ static void rateCheckReport(const RateCheck *rc, Atom *atom,
 				 " the coefficients of this record",
 				 atom->ID, keyword, i1, i2, rc->Nneg, Nspace, rc->minVal,
 				 rc->Tneg);
-		Error(WARNING, "CollisionRate", msg);
+		Error(WARNING, "CollisionRate", "%s", msg);
 	}
 	if (rc->Nout > 0 && firstReport(atom, keyword, i1, i2, "range")) {
 		snprintf(msg, sizeof(msg),
@@ -643,7 +643,7 @@ static void rateCheckReport(const RateCheck *rc, Atom *atom,
 				 " (T = %g to %g K)",
 				 atom->ID, keyword, i1, i2, T1, T2, rc->Nout, Nspace,
 				 rc->Tout[0], rc->Tout[1]);
-		Error(WARNING, "CollisionRate", msg);
+		Error(WARNING, "CollisionRate", "%s", msg);
 	}
 }
 /* --- Tables (OMEGA, CE, CI, CP, CH0, CH+, CH) hold their end value
@@ -731,7 +731,7 @@ static void tableRangeReport(const TableRange *tr, Atom *atom, int type, long Ns
 			 atom->ID, tr->Nout, tr->Nrec, tableKeyword[type], tr->Nbelow,
 			 tr->Nabove, tr->Npoints, tr->Nrec * Nspace, tr->Ttab[0], tr->Ttab[1],
 			 tr->Tatm[0], tr->Tatm[1], rule);
-	Error(WARNING, "CollisionRate", msg);
+	Error(WARNING, "CollisionRate", "%s", msg);
 }
 
 /* ------- end ---------------------------- RateCheck.c ----------- */
