@@ -60,17 +60,15 @@ void ErrorExit(enum errorlevel level, const char *routineName,
 
 /* --- Problems of a completed run, see error.h --     -------------- */
 
-static int exitFlags = 0;
-
 void SetExitFlag(int flag)
 {
 	/* --- Only bits 1-63: higher statuses mean failure -- ---------- */
 
-	exitFlags |= (flag & 63);
+	rh->error.exitFlags |= (flag & 63);
 }
 
 int ExitStatus(void)
 {
-	return exitFlags;
+	return rh->error.exitFlags;
 }
 /* ------- end ---------------------------- ExitStatus.c ------------ */

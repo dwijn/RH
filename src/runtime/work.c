@@ -36,8 +36,6 @@
 
 extern char messageStr[];
 
-static WorkCounters work; /* zero: phase WORK_INITIAL, no counts */
-
 static const char *phaseName[WORK_NPHASE] = {"initial", "iterate", "final"};
 
 /* ------- begin -------------------------- wallClock.c ------------- */
@@ -55,7 +53,7 @@ double wallClock(void)
 
 void workPhase(enum WorkPhase phase)
 {
-	work.phase = phase;
+	rh->work.phase = phase;
 }
 /* ------- end ---------------------------- workPhase.c ------------- */
 
@@ -67,8 +65,8 @@ void workSweep(bool_t eval_operator, bool_t redistribute, int Nsolved)
 
 	kind = (redistribute) ? WORK_PRD
 						  : ((eval_operator) ? WORK_OPERATOR : WORK_PLAIN);
-	work.sweeps[work.phase][kind]++;
-	work.lambda[work.phase][kind] += Nsolved;
+	rh->work.sweeps[rh->work.phase][kind]++;
+	rh->work.lambda[rh->work.phase][kind] += Nsolved;
 }
 /* ------- end ---------------------------- workSweep.c ------------- */
 
@@ -76,8 +74,8 @@ void workSweep(bool_t eval_operator, bool_t redistribute, int Nsolved)
 
 void workAdd(enum WorkTimer timer, double seconds)
 {
-	work.calls[timer]++;
-	work.seconds[timer] += seconds;
+	rh->work.calls[timer]++;
+	rh->work.seconds[timer] += seconds;
 }
 /* ------- end ---------------------------- workAdd.c --------------- */
 
@@ -89,8 +87,8 @@ void workAdd(enum WorkTimer timer, double seconds)
 
 void workRates(long Nsolved, long Nlu)
 {
-	work.Nrates += Nsolved;
-	work.Nrates_lu += Nlu;
+	rh->work.Nrates += Nsolved;
+	rh->work.Nrates_lu += Nlu;
 }
 /* ------- end ---------------------------- workRates.c ------------- */
 
@@ -101,7 +99,7 @@ void workBgScatter(long Nsolved)
 	/* --- Wavelength solves of the background scattering iteration
 		   (N-51), on top of those of the sweep -- ----- -------------- */
 
-	work.bg_lambda[work.phase] += Nsolved;
+	rh->work.bg_lambda[rh->work.phase] += Nsolved;
 }
 /* ------- end ---------------------------- workBgScatter.c --------- */
 
@@ -124,7 +122,7 @@ void printWork(void)
 		Error(MESSAGE, NULL, messageStr);
 		for (kind = 0; kind < WORK_NKIND; kind++) {
 			sprintf(messageStr, "  %s %ld (%ld sweeps)", kindName[kind],
-					work.lambda[phase][kind], work.sweeps[phase][kind]);
+					rh->work.lambda[phase][kind], rh->work.sweeps[phase][kind]);
 			Error(MESSAGE, NULL, messageStr);
 		}
 		Error(MESSAGE, NULL, "\n");
@@ -132,25 +130,25 @@ void printWork(void)
 	sprintf(messageStr,
 			"    Background %ld calls %.3f s;  Hydrostatic %ld calls %.3f s;"
 			"  Iterate %.3f s;  threads %d\n",
-			work.calls[WORK_BACKGROUND], work.seconds[WORK_BACKGROUND],
-			work.calls[WORK_HYDROSTATIC], work.seconds[WORK_HYDROSTATIC],
-			work.seconds[WORK_ITERATION], rh->input.Nthreads);
+			rh->work.calls[WORK_BACKGROUND], rh->work.seconds[WORK_BACKGROUND],
+			rh->work.calls[WORK_HYDROSTATIC], rh->work.seconds[WORK_HYDROSTATIC],
+			rh->work.seconds[WORK_ITERATION], rh->input.Nthreads);
 	Error(MESSAGE, NULL, messageStr);
-	if (work.bg_lambda[WORK_INITIAL] + work.bg_lambda[WORK_ITERATE] +
-			work.bg_lambda[WORK_FINAL] >
+	if (rh->work.bg_lambda[WORK_INITIAL] + rh->work.bg_lambda[WORK_ITERATE] +
+			rh->work.bg_lambda[WORK_FINAL] >
 		0) {
 		sprintf(messageStr,
 				"    Background scattering iteration: initial %ld, iterate %ld,"
 				" final %ld wavelength solves\n",
-				work.bg_lambda[WORK_INITIAL], work.bg_lambda[WORK_ITERATE],
-				work.bg_lambda[WORK_FINAL]);
+				rh->work.bg_lambda[WORK_INITIAL], rh->work.bg_lambda[WORK_ITERATE],
+				rh->work.bg_lambda[WORK_FINAL]);
 		Error(MESSAGE, NULL, messageStr);
 	}
-	if (work.Nrates > 0) {
+	if (rh->work.Nrates > 0) {
 		sprintf(messageStr,
 				"    Rate equations %ld solved, %ld of them with LU"
 				" instead of GTH\n",
-				work.Nrates, work.Nrates_lu);
+				rh->work.Nrates, rh->work.Nrates_lu);
 		Error(MESSAGE, NULL, messageStr);
 	}
 }

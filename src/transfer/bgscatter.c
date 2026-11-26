@@ -129,13 +129,6 @@ extern char messageStr[];
 #define COND_MAX    1.0E+08 /* as ANDERSON_COND_MAX */
 #define KAPPA_PAIRS 10      /* evaluated pairs for kappa (N-66) */
 
-static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static BgScatterStats  stats;   /* since the last bgScatterStats(.., TRUE) */
-static unsigned char  *pending; /* per wavelength: iterate before the sweep */
-static unsigned char  *linear;  /* per wavelength, with S_BEZIER3 (N-52) */
-static float          *kappa;   /* per wavelength: the last kappa, 0: none */
-static long            Nlinear;
-
 /* ------- begin -------------------------- bgScatterActive.c ------- */
 
 int bgScatterActive(void)
@@ -179,14 +172,14 @@ void bgScatterSetup(void)
 
 	/* --- The first sweep iterates every wavelength first -- ------ */
 
-	if (pending == NULL) {
-		pending = (unsigned char *) malloc(rh->spectrum.Nspect);
-		memset(pending, 1, rh->spectrum.Nspect);
-		kappa = (float *) calloc(rh->spectrum.Nspect, sizeof(float));
+	if (rh->bgscatter.pending == NULL) {
+		rh->bgscatter.pending = (unsigned char *) malloc(rh->spectrum.Nspect);
+		memset(rh->bgscatter.pending, 1, rh->spectrum.Nspect);
+		rh->bgscatter.kappa = (float *) calloc(rh->spectrum.Nspect, sizeof(float));
 	}
 
-	if (geometryOps.bg_linear_fallback() && linear == NULL) {
-		linear = (unsigned char *) calloc(rh->spectrum.Nspect, 1);
+	if (geometryOps.bg_linear_fallback() && rh->bgscatter.linear == NULL) {
+		rh->bgscatter.linear = (unsigned char *) calloc(rh->spectrum.Nspect, 1);
 		sprintf(messageStr,
 				"  with S_INTERPOLATION = S_BEZIER3: wavelengths whose albedo"
 				" exceeds BACKGROUND_LINEAR_ALBEDO = %.2f\n  below vertical"
@@ -562,15 +555,15 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 	if (kn > 0.0) *kap = kn;
 	memcpy(J, g, Nspace * sizeof(double));
 
-	pthread_mutex_lock(&lock);
-	stats.Niterated++;
-	stats.Nsweeps += niter;
+	pthread_mutex_lock(&rh->bgscatter.lock);
+	rh->bgscatter.stats.Niterated++;
+	rh->bgscatter.stats.Nsweeps += niter;
 	if (!converged) {
-		stats.Nunconverged++;
+		rh->bgscatter.stats.Nunconverged++;
 		r *= errFactor(kn, amax);
-		if (r > stats.rmax) stats.rmax = r;
+		if (r > rh->bgscatter.stats.rmax) rh->bgscatter.stats.rmax = r;
 	}
-	pthread_mutex_unlock(&lock);
+	pthread_mutex_unlock(&rh->bgscatter.lock);
 
 	andersonFree(a);
 	free(gamma);
@@ -584,7 +577,7 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 
 bool_t bgScatterPending(int nspect)
 {
-	return pending != NULL && pending[nspect];
+	return rh->bgscatter.pending != NULL && rh->bgscatter.pending[nspect];
 }
 /* ------- end ---------------------------- bgScatterPending.c ------ */
 
@@ -596,7 +589,7 @@ void bgScatterBefore(int nspect, int Nspace, const double *Jdag,
 	register int k;
 
 	int     niter;
-	double *Jfs, *A, *albedo, kap = kappa[nspect];
+	double *Jfs, *A, *albedo, kap = rh->bgscatter.kappa[nspect];
 
 	/* --- One formal solution from Jdag, the iteration from there to
 		   J*, the source of the main sweep. A wavelength the scattering
@@ -609,10 +602,10 @@ void bgScatterBefore(int nspect, int Nspace, const double *Jdag,
 	A      = Jfs + Nspace;
 	albedo = A + 3 * Nspace;
 	sweep(ctx, Jdag, Jfs, A, albedo);
-	niter         = bgScatterIterate(Nspace, Jdag, Jfs, A, albedo, Jstar, &kap,
-									 sweep, ctx);
-	kappa[nspect] = (float) kap;
-	if (niter == 0) pending[nspect] = 0;
+	niter                       = bgScatterIterate(Nspace, Jdag, Jfs, A, albedo, Jstar, &kap,
+												   sweep, ctx);
+	rh->bgscatter.kappa[nspect] = (float) kap;
+	if (niter == 0) rh->bgscatter.pending[nspect] = 0;
 
 	/* --- Opacities negative enough to overflow are caught by the main
 		   sweep (N-40); keep the source finite until then -- ------- */
@@ -623,9 +616,9 @@ void bgScatterBefore(int nspect, int Nspace, const double *Jdag,
 			break;
 		}
 	}
-	pthread_mutex_lock(&lock);
-	stats.Nsweeps++;
-	pthread_mutex_unlock(&lock);
+	pthread_mutex_lock(&rh->bgscatter.lock);
+	rh->bgscatter.stats.Nsweeps++;
+	pthread_mutex_unlock(&rh->bgscatter.lock);
 	free(Jfs);
 }
 /* ------- end ---------------------------- bgScatterBefore.c ------- */
@@ -637,13 +630,13 @@ void bgScatterAfter(int nspect, int Nspace, const double *u,
 {
 	double *g;
 
-	if (pending == NULL) return;
+	if (rh->bgscatter.pending == NULL) return;
 	g = (double *) malloc(5 * Nspace * sizeof(double)); /* g, work */
 	precondStep(Nspace, u, Jfs, A, g, g + Nspace);
-	if (errFactor(kappa[nspect], maxAlbedo(Nspace, albedo)) *
+	if (errFactor(rh->bgscatter.kappa[nspect], maxAlbedo(Nspace, albedo)) *
 			relChange(Nspace, u, g) >
 		rh->input.bg_iterLimit)
-		pending[nspect] = 1;
+		rh->bgscatter.pending[nspect] = 1;
 	free(g);
 }
 /* ------- end ---------------------------- bgScatterAfter.c -------- */
@@ -652,11 +645,11 @@ void bgScatterAfter(int nspect, int Nspace, const double *u,
 
 void bgScatterStats(BgScatterStats *s, int reset)
 {
-	pthread_mutex_lock(&lock);
-	*s         = stats;
-	s->Nlinear = Nlinear;
-	if (reset) memset(&stats, 0, sizeof(stats));
-	pthread_mutex_unlock(&lock);
+	pthread_mutex_lock(&rh->bgscatter.lock);
+	*s         = rh->bgscatter.stats;
+	s->Nlinear = rh->bgscatter.Nlinear;
+	if (reset) memset(&rh->bgscatter.stats, 0, sizeof(rh->bgscatter.stats));
+	pthread_mutex_unlock(&rh->bgscatter.lock);
 }
 /* ------- end ---------------------------- bgScatterStats.c -------- */
 
@@ -669,20 +662,20 @@ bool_t bgScatterLinear(int nspect, double albedo)
 	/* --- A wavelength is solved by one thread at a time, so its flag
 		   needs no lock; the counts do -- --            -------------- */
 
-	if (linear == NULL) return FALSE;
-	if (albedo < 0.0) return linear[nspect];
+	if (rh->bgscatter.linear == NULL) return FALSE;
+	if (albedo < 0.0) return rh->bgscatter.linear[nspect];
 	lin = (albedo > rh->input.bg_linearAlbedo);
-	if (lin != linear[nspect]) {
-		pthread_mutex_lock(&lock);
+	if (lin != rh->bgscatter.linear[nspect]) {
+		pthread_mutex_lock(&rh->bgscatter.lock);
 		if (lin) {
-			Nlinear++;
-			stats.Nto++;
+			rh->bgscatter.Nlinear++;
+			rh->bgscatter.stats.Nto++;
 		} else {
-			Nlinear--;
-			stats.Nback++;
+			rh->bgscatter.Nlinear--;
+			rh->bgscatter.stats.Nback++;
 		}
-		pthread_mutex_unlock(&lock);
-		linear[nspect] = lin;
+		pthread_mutex_unlock(&rh->bgscatter.lock);
+		rh->bgscatter.linear[nspect] = lin;
 	}
 	return lin;
 }
