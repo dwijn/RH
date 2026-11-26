@@ -28,14 +28,13 @@
 #include "constant.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- getLambda.c ------------- */
 
@@ -66,8 +65,8 @@ void getLambda(AtomicLine *line)
 
 		   --                                            -------------- */
 
-	if ((atmos.Stokes && line->polarizable) ||
-		atmos.moving ||
+	if ((rh->atmos.Stokes && line->polarizable) ||
+		rh->atmos.moving ||
 		line->Ncomponent > 1) {
 		line->symmetric = FALSE;
 	}
@@ -110,7 +109,7 @@ void getLambda(AtomicLine *line)
 			   First, get characteristic Zeeman splitting -- ------------ */
 
 		qB_char = g_Lande_eff * (Q_ELECTRON / (4.0 * PI * M_ELECTRON)) *
-				  (line->lambda0 * NM_TO_M) * atmos.B_char / atmos.vmicro_char;
+				  (line->lambda0 * NM_TO_M) * rh->atmos.B_char / rh->atmos.vmicro_char;
 
 		if (qB_char / 2.0 >= line->qcore) {
 			sprintf(messageStr,
@@ -133,7 +132,7 @@ void getLambda(AtomicLine *line)
 	}
 	/* --- Store absolute wavelength rather than differences -- ----- */
 
-	q_to_lambda = line->lambda0 * (atmos.vmicro_char / CLIGHT);
+	q_to_lambda = line->lambda0 * (rh->atmos.vmicro_char / CLIGHT);
 
 	if (line->symmetric) {
 		line->Nlambda = Nlambda;
@@ -195,8 +194,8 @@ static bool_t blueHalfOverlap(const AtomicLine *line, const double *extra,
 	for (la = 0; la < Nextra; la++)
 		if (inBlueHalf(extra[la], lo, hi)) return TRUE;
 
-	for (n = 0; n < atmos.Natom; n++) {
-		Atom *atom = &atmos.atoms[n];
+	for (n = 0; n < rh->atmos.Natom; n++) {
+		Atom *atom = &rh->atmos.atoms[n];
 
 		if (!atom->active) continue;
 		for (kr = 0; kr < atom->Ncont; kr++) {
@@ -218,8 +217,8 @@ static bool_t blueHalfOverlap(const AtomicLine *line, const double *extra,
 				if (inBlueHalf(other->lambda[la], lo, hi)) return TRUE;
 		}
 	}
-	for (n = 0; n < atmos.Nmolecule; n++) {
-		Molecule *molecule = &atmos.molecules[n];
+	for (n = 0; n < rh->atmos.Nmolecule; n++) {
+		Molecule *molecule = &rh->atmos.molecules[n];
 
 		if (!molecule->active) continue;
 		for (kr = 0; kr < molecule->Nrt; kr++) {
@@ -240,8 +239,8 @@ int asymmetricBlends(const double *extra, int Nextra)
 
 	do {
 		changed = FALSE;
-		for (n = 0; n < atmos.Natom; n++) {
-			Atom *atom = &atmos.atoms[n];
+		for (n = 0; n < rh->atmos.Natom; n++) {
+			Atom *atom = &rh->atmos.atoms[n];
 
 			if (!atom->active) continue;
 			for (kr = 0; kr < atom->Nline; kr++) {
@@ -434,13 +433,13 @@ int mirrorQuadrature(void)
 	SymmetricLine *A;
 	QuadTransition T;
 
-	for (n = 0; n < atmos.Nactiveatom; n++) Nmax += atmos.activeatoms[n]->Nline;
-	for (n = 0; n < atmos.Nactivemol; n++) Nmax += atmos.activemols[n]->Nrt;
+	for (n = 0; n < rh->atmos.Nactiveatom; n++) Nmax += rh->atmos.activeatoms[n]->Nline;
+	for (n = 0; n < rh->atmos.Nactivemol; n++) Nmax += rh->atmos.activemols[n]->Nrt;
 	if (Nmax == 0) return 0;
 
 	A = (SymmetricLine *) malloc(Nmax * sizeof(SymmetricLine));
-	for (n = 0; n < atmos.Nactiveatom; n++) {
-		Atom *atom = atmos.activeatoms[n];
+	for (n = 0; n < rh->atmos.Nactiveatom; n++) {
+		Atom *atom = rh->atmos.activeatoms[n];
 
 		for (kr = 0; kr < atom->Nline; kr++) {
 			AtomicLine *line = &atom->line[kr];
@@ -451,8 +450,8 @@ int mirrorQuadrature(void)
 			NA++;
 		}
 	}
-	for (n = 0; n < atmos.Nactivemol; n++) {
-		Molecule *molecule = atmos.activemols[n];
+	for (n = 0; n < rh->atmos.Nactivemol; n++) {
+		Molecule *molecule = rh->atmos.activemols[n];
 
 		for (kr = 0; kr < molecule->Nrt; kr++) {
 			MolecularLine *mrt = &molecule->mrt[kr];
@@ -465,8 +464,8 @@ int mirrorQuadrature(void)
 	}
 
 	if (NA > 0) {
-		for (n = 0; n < atmos.Nactiveatom; n++) {
-			Atom *atom = atmos.activeatoms[n];
+		for (n = 0; n < rh->atmos.Nactiveatom; n++) {
+			Atom *atom = rh->atmos.activeatoms[n];
 
 			for (kr = 0; kr < atom->Nline; kr++) {
 				AtomicLine *line = &atom->line[kr];
@@ -487,8 +486,8 @@ int mirrorQuadrature(void)
 				NT += (Ngap > 0);
 			}
 		}
-		for (n = 0; n < atmos.Nactivemol; n++) {
-			Molecule *molecule = atmos.activemols[n];
+		for (n = 0; n < rh->atmos.Nactivemol; n++) {
+			Molecule *molecule = rh->atmos.activemols[n];
 
 			for (kr = 0; kr < molecule->Nrt; kr++) {
 				MolecularLine *mrt = &molecule->mrt[kr];

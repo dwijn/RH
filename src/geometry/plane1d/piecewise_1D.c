@@ -25,15 +25,13 @@
 #include "atmos.h"
 #include "geometry.h"
 #include "spectrum.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Geometry   geometry;
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- Piecewise_Linear_1D.c --- */
 
@@ -57,10 +55,10 @@ void Piecewise_Linear_1D_tri(int nspect, int mu, bool_t to_obs,
 	const char   routineName[] = "Piecewise_Linear_1D";
 	register int k;
 
-	int    k_start, k_end, dk, Ndep = geometry.Ndep;
+	int    k_start, k_end, dk, Ndep = rh->geometry->Ndep;
 	double dtau_uw, dS_uw, I_uw = 0.0, w[2], zmu, Bnu[2], T0 = 0.0;
 
-	zmu = 0.5 / geometry.muz[mu];
+	zmu = 0.5 / rh->geometry->muz[mu];
 
 	/* --- Distinguish between rays going from BOTTOM to TOP
 		   (to_obs == TRUE), and vice versa --      -------------- */
@@ -75,43 +73,43 @@ void Piecewise_Linear_1D_tri(int nspect, int mu, bool_t to_obs,
 		k_end   = Ndep - 1;
 	}
 	dtau_uw = zmu * (chi[k_start] + chi[k_start + dk]) *
-			  fabs(geometry.height[k_start] - geometry.height[k_start + dk]);
+			  fabs(rh->geometry->height[k_start] - rh->geometry->height[k_start + dk]);
 	dS_uw = (S[k_start] - S[k_start + dk]) / dtau_uw;
 
 	/* --- Boundary conditions --                        -------------- */
 
 	if (to_obs) {
-		switch (geometry.vboundary[BOTTOM]) {
+		switch (rh->geometry->vboundary[BOTTOM]) {
 		case ZERO:
 			I_uw = 0.0;
 			break;
 		case THERMALIZED:
-			Planck(2, &atmos.T[Ndep - 2], spectrum.lambda[nspect], Bnu);
+			Planck(2, &rh->atmos.T[Ndep - 2], rh->spectrum.lambda[nspect], Bnu);
 			I_uw = Bnu[1] - (Bnu[0] - Bnu[1]) / dtau_uw;
 			break;
 		case IRRADIATED:
-			I_uw = geometry.Ibottom[nspect][mu];
+			I_uw = rh->geometry->Ibottom[nspect][mu];
 			break;
 		case REFLECTIVE:
 			sprintf(messageStr, "Boundary condition not implemented: %d",
-					geometry.vboundary[BOTTOM]);
+					rh->geometry->vboundary[BOTTOM]);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 	} else {
-		switch (geometry.vboundary[TOP]) {
+		switch (rh->geometry->vboundary[TOP]) {
 		case ZERO:
 			I_uw = 0.0;
 			break;
 		case THERMALIZED:
-			Planck(2, &atmos.T[0], spectrum.lambda[nspect], Bnu);
+			Planck(2, &rh->atmos.T[0], rh->spectrum.lambda[nspect], Bnu);
 			I_uw = Bnu[0] - (Bnu[1] - Bnu[0]) / dtau_uw;
 			break;
 		case IRRADIATED:
-			I_uw = geometry.Itop[nspect][mu];
+			I_uw = rh->geometry->Itop[nspect][mu];
 			break;
 		case REFLECTIVE:
 			sprintf(messageStr, "Boundary condition not implemented: %d",
-					geometry.vboundary[BOTTOM]);
+					rh->geometry->vboundary[BOTTOM]);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 	}
@@ -134,7 +132,7 @@ void Piecewise_Linear_1D_tri(int nspect, int mu, bool_t to_obs,
 		}
 
 		dtau_uw = zmu * (chi[k] + chi[k + dk]) *
-				  fabs(geometry.height[k] - geometry.height[k + dk]);
+				  fabs(rh->geometry->height[k] - rh->geometry->height[k + dk]);
 		dS_uw = (S[k] - S[k + dk]) / dtau_uw;
 
 		I_uw = I[k];

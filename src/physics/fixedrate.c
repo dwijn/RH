@@ -42,6 +42,7 @@
 #include "atmos.h"
 #include "constant.h"
 #include "statistics.h"
+#include "state.h"
 
 #define N_MAX_INTEGRAL 999
 #define DELTA_MIN      1.0E-05
@@ -53,9 +54,6 @@ double sumE1(double xrad);
 double sumE1_xe(double xe, double xrad);
 
 /* --- Global variables --                             -------------- */
-
-extern enum Topology topology;
-extern Atmosphere    atmos;
 
 /* ------- begin -------------------------- FixedRate.c ------------- */
 
@@ -71,15 +69,15 @@ void FixedRate(Atom *atom)
 	getCPU(3, TIME_START, NULL);
 
 	e_mc = (Q_ELECTRON / EPSILON_0) * (Q_ELECTRON / (CLIGHT * M_ELECTRON));
-	if (topology == TWO_D_PLANE) {
-		Nrepeat = atmos.N[0];
-		Ndepth  = atmos.N[1];
-	} else if (topology == THREE_D_PLANE) {
-		Nrepeat = atmos.N[0] * atmos.N[1];
-		Ndepth  = atmos.N[2];
+	if (rh->topology == TWO_D_PLANE) {
+		Nrepeat = rh->atmos.N[0];
+		Ndepth  = rh->atmos.N[1];
+	} else if (rh->topology == THREE_D_PLANE) {
+		Nrepeat = rh->atmos.N[0] * rh->atmos.N[1];
+		Ndepth  = rh->atmos.N[2];
 	} else {
 		Nrepeat = 1;
-		Ndepth  = atmos.Nspace;
+		Ndepth  = rh->atmos.Nspace;
 	}
 	/* --- Go through the fixed transitions --           -------------- */
 
@@ -102,12 +100,12 @@ void FixedRate(Atom *atom)
 			C0  = 8.0 * PI * ft->strength * CLIGHT / CUBE(NM_TO_M * ft->lambda0);
 		}
 
-		for (k = 0; k < atmos.Nspace; k++) {
-			Te = atmos.T[k];
+		for (k = 0; k < rh->atmos.Nspace; k++) {
+			Te = rh->atmos.T[k];
 			if (k >= Nrepeat * (Ndepth - 1))
 				deltaT = -1.0;
 			else
-				deltaT = Te - atmos.T[k + Nrepeat];
+				deltaT = Te - rh->atmos.T[k + Nrepeat];
 
 			/* --- Determine radiation temperature --      -------------- */
 

@@ -33,6 +33,7 @@
 #include "atmos.h"
 #include "constant.h"
 #include "error.h"
+#include "state.h"
 
 /* --- Temperature range of the OH and CH tables (first and last node of
 	   TOH and TCH below). Outside it log(sigma) is held at its value at the
@@ -47,8 +48,7 @@ double bilinear(int Ncol, int Nrow, double *f, double x, double y);
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- OH_bf_opac.c ------------ */
 
@@ -347,7 +347,7 @@ bool_t OH_bf_opac(double lambda, double *chi, double *eta)
 	/* --- Return immediately if OH does not exist, or energy is
 		   outside tabulated range --                    -------------- */
 
-	if (!atmos.OH) return FALSE;
+	if (!rh->atmos.OH) return FALSE;
 	Eev = (HPLANCK * CLIGHT) / (lambda * NM_TO_M) / EV;
 	if (Eev < EOH[0] || Eev > EOH[NEOH - 1]) return FALSE;
 
@@ -359,12 +359,12 @@ bool_t OH_bf_opac(double lambda, double *chi, double *eta)
 	hc_kla     = (HPLANCK * CLIGHT) / (KBOLTZMANN * NM_TO_M * lambda);
 	twohnu3_c2 = (2.0 * HPLANCK * CLIGHT) / CUBE(NM_TO_M * lambda);
 
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		/* --- Outside the temperature range of the table log(sigma)
 			   is held at the value at the nearest edge; the Planck
 			   factors use the actual temperature --      -------------- */
 
-		Tk = MIN(MAX(atmos.T[k], TOH[0]), TOH[NTOH - 1]);
+		Tk = MIN(MAX(rh->atmos.T[k], TOH[0]), TOH[NTOH - 1]);
 
 		Hunt(NTOH, TOH, Tk, &index2);
 		if (index2 > NTOH - 2) index2 = NTOH - 2; /* the last node: fraction 1 */
@@ -374,9 +374,9 @@ bool_t OH_bf_opac(double lambda, double *chi, double *eta)
 		kappa = exp(LG10 * bilinear(NTOH, NEOH, OH_cross[0],
 									t_index, e_index)) *
 				SQ(CM_TO_M);
-		stimEmis = exp(-hc_kla / atmos.T[k]);
-		chi[k]   = atmos.OH->n[k] * (1.0 - stimEmis) * kappa;
-		eta[k]   = atmos.OH->n[k] * twohnu3_c2 * stimEmis * kappa;
+		stimEmis = exp(-hc_kla / rh->atmos.T[k]);
+		chi[k]   = rh->atmos.OH->n[k] * (1.0 - stimEmis) * kappa;
+		eta[k]   = rh->atmos.OH->n[k] * twohnu3_c2 * stimEmis * kappa;
 	}
 	return TRUE;
 }
@@ -627,7 +627,7 @@ bool_t CH_bf_opac(double lambda, double *chi, double *eta)
 	/* --- Return immediately if CH does not exist, or energy is
 		   outside tabulated range --                    -------------- */
 
-	if (!atmos.CH) return FALSE;
+	if (!rh->atmos.CH) return FALSE;
 	Eev = (HPLANCK * CLIGHT) / (lambda * NM_TO_M) / EV;
 	if (Eev < ECH[0] || Eev > ECH[NECH - 1]) return FALSE;
 
@@ -639,12 +639,12 @@ bool_t CH_bf_opac(double lambda, double *chi, double *eta)
 	hc_kla     = (HPLANCK * CLIGHT) / (KBOLTZMANN * NM_TO_M * lambda);
 	twohnu3_c2 = (2.0 * HPLANCK * CLIGHT) / CUBE(NM_TO_M * lambda);
 
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		/* --- Outside the temperature range of the table log(sigma)
 			   is held at the value at the nearest edge; the Planck
 			   factors use the actual temperature --      -------------- */
 
-		Tk = MIN(MAX(atmos.T[k], TCH[0]), TCH[NTCH - 1]);
+		Tk = MIN(MAX(rh->atmos.T[k], TCH[0]), TCH[NTCH - 1]);
 
 		Hunt(NTCH, TCH, Tk, &index2);
 		if (index2 > NTCH - 2) index2 = NTCH - 2; /* the last node: fraction 1 */
@@ -654,9 +654,9 @@ bool_t CH_bf_opac(double lambda, double *chi, double *eta)
 		kappa = exp(LG10 * bilinear(NTCH, NECH, CH_cross[0],
 									t_index, e_index)) *
 				SQ(CM_TO_M);
-		stimEmis = exp(-hc_kla / atmos.T[k]);
-		chi[k]   = atmos.CH->n[k] * (1.0 - stimEmis) * kappa;
-		eta[k]   = atmos.CH->n[k] * twohnu3_c2 * stimEmis * kappa;
+		stimEmis = exp(-hc_kla / rh->atmos.T[k]);
+		chi[k]   = rh->atmos.CH->n[k] * (1.0 - stimEmis) * kappa;
+		eta[k]   = rh->atmos.CH->n[k] * twohnu3_c2 * stimEmis * kappa;
 	}
 	return TRUE;
 }
@@ -671,7 +671,7 @@ void OHCH_bf_check(void)
 
 	int       n, Nout;
 	double    Tlo, Thi;
-	Molecule *mol[2] = {atmos.OH, atmos.CH};
+	Molecule *mol[2] = {rh->atmos.OH, rh->atmos.CH};
 
 	/* --- One message per molecule when the atmosphere leaves the
 		   temperature range of its bound-free table (N-53) -- -------- */
@@ -680,18 +680,18 @@ void OHCH_bf_check(void)
 		if (!mol[n]) continue;
 
 		Nout = 0;
-		Tlo = Thi = atmos.T[0];
-		for (k = 0; k < atmos.Nspace; k++) {
-			if (atmos.T[k] < OHCH_TMIN || atmos.T[k] > OHCH_TMAX) Nout++;
-			Tlo = MIN(Tlo, atmos.T[k]);
-			Thi = MAX(Thi, atmos.T[k]);
+		Tlo = Thi = rh->atmos.T[0];
+		for (k = 0; k < rh->atmos.Nspace; k++) {
+			if (rh->atmos.T[k] < OHCH_TMIN || rh->atmos.T[k] > OHCH_TMAX) Nout++;
+			Tlo = MIN(Tlo, rh->atmos.T[k]);
+			Thi = MAX(Thi, rh->atmos.T[k]);
 		}
 		if (Nout > 0) {
 			sprintf(messageStr,
 					"%s bound-free opacity: %d of %d depth points have T outside"
 					" the table range [%.0f, %.0f] K\n (atmosphere T = %.0f - %.0f"
 					" K). log(sigma) is held at the value at the nearest edge.",
-					mol[n]->ID, Nout, atmos.Nspace, OHCH_TMIN, OHCH_TMAX, Tlo, Thi);
+					mol[n]->ID, Nout, rh->atmos.Nspace, OHCH_TMIN, OHCH_TMAX, Tlo, Thi);
 			Error(WARNING, routineName, messageStr);
 		}
 	}

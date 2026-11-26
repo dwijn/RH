@@ -28,14 +28,11 @@
 #include "negtau.h"
 #include "bgscatter.h"
 #include "geometryops.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Geometry   geometry;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- Piecewise_1D.c ---------- */
 
@@ -50,13 +47,13 @@ static void Piecewise_1D(int nspect, int mu, bool_t to_obs, double *chi,
 
 	/* --- Tri: NULL, or the row of the operator of the ray (N-51) -- */
 
-	if (lin || input.S_interpolation == S_LINEAR) {
+	if (lin || rh->input.S_interpolation == S_LINEAR) {
 		Piecewise_Linear_1D_tri(nspect, mu, to_obs, chi, S, I, Psi, Tri);
-	} else if (input.S_interpolation == S_BEZIER3) {
+	} else if (rh->input.S_interpolation == S_BEZIER3) {
 		Piecewise_Bezier3_1D_tri(nspect, mu, to_obs, chi, S, I, Psi, Tri);
 	} else {
 		sprintf(messageStr, "Unknown radiation solver: %d",
-				input.S_interpolation);
+				rh->input.S_interpolation);
 		Error(ERROR_LEVEL_1, routineName, messageStr);
 	}
 }
@@ -71,7 +68,7 @@ static const char *bgSupported(void)
 		   S_BEZIER3 the iterated wavelengths are solved with the linear
 		   solver, unless BACKGROUND_LINEAR_ALBEDO >= 1 turns that off - */
 
-	if (input.S_interpolation != S_LINEAR && input.bg_linearAlbedo >= 1.0)
+	if (rh->input.S_interpolation != S_LINEAR && rh->input.bg_linearAlbedo >= 1.0)
 		return "with S_INTERPOLATION = S_BEZIER3 it needs"
 			   " BACKGROUND_LINEAR_ALBEDO < 1 (the operator of S_BEZIER3 is"
 			   " not positive, N-52)";
@@ -83,7 +80,7 @@ static const char *bgSupported(void)
 
 static bool_t bgLinearFallback(void)
 {
-	return input.S_interpolation != S_LINEAR;
+	return rh->input.S_interpolation != S_LINEAR;
 }
 /* ------- end ---------------------------- bgLinearFallback.c ------ */
 
@@ -98,13 +95,13 @@ static double maxAlbedo(const ActiveSet *as)
 		   vertical optical depth BACKGROUND_LINEAR_TAU (N-52): above it
 		   the photons escape and the lambda iteration converges -- -- */
 
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		c = as->chi[k] + as->chi_c[k];
 		if (k > 0)
 			tau += 0.5 * (c + cprev) *
-				   fabs(geometry.height[k] - geometry.height[k - 1]);
+				   fabs(rh->geometry->height[k] - rh->geometry->height[k - 1]);
 		cprev = c;
-		if (tau >= input.bg_linearTau && c > 0.0 && as->sca_c[k] / c > a)
+		if (tau >= rh->input.bg_linearTau && c > 0.0 && as->sca_c[k] / c > a)
 			a = as->sca_c[k] / c;
 	}
 	return a;
@@ -142,11 +139,11 @@ static void solveStokes_1D(int nspect, int mu, bool_t to_obs, double *chi,
 {
 	const char routineName[] = "solveStokes_1D";
 
-	if (input.S_interpolation_stokes == DELO_BEZIER3) {
+	if (rh->input.S_interpolation_stokes == DELO_BEZIER3) {
 		Piece_Stokes_Bezier3_1D(nspect, mu, to_obs, chi, S, I, Psi);
 	} else {
 		sprintf(messageStr, "Unknown polarization solver: %d",
-				input.S_interpolation_stokes);
+				rh->input.S_interpolation_stokes);
 		Error(ERROR_LEVEL_1, routineName, messageStr);
 	}
 }
@@ -157,8 +154,8 @@ static void solveStokes_1D(int nspect, int mu, bool_t to_obs, double *chi,
 static bool_t checkTau_1D(int nspect, int mu, int to_obs, const double *chi,
 						  enum negtau_quadrature quad)
 {
-	return negTauColumns(nspect, mu, to_obs, atmos.Nspace, 1, chi,
-						 geometry.height, geometry.muz[mu], quad);
+	return negTauColumns(nspect, mu, to_obs, rh->atmos.Nspace, 1, chi,
+						 rh->geometry->height, rh->geometry->muz[mu], quad);
 }
 /* ------- end ---------------------------- checkTau_1D.c ----------- */
 
@@ -166,22 +163,22 @@ static bool_t checkTau_1D(int nspect, int mu, int to_obs, const double *chi,
 
 static void emergent_1D(int nspect, int mu, const double *I, double **Ipol)
 {
-	spectrum.I[nspect][mu] = I[0];
+	rh->spectrum.I[nspect][mu] = I[0];
 	if (Ipol) {
-		spectrum.Stokes_Q[nspect][mu] = Ipol[1][0];
-		spectrum.Stokes_U[nspect][mu] = Ipol[2][0];
-		spectrum.Stokes_V[nspect][mu] = Ipol[3][0];
+		rh->spectrum.Stokes_Q[nspect][mu] = Ipol[1][0];
+		rh->spectrum.Stokes_U[nspect][mu] = Ipol[2][0];
+		rh->spectrum.Stokes_V[nspect][mu] = Ipol[3][0];
 	}
 }
 /* ------- end ---------------------------- emergent_1D.c ----------- */
 
 static double muz_1D(int mu)
 {
-	return geometry.muz[mu];
+	return rh->geometry->muz[mu];
 }
 static double wmu_1D(int mu)
 {
-	return geometry.wmu[mu];
+	return rh->geometry->wmu[mu];
 }
 
 /* --- The operations of the 1-D geometry for the driver -- -------- */

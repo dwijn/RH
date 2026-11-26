@@ -21,7 +21,7 @@ enum mass_scale { GEOMETRIC,
 enum vertical { TOP = 0,
 				BOTTOM };
 
-typedef struct {
+typedef struct Geometry {
 	enum mass_scale scale;
 	enum boundcond  vboundary[2];
 	int             Ndep, Nrays;

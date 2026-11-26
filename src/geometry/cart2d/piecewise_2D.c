@@ -42,14 +42,11 @@
 #include "inputs.h"
 #include "error.h"
 #include "bezier.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
-
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
 
 /* ------- begin -------------------------- Piecewise_Linear_2D.c --- */
 
@@ -124,9 +121,9 @@ void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
 			for (l = 0; l < Nx; l++) {
 				st = &geometry->stencil[mu][local];
 
-				T_uw = Interp_2D(atmos.T, st, UPWIND);
-				Planck(1, &T_uw, spectrum.lambda[nspect], &Bnu_uw);
-				Planck(1, &atmos.T[local], spectrum.lambda[nspect], &Bnu);
+				T_uw = Interp_2D(rh->atmos.T, st, UPWIND);
+				Planck(1, &T_uw, rh->spectrum.lambda[nspect], &Bnu_uw);
+				Planck(1, &rh->atmos.T[local], rh->spectrum.lambda[nspect], &Bnu);
 
 				chi_uw  = Interp_2D(chi, st, UPWIND);
 				dtau_uw = 0.5 * (chi_uw + chi[local]) * st->ds[UPWIND];

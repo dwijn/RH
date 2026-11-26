@@ -19,6 +19,7 @@
 #include "constant.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 #define COMMENT_CHAR "#"
 
@@ -49,9 +50,10 @@ void   writeModelAtom(Atom *atom, FILE *fpOut);
 
 /* --- Global variables --                             -------------- */
 
-double      E_Rydberg;
-CommandLine commandline;
-char        messageStr[MAX_LINE_SIZE];
+double         E_Rydberg;
+static RHState rh_state;
+RHState *const rh = &rh_state;
+char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- make_H.c ---------------- */
 
@@ -90,8 +92,8 @@ int main(int argc, char *argv[])
 						  2.0E+5, 3.0E+5, 5.0E+5, 7.0E+5, 1.0E+6};
 	Atom   H;
 
-	commandline.quiet   = FALSE;
-	commandline.logfile = stderr;
+	rh->commandline.quiet   = FALSE;
+	rh->commandline.logfile = stderr;
 
 	if (argc < 2) {
 		fprintf(stderr, "Usage: %s Nlevel\n", argv[0]);

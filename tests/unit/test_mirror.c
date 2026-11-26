@@ -34,9 +34,7 @@
 #include "constant.h"
 #include "inputs.h"
 #include "check.h"
-
-extern Atmosphere  atmos;
-extern CommandLine commandline;
+#include "state.h"
 
 #define NG    18
 #define NFULL (NG + 4)
@@ -101,10 +99,10 @@ int main(void)
 	double          full[NFULL], f[NFULL], ref, sum, alpha[NG], alpha_prop[NG], lambda0_T = 120.0;
 	int             la, Nfull, Npair;
 
-	commandline.logfile = stderr;
-	commandline.quiet   = TRUE;
-	atmos.moving        = FALSE;
-	atmos.Stokes        = FALSE;
+	rh->commandline.logfile = stderr;
+	rh->commandline.quiet   = TRUE;
+	rh->atmos.moving        = FALSE;
+	rh->atmos.Stokes        = FALSE;
 
 	memset(&atom, 0, sizeof(atom));
 	memset(lines, 0, sizeof(lines));
@@ -150,12 +148,12 @@ int main(void)
 	atom.continuum = conts;
 	active[0]      = &atom;
 
-	atmos.Natom       = 1;
-	atmos.atoms       = &atom;
-	atmos.Nactiveatom = 1;
-	atmos.activeatoms = active;
-	atmos.Nmolecule   = 0;
-	atmos.Nactivemol  = 0;
+	rh->atmos.Natom       = 1;
+	rh->atmos.atoms       = &atom;
+	rh->atmos.Nactiveatom = 1;
+	rh->atmos.activeatoms = active;
+	rh->atmos.Nmolecule   = 0;
+	rh->atmos.Nactivemol  = 0;
 
 	Npair = mirrorQuadrature();
 	CHECK(Npair == 4, "%d (transition, line) pairs, want 4", Npair);

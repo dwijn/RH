@@ -33,6 +33,7 @@
 #include "inputs.h"
 #include "error.h"
 #include "prdh.h"
+#include "state.h"
 
 #define PWRITE_SLICE 1073741824
 
@@ -43,10 +44,7 @@ size_t pread_rh(int fd, const void *buf, size_t count, off_t offset);
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- readJlambda.c ----------- */
 
@@ -58,10 +56,10 @@ void readJlambda(int nspect, double *J)
 	size_t recordsize;
 	off_t  offset;
 
-	recordsize = atmos.Nspace * sizeof(double);
+	recordsize = rh->atmos.Nspace * sizeof(double);
 	offset     = recordsize * nspect;
 
-	result &= (pread_rh(spectrum.fd_J, J, recordsize, offset) == recordsize);
+	result &= (pread_rh(rh->spectrum.fd_J, J, recordsize, offset) == recordsize);
 
 	if (!result) {
 		sprintf(messageStr,
@@ -82,10 +80,10 @@ void writeJlambda(int nspect, double *J)
 	size_t recordsize;
 	off_t  offset;
 
-	recordsize = atmos.Nspace * sizeof(double);
+	recordsize = rh->atmos.Nspace * sizeof(double);
 	offset     = recordsize * nspect;
 
-	result &= (pwrite_rh(spectrum.fd_J, J, recordsize, offset) == recordsize);
+	result &= (pwrite_rh(rh->spectrum.fd_J, J, recordsize, offset) == recordsize);
 
 	if (!result) {
 		sprintf(messageStr,
@@ -105,7 +103,7 @@ void readJgas(double **Jgas)
 	size_t recordsize;
 	FILE  *fp;
 
-	recordsize = (size_t) atmos.Nspace * spectrum.Nspect;
+	recordsize = (size_t) rh->atmos.Nspace * rh->spectrum.Nspect;
 	if ((fp = fopen("Jgas.dat", "r")) == NULL) {
 		sprintf(messageStr, "Cannot open Jgas.dat for reading (%s)",
 				strerror(errno));
@@ -130,7 +128,7 @@ void writeJgas(double **Jgas)
 	size_t recordsize;
 	FILE  *fp;
 
-	recordsize = (size_t) atmos.Nspace * spectrum.Nspect;
+	recordsize = (size_t) rh->atmos.Nspace * rh->spectrum.Nspect;
 	if ((fp = fopen("Jgas.dat", "w")) == NULL) {
 		sprintf(messageStr, "Cannot open Jgas.dat for writing (%s)",
 				strerror(errno));
@@ -156,10 +154,10 @@ void readJ20lambda(int nspect, double *J20)
 	size_t recordsize;
 	off_t  offset;
 
-	recordsize = atmos.Nspace * sizeof(double);
+	recordsize = rh->atmos.Nspace * sizeof(double);
 	offset     = recordsize * nspect;
 
-	result &= (pread_rh(spectrum.fd_J20, J20,
+	result &= (pread_rh(rh->spectrum.fd_J20, J20,
 						recordsize, offset) == recordsize);
 
 	if (!result) {
@@ -181,10 +179,10 @@ void writeJ20lambda(int nspect, double *J20)
 	size_t recordsize;
 	off_t  offset;
 
-	recordsize = atmos.Nspace * sizeof(double);
+	recordsize = rh->atmos.Nspace * sizeof(double);
 	offset     = recordsize * nspect;
 
-	result &= (pwrite_rh(spectrum.fd_J20, J20,
+	result &= (pwrite_rh(rh->spectrum.fd_J20, J20,
 						 recordsize, offset) == recordsize);
 
 	if (!result) {
@@ -207,13 +205,13 @@ void readImu(int nspect, int mu, bool_t to_obs, double *I)
 	size_t recordsize;
 	off_t  offset;
 
-	recordsize = atmos.Nspace * sizeof(double);
+	recordsize = rh->atmos.Nspace * sizeof(double);
 
-	index  = spectrum.PRDindex[nspect];
-	offset = 2 * (index * atmos.Nrays + mu) * recordsize;
+	index  = rh->spectrum.PRDindex[nspect];
+	offset = 2 * (index * rh->atmos.Nrays + mu) * recordsize;
 	if (to_obs) offset += recordsize;
 
-	result &= (pread_rh(spectrum.fd_Imu, I,
+	result &= (pread_rh(rh->spectrum.fd_Imu, I,
 						recordsize, offset) == recordsize);
 
 	if (!result) {
@@ -236,13 +234,13 @@ void writeImu(int nspect, int mu, bool_t to_obs, double *I)
 	size_t recordsize;
 	off_t  offset;
 
-	recordsize = atmos.Nspace * sizeof(double);
+	recordsize = rh->atmos.Nspace * sizeof(double);
 
-	index  = spectrum.PRDindex[nspect];
-	offset = 2 * (index * atmos.Nrays + mu) * recordsize;
+	index  = rh->spectrum.PRDindex[nspect];
+	offset = 2 * (index * rh->atmos.Nrays + mu) * recordsize;
 	if (to_obs) offset += recordsize;
 
-	result &= (pwrite_rh(spectrum.fd_Imu, I,
+	result &= (pwrite_rh(rh->spectrum.fd_Imu, I,
 						 recordsize, offset) == recordsize);
 
 	if (!result) {
@@ -275,9 +273,9 @@ void mapBackground(void)
 	void       *p;
 
 	unmapBackground();
-	if (fstat(atmos.fd_background, &st) != 0 || st.st_size <= 0) return;
+	if (fstat(rh->atmos.fd_background, &st) != 0 || st.st_size <= 0) return;
 
-	p = mmap(NULL, (size_t) st.st_size, PROT_READ, MAP_SHARED, atmos.fd_background, 0);
+	p = mmap(NULL, (size_t) st.st_size, PROT_READ, MAP_SHARED, rh->atmos.fd_background, 0);
 	if (p == MAP_FAILED) {
 		sprintf(messageStr, "Cannot map the background file (%s); reading it with pread",
 				strerror(errno));
@@ -309,8 +307,8 @@ static float *backgroundBuffer(void)
 	/* --- Conversion buffer for backgroundIO: the largest part of a
 		   block is 4 records (the Stokes opacity or emissivity) -- -- */
 
-	if (atmos.backgrbytes == sizeof(float) && bg_map == NULL) {
-		buffer = (float *) malloc(4 * (size_t) atmos.Nspace * sizeof(float));
+	if (rh->atmos.backgrbytes == sizeof(float) && bg_map == NULL) {
+		buffer = (float *) malloc(4 * (size_t) rh->atmos.Nspace * sizeof(float));
 		if (buffer == NULL)
 			Error(ERROR_LEVEL_2, "backgroundBuffer", "Out of memory");
 	}
@@ -322,7 +320,7 @@ static bool_t backgroundIO(double *values, int Nrec, off_t recordno,
 {
 	const char routineName[] = "backgroundIO";
 
-	size_t Nvalues = (size_t) Nrec * atmos.Nspace, n, count;
+	size_t Nvalues = (size_t) Nrec * rh->atmos.Nspace, n, count;
 	off_t  offset;
 	double scale = 1.0, v;
 
@@ -344,21 +342,21 @@ static bool_t backgroundIO(double *values, int Nrec, off_t recordno,
 		   file. buffer holds at least Nrec records (backgroundBuffer).
 		   --                                            -------------- */
 
-	if (emissivity && atmos.backgretaexp != 0)
-		scale = ldexp(1.0, atmos.backgretaexp);
+	if (emissivity && rh->atmos.backgretaexp != 0)
+		scale = ldexp(1.0, rh->atmos.backgretaexp);
 
-	count  = Nvalues * atmos.backgrbytes;
-	offset = recordno * (off_t) atmos.Nspace * atmos.backgrbytes;
+	count  = Nvalues * rh->atmos.backgrbytes;
+	offset = recordno * (off_t) rh->atmos.Nspace * rh->atmos.backgrbytes;
 
 	/* --- Read from the mapped file: the same conversion as below,
 		   without the copy into buffer --               -------------- */
 
 	if (!write_it && bg_map != NULL) {
 		if (offset < 0 || (size_t) offset + count > bg_maplen) return FALSE;
-		if (atmos.backgrbytes == sizeof(double) && scale == 1.0) {
+		if (rh->atmos.backgrbytes == sizeof(double) && scale == 1.0) {
 			memcpy(values, bg_map + offset, count);
 			return TRUE;
-		} else if (atmos.backgrbytes == sizeof(float)) {
+		} else if (rh->atmos.backgrbytes == sizeof(float)) {
 			const float *src = (const float *) (bg_map + offset);
 
 			for (n = 0; n < Nvalues; n++) values[n] = src[n] / scale;
@@ -366,15 +364,15 @@ static bool_t backgroundIO(double *values, int Nrec, off_t recordno,
 		}
 	}
 
-	if (atmos.backgrbytes == sizeof(double) && scale == 1.0) {
+	if (rh->atmos.backgrbytes == sizeof(double) && scale == 1.0) {
 		if (write_it)
-			return (pwrite_rh(atmos.fd_background, values, count, offset) == count);
+			return (pwrite_rh(rh->atmos.fd_background, values, count, offset) == count);
 		else
-			return (pread_rh(atmos.fd_background, values, count, offset) == count);
-	} else if (atmos.backgrbytes != sizeof(float) || buffer == NULL) {
+			return (pread_rh(rh->atmos.fd_background, values, count, offset) == count);
+	} else if (rh->atmos.backgrbytes != sizeof(float) || buffer == NULL) {
 		sprintf(messageStr, "Unknown format of the background file: %d bytes"
 							" per value, emissivity scale 2^%d",
-				atmos.backgrbytes, atmos.backgretaexp);
+				rh->atmos.backgrbytes, rh->atmos.backgretaexp);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	if (write_it) {
@@ -388,9 +386,9 @@ static bool_t backgroundIO(double *values, int Nrec, off_t recordno,
 			}
 			buffer[n] = (float) v;
 		}
-		return (pwrite_rh(atmos.fd_background, buffer, count, offset) == count);
+		return (pwrite_rh(rh->atmos.fd_background, buffer, count, offset) == count);
 	} else {
-		if (pread_rh(atmos.fd_background, buffer, count, offset) != count)
+		if (pread_rh(rh->atmos.fd_background, buffer, count, offset) != count)
 			return FALSE;
 		for (n = 0; n < Nvalues; n++) values[n] = buffer[n] / scale;
 		return TRUE;
@@ -415,21 +413,21 @@ void readBackground(int nspect, int mu, bool_t to_obs)
 		   different threads at the same time. Therefore, we use absolute
 		   offsets here and in writeBackground. --       -------------- */
 
-	as = &spectrum.as[nspect];
+	as = &rh->spectrum.as[nspect];
 
-	if (atmos.moving || atmos.Stokes)
-		recordno = atmos.backgrrecno[2 * (nspect * atmos.Nrays + mu) + to_obs];
+	if (rh->atmos.moving || rh->atmos.Stokes)
+		recordno = rh->atmos.backgrrecno[2 * (nspect * rh->atmos.Nrays + mu) + to_obs];
 	else
-		recordno = atmos.backgrrecno[nspect];
+		recordno = rh->atmos.backgrrecno[nspect];
 
 	/* --- Read emissivity and opacity for Q, U, and V only if we are
 		   solving explicitly for all four Stokes quantities, but always
 		   skip the proper amount of records --           ------------- */
 
 	NrecStokes = 1;
-	if (atmos.backgrflags[nspect].ispolarized) {
+	if (rh->atmos.backgrflags[nspect].ispolarized) {
 		NskipStokes = 4;
-		if (input.StokesMode == FULL_STOKES) NrecStokes = 4;
+		if (rh->input.StokesMode == FULL_STOKES) NrecStokes = 4;
 	} else
 		NskipStokes = 1;
 
@@ -440,8 +438,8 @@ void readBackground(int nspect, int mu, bool_t to_obs)
 
 	/* --- Read off-diagonal elements propagation matrix K -- --------- */
 
-	if (atmos.backgrflags[nspect].ispolarized && input.magneto_optical) {
-		if (input.StokesMode == FULL_STOKES)
+	if (rh->atmos.backgrflags[nspect].ispolarized && rh->input.magneto_optical) {
+		if (rh->input.StokesMode == FULL_STOKES)
 			result &= backgroundIO(as->chip_c, 3, recordno, FALSE, FALSE, buffer);
 		recordno += 3;
 	}
@@ -474,10 +472,10 @@ int backgroundRecords(int nspect)
 		   defines the layout; writeBackground and the reservation of
 		   record numbers in Background() both use it. --  ------------ */
 
-	NrecStokes = (atmos.backgrflags[nspect].ispolarized) ? 4 : 1;
+	NrecStokes = (rh->atmos.backgrflags[nspect].ispolarized) ? 4 : 1;
 
 	Nrec = NrecStokes;
-	if (atmos.backgrflags[nspect].ispolarized && input.magneto_optical)
+	if (rh->atmos.backgrflags[nspect].ispolarized && rh->input.magneto_optical)
 		Nrec += 3;
 	Nrec += NrecStokes;
 	Nrec += 1;
@@ -502,12 +500,12 @@ int writeBackground(int nspect, int mu, bool_t to_obs,
 		   opacity. Returns Nwrite, the number of records written,
 		   each of atmos.Nspace values (see backgroundIO) -- --------- */
 
-	if (atmos.moving || atmos.Stokes)
-		recordno = atmos.backgrrecno[2 * (nspect * atmos.Nrays + mu) + to_obs];
+	if (rh->atmos.moving || rh->atmos.Stokes)
+		recordno = rh->atmos.backgrrecno[2 * (nspect * rh->atmos.Nrays + mu) + to_obs];
 	else
-		recordno = atmos.backgrrecno[nspect];
+		recordno = rh->atmos.backgrrecno[nspect];
 
-	if (atmos.backgrflags[nspect].ispolarized)
+	if (rh->atmos.backgrflags[nspect].ispolarized)
 		NrecStokes = 4;
 	else
 		NrecStokes = 1;
@@ -521,7 +519,7 @@ int writeBackground(int nspect, int mu, bool_t to_obs,
 
 	/* --- Write off-diagonal elements of propagation matrix K -- ----- */
 
-	if (atmos.backgrflags[nspect].ispolarized && input.magneto_optical) {
+	if (rh->atmos.backgrflags[nspect].ispolarized && rh->input.magneto_optical) {
 		result &= backgroundIO(chip_c, 3, recordno + Nwrite, TRUE, FALSE, buffer);
 		Nwrite += 3;
 	}
@@ -560,24 +558,24 @@ void readProfile(AtomicLine *line, int lamu, float *phi)
 	size_t recordsize;
 	off_t  offset;
 
-	if (line->polarizable && (input.StokesMode > FIELD_FREE)) {
-		if (input.magneto_optical)
+	if (line->polarizable && (rh->input.StokesMode > FIELD_FREE)) {
+		if (rh->input.magneto_optical)
 			NrecSkip = 7;
 		else
 			NrecSkip = 4;
 	} else
 		NrecSkip = 1;
 
-	if (line->polarizable && input.StokesMode == FULL_STOKES) {
-		if (input.magneto_optical)
+	if (line->polarizable && rh->input.StokesMode == FULL_STOKES) {
+		if (rh->input.magneto_optical)
 			Nrecphi = 7;
 		else
 			Nrecphi = 4;
 	} else
 		Nrecphi = 1;
 
-	recordsize = Nrecphi * atmos.Nspace * sizeof(float);
-	offset     = NrecSkip * atmos.Nspace * sizeof(float) * (off_t) lamu;
+	recordsize = Nrecphi * rh->atmos.Nspace * sizeof(float);
+	offset     = NrecSkip * rh->atmos.Nspace * sizeof(float) * (off_t) lamu;
 
 	result &= (pread_rh(line->fd_profile, phi, recordsize, offset) ==
 			   recordsize);
@@ -597,15 +595,15 @@ void writeProfile(AtomicLine *line, int lamu, float *phi)
 	size_t recordsize;
 	off_t  offset;
 
-	if (line->polarizable && (input.StokesMode > FIELD_FREE)) {
-		if (input.magneto_optical)
+	if (line->polarizable && (rh->input.StokesMode > FIELD_FREE)) {
+		if (rh->input.magneto_optical)
 			Nrecphi = 7;
 		else
 			Nrecphi = 4;
 	} else
 		Nrecphi = 1;
 
-	recordsize = Nrecphi * atmos.Nspace * sizeof(float);
+	recordsize = Nrecphi * rh->atmos.Nspace * sizeof(float);
 	offset     = recordsize * (off_t) lamu;
 
 	result &= (pwrite_rh(line->fd_profile, phi, recordsize, offset) ==
@@ -683,12 +681,12 @@ void initJgasLocks(void)
 {
 	int nspect;
 
-	spectrum.Jgas_lock =
-		(pthread_mutex_t *) malloc(spectrum.Nspect * sizeof(pthread_mutex_t));
-	if (spectrum.Jgas_lock == NULL)
+	rh->spectrum.Jgas_lock =
+		(pthread_mutex_t *) malloc(rh->spectrum.Nspect * sizeof(pthread_mutex_t));
+	if (rh->spectrum.Jgas_lock == NULL)
 		Error(ERROR_LEVEL_2, "initJgasLocks", "Out of memory");
-	for (nspect = 0; nspect < spectrum.Nspect; nspect++)
-		pthread_mutex_init(&spectrum.Jgas_lock[nspect], NULL);
+	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
+		pthread_mutex_init(&rh->spectrum.Jgas_lock[nspect], NULL);
 }
 
 void freeJgasBuffer(void)
@@ -734,44 +732,44 @@ void initJgasRows(const char *isPRD)
 		   smallest shift to the one at the largest holds all of them.
 		   v_los is fixed in a run. --                   -------------- */
 
-	free(spectrum.PRDrow);
-	if (spectrum.Jgas_fixed != NULL) freeMatrix((void **) spectrum.Jgas_fixed);
-	spectrum.Jgas_fixed = NULL;
-	spectrum.NJgasFixed = 0;
-	spectrum.PRDrow     = (int *) malloc(spectrum.Nspect * sizeof(int));
-	if (spectrum.PRDrow == NULL) Error(ERROR_LEVEL_2, "initJgasRows", "Out of memory");
-	for (mu = 0; mu < atmos.Nrays; mu++)
-		for (k = 0; k < atmos.Nspace; k++)
-			vmax = MAX(vmax, fabs(spectrum.v_los[mu][k]));
+	free(rh->spectrum.PRDrow);
+	if (rh->spectrum.Jgas_fixed != NULL) freeMatrix((void **) rh->spectrum.Jgas_fixed);
+	rh->spectrum.Jgas_fixed = NULL;
+	rh->spectrum.NJgasFixed = 0;
+	rh->spectrum.PRDrow     = (int *) malloc(rh->spectrum.Nspect * sizeof(int));
+	if (rh->spectrum.PRDrow == NULL) Error(ERROR_LEVEL_2, "initJgasRows", "Out of memory");
+	for (mu = 0; mu < rh->atmos.Nrays; mu++)
+		for (k = 0; k < rh->atmos.Nspace; k++)
+			vmax = MAX(vmax, fabs(rh->spectrum.v_los[mu][k]));
 	moving   = (vmax != 0.0);
 	shift_lo = 1.0 - vmax / CLIGHT;
 	shift_hi = 1.0 + vmax / CLIGHT;
 
-	reach = (char *) calloc(spectrum.Nspect, 1);
+	reach = (char *) calloc(rh->spectrum.Nspect, 1);
 	if (reach == NULL) Error(ERROR_LEVEL_2, "initJgasRows", "Out of memory");
 	if (moving) {
-		for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
 			if (isPRD[nspect]) continue;
 			prdhBracket(nspect, shift_lo, &lo);
 			prdhBracket(nspect, shift_hi, &hi);
 			for (n = lo.r[0]; n < hi.r[2]; n++) reach[n] = TRUE;
 		}
 	}
-	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
+	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
 		if (!isPRD[nspect])
-			spectrum.PRDrow[nspect] = -1;
+			rh->spectrum.PRDrow[nspect] = -1;
 		else
-			spectrum.PRDrow[nspect] = reach[nspect] ? Nrows++ : -2;
+			rh->spectrum.PRDrow[nspect] = reach[nspect] ? Nrows++ : -2;
 	}
 	free(reach);
-	if (Nrows > 0) spectrum.Jgas_fixed = matrix_double(Nrows, atmos.Nspace);
-	spectrum.NJgasFixed = Nrows;
+	if (Nrows > 0) rh->spectrum.Jgas_fixed = matrix_double(Nrows, rh->atmos.Nspace);
+	rh->spectrum.NJgasFixed = Nrows;
 }
 
 static double *jgasRow(int src, int row)
 {
-	if (spectrum.Jgas_fixed != NULL && spectrum.PRDrow[src] == -1 && spectrum.PRDrow[row] != -1) {
-		if (spectrum.PRDrow[row] == -2) {
+	if (rh->spectrum.Jgas_fixed != NULL && rh->spectrum.PRDrow[src] == -1 && rh->spectrum.PRDrow[row] != -1) {
+		if (rh->spectrum.PRDrow[row] == -2) {
 
 			/* --- Called by worker threads, never with a lock held; the
 				   message goes in a buffer of its own, not the shared
@@ -782,34 +780,34 @@ static double *jgasRow(int src, int row)
 			snprintf(msg, sizeof(msg),
 					 "Wavelength %d (%g nm) without PRD line gives to wavelength %d (%g nm) "
 					 "with PRD line, which the reach computed at the start excludes",
-					 src, spectrum.lambda[src], row, spectrum.lambda[row]);
+					 src, rh->spectrum.lambda[src], row, rh->spectrum.lambda[row]);
 			Error(ERROR_LEVEL_2, "jgasRow", msg);
 		}
-		return spectrum.Jgas_fixed[spectrum.PRDrow[row]];
+		return rh->spectrum.Jgas_fixed[rh->spectrum.PRDrow[row]];
 	}
-	return spectrum.Jgas[row];
+	return rh->spectrum.Jgas[row];
 }
 
 void beginJgas(bool_t redistribute)
 {
 	int    nspect;
-	size_t n = (size_t) spectrum.Nspect * atmos.Nspace;
+	size_t n = (size_t) rh->spectrum.Nspect * rh->atmos.Nspace;
 
 	/* --- Before a formal solution of all wavelengths (redistribute ==
 		   FALSE) Jgas and Jgas_fixed start at zero; before one of the PRD
 		   wavelengths only, the rows of Jgas of the PRD wavelengths that
 		   have one in Jgas_fixed start from it --       -------------- */
 
-	memset(spectrum.Jgas[0], 0, n * sizeof(double));
-	if (spectrum.Jgas_fixed == NULL) return;
+	memset(rh->spectrum.Jgas[0], 0, n * sizeof(double));
+	if (rh->spectrum.Jgas_fixed == NULL) return;
 	if (!redistribute) {
-		memset(spectrum.Jgas_fixed[0], 0, (size_t) spectrum.NJgasFixed * atmos.Nspace * sizeof(double));
+		memset(rh->spectrum.Jgas_fixed[0], 0, (size_t) rh->spectrum.NJgasFixed * rh->atmos.Nspace * sizeof(double));
 		return;
 	}
-	for (nspect = 0; nspect < spectrum.Nspect; nspect++)
-		if (spectrum.PRDrow[nspect] >= 0)
-			memcpy(spectrum.Jgas[nspect], spectrum.Jgas_fixed[spectrum.PRDrow[nspect]],
-				   atmos.Nspace * sizeof(double));
+	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
+		if (rh->spectrum.PRDrow[nspect] >= 0)
+			memcpy(rh->spectrum.Jgas[nspect], rh->spectrum.Jgas_fixed[rh->spectrum.PRDrow[nspect]],
+				   rh->atmos.Nspace * sizeof(double));
 }
 
 void endJgas(bool_t redistribute)
@@ -819,19 +817,19 @@ void endJgas(bool_t redistribute)
 	/* --- After a full solution add the part of the wavelengths without
 		   PRD line to the rows of the PRD wavelengths --  -------------- */
 
-	if (spectrum.Jgas_fixed == NULL || redistribute) return;
-	for (nspect = 0; nspect < spectrum.Nspect; nspect++) {
-		if (spectrum.PRDrow[nspect] < 0) continue;
-		for (k = 0; k < atmos.Nspace; k++)
-			spectrum.Jgas[nspect][k] += spectrum.Jgas_fixed[spectrum.PRDrow[nspect]][k];
+	if (rh->spectrum.Jgas_fixed == NULL || redistribute) return;
+	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
+		if (rh->spectrum.PRDrow[nspect] < 0) continue;
+		for (k = 0; k < rh->atmos.Nspace; k++)
+			rh->spectrum.Jgas[nspect][k] += rh->spectrum.Jgas_fixed[rh->spectrum.PRDrow[nspect]][k];
 	}
 }
 
 static void addJgas(double *row, int nspect, int k, double value)
 {
-	pthread_mutex_lock(&spectrum.Jgas_lock[nspect]);
+	pthread_mutex_lock(&rh->spectrum.Jgas_lock[nspect]);
 	row[k] += value;
-	pthread_mutex_unlock(&spectrum.Jgas_lock[nspect]);
+	pthread_mutex_unlock(&rh->spectrum.Jgas_lock[nspect]);
 }
 
 void addJgasRow(int nspect, double wmu, double *I)
@@ -839,9 +837,9 @@ void addJgasRow(int nspect, double wmu, double *I)
 	int     k;
 	double *row = jgasRow(nspect, nspect);
 
-	pthread_mutex_lock(&spectrum.Jgas_lock[nspect]);
-	for (k = 0; k < atmos.Nspace; k++) row[k] += wmu * I[k];
-	pthread_mutex_unlock(&spectrum.Jgas_lock[nspect]);
+	pthread_mutex_lock(&rh->spectrum.Jgas_lock[nspect]);
+	for (k = 0; k < rh->atmos.Nspace; k++) row[k] += wmu * I[k];
+	pthread_mutex_unlock(&rh->spectrum.Jgas_lock[nspect]);
 }
 /* ------- end ---------------------------- addJgas.c --------------- */
 
@@ -853,7 +851,7 @@ long prdhIndex(int nspect, int mu, int to_obs, int k)
 		   PRD table spectrum.nc, in long arithmetic: the table has
 		   2 Nrays Nspect Nspace entries (B-32) --         -------------- */
 
-	return (((long) nspect * atmos.Nrays + mu) * 2 + to_obs) * atmos.Nspace + k;
+	return (((long) nspect * rh->atmos.Nrays + mu) * 2 + to_obs) * rh->atmos.Nspace + k;
 }
 /* ------- end ---------------------------- prdhIndex.c ------------- */
 
@@ -865,14 +863,14 @@ long prdhIndex(int nspect, int mu, int to_obs, int k)
 
 static inline long jgasFirst(long lamuk0, int k)
 {
-	if (input.prdh_limit_mem) return jgas_br[k].r[0];
-	return (lamuk0 + k == 0) ? 0 : spectrum.nc[lamuk0 + k - 1];
+	if (rh->input.prdh_limit_mem) return jgas_br[k].r[0];
+	return (lamuk0 + k == 0) ? 0 : rh->spectrum.nc[lamuk0 + k - 1];
 }
 
 static inline long jgasLast(long lamuk0, int k)
 {
-	if (input.prdh_limit_mem) return jgas_br[k].r[2];
-	return spectrum.nc[lamuk0 + k];
+	if (rh->input.prdh_limit_mem) return jgas_br[k].r[2];
+	return rh->spectrum.nc[lamuk0 + k];
 }
 
 static inline void jgasPoint(int k, long n, int *idx, double *w)
@@ -880,12 +878,12 @@ static inline void jgasPoint(int k, long n, int *idx, double *w)
 	/* --- n runs from jgasFirst to jgasLast: a grid index with
 		   PRDH_LIMIT_MEM, a position in the table otherwise -- ---- */
 
-	if (input.prdh_limit_mem) {
+	if (rh->input.prdh_limit_mem) {
 		*idx = (int) n;
 		*w   = prdhWeight(&jgas_br[k], n);
 	} else {
-		*idx = spectrum.iprdh[n];
-		*w   = spectrum.cprdh[n];
+		*idx = rh->spectrum.iprdh[n];
+		*w   = rh->spectrum.cprdh[n];
 	}
 }
 
@@ -895,11 +893,11 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 		   With and without PRDH_LIMIT_MEM the same points get the same
 		   weights, added in the same order --           -------------- */
 
-	int      Nspace = atmos.Nspace, k, row, imin, imax, Nrow, idx;
+	int      Nspace = rh->atmos.Nspace, k, row, imin, imax, Nrow, idx;
 	long int lamuk0 = 0, n, n0, n1;
 	double  *buf, *jrow, w;
 
-	if (input.prdh_limit_mem) {
+	if (rh->input.prdh_limit_mem) {
 		if (jgas_brN < Nspace) {
 			free(jgas_br);
 			jgas_br  = (PRDhBracket *) malloc(Nspace * sizeof(PRDhBracket));
@@ -979,9 +977,9 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 		buf = jgas_buf + (size_t) row * Nspace;
 
 		jrow = jgasRow(nspect, imin + row);
-		pthread_mutex_lock(&spectrum.Jgas_lock[imin + row]);
+		pthread_mutex_lock(&rh->spectrum.Jgas_lock[imin + row]);
 		for (k = 0; k < Nspace; k++) jrow[k] += buf[k];
-		pthread_mutex_unlock(&spectrum.Jgas_lock[imin + row]);
+		pthread_mutex_unlock(&rh->spectrum.Jgas_lock[imin + row]);
 	}
 }
 /* ------- end ---------------------------- addJgasRay.c ------------ */

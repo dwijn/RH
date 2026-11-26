@@ -34,6 +34,7 @@
 #include "inputs.h"
 #include "error.h"
 #include "xdr.h"
+#include "state.h"
 
 #define COMMENT_CHAR  "#"
 #define RAY_DOT_INPUT "ray.input"
@@ -42,15 +43,11 @@
 
 /* --- Global variables --                             -------------- */
 
-enum Topology topology = THREE_D_PLANE;
+static Geometry geometry_data;
+static RHState  rh_state = RH_STATE_INIT(THREE_D_PLANE, &geometry_data);
+RHState *const  rh       = &rh_state;
 
-Atmosphere   atmos;
-Geometry     geometry;
-Spectrum     spectrum;
-ProgramStats stats;
-InputData    input;
-CommandLine  commandline;
-char         messageStr[MAX_LINE_SIZE];
+char messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- solveray.c -------------- */
 
@@ -75,12 +72,12 @@ int main(int argc, char *argv[])
 	/* --- Read input data and initialize --             -------------- */
 
 	readInput();
-	spectrum.updateJ = FALSE;
+	rh->spectrum.updateJ = FALSE;
 
 	/* --- Read input data for atmosphere --             -------------- */
 
 	getCPU(1, TIME_START, NULL);
-	readAtmos(&atmos, &geometry);
+	readAtmos(&rh->atmos, rh->geometry);
 
 	/* --- Read direction cosines for ray --             -------------- */
 
@@ -120,25 +117,25 @@ int main(int argc, char *argv[])
 	}
 	muz = sqrt(1.0 - sumsq);
 
-	if ((atmos.Stokes && input.StokesMode == FIELD_FREE) ||
-		input.backgr_pol) {
+	if ((rh->atmos.Stokes && rh->input.StokesMode == FIELD_FREE) ||
+		rh->input.backgr_pol) {
 
 		/* --- Want formal solution to be polarized in these cases -- --- */
 
-		input.StokesMode = FULL_STOKES;
+		rh->input.StokesMode = FULL_STOKES;
 	}
 	/* --- Redefine geometry for just this one ray --    -------------- */
 
-	atmos.Nrays = geometry.Nrays = 1;
-	geometry.mux[0]              = mux;
-	geometry.muy[0]              = muy;
-	geometry.muz[0]              = muz;
-	geometry.wmu[0]              = 1.0;
+	rh->atmos.Nrays = rh->geometry->Nrays = 1;
+	rh->geometry->mux[0]                  = mux;
+	rh->geometry->muy[0]                  = muy;
+	rh->geometry->muz[0]                  = muz;
+	rh->geometry->wmu[0]                  = 1.0;
 
-	if (atmos.Stokes) Bproject();
-	fillMesh(&geometry);
+	if (rh->atmos.Stokes) Bproject();
+	fillMesh(rh->geometry);
 
-	input.startJ = OLD_J;
+	rh->input.startJ = OLD_J;
 
 	readAtomicModels();
 	readMolecularModels();
@@ -146,16 +143,16 @@ int main(int argc, char *argv[])
 
 	/* --- Open file with background opacities --        -------------- */
 
-	if (atmos.moving || atmos.Stokes) {
-		strcpy(input.background_File, input.background_ray_File);
+	if (rh->atmos.moving || rh->atmos.Stokes) {
+		strcpy(rh->input.background_File, rh->input.background_ray_File);
 		Background(analyze_output = FALSE, equilibria_only = FALSE);
 	} else {
 		Background(analyze_output = FALSE, equilibria_only = TRUE);
 
-		if ((atmos.fd_background =
-				 open(input.background_File, O_RDONLY, 0)) == -1) {
+		if ((rh->atmos.fd_background =
+				 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
 			sprintf(messageStr, "Unable to open inputfile %s",
-					input.background_File);
+					rh->input.background_File);
 			Error(ERROR_LEVEL_2, argv[0], messageStr);
 		}
 		readBRS();
@@ -185,8 +182,8 @@ int main(int argc, char *argv[])
 
 	result = xdr_double(&xdrs, &mux);
 	result &= xdr_double(&xdrs, &muy);
-	result &= xdr_vector(&xdrs, (char *) spectrum.I[0],
-						 spectrum.Nspect * geometry.Nplane,
+	result &= xdr_vector(&xdrs, (char *) rh->spectrum.I[0],
+						 rh->spectrum.Nspect * rh->geometry->Nplane,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
 		sprintf(messageStr, "Unable to write spectrum to file %s", rayFileName);
@@ -206,11 +203,11 @@ int main(int argc, char *argv[])
 		checkNread(Nread, Nspect, argv[0], checkPoint = 3);
 		fclose(fp_ray);
 
-		chi = (double *) malloc(atmos.Nspace * sizeof(double));
-		if (atmos.Stokes)
-			S = (double *) malloc(4 * atmos.Nspace * sizeof(double));
+		chi = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		if (rh->atmos.Stokes)
+			S = (double *) malloc(4 * rh->atmos.Nspace * sizeof(double));
 		else
-			S = (double *) malloc(atmos.Nspace * sizeof(double));
+			S = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	}
 	result = xdr_int(&xdrs, &Nspect);
 	if (!result) {
@@ -220,41 +217,41 @@ int main(int argc, char *argv[])
 
 	/* --- Go through the list of wavelengths --         -------------- */
 
-	if (Nspect > 0 && input.limit_memory)
-		J = (double *) malloc(atmos.Nspace * sizeof(double));
+	if (Nspect > 0 && rh->input.limit_memory)
+		J = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 	for (n = 0; n < Nspect; n++) {
-		if (wave_index[n] < 0 || wave_index[n] >= spectrum.Nspect) {
+		if (wave_index[n] < 0 || wave_index[n] >= rh->spectrum.Nspect) {
 			sprintf(messageStr, "Illegal value of wave_index[n]: %4d\n"
 								"Value has to be between 0 and %4d\n",
-					wave_index[n], spectrum.Nspect);
+					wave_index[n], rh->spectrum.Nspect);
 			Error(ERROR_LEVEL_2, argv[0], messageStr);
 			continue;
 		}
 		sprintf(messageStr, "Processing n = %4d, lambda = %9.3f [nm]\n",
-				wave_index[n], spectrum.lambda[wave_index[n]]);
+				wave_index[n], rh->spectrum.lambda[wave_index[n]]);
 		Error(MESSAGE, NULL, messageStr);
 
-		as = &spectrum.as[wave_index[n]];
+		as = &rh->spectrum.as[wave_index[n]];
 		alloc_as(wave_index[n], crosscoupling = FALSE);
 		Opacity(wave_index[n], 0, to_obs = TRUE, initialize = TRUE);
 		readBackground(wave_index[n], 0, to_obs = TRUE);
 
-		if (input.limit_memory) {
+		if (rh->input.limit_memory) {
 			readJlambda(wave_index[n], J);
 		} else
-			J = spectrum.J[wave_index[n]];
+			J = rh->spectrum.J[wave_index[n]];
 
 		/* --- Add the continuum opacity and emissivity -- -------------- */
 
-		for (k = 0; k < atmos.Nspace; k++) {
+		for (k = 0; k < rh->atmos.Nspace; k++) {
 			chi[k] = as->chi[k] + as->chi_c[k];
 			S[k]   = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * J[k]) / chi[k];
 		}
 		result = xdr_int(&xdrs, &wave_index[n]);
-		result &= xdr_vector(&xdrs, (char *) chi, atmos.Nspace,
+		result &= xdr_vector(&xdrs, (char *) chi, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
-		result &= xdr_vector(&xdrs, (char *) S, atmos.Nspace,
+		result &= xdr_vector(&xdrs, (char *) S, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
 			sprintf(messageStr, "Unable to write chi and S to file %s", rayFileName);
@@ -265,15 +262,15 @@ int main(int argc, char *argv[])
 	}
 	/* --- If magnetic fields are present --             -------------- */
 
-	if (atmos.Stokes || input.backgr_pol) {
-		result = xdr_vector(&xdrs, (char *) spectrum.Stokes_Q[0],
-							spectrum.Nspect * geometry.Nplane, sizeof(double),
+	if (rh->atmos.Stokes || rh->input.backgr_pol) {
+		result = xdr_vector(&xdrs, (char *) rh->spectrum.Stokes_Q[0],
+							rh->spectrum.Nspect * rh->geometry->Nplane, sizeof(double),
 							(xdrproc_t) rh_xdr_double);
-		result &= xdr_vector(&xdrs, (char *) spectrum.Stokes_U[0],
-							 spectrum.Nspect * geometry.Nplane, sizeof(double),
+		result &= xdr_vector(&xdrs, (char *) rh->spectrum.Stokes_U[0],
+							 rh->spectrum.Nspect * rh->geometry->Nplane, sizeof(double),
 							 (xdrproc_t) rh_xdr_double);
-		result &= xdr_vector(&xdrs, (char *) spectrum.Stokes_V[0],
-							 spectrum.Nspect * geometry.Nplane, sizeof(double),
+		result &= xdr_vector(&xdrs, (char *) rh->spectrum.Stokes_V[0],
+							 rh->spectrum.Nspect * rh->geometry->Nplane, sizeof(double),
 							 (xdrproc_t) rh_xdr_double);
 		if (!result) {
 			sprintf(messageStr, "Unable to write Stokes spectra to file %s", rayFileName);
@@ -281,7 +278,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (Nspect > 0 && input.limit_memory)
+	if (Nspect > 0 && rh->input.limit_memory)
 		free(J);
 
 	xdr_destroy(&xdrs);

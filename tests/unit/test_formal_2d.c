@@ -54,11 +54,7 @@
 
 #define CONE_BOUND (1.0 + 1.0e-12)
 #include "stokes_exact.h"
-
-extern CommandLine commandline;
-extern Atmosphere  atmos;
-extern Spectrum    spectrum;
-extern InputData   input;
+#include "state.h"
 
 /* --- Rays: (muz, mux), both signs of mux and a vertical one -- ---- */
 
@@ -461,12 +457,12 @@ static double **stokes_S[NREFINE][NMESH], **stokes_I[NREFINE][NMESH];
 static void stokes_set(Slab *slab, double **Sv, const double s[NPOLY], double kscale)
 {
 	int        Nspace = NX * slab->Nz;
-	ActiveSet *as     = &spectrum.as[0];
+	ActiveSet *as     = &rh->spectrum.as[0];
 	Mat        K;
 
-	atmos.Nspace = Nspace;
-	as->chi_c    = realloc(as->chi_c, 4 * Nspace * sizeof(double));
-	as->chip_c   = realloc(as->chip_c, 3 * Nspace * sizeof(double));
+	rh->atmos.Nspace = Nspace;
+	as->chi_c        = realloc(as->chi_c, 4 * Nspace * sizeof(double));
+	as->chip_c       = realloc(as->chip_c, 3 * Nspace * sizeof(double));
 	full_K(K_ELEMENTS, kscale, K);
 	set_source(slab, s);
 	for (int n = 0; n < Nspace; n++) {
@@ -535,13 +531,13 @@ static void stokes_solve(Slab *slab, double **Sv, double **I, const double s[NPO
 
 static void check_stokes(bool_t verbose)
 {
-	const enum S_interpol lc_saved   = input.S_interpolation_longchar;
+	const enum S_interpol lc_saved   = rh->input.S_interpolation_longchar;
 	const double          lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
 
-	spectrum.as                      = calloc(1, sizeof(ActiveSet));
-	atmos.backgrflags                = calloc(1, sizeof(flags));
-	atmos.backgrflags[0].ispolarized = TRUE;
-	input.magneto_optical            = TRUE;
+	rh->spectrum.as                      = calloc(1, sizeof(ActiveSet));
+	rh->atmos.backgrflags                = calloc(1, sizeof(flags));
+	rh->atmos.backgrflags[0].ispolarized = TRUE;
+	rh->input.magneto_optical            = TRUE;
 
 	for (int r = 0; r < NREFINE; r++)
 		for (int m = 0; m < NMESH; m++) {
@@ -560,7 +556,7 @@ static void check_stokes(bool_t verbose)
 		for (int lc = 0; lc < 2; lc++) {
 			const char *lcname = lc ? "BEZIER3" : "LINEAR";
 
-			input.S_interpolation_longchar = lc ? S_BEZIER3 : S_LINEAR;
+			rh->input.S_interpolation_longchar = lc ? S_BEZIER3 : S_LINEAR;
 			double unpol = 0.0, quv = 0.0, lin_err = 0.0, lin_em = 0.0;
 
 			/* --- K' = 0: the unpolarized solution, Q = U = V = 0 -- --- */
@@ -595,7 +591,7 @@ static void check_stokes(bool_t verbose)
 		}
 	}
 
-	input.S_interpolation_longchar = lc_saved;
+	rh->input.S_interpolation_longchar = lc_saved;
 
 	/* --- Cubic S on "layers": emergent Stokes vector converges -- */
 
@@ -703,11 +699,11 @@ static void check_linear_interp(bool_t verbose)
 {
 	const double lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
 
-	input.interpolate_2D = LINEAR_2D;
-	Slab  *slab          = slab_new(161, mesh_dx[1], FALSE);
-	Errors up            = ray_errors(Piecewise_Bezier3_2D, slab, lin, TRUE),
-		   cubic         = ray_errors(Piecewise_Bezier3_2D, slab, cub, TRUE);
-	input.interpolate_2D = BEZIER_2D;
+	rh->input.interpolate_2D = LINEAR_2D;
+	Slab  *slab              = slab_new(161, mesh_dx[1], FALSE);
+	Errors up                = ray_errors(Piecewise_Bezier3_2D, slab, lin, TRUE),
+		   cubic             = ray_errors(Piecewise_Bezier3_2D, slab, cub, TRUE);
+	rh->input.interpolate_2D = BEZIER_2D;
 
 	if (verbose)
 		printf("LINEAR_2D columns Nz 161: linear S up %.2e; cubic S emergent %.2e\n",
@@ -866,7 +862,7 @@ static const double CONE_I[NX] = {27.0, 1.0, 30.0, 200.0, 200.0, 27.0},
 
 static void check_cone(bool_t verbose)
 {
-	ActiveSet *as = &spectrum.as[0];
+	ActiveSet *as = &rh->spectrum.as[0];
 
 	for (int mesh = 0; mesh < NMESH; mesh++) {
 		Slab    *slab   = slabs[1][mesh];
@@ -874,9 +870,9 @@ static void check_cone(bool_t verbose)
 		double **Sv = stokes_S[1][mesh], **I = stokes_I[1][mesh], worst = 0.0, Imin = HUGE_VAL;
 		double  *chi = malloc(Nspace * sizeof(double));
 
-		atmos.Nspace = Nspace;
-		as->chi_c    = realloc(as->chi_c, 4 * Nspace * sizeof(double));
-		as->chip_c   = realloc(as->chip_c, 3 * Nspace * sizeof(double));
+		rh->atmos.Nspace = Nspace;
+		as->chi_c        = realloc(as->chi_c, 4 * Nspace * sizeof(double));
+		as->chip_c       = realloc(as->chip_c, 3 * Nspace * sizeof(double));
 		for (int n = 0; n < Nspace; n++) {
 			int l = n % NX;
 
@@ -918,9 +914,9 @@ int main(int argc, char *argv[])
 
 	/* --- fillMesh reports the number of long characteristics -- */
 
-	commandline.logfile  = stdout;
-	commandline.quiet    = !verbose;
-	input.interpolate_2D = BEZIER_2D;
+	rh->commandline.logfile  = stdout;
+	rh->commandline.quiet    = !verbose;
+	rh->input.interpolate_2D = BEZIER_2D;
 
 	for (int r = 0; r < NREFINE; r++)
 		for (int m = 0; m < NMESH; m++)

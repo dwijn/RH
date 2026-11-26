@@ -13,13 +13,10 @@
 #include "spectrum.h"
 #include "statistics.h"
 #include "inputs.h"
+#include "state.h"
 
-enum Topology topology = RH_TOPOLOGY;
+static Geometry geometry_data;
+static RHState  rh_state = RH_STATE_INIT(RH_TOPOLOGY, &geometry_data);
+RHState *const  rh       = &rh_state;
 
-Atmosphere   atmos;
-Geometry     geometry;
-Spectrum     spectrum;
-ProgramStats stats;
-InputData    input;
-CommandLine  commandline;
-char         messageStr[MAX_MESSAGE_LENGTH];
+char messageStr[MAX_MESSAGE_LENGTH];

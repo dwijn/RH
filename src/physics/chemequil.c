@@ -19,6 +19,7 @@
 #include "statistics.h"
 #include "inputs.h"
 #include "negtau.h"
+#include "state.h"
 
 #define COMMENT_CHAR "#"
 
@@ -110,9 +111,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* --- Largest change of a log density in the last Newton step of the
 	   chemical equilibrium of state (ChemicalEquilibriumOfState), over
@@ -325,10 +324,10 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	/* --- Collect pointers to elements that can be bound in molecules. */
 
 	Nnuclei = 0;
-	nuclei  = (Element **) malloc(atmos.Nelem * sizeof(Element *));
-	for (i = 0; i < atmos.Nelem; i++) {
-		if (atmos.elements[i].Nmolecule > 0) {
-			nuclei[Nnuclei++] = &atmos.elements[i];
+	nuclei  = (Element **) malloc(rh->atmos.Nelem * sizeof(Element *));
+	for (i = 0; i < rh->atmos.Nelem; i++) {
+		if (rh->atmos.elements[i].Nmolecule > 0) {
+			nuclei[Nnuclei++] = &rh->atmos.elements[i];
 		}
 	}
 	nuclei = (Element **) realloc(nuclei, Nnuclei * sizeof(Element *));
@@ -363,13 +362,13 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	/* --- Quantity nucl_index[i][j] stores the index (in array nuclei)
 		   of the jth element bound in molecule i --     -------------- */
 
-	nucl_index = (int **) malloc(atmos.Nmolecule * sizeof(int *));
-	for (i = 0; i < atmos.Nmolecule; i++) {
-		molecule      = &atmos.molecules[i];
+	nucl_index = (int **) malloc(rh->atmos.Nmolecule * sizeof(int *));
+	for (i = 0; i < rh->atmos.Nmolecule; i++) {
+		molecule      = &rh->atmos.molecules[i];
 		nucl_index[i] = (int *) malloc(molecule->Nelement * sizeof(int));
 		for (j = 0; j < molecule->Nelement; j++) {
 			for (nu = 0; nu < Nnuclei; nu++) {
-				if (nuclei[nu] == &atmos.elements[molecule->pt_index[j]]) {
+				if (nuclei[nu] == &rh->atmos.elements[molecule->pt_index[j]]) {
 					nucl_index[i][j] = nu;
 					break;
 				}
@@ -378,7 +377,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	}
 	/* --- Number of equations --                        -------------- */
 
-	Nequation = Nnuclei + atmos.Nmolecule;
+	Nequation = Nnuclei + rh->atmos.Nmolecule;
 
 	/* --- Allocate temporary storage space.
 		   Quantities for the Newton Raphson --          -------------- */
@@ -391,7 +390,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 		   the molecules, with their stoichiometry (N-61) -- -------- */
 
 	cs.Nn  = Nnuclei;
-	cs.Ns  = Nnuclei + 1 + atmos.Nmolecule;
+	cs.Ns  = Nnuclei + 1 + rh->atmos.Nmolecule;
 	cs.nu  = matrix_double(cs.Ns, Nnuclei);
 	cs.H   = matrix_double(Nnuclei, Nnuclei);
 	cs.lnc = (double *) malloc(cs.Ns * sizeof(double));
@@ -404,8 +403,8 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 		for (i = 0; i < Nnuclei; i++) cs.nu[s][i] = 0.0;
 	for (i = 0; i < Nnuclei; i++) cs.nu[i][i] = 1.0;
 	cs.nu[Nnuclei][0] = 1.0; /* H- */
-	for (i = 0; i < atmos.Nmolecule; i++) {
-		molecule = &atmos.molecules[i];
+	for (i = 0; i < rh->atmos.Nmolecule; i++) {
+		molecule = &rh->atmos.molecules[i];
 		for (j = 0; j < molecule->Nelement; j++)
 			cs.nu[Nnuclei + 1 + i][nucl_index[i][j]] += molecule->pt_count[j];
 	}
@@ -413,12 +412,12 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	/* --- Equilibrium constant for each molecule, and neutral
 		   fraction for each nucleus --                  -------------- */
 
-	Phi = (double *) malloc(atmos.Nmolecule * sizeof(double));
+	Phi = (double *) malloc(rh->atmos.Nmolecule * sizeof(double));
 	fn0 = (double *) malloc(Nnuclei * sizeof(double));
 
 	/* --- Go through spatial grid and solve (local) equations -- ----- */
 
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 
 		/* --- Collect for each atom the population fraction of
 			   the neutral stage --                        -------------- */
@@ -428,9 +427,9 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 
 				/* --- If no atomic model is present for this nucleus -- ---- */
 
-				getfjk(nuclei[i], atmos.ne[k], k, fjk, dfjk);
+				getfjk(nuclei[i], rh->atmos.ne[k], k, fjk, dfjk);
 				fn0[i] = fjk[0];
-				a[i]   = nuclei[i]->abund * atmos.nHtot[k];
+				a[i]   = nuclei[i]->abund * rh->atmos.nHtot[k];
 			} else {
 
 				/* --- Atomic model has been read for this nucleus -- ------- */
@@ -462,17 +461,17 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 					pop = atom->nstar;
 				}
 				fn0[i] /= sum;
-				a[i] = atom->abundance * atmos.nHtot[k];
+				a[i] = atom->abundance * rh->atmos.nHtot[k];
 			}
 		}
-		PhiHmin = 0.25 * pow(CI / atmos.T[k], 1.5) *
-				  exp(E_ION_HMIN / (KBOLTZMANN * atmos.T[k]));
-		fHmin = atmos.ne[k] * fn0[0] * PhiHmin;
+		PhiHmin = 0.25 * pow(CI / rh->atmos.T[k], 1.5) *
+				  exp(E_ION_HMIN / (KBOLTZMANN * rh->atmos.T[k]));
+		fHmin = rh->atmos.ne[k] * fn0[0] * PhiHmin;
 
 		/* --- Equilibrium constant for each molecule at this location -- */
 
-		for (i = 0; i < atmos.Nmolecule; i++)
-			Phi[i] = equilconstant(&atmos.molecules[i], atmos.T[k]);
+		for (i = 0; i < rh->atmos.Nmolecule; i++)
+			Phi[i] = equilconstant(&rh->atmos.molecules[i], rh->atmos.T[k]);
 
 		/* --- ln c of every species at this location: 0 for a free
 			   nucleus, H- from the neutral hydrogen density, a molecule
@@ -481,11 +480,11 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 
 		for (i = 0; i < Nnuclei; i++) cs.lnc[i] = 0.0;
 		cs.lnc[Nnuclei] = (fHmin > 0.0) ? log(fHmin) : -HUGE_VAL;
-		for (i = 0; i < atmos.Nmolecule; i++) {
-			molecule = &atmos.molecules[i];
+		for (i = 0; i < rh->atmos.Nmolecule; i++) {
+			molecule = &rh->atmos.molecules[i];
 			lnc      = (Phi[i] > 0.0) ? log(Phi[i]) : -HUGE_VAL;
 			if (molecule->charge != 0 && lnc != -HUGE_VAL)
-				lnc = (atmos.ne[k] > 0.0) ? lnc - molecule->charge * log(atmos.ne[k]) : -HUGE_VAL;
+				lnc = (rh->atmos.ne[k] > 0.0) ? lnc - molecule->charge * log(rh->atmos.ne[k]) : -HUGE_VAL;
 			for (j = 0; j < molecule->Nelement && lnc != -HUGE_VAL; j++) {
 				nu  = nucl_index[i][j];
 				lnc = (fn0[nu] > 0.0) ? lnc + molecule->pt_count[j] * log(fn0[nu])
@@ -503,14 +502,14 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 					 "\n  Chemical equilibrium did not converge in %d Newton"
 					 " steps at location %d: T = %.1f K, nHtot = %.4E m^-3,"
 					 " ne = %.4E m^-3, relative residual %.3E",
-					 NmaxIter, k, atmos.T[k], atmos.nHtot[k], atmos.ne[k], res);
+					 NmaxIter, k, rh->atmos.T[k], rh->atmos.nHtot[k], rh->atmos.ne[k], res);
 			if (negTauInTrial()) {
 				negTauInvalid(messageStr + 3);
 			} else
 				Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		for (i = 0; i < Nnuclei; i++) n[i] = cs.n[i];
-		for (i = 0; i < atmos.Nmolecule; i++) n[Nnuclei + i] = cs.n[Nnuclei + 1 + i];
+		for (i = 0; i < rh->atmos.Nmolecule; i++) n[Nnuclei + i] = cs.n[Nnuclei + 1 + i];
 		if (ofState) chemLastChange = MAX(chemLastChange, step);
 
 		/* --- Store population numbers nuclei --          -------------- */
@@ -530,12 +529,12 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 		/* --- Store Hmin density, from neutral hydrogen as in the
 			   conservation equation above (B-40) --       -------------- */
 
-		atmos.nHmin[k] = fHmin * n[0];
+		rh->atmos.nHmin[k] = fHmin * n[0];
 
 		/* --- Store molecular densities --                -------------- */
 
-		for (i = 0; i < atmos.Nmolecule; i++)
-			atmos.molecules[i].n[k] = n[Nnuclei + i];
+		for (i = 0; i < rh->atmos.Nmolecule; i++)
+			rh->atmos.molecules[i].n[k] = n[Nnuclei + i];
 	}
 
 	/* --- Check whether active atom, if present, is in list of nuclei.
@@ -549,7 +548,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 					atom->ID, (nuclei[nu]->Nmolecule > 1) ? "s" : "");
 			for (i = 0; i < nuclei[nu]->Nmolecule; i++) {
 				sprintf(tmpStr, "%s%s",
-						atmos.molecules[nuclei[nu]->mol_index[i]].ID,
+						rh->atmos.molecules[nuclei[nu]->mol_index[i]].ID,
 						(i == nuclei[nu]->Nmolecule - 1) ? "\n\n" : ", ");
 				strcat(messageStr, tmpStr);
 			}
@@ -574,7 +573,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	free(cs.sc);
 
 	free(nuclei);
-	for (i = 0; i < atmos.Nmolecule; i++) free(nucl_index[i]);
+	for (i = 0; i < rh->atmos.Nmolecule; i++) free(nucl_index[i]);
 	free(nucl_index);
 
 	if (Nmaxstage) {

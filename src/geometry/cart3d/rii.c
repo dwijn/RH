@@ -36,12 +36,11 @@
 #include "geometry.h"
 #include "constant.h"
 #include "error.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
-
-extern Geometry geometry;
 
 /* ------- begin -------------------------- RII.c ------------------- */
 
@@ -55,9 +54,9 @@ double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2)
 	/* --- cos_theta is the cosine of the acute angle between incoming
 		   and outgoing photons. --                      -------------- */
 
-	cos_theta = geometry.mux[mu1] * geometry.mux[mu2] +
-				geometry.muy[mu1] * geometry.muy[mu2] +
-				geometry.muz[mu1] * geometry.muz[mu2];
+	cos_theta = rh->geometry->mux[mu1] * rh->geometry->mux[mu2] +
+				rh->geometry->muy[mu1] * rh->geometry->muy[mu2] +
+				rh->geometry->muz[mu1] * rh->geometry->muz[mu2];
 	if (cos_theta < 0.0) cos_theta = -cos_theta;
 
 	sin_theta  = sqrt(1.0 - SQ(cos_theta));

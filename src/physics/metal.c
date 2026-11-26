@@ -51,8 +51,9 @@
 #include "constant.h"
 #include "background.h"
 #include "inputs.h"
+#include "state.h"
 
-#define N_MAX_OVERLAP 10
+#define N_MAX_METAL_OVERLAP 10
 
 /* --- Function prototypes --                          -------------- */
 
@@ -63,14 +64,12 @@
 
 struct PassiveBBCache {
 	int              Nlist;
-	struct Linelist *linelist[N_MAX_OVERLAP];
+	struct Linelist *linelist[N_MAX_METAL_OVERLAP];
 };
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern char       messageStr[];
-extern InputData  input;
+extern char messageStr[];
 
 /* ------- begin -------------------------- metalPrepare.c ---------- */
 
@@ -88,8 +87,8 @@ void metalPrepare(void)
 		   threads. The tables live in, and are freed with, the
 		   continuum. --                               -------------- */
 
-	for (m = 1; m < atmos.Natom; m++) {
-		metal = atmos.atoms + m;
+	for (m = 1; m < rh->atmos.Natom; m++) {
+		metal = rh->atmos.atoms + m;
 		if (!metal->active) {
 			for (kr = 0; kr < metal->Ncont; kr++) {
 				continuum = metal->continuum + kr;
@@ -119,7 +118,7 @@ bool_t Metal_bf(double lambda, int Nmetal, struct Atom *metals,
 
 	twohc = (2.0 * HPLANCK * CLIGHT) / CUBE(NM_TO_M);
 	hc_k  = (HPLANCK * CLIGHT) / (KBOLTZMANN * NM_TO_M);
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		chi[k] = 0.0;
 		eta[k] = 0.0;
 	}
@@ -150,9 +149,9 @@ bool_t Metal_bf(double lambda, int Nmetal, struct Atom *metals,
 					   not for each transition seperately -- ------------ */
 
 					if (expla == NULL) {
-						expla = (double *) malloc(atmos.Nspace * sizeof(double));
-						for (k = 0; k < atmos.Nspace; k++)
-							expla[k] = exp(-hc_kla / atmos.T[k]);
+						expla = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+						for (k = 0; k < rh->atmos.Nspace; k++)
+							expla[k] = exp(-hc_kla / rh->atmos.T[k]);
 					}
 
 					if (continuum->hydrogenic) {
@@ -172,7 +171,7 @@ bool_t Metal_bf(double lambda, int Nmetal, struct Atom *metals,
 						pchipTableEval(&continuum->bftable, 1, &lambda, &alpha_la);
 					}
 
-					for (k = 0; k < atmos.Nspace; k++) {
+					for (k = 0; k < rh->atmos.Nspace; k++) {
 						gijk = metal->nstar[i][k] / metal->nstar[j][k] * expla[k];
 						chi[k] += alpha_la * (1.0 - expla[k]) * n[i][k];
 						eta[k] += twohnu3_c2 * gijk * alpha_la * n[j][k];
@@ -201,7 +200,7 @@ void passiveBBCacheFree(PassiveBBCache *cache)
 	register int l;
 
 	if (cache == NULL) return;
-	for (l = 0; l < N_MAX_OVERLAP; l++) {
+	for (l = 0; l < N_MAX_METAL_OVERLAP; l++) {
 		if (cache->linelist[l]) {
 			if (cache->linelist[l]->adamp) free(cache->linelist[l]->adamp);
 			free(cache->linelist[l]);
@@ -243,17 +242,17 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 	fourPI = 4.0 * PI;
 	hc_4PI = hc / fourPI;
 
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		chi[k] = 0.0;
 		eta[k] = 0.0;
 	}
-	if (atmos.Stokes) {
-		for (k = atmos.Nspace; k < 4 * atmos.Nspace; k++) {
+	if (rh->atmos.Stokes) {
+		for (k = rh->atmos.Nspace; k < 4 * rh->atmos.Nspace; k++) {
 			chi[k] = 0.0;
 			eta[k] = 0.0;
 		}
-		if (input.magneto_optical)
-			for (k = 0; k < 3 * atmos.Nspace; k++) chip[k] = 0.0;
+		if (rh->input.magneto_optical)
+			for (k = 0; k < 3 * rh->atmos.Nspace; k++) chip[k] = 0.0;
 	}
 	/* --- Reset the used tags in the linelist --        -------------- */
 
@@ -264,8 +263,8 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 		   transition for which the current wavelength falls within the
 		   limits of the line. --                        -------------- */
 
-	for (m = 0; m < atmos.Natom; m++) {
-		atom = atmos.atoms + m;
+	for (m = 0; m < rh->atmos.Natom; m++) {
+		atom = rh->atmos.atoms + m;
 		if (!atom->active) {
 
 			/* --- Use LTE or NonLTE population numbers ? -- -------------- */
@@ -277,11 +276,11 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 				i       = line->i;
 				j       = line->j;
 				dlambda = line->lambda0 *
-						  line->qwing * (atmos.vmicro_char / CLIGHT);
+						  line->qwing * (rh->atmos.vmicro_char / CLIGHT);
 
 				if (fabs(lambda - line->lambda0) <= dlambda) {
-					backgrflags.hasline               = TRUE;
-					atmos.backgrflags[nspect].hasline = TRUE;
+					backgrflags.hasline                   = TRUE;
+					rh->atmos.backgrflags[nspect].hasline = TRUE;
 
 					/* --- Add line to list if not yet present -- ----------- */
 
@@ -294,7 +293,7 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 						}
 					}
 					if (add_to_list) {
-						if (*Nlist == N_MAX_OVERLAP) {
+						if (*Nlist == N_MAX_METAL_OVERLAP) {
 							sprintf(messageStr, "Too many overlapping transitions");
 							Error(ERROR_LEVEL_2, routineName, messageStr);
 						}
@@ -316,7 +315,7 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 
 						if (line->Voigt) {
 							linelist[entry]->adamp =
-								(double *) malloc(atmos.Nspace * sizeof(double));
+								(double *) malloc(rh->atmos.Nspace * sizeof(double));
 							Damping(line, linelist[entry]->adamp);
 						} else
 							linelist[entry]->adamp = NULL;
@@ -329,10 +328,10 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 					/* --- Evaluate absorption and emission coefficients -- - */
 
 					for (nc = 0; nc < line->Ncomponent; nc++) {
-						for (k = 0; k < atmos.Nspace; k++) {
+						for (k = 0; k < rh->atmos.Nspace; k++) {
 							v = (lambda - line->lambda0 - line->c_shift[nc]) *
 								CLIGHT / (line->lambda0 * atom->vbroad[k]);
-							if (atmos.moving) {
+							if (rh->atmos.moving) {
 								if (to_obs)
 									v += vproject(k, mu) / atom->vbroad[k];
 								else
@@ -363,9 +362,9 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 			linelist[l] = NULL;
 		}
 	}
-	for (l = 0; l < N_MAX_OVERLAP; l++) {
+	for (l = 0; l < N_MAX_METAL_OVERLAP; l++) {
 		if (linelist[l] == NULL) {
-			for (m = l + 1; m < N_MAX_OVERLAP; m++) {
+			for (m = l + 1; m < N_MAX_METAL_OVERLAP; m++) {
 				if (linelist[m] != NULL) {
 					linelist[l] = linelist[m];
 					linelist[m] = NULL;
@@ -377,7 +376,7 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 	/* --- Count number of entries in the list --        -------------- */
 
 	*Nlist = 0;
-	for (l = 0; l < N_MAX_OVERLAP; l++)
+	for (l = 0; l < N_MAX_METAL_OVERLAP; l++)
 		if (linelist[l]) (*Nlist)++;
 
 	return backgrflags;

@@ -18,13 +18,13 @@
 #include "constant.h"
 #include "error.h"
 #include "statistics.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- lognormalize.c --------- */
 
@@ -63,7 +63,7 @@ void LTEpops(Atom *atom, bool_t Debeye)
 	register int k, i, m;
 
 	char   labelStr[MAX_LINE_SIZE];
-	int    Z, *dZ, *nDebeye, Nspace = atmos.Nspace;
+	int    Z, *dZ, *nDebeye, Nspace = rh->atmos.Nspace;
 	double lcNe_T, dE_kT, dEion = 0.0, c1, c2 = 0.0, *lgi0, *dE;
 
 	/* --- Computes LTE populations of a given atom.
@@ -113,21 +113,21 @@ void LTEpops(Atom *atom, bool_t Debeye)
 	/* --- Solve Saha-Boltzmann equilibrium equations --  ------------- */
 
 	for (k = 0; k < Nspace; k++) {
-		if (atmos.ne[k] <= 0.0) {
+		if (rh->atmos.ne[k] <= 0.0) {
 			sprintf(messageStr,
 					"Electron density must be positive for LTE populations "
 					"(atom %s, ne[%d] = %g)\n",
-					atom->ID, k, atmos.ne[k]);
+					atom->ID, k, rh->atmos.ne[k]);
 			Error(ERROR_LEVEL_2, "LTEpops", messageStr);
 		}
-		if (Debeye) dEion = c2 * sqrt(atmos.ne[k] / atmos.T[k]);
-		lcNe_T = log(0.5 * atmos.ne[k]) + 1.5 * log(c1 / atmos.T[k]);
+		if (Debeye) dEion = c2 * sqrt(rh->atmos.ne[k] / rh->atmos.T[k]);
+		lcNe_T = log(0.5 * rh->atmos.ne[k]) + 1.5 * log(c1 / rh->atmos.T[k]);
 
 		/* --- The logarithm of nstar[i] / nstar[0] --  -------------- */
 
 		atom->nstar[0][k] = 0.0;
 		for (i = 1; i < atom->Nlevel; i++) {
-			dE_kT = (dE[i] - nDebeye[i] * dEion) / (KBOLTZMANN * atmos.T[k]);
+			dE_kT = (dE[i] - nDebeye[i] * dEion) / (KBOLTZMANN * rh->atmos.T[k]);
 
 			atom->nstar[i][k] = lgi0[i] - dE_kT;
 			if (dZ[i] != 0) atom->nstar[i][k] -= dZ[i] * lcNe_T;
@@ -158,34 +158,34 @@ void LTEpops_elem(Element *element)
 
 	C1 = (HPLANCK / (2.0 * PI * M_ELECTRON)) * (HPLANCK / KBOLTZMANN);
 
-	lCT_ne = (double *) malloc(atmos.Nspace * sizeof(double));
-	Uk     = (double *) malloc(atmos.Nspace * sizeof(double));
-	Ukp1   = (double *) malloc(atmos.Nspace * sizeof(double));
+	lCT_ne = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	Uk     = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	Ukp1   = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
-	for (k = 0; k < atmos.Nspace; k++) {
-		if (atmos.ne[k] <= 0.0) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
+		if (rh->atmos.ne[k] <= 0.0) {
 			sprintf(messageStr,
 					"Electron density must be positive for LTE populations "
 					"(element %s, ne[%d] = %g)\n",
-					element->ID, k, atmos.ne[k]);
+					element->ID, k, rh->atmos.ne[k]);
 			Error(ERROR_LEVEL_2, "LTEpops_elem", messageStr);
 		}
 		/* --- ln(CT_ne) of the Saha equation; n[i] holds ln(n_i/n_0) -- */
 
-		lCT_ne[k]        = ln2 - 1.5 * log(C1 / atmos.T[k]) - log(atmos.ne[k]);
+		lCT_ne[k]        = ln2 - 1.5 * log(C1 / rh->atmos.T[k]) - log(rh->atmos.ne[k]);
 		element->n[0][k] = 0.0;
 	}
 
-	Linear(atmos.Npf, atmos.Tpf, element->pf[0],
-		   atmos.Nspace, atmos.T, Uk, hunt = TRUE);
+	Linear(rh->atmos.Npf, rh->atmos.Tpf, element->pf[0],
+		   rh->atmos.Nspace, rh->atmos.T, Uk, hunt = TRUE);
 
 	for (i = 1; i < element->Nstage; i++) {
-		Linear(atmos.Npf, atmos.Tpf, element->pf[i],
-			   atmos.Nspace, atmos.T, Ukp1, hunt = TRUE);
+		Linear(rh->atmos.Npf, rh->atmos.Tpf, element->pf[i],
+			   rh->atmos.Nspace, rh->atmos.T, Ukp1, hunt = TRUE);
 
-		for (k = 0; k < atmos.Nspace; k++) {
+		for (k = 0; k < rh->atmos.Nspace; k++) {
 			element->n[i][k] = element->n[i - 1][k] + lCT_ne[k] + Ukp1[k] - Uk[k] -
-							   element->ionpot[i - 1] / (KBOLTZMANN * atmos.T[k]);
+							   element->ionpot[i - 1] / (KBOLTZMANN * rh->atmos.T[k]);
 		}
 		SWAPPOINTER(Uk, Ukp1);
 	}
@@ -195,9 +195,9 @@ void LTEpops_elem(Element *element)
 		   underflow or overflow: the dominant stages are exact, the
 		   minor ones underflow only on their own -- -------------- */
 
-	for (k = 0; k < atmos.Nspace; k++)
+	for (k = 0; k < rh->atmos.Nspace; k++)
 		lognormalize(element->n, element->Nstage, k,
-					 element->abund * atmos.nHtot[k], FALSE);
+					 element->abund * rh->atmos.nHtot[k], FALSE);
 
 	free(lCT_ne);
 	free(Uk);
@@ -238,19 +238,19 @@ void LTEmolecule(Molecule *molecule)
 		E[mrt->vj][(int) (mrt->gj - 1) / 2] = mrt->Ej;
 	}
 
-	for (k = 0; k < atmos.Nspace; k++)
+	for (k = 0; k < rh->atmos.Nspace; k++)
 		molecule->pf[k] = 0.0;
 
 	for (v = 0; v < molecule->Nv; v++) {
 		for (J = 0; J < molecule->NJ; J++) {
 			gJ = 2 * J + 1;
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				molecule->pfv[v][k] +=
-					gJ * exp(-E[v][J] / (KBOLTZMANN * atmos.T[k]));
+					gJ * exp(-E[v][J] / (KBOLTZMANN * rh->atmos.T[k]));
 		}
 		/*  --- Also store the total partition function here -- --------- */
 
-		for (k = 0; k < atmos.Nspace; k++)
+		for (k = 0; k < rh->atmos.Nspace; k++)
 			molecule->pf[k] += molecule->pfv[v][k];
 	}
 
@@ -270,8 +270,8 @@ void SetLTEQuantities(void)
 	bool_t Debeye = TRUE;
 	Atom  *atom;
 
-	for (n = 0; n < atmos.Natom; n++) {
-		atom = &atmos.atoms[n];
+	for (n = 0; n < rh->atmos.Natom; n++) {
+		atom = &rh->atmos.atoms[n];
 
 		/* --- Get LTE populations for each atom --        -------------- */
 

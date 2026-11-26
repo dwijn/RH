@@ -26,9 +26,9 @@
 #include "error.h"
 #include "inputs.h"
 #include "parallel.h"
+#include "state.h"
 
-extern InputData input;
-extern char      messageStr[];
+extern char messageStr[];
 
 typedef struct {
 	ParallelRange work;
@@ -71,7 +71,7 @@ void parallelFor(int N, int nthreads, ParallelRange work, void *arg)
 		chunk[nt].end   = (nt + 1) * size < N ? (nt + 1) * size : N;
 	}
 	for (nt = 1; nt < Nchunk; nt++) {
-		if (pthread_create(&id[nt], &input.thread_attr, runChunk, &chunk[nt])) {
+		if (pthread_create(&id[nt], &rh->input.thread_attr, runChunk, &chunk[nt])) {
 
 			/* --- Could not start the thread: do its share here instead --- */
 
@@ -154,7 +154,7 @@ void parallelForDynamic(int N, int chunk, int nthreads,
 		worker[nt].nt  = nt;
 	}
 	for (nt = 1; nt < nthreads; nt++) {
-		if (pthread_create(&id[nt], &input.thread_attr, runDynamic, &worker[nt])) {
+		if (pthread_create(&id[nt], &rh->input.thread_attr, runDynamic, &worker[nt])) {
 
 			/* --- Could not start the thread: the others will simply
 				   take its chunks. Worker nt stays unused --  ---------- */

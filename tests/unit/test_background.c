@@ -33,11 +33,7 @@
 #include "inputs.h"
 #include "error.h"
 #include "check.h"
-
-extern Atmosphere  atmos;
-extern Spectrum    spectrum;
-extern InputData   input;
-extern CommandLine commandline;
+#include "state.h"
 
 void writeBRS(void);
 void readBRS(void);
@@ -67,25 +63,25 @@ static void setup(void)
 {
 	int nspect, k, rec = 0;
 
-	atmos.Nspace = NSPACE;
-	atmos.Nrays  = 1;
-	atmos.moving = atmos.Stokes = FALSE;
-	strcpy(atmos.ID, "test_background");
-	spectrum.Nspect       = NSPECT;
-	input.magneto_optical = TRUE;
-	input.StokesMode      = FULL_STOKES;
+	rh->atmos.Nspace = NSPACE;
+	rh->atmos.Nrays  = 1;
+	rh->atmos.moving = rh->atmos.Stokes = FALSE;
+	strcpy(rh->atmos.ID, "test_background");
+	rh->spectrum.Nspect       = NSPECT;
+	rh->input.magneto_optical = TRUE;
+	rh->input.StokesMode      = FULL_STOKES;
 
-	atmos.backgrflags                = calloc(NSPECT, sizeof(flags));
-	atmos.backgrrecno                = calloc(NSPECT, sizeof(int));
-	spectrum.as                      = calloc(NSPECT, sizeof(ActiveSet));
-	atmos.backgrflags[1].ispolarized = TRUE;
+	rh->atmos.backgrflags                = calloc(NSPECT, sizeof(flags));
+	rh->atmos.backgrrecno                = calloc(NSPECT, sizeof(int));
+	rh->spectrum.as                      = calloc(NSPECT, sizeof(ActiveSet));
+	rh->atmos.backgrflags[1].ispolarized = TRUE;
 	for (nspect = 0; nspect < NSPECT; nspect++) {
-		atmos.backgrrecno[nspect] = rec;
+		rh->atmos.backgrrecno[nspect] = rec;
 		rec += backgroundRecords(nspect);
-		spectrum.as[nspect].chi_c  = calloc(4 * NSPACE, sizeof(double));
-		spectrum.as[nspect].eta_c  = calloc(4 * NSPACE, sizeof(double));
-		spectrum.as[nspect].sca_c  = calloc(NSPACE, sizeof(double));
-		spectrum.as[nspect].chip_c = calloc(3 * NSPACE, sizeof(double));
+		rh->spectrum.as[nspect].chi_c  = calloc(4 * NSPACE, sizeof(double));
+		rh->spectrum.as[nspect].eta_c  = calloc(4 * NSPACE, sizeof(double));
+		rh->spectrum.as[nspect].sca_c  = calloc(NSPACE, sizeof(double));
+		rh->spectrum.as[nspect].chip_c = calloc(3 * NSPACE, sizeof(double));
 		for (k = 0; k < 4 * NSPACE; k++) {
 			chi[nspect][k] = value(k, nspect, 1.0e-20, 1.0e5, k >= NSPACE);
 			eta[nspect][k] = value(k, nspect + 7, 1.0e-60, 1.0e2, k >= NSPACE);
@@ -112,16 +108,16 @@ static void write_all(void)
 
 static double expect(double v, int exp2)
 {
-	if (atmos.backgrbytes == sizeof(double)) return v;
+	if (rh->atmos.backgrbytes == sizeof(double)) return v;
 	return (double) (float) ldexp(v, exp2) / ldexp(1.0, exp2);
 }
 
 static void check_read_back(const char *what)
 {
-	int nspect, k, Nrec, e = atmos.backgretaexp;
+	int nspect, k, Nrec, e = rh->atmos.backgretaexp;
 
 	for (nspect = 0; nspect < NSPECT; nspect++) {
-		ActiveSet *as = &spectrum.as[nspect];
+		ActiveSet *as = &rh->spectrum.as[nspect];
 
 		memset(as->chi_c, 0, 4 * NSPACE * sizeof(double));
 		memset(as->eta_c, 0, 4 * NSPACE * sizeof(double));
@@ -129,7 +125,7 @@ static void check_read_back(const char *what)
 		memset(as->chip_c, 0, 3 * NSPACE * sizeof(double));
 		readBackground(nspect, 0, FALSE);
 
-		Nrec = atmos.backgrflags[nspect].ispolarized ? 4 : 1;
+		Nrec = rh->atmos.backgrflags[nspect].ispolarized ? 4 : 1;
 		for (k = 0; k < Nrec * NSPACE; k++) {
 			CHECK(as->chi_c[k] == expect(chi[nspect][k], 0),
 				  "%s: chi_c[%d] of wavelength %d: %.9g, want %.9g", what, k, nspect,
@@ -176,7 +172,7 @@ static bool_t is_fatal(void (*f)(void))
 	if ((pid = fork()) == 0) {
 		in_child = 1;
 		if (!freopen("/dev/null", "w", stdout) || !freopen("/dev/null", "w", stderr)) _exit(1);
-		commandline.logfile = stderr;
+		rh->commandline.logfile = stderr;
 		f();
 		_exit(0);
 	}
@@ -194,10 +190,10 @@ static void free_brs(void)
 {
 	/* --- readBRS allocates these anew --          -------------- */
 
-	free(atmos.backgrflags);
-	free(atmos.backgrrecno);
-	atmos.backgrflags = NULL;
-	atmos.backgrrecno = NULL;
+	free(rh->atmos.backgrflags);
+	free(rh->atmos.backgrrecno);
+	rh->atmos.backgrflags = NULL;
+	rh->atmos.backgrrecno = NULL;
 }
 
 static void read_bad_brs(void)
@@ -214,7 +210,7 @@ int main(void)
 	FILE       *fp;
 	long        size;
 
-	commandline.logfile = stderr;
+	rh->commandline.logfile = stderr;
 	if (!mkdtemp(dir) || chdir(dir)) {
 		perror("test_background: temporary directory");
 		return 1;
@@ -224,12 +220,12 @@ int main(void)
 
 	/* --- Single-precision file, emissivities scaled -- ------------ */
 
-	atmos.backgrbytes   = sizeof(float);
-	atmos.backgretaexp  = BACKGR_ETA_EXP;
-	atmos.fd_background = open_file("background.dat");
+	rh->atmos.backgrbytes   = sizeof(float);
+	rh->atmos.backgretaexp  = BACKGR_ETA_EXP;
+	rh->atmos.fd_background = open_file("background.dat");
 	write_all();
 	check_read_back("float file");
-	fstat(atmos.fd_background, &st);
+	fstat(rh->atmos.fd_background, &st);
 	CHECK(st.st_size == (off_t) Nrec * NSPACE * 4, "float file has %lld bytes, want %d",
 		  (long long) st.st_size, Nrec * NSPACE * 4);
 
@@ -240,12 +236,12 @@ int main(void)
 		int below = 0, zero = 0;
 
 		for (nspect = 0; nspect < NSPECT; nspect++) {
-			int Nread = (atmos.backgrflags[nspect].ispolarized ? 4 : 1) * NSPACE;
+			int Nread = (rh->atmos.backgrflags[nspect].ispolarized ? 4 : 1) * NSPACE;
 
 			for (int k = 0; k < Nread; k++)
 				if (fabs(eta[nspect][k]) < FLT_MIN) {
 					below++;
-					if (spectrum.as[nspect].eta_c[k] == 0.0) zero++;
+					if (rh->spectrum.as[nspect].eta_c[k] == 0.0) zero++;
 				}
 		}
 		CHECK(below >= 5 && zero == 0, "%d emissivities below FLT_MIN, %d read back as 0",
@@ -254,35 +250,35 @@ int main(void)
 
 	/* --- Old (double) file --                           -------------- */
 
-	close(atmos.fd_background);
-	atmos.backgrbytes   = sizeof(double);
-	atmos.backgretaexp  = 0;
-	atmos.fd_background = open_file("background_double.dat");
+	close(rh->atmos.fd_background);
+	rh->atmos.backgrbytes   = sizeof(double);
+	rh->atmos.backgretaexp  = 0;
+	rh->atmos.fd_background = open_file("background_double.dat");
 	write_all();
 	check_read_back("double file");
-	fstat(atmos.fd_background, &st);
+	fstat(rh->atmos.fd_background, &st);
 	CHECK(st.st_size == (off_t) Nrec * NSPACE * 8, "double file has %lld bytes",
 		  (long long) st.st_size);
 
 	/* --- Emissivity beyond the range of the float file -- -------- */
 
-	close(atmos.fd_background);
-	atmos.backgrbytes   = sizeof(float);
-	atmos.backgretaexp  = BACKGR_ETA_EXP;
-	atmos.fd_background = open_file("background.dat");
+	close(rh->atmos.fd_background);
+	rh->atmos.backgrbytes   = sizeof(float);
+	rh->atmos.backgretaexp  = BACKGR_ETA_EXP;
+	rh->atmos.fd_background = open_file("background.dat");
 	CHECK(is_fatal(write_huge_eta), "%s", "an emissivity of 1e10 was written without error");
 
 	/* --- brs.out: the format ints round trip --        -------------- */
 
 	writeBRS();
-	atmos.backgrbytes = atmos.backgretaexp = -1;
+	rh->atmos.backgrbytes = rh->atmos.backgretaexp = -1;
 	free_brs();
 	readBRS();
-	CHECK(atmos.backgrbytes == sizeof(float) && atmos.backgretaexp == BACKGR_ETA_EXP,
-		  "brs.out read back as %d bytes, scale 2^%d", atmos.backgrbytes,
-		  atmos.backgretaexp);
-	CHECK(atmos.backgrrecno[1] == backgroundRecords(0), "record of wavelength 1: %d",
-		  atmos.backgrrecno[1]);
+	CHECK(rh->atmos.backgrbytes == sizeof(float) && rh->atmos.backgretaexp == BACKGR_ETA_EXP,
+		  "brs.out read back as %d bytes, scale 2^%d", rh->atmos.backgrbytes,
+		  rh->atmos.backgretaexp);
+	CHECK(rh->atmos.backgrrecno[1] == backgroundRecords(0), "record of wavelength 1: %d",
+		  rh->atmos.backgrrecno[1]);
 
 	/* --- A brs.out of an older version, without the ints: double -- */
 
@@ -291,29 +287,29 @@ int main(void)
 	size = ftell(fp);
 	fclose(fp);
 	CHECK(truncate("brs.out", size - 8) == 0, "%s", "truncate brs.out");
-	atmos.backgrbytes = atmos.backgretaexp = -1;
+	rh->atmos.backgrbytes = rh->atmos.backgretaexp = -1;
 	free_brs();
 	readBRS();
-	CHECK(atmos.backgrbytes == sizeof(double) && atmos.backgretaexp == 0,
-		  "old brs.out read as %d bytes, scale 2^%d", atmos.backgrbytes,
-		  atmos.backgretaexp);
+	CHECK(rh->atmos.backgrbytes == sizeof(double) && rh->atmos.backgretaexp == 0,
+		  "old brs.out read as %d bytes, scale 2^%d", rh->atmos.backgrbytes,
+		  rh->atmos.backgretaexp);
 
 	/* --- An unknown format is fatal --                  -------------- */
 
-	atmos.backgrbytes  = 5;
-	atmos.backgretaexp = 0;
+	rh->atmos.backgrbytes  = 5;
+	rh->atmos.backgretaexp = 0;
 	writeBRS();
 	CHECK(is_fatal(read_bad_brs), "%s", "brs.out with 5 bytes per value was accepted");
 
-	close(atmos.fd_background);
+	close(rh->atmos.fd_background);
 	free_brs();
 	for (nspect = 0; nspect < NSPECT; nspect++) {
-		free(spectrum.as[nspect].chi_c);
-		free(spectrum.as[nspect].eta_c);
-		free(spectrum.as[nspect].sca_c);
-		free(spectrum.as[nspect].chip_c);
+		free(rh->spectrum.as[nspect].chi_c);
+		free(rh->spectrum.as[nspect].eta_c);
+		free(rh->spectrum.as[nspect].sca_c);
+		free(rh->spectrum.as[nspect].chip_c);
 	}
-	free(spectrum.as);
+	free(rh->spectrum.as);
 	unlink("background.dat");
 	unlink("background_double.dat");
 	unlink("brs.out");

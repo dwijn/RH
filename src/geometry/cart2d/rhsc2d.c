@@ -29,20 +29,17 @@
 #include "error.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-enum Topology topology = TWO_D_PLANE;
+static Geometry geometry_data;
+static RHState  rh_state = RH_STATE_INIT(TWO_D_PLANE, &geometry_data);
+RHState *const  rh       = &rh_state;
 
-Atmosphere   atmos;
-Geometry     geometry;
-Spectrum     spectrum;
-ProgramStats stats;
-InputData    input;
-CommandLine  commandline;
-char         messageStr[MAX_LINE_SIZE];
+char messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- rhsc2d.c ---------------- */
 
@@ -62,18 +59,18 @@ int main(int argc, char *argv[])
 	SetFPEtraps();
 
 	readInput();
-	spectrum.updateJ = TRUE;
+	rh->spectrum.updateJ = TRUE;
 
 	getCPU(1, TIME_START, NULL);
-	readAtmos(&atmos, &geometry);
-	if (atmos.Stokes) Bproject();
-	fillMesh(&geometry);
+	readAtmos(&rh->atmos, rh->geometry);
+	if (rh->atmos.Stokes) Bproject();
+	fillMesh(rh->geometry);
 
 	readAtomicModels();
 	readMolecularModels();
 	SortLambda();
 
-	getBoundary(&atmos, &geometry);
+	getBoundary(&rh->atmos, rh->geometry);
 
 	Background(analyze_output = TRUE, equilibria_only = FALSE);
 
@@ -85,16 +82,16 @@ int main(int argc, char *argv[])
 
 	/* --- Solve radiative transfer for active ingredients -- --------- */
 
-	Iterate(input.NmaxIter, input.iterLimit);
+	Iterate(rh->input.NmaxIter, rh->input.iterLimit);
 
 	/* --- If appropriate final solution(s) should be polarized -- ---- */
 
 	adjustStokesMode();
 
 	niter = 0;
-	while (niter < input.NmaxScatter) {
+	while (niter < rh->input.NmaxScatter) {
 		deltaJ = solveSpectrum(FALSE, FALSE);
-		if (!input.backgr_pol && deltaJ <= input.iterLimit) break;
+		if (!rh->input.backgr_pol && deltaJ <= rh->input.iterLimit) break;
 
 		niter++;
 	}
@@ -104,13 +101,13 @@ int main(int argc, char *argv[])
 	getCPU(1, TIME_START, NULL);
 
 	writeInput();
-	writeAtmos(&atmos);
-	writeGeometry(&geometry);
-	writeSpectrum(&spectrum);
+	writeAtmos(&rh->atmos);
+	writeGeometry(rh->geometry);
+	writeSpectrum(&rh->spectrum);
 	writeFlux(FLUX_DOT_OUT);
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 
 		writeAtom(atom);
 		writePopulations(atom);
@@ -118,8 +115,8 @@ int main(int argc, char *argv[])
 		writeCollisionRate(atom);
 		writeDamping(atom);
 	}
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
 		writeMolPops(molecule);
 	}
 

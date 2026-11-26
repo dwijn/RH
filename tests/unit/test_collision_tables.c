@@ -27,10 +27,7 @@
 #include "inputs.h"
 #include "error.h"
 #include "check.h"
-
-extern Atmosphere  atmos;
-extern InputData   input;
-extern CommandLine commandline;
+#include "state.h"
 
 #define NLEVEL 3
 #define NT     41
@@ -45,15 +42,15 @@ static void run_logged(const char *records)
 	char  *buf  = NULL, text[4096];
 	size_t size = 0, n;
 	FILE  *log  = open_memstream(&buf, &size), *fp;
-	FILE  *old  = commandline.logfile;
+	FILE  *old  = rh->commandline.logfile;
 
 	n = (size_t) snprintf(text, sizeof(text), "%sEND\n", records);
 	CHECK(n < sizeof(text), "%s", "records too long");
-	commandline.logfile = log;
-	fp                  = fmemopen(text, n, "r");
+	rh->commandline.logfile = log;
+	fp                      = fmemopen(text, n, "r");
 	CollisionRate(&atom, fp);
 	fclose(fp);
-	commandline.logfile = old;
+	rh->commandline.logfile = old;
 	fclose(log);
 	snprintf(logText, sizeof(logText), "%s", buf);
 	free(buf);
@@ -81,11 +78,11 @@ int main(void)
 	C0 = ((E_RYDBERG / sqrt(M_ELECTRON)) * PI * SQ(RBOHR)) *
 		 sqrt(8.0 / (PI * KBOLTZMANN));
 
-	commandline.logfile = fopen("/dev/null", "w");
-	input.Nthreads      = 1;
-	atmos.Nspace        = NT;
-	atmos.T             = (double *) calloc(NT, sizeof(double));
-	atmos.ne            = (double *) calloc(NT, sizeof(double));
+	rh->commandline.logfile = fopen("/dev/null", "w");
+	rh->input.Nthreads      = 1;
+	rh->atmos.Nspace        = NT;
+	rh->atmos.T             = (double *) calloc(NT, sizeof(double));
+	rh->atmos.ne            = (double *) calloc(NT, sizeof(double));
 	memset(&atom, 0, sizeof(atom));
 	strcpy(atom.ID, "X");
 	atom.Nlevel = NLEVEL;
@@ -105,13 +102,13 @@ int main(void)
 		hydrogen.n[0][k] = 1.0e20;
 		hydrogen.n[1][k] = 1.0e18;
 	}
-	atmos.H = &hydrogen;
+	rh->atmos.H = &hydrogen;
 
 	/* --- 1e3 to 2e5 K: 5e3 to 4e4 K is the table --   ------------ */
 
 	for (k = 0; k < NT; k++) {
-		atmos.T[k]  = 1.0e3 * pow(200.0, (double) k / (NT - 1));
-		atmos.ne[k] = 1.0e18;
+		rh->atmos.T[k]  = 1.0e3 * pow(200.0, (double) k / (NT - 1));
+		rh->atmos.ne[k] = 1.0e18;
 	}
 
 	/* --- Omega of a power law in T; CE = C0 Omega / (g_i T) -- ------ */
@@ -136,7 +133,7 @@ int main(void)
 	freeRateReports(&atom);
 	run_logged(rec);
 	for (k = 0; k < NT; k++) {
-		T = atmos.T[k];
+		T = rh->atmos.T[k];
 		if (T >= 5.0e3 && T <= 4.0e4)
 			CHECK_CLOSE(atom.C[0 * NLEVEL + 2][k], atom.C[0 * NLEVEL + 1][k], 1.0e-9, 0.0,
 						"CE vs OMEGA of the same Omega at T = %g K", T);
@@ -147,13 +144,13 @@ int main(void)
 	for (k = 0; k < NT; k++) {
 		int e;
 
-		T = atmos.T[k];
+		T = rh->atmos.T[k];
 		if (T >= 5.0e3 && T <= 4.0e4) continue;
 		e = (T > 4.0e4) ? 3 : 0;
 		CHECK_CLOSE(atom.C[0 * NLEVEL + 2][k],
-					ce[e] * atmos.ne[k] * (atom.g[0] / atom.g[2]) * sqrt(T), 1.0e-9, 0.0,
+					ce[e] * rh->atmos.ne[k] * (atom.g[0] / atom.g[2]) * sqrt(T), 1.0e-9, 0.0,
 					"CE end value held at T = %g K", T);
-		CHECK_CLOSE(atom.C[0 * NLEVEL + 1][k], C0 * atmos.ne[k] * Om[e] / (atom.g[1] * sqrt(T)),
+		CHECK_CLOSE(atom.C[0 * NLEVEL + 1][k], C0 * rh->atmos.ne[k] * Om[e] / (atom.g[1] * sqrt(T)),
 					1.0e-9, 0.0, "OMEGA end value held at T = %g K", T);
 	}
 
@@ -198,11 +195,11 @@ int main(void)
 			ij = 0 * NLEVEL + 1;
 			ji = 1 * NLEVEL + 0;
 			for (k = 0; k < NT; k++) {
-				double Tk = atmos.T[k], Ck = Cval[(Tk > 4.0e4) ? 3 : 0], want, got;
+				double Tk = rh->atmos.T[k], Ck = Cval[(Tk > 4.0e4) ? 3 : 0], want, got;
 
 				if (Tk >= 5.0e3 && Tk <= 4.0e4) continue;
 				if (!strcmp(kw[n], "CI")) {
-					want = Ck * atmos.ne[k] * exp(-dE / (KBOLTZMANN * Tk)) * sqrt(Tk);
+					want = Ck * rh->atmos.ne[k] * exp(-dE / (KBOLTZMANN * Tk)) * sqrt(Tk);
 					got  = atom.C[ji][k];
 				} else if (!strcmp(kw[n], "CP")) {
 					want = hydrogen.n[1][k] * Ck;

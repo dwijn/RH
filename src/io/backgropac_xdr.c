@@ -20,6 +20,7 @@
 #include "error.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "state.h"
 
 #define COMMENT_CHAR "#"
 
@@ -33,9 +34,7 @@ bool_t write_contrib_xdr(XDR *xdrs, char *label, enum opac_type type,
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- backgrOpac.c ------------ */
 
@@ -58,31 +57,31 @@ void backgrOpac(int Nlambda, double *lambda)
 
 	/* --- Only evaluate for static case --              -------------- */
 
-	atmos.moving = FALSE;
-	atmos.Stokes = FALSE;
+	rh->atmos.moving = FALSE;
+	rh->atmos.Stokes = FALSE;
 
-	if (input.solve_ne) Solve_ne(atmos.ne, TRUE);
+	if (rh->input.solve_ne) Solve_ne(rh->atmos.ne, TRUE);
 
 	SetLTEQuantities();
 
-	if (input.NonICE)
+	if (rh->input.NonICE)
 		readMolecules(MOLECULAR_CONCENTRATION_FILE);
 	else
 		ChemicalEquilibrium(N_MAX_CHEM_ITER, CHEM_ITER_LIMIT);
 
-	if (strcmp(input.fudgeData, "none")) {
+	if (strcmp(rh->input.fudgeData, "none")) {
 		do_fudge = TRUE;
 
 		/* --- Read wavelength-dependent fudge factors to compensate for
 			   missing UV backround line haze --           -------------- */
 
-		if ((fp_fudge = fopen(input.fudgeData, "r")) == NULL) {
-			sprintf(messageStr, "Unable to open input file %s", input.fudgeData);
+		if ((fp_fudge = fopen(rh->input.fudgeData, "r")) == NULL) {
+			sprintf(messageStr, "Unable to open input file %s", rh->input.fudgeData);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		sprintf(messageStr,
 				"\n-Fudging background opacities with file\n  %s\n\n",
-				input.fudgeData);
+				rh->input.fudgeData);
 		Error(MESSAGE, routineName, messageStr);
 
 		getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
@@ -101,14 +100,14 @@ void backgrOpac(int Nlambda, double *lambda)
 
 	/* --- Temporary storage for this routine --         -------------- */
 
-	chi     = (double *) malloc(atmos.Nspace * sizeof(double));
-	eta     = (double *) malloc(atmos.Nspace * sizeof(double));
-	scatt   = (double *) malloc(atmos.Nspace * sizeof(double));
-	thomson = (double *) malloc(atmos.Nspace * sizeof(double));
+	chi     = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	eta     = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	scatt   = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	thomson = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 	/* --- Check whether He is present among the metals --  ----------- */
 
-	He = (atmos.elements[1].model) ? atmos.elements[1].model : NULL;
+	He = (rh->atmos.elements[1].model) ? rh->atmos.elements[1].model : NULL;
 
 	backgroundPrepare();
 
@@ -140,10 +139,10 @@ void backgrOpac(int Nlambda, double *lambda)
 		if (do_fudge) {
 			Linear(Nfudge, lambda_fudge, fudge[1],
 				   1, &lambda[nspect], &scatt_fudge, FALSE);
-			for (k = 0; k < atmos.Nspace; k++) thomson[k] *= scatt_fudge;
+			for (k = 0; k < rh->atmos.Nspace; k++) thomson[k] *= scatt_fudge;
 		}
 		write_contrib_xdr(&xdrs, "THOMSON", type = SCATTERING,
-						  atmos.Nspace, thomson);
+						  rh->atmos.Nspace, thomson);
 
 		/* --- Negative hydrogen ion, bound-free and free-free -- ------- */
 
@@ -153,77 +152,77 @@ void backgrOpac(int Nlambda, double *lambda)
 		}
 		if (Hminus_bf(lambda[nspect], chi, eta)) {
 			if (do_fudge) {
-				for (k = 0; k < atmos.Nspace; k++) chi[k] *= Hmin_fudge;
+				for (k = 0; k < rh->atmos.Nspace; k++) chi[k] *= Hmin_fudge;
 			}
 			write_contrib_xdr(&xdrs, "HMINUS_BF", type = ABSORPTION,
-							  atmos.Nspace, chi);
+							  rh->atmos.Nspace, chi);
 		}
 		if (Hminus_ff(lambda[nspect], chi)) {
 			if (do_fudge) {
-				for (k = 0; k < atmos.Nspace; k++) chi[k] *= Hmin_fudge;
+				for (k = 0; k < rh->atmos.Nspace; k++) chi[k] *= Hmin_fudge;
 			}
 			write_contrib_xdr(&xdrs, "HMINUS_FF", type = ABSORPTION,
-							  atmos.Nspace, chi);
+							  rh->atmos.Nspace, chi);
 		}
 
 		/* --- Bound-free opacities from OH and CH molecules -- --------- */
 
 		if (OH_bf_opac(lambda[nspect], chi, eta)) {
 			write_contrib_xdr(&xdrs, "OH_BF", type = ABSORPTION,
-							  atmos.Nspace, chi);
+							  rh->atmos.Nspace, chi);
 		}
 		if (CH_bf_opac(lambda[nspect], chi, eta)) {
 			write_contrib_xdr(&xdrs, "CH_BF", type = ABSORPTION,
-							  atmos.Nspace, chi);
+							  rh->atmos.Nspace, chi);
 		}
 
 		/* --- Neutral Hydrogen Bound-Free and Free-Free --  ------------ */
 
 		if (Hydrogen_bf(lambda[nspect], chi, eta)) {
 			write_contrib_xdr(&xdrs, "HYDROGEN_BF", type = ABSORPTION,
-							  atmos.Nspace, chi);
+							  rh->atmos.Nspace, chi);
 		}
 		Hydrogen_ff(lambda[nspect], chi);
 		write_contrib_xdr(&xdrs, "HYDROGEN_FF", type = ABSORPTION,
-						  atmos.Nspace, chi);
+						  rh->atmos.Nspace, chi);
 
 		/* --- Rayleigh scattering by neutral hydrogen --  -------------- */
 
-		if (Rayleigh(lambda[nspect], atmos.H, scatt)) {
+		if (Rayleigh(lambda[nspect], rh->atmos.H, scatt)) {
 			if (do_fudge) {
-				for (k = 0; k < atmos.Nspace; k++) scatt[k] *= scatt_fudge;
+				for (k = 0; k < rh->atmos.Nspace; k++) scatt[k] *= scatt_fudge;
 			}
 			write_contrib_xdr(&xdrs, "RAYLEIGH_H", type = SCATTERING,
-							  atmos.Nspace, scatt);
+							  rh->atmos.Nspace, scatt);
 		}
 		/* --- Rayleigh scattering by neutral helium --    -------------- */
 
 		if (He && Rayleigh(lambda[nspect], He, scatt)) {
 			if (do_fudge) {
-				for (k = 0; k < atmos.Nspace; k++) scatt[k] *= scatt_fudge;
+				for (k = 0; k < rh->atmos.Nspace; k++) scatt[k] *= scatt_fudge;
 			}
 			write_contrib_xdr(&xdrs, "RAYLEIGH_HE", type = SCATTERING,
-							  atmos.Nspace, scatt);
+							  rh->atmos.Nspace, scatt);
 		}
 		/* --- Rayleigh scattering and free-free absorption by
 			   molecular hydrogen --                       -------------- */
 
 		if (Rayleigh_H2(lambda[nspect], scatt)) {
 			if (do_fudge) {
-				for (k = 0; k < atmos.Nspace; k++) scatt[k] *= scatt_fudge;
+				for (k = 0; k < rh->atmos.Nspace; k++) scatt[k] *= scatt_fudge;
 			}
 			write_contrib_xdr(&xdrs, "RAYLEIGH_H2", type = SCATTERING,
-							  atmos.Nspace, scatt);
+							  rh->atmos.Nspace, scatt);
 		}
 		/* --- Absorption by H + H^+ (referred to as H2plus free-free) -- */
 
 		if (H2plus_ff(lambda[nspect], chi))
 			write_contrib_xdr(&xdrs, "H2PLUS_FF", type = ABSORPTION,
-							  atmos.Nspace, chi);
+							  rh->atmos.Nspace, chi);
 
 		if (H2minus_ff(lambda[nspect], chi)) {
 			write_contrib_xdr(&xdrs, "H2MINUS_FF", type = ABSORPTION,
-							  atmos.Nspace, chi);
+							  rh->atmos.Nspace, chi);
 		}
 		/* --- Bound-Free opacities due to ``metals'' --   -------------- */
 
@@ -231,14 +230,14 @@ void backgrOpac(int Nlambda, double *lambda)
 			Linear(Nfudge, lambda_fudge, fudge[2],
 				   1, &lambda[nspect], &metal_fudge, FALSE);
 		}
-		for (n = 1; n < atmos.Natom; n++) {
-			Metal_bf(lambda[nspect], 1, &atmos.atoms[n], chi, eta);
-			sprintf(metalID, "METAL_BF_%2s", atmos.atoms[n].ID);
+		for (n = 1; n < rh->atmos.Natom; n++) {
+			Metal_bf(lambda[nspect], 1, &rh->atmos.atoms[n], chi, eta);
+			sprintf(metalID, "METAL_BF_%2s", rh->atmos.atoms[n].ID);
 			if (do_fudge) {
-				for (k = 0; k < atmos.Nspace; k++) chi[k] *= metal_fudge;
+				for (k = 0; k < rh->atmos.Nspace; k++) chi[k] *= metal_fudge;
 			}
 			write_contrib_xdr(&xdrs, metalID, type = ABSORPTION,
-							  atmos.Nspace, chi);
+							  rh->atmos.Nspace, chi);
 		}
 		xdr_destroy(&xdrs);
 		fclose(fp_out);
@@ -246,12 +245,12 @@ void backgrOpac(int Nlambda, double *lambda)
 
 	/* --- Clean up --                                     ------------ */
 
-	for (n = 0; n < atmos.Natom; n++) freeAtom(atmos.atoms + n);
-	free(atmos.atoms);
+	for (n = 0; n < rh->atmos.Natom; n++) freeAtom(rh->atmos.atoms + n);
+	free(rh->atmos.atoms);
 
-	for (n = 0; n < atmos.Nmolecule; n++)
-		freeMolecule(atmos.molecules + n);
-	if (atmos.Nmolecule > 0) free(atmos.molecules);
+	for (n = 0; n < rh->atmos.Nmolecule; n++)
+		freeMolecule(rh->atmos.molecules + n);
+	if (rh->atmos.Nmolecule > 0) free(rh->atmos.molecules);
 
 	/* --- Free the temporary space set up by backgroundPrepare -- --- */
 

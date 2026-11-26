@@ -29,9 +29,7 @@
 #include "atmos.h"
 #include "inputs.h"
 #include "check.h"
-
-extern Atmosphere  atmos;
-extern CommandLine commandline;
+#include "state.h"
 
 #define NLINE   7
 #define NHALF   21
@@ -63,11 +61,11 @@ int main(void)
 	double          red[NLINE][NHALF], extra[2] = {899.0, 1000.0};
 	int             kr, la, Nchanged;
 
-	commandline.logfile = stderr;
-	commandline.quiet   = TRUE;
-	atmos.moving        = FALSE;
-	atmos.Stokes        = FALSE;
-	atmos.vmicro_char   = 3.0E3; /* q_to_lambda = 1e-5 lambda0: 3 nm at 500 */
+	rh->commandline.logfile = stderr;
+	rh->commandline.quiet   = TRUE;
+	rh->atmos.moving        = FALSE;
+	rh->atmos.Stokes        = FALSE;
+	rh->atmos.vmicro_char   = 3.0E3; /* q_to_lambda = 1e-5 lambda0: 3 nm at 500 */
 
 	for (kr = 0; kr < NLINE; kr++) {
 		initLine(&lines[kr], lambda0[kr], kr + 1, 0);
@@ -100,9 +98,9 @@ int main(void)
 	atoms[1].Nline  = 1;
 	atoms[1].line   = &passive;
 
-	atmos.Natom     = 2;
-	atmos.atoms     = atoms;
-	atmos.Nmolecule = 0;
+	rh->atmos.Natom     = 2;
+	rh->atmos.atoms     = atoms;
+	rh->atmos.Nmolecule = 0;
 
 	Nchanged = asymmetricBlends(extra, 2);
 	CHECK(Nchanged == 4, "%d lines made asymmetric, want 4", Nchanged);

@@ -28,14 +28,11 @@
 #include "constant.h"
 #include "statistics.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Geometry   geometry;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- bgSupported.c ----------- */
 
@@ -66,13 +63,13 @@ static void solve_2D(int nspect, int mu, bool_t to_obs, double *chi,
 
 	(void) Tri;
 	(void) lin;
-	if (input.S_interpolation == S_LINEAR) {
-		Piecewise_Linear_2D(&geometry, nspect, mu, to_obs, chi, S, I, Psi);
-	} else if (input.S_interpolation == S_BEZIER3) {
-		Piecewise_Bezier3_2D(&geometry, nspect, mu, to_obs, chi, S, I, Psi);
+	if (rh->input.S_interpolation == S_LINEAR) {
+		Piecewise_Linear_2D(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
+	} else if (rh->input.S_interpolation == S_BEZIER3) {
+		Piecewise_Bezier3_2D(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
 	} else {
 		sprintf(messageStr, "Unknown radiation solver: %d",
-				input.S_interpolation);
+				rh->input.S_interpolation);
 		Error(ERROR_LEVEL_1, routineName, messageStr);
 	}
 }
@@ -85,11 +82,11 @@ static void solveStokes_2D(int nspect, int mu, bool_t to_obs, double *chi,
 {
 	const char routineName[] = "solveStokes_2D";
 
-	if (input.S_interpolation_stokes == DELO_BEZIER3) {
-		Piece_Stokes_Bezier3_2D(&geometry, nspect, mu, to_obs, chi, S, I, Psi);
+	if (rh->input.S_interpolation_stokes == DELO_BEZIER3) {
+		Piece_Stokes_Bezier3_2D(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
 	} else {
 		sprintf(messageStr, "Unknown polarization solver: %d",
-				input.S_interpolation_stokes);
+				rh->input.S_interpolation_stokes);
 		Error(ERROR_LEVEL_1, routineName, messageStr);
 	}
 }
@@ -100,8 +97,8 @@ static void solveStokes_2D(int nspect, int mu, bool_t to_obs, double *chi,
 static bool_t checkTau_2D(int nspect, int mu, int to_obs, const double *chi,
 						  enum negtau_quadrature quad)
 {
-	return negTauColumns(nspect, mu, to_obs, geometry.Nz, geometry.Nx, chi,
-						 geometry.z, geometry.muz[mu], quad);
+	return negTauColumns(nspect, mu, to_obs, rh->geometry->Nz, rh->geometry->Nx, chi,
+						 rh->geometry->z, rh->geometry->muz[mu], quad);
 }
 /* ------- end ---------------------------- checkTau_2D.c ----------- */
 
@@ -113,15 +110,15 @@ static void emergent_2D(int nspect, int mu, const double *I, double **Ipol)
 {
 	register int l;
 
-	int n = nspect * atmos.Nrays + mu;
+	int n = nspect * rh->atmos.Nrays + mu;
 
-	for (l = 0; l < geometry.Nx; l++)
-		spectrum.I[n][l] = I[l];
+	for (l = 0; l < rh->geometry->Nx; l++)
+		rh->spectrum.I[n][l] = I[l];
 	if (Ipol) {
-		for (l = 0; l < geometry.Nx; l++) {
-			spectrum.Stokes_Q[n][l] = Ipol[1][l];
-			spectrum.Stokes_U[n][l] = Ipol[2][l];
-			spectrum.Stokes_V[n][l] = Ipol[3][l];
+		for (l = 0; l < rh->geometry->Nx; l++) {
+			rh->spectrum.Stokes_Q[n][l] = Ipol[1][l];
+			rh->spectrum.Stokes_U[n][l] = Ipol[2][l];
+			rh->spectrum.Stokes_V[n][l] = Ipol[3][l];
 		}
 	}
 }
@@ -129,11 +126,11 @@ static void emergent_2D(int nspect, int mu, const double *I, double **Ipol)
 
 static double muz_2D(int mu)
 {
-	return geometry.muz[mu];
+	return rh->geometry->muz[mu];
 }
 static double wmu_2D(int mu)
 {
-	return geometry.wmu[mu];
+	return rh->geometry->wmu[mu];
 }
 
 /* --- The operations of the 2-D geometry for the driver -- -------- */
@@ -161,7 +158,7 @@ void Hydrostatic(int NmaxIter, double iterLimit)
 	(void) NmaxIter;
 	(void) iterLimit;
 
-	if (atmos.hydrostatic) {
+	if (rh->atmos.hydrostatic) {
 		sprintf(messageStr,
 				"Can only establish hydrostatic equilibrium in 1-D geometry");
 		Error(ERROR_LEVEL_2, routineName, messageStr);

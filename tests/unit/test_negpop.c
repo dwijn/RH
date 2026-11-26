@@ -31,10 +31,7 @@
 #include "error.h"
 #include "check.h"
 #include "negtau.h"
-
-extern Atmosphere  atmos;
-extern InputData   input;
-extern CommandLine commandline;
+#include "state.h"
 
 /* --- LeakSanitizer would report the buffers that Error() leaves in
 	   the child that it ends, and change its exit status -- -------- */
@@ -89,7 +86,7 @@ static int is_fatal(void (*f)(void))
 	if ((pid = fork()) == 0) {
 		in_child = 1;
 		if (!freopen("/dev/null", "w", stdout) || !freopen("/dev/null", "w", stderr)) _exit(1);
-		commandline.logfile = stderr;
+		rh->commandline.logfile = stderr;
 		f();
 		_exit(0);
 	}
@@ -129,9 +126,9 @@ static void check_case(const char *name, double a, double b, bool_t bad,
 
 int main(void)
 {
-	commandline.logfile = fopen("/dev/null", "w");
-	input.Nthreads      = 1;
-	atmos.Nspace        = NSPACE;
+	rh->commandline.logfile = fopen("/dev/null", "w");
+	rh->input.Nthreads      = 1;
+	rh->atmos.Nspace        = NSPACE;
 	memset(&atom, 0, sizeof(atom));
 	strcpy(atom.ID, "XX");
 	atom.Nlevel   = N;

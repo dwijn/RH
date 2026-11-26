@@ -12,13 +12,11 @@
 #include "atom.h"
 #include "atmos.h"
 #include "geometry.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
-
-extern Atmosphere atmos;
-extern Geometry   geometry;
 
 /* ------- begin -------------------------- vproject.c -------------- */
 
@@ -26,7 +24,7 @@ double vproject(int k, int mu)
 {
 	/* --- Calculate projected velocity along ray mu at depth k -- ---- */
 
-	return geometry.muz[mu] * geometry.vel[k];
+	return rh->geometry->muz[mu] * rh->geometry->vel[k];
 }
 /* ------- end ---------------------------- vproject.c -------------- */
 
@@ -42,41 +40,41 @@ void Bproject(void)
 
 	double bx, by, bz, b1, b2, b3, csc_theta, sin_gamma;
 
-	atmos.cos_gamma = matrix_double(atmos.Nrays, atmos.Nspace);
-	atmos.cos_2chi  = matrix_double(atmos.Nrays, atmos.Nspace);
-	atmos.sin_2chi  = matrix_double(atmos.Nrays, atmos.Nspace);
+	rh->atmos.cos_gamma = matrix_double(rh->atmos.Nrays, rh->atmos.Nspace);
+	rh->atmos.cos_2chi  = matrix_double(rh->atmos.Nrays, rh->atmos.Nspace);
+	rh->atmos.sin_2chi  = matrix_double(rh->atmos.Nrays, rh->atmos.Nspace);
 
-	for (mu = 0; mu < atmos.Nrays; mu++) {
-		if (geometry.muz[mu] == 1.0) {
-			for (k = 0; k < atmos.Nspace; k++) {
-				atmos.cos_gamma[mu][k] = cos(atmos.gamma_B[k]);
-				atmos.cos_2chi[mu][k]  = cos(2.0 * atmos.chi_B[k]);
-				atmos.sin_2chi[mu][k]  = sin(2.0 * atmos.chi_B[k]);
+	for (mu = 0; mu < rh->atmos.Nrays; mu++) {
+		if (rh->geometry->muz[mu] == 1.0) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
+				rh->atmos.cos_gamma[mu][k] = cos(rh->atmos.gamma_B[k]);
+				rh->atmos.cos_2chi[mu][k]  = cos(2.0 * rh->atmos.chi_B[k]);
+				rh->atmos.sin_2chi[mu][k]  = sin(2.0 * rh->atmos.chi_B[k]);
 			}
 		} else {
-			csc_theta = 1.0 / sqrt(1.0 - SQ(geometry.muz[mu]));
-			for (k = 0; k < atmos.Nspace; k++) {
-				sin_gamma = sin(atmos.gamma_B[k]);
-				bx        = sin_gamma * cos(atmos.chi_B[k]);
-				by        = sin_gamma * sin(atmos.chi_B[k]);
-				bz        = cos(atmos.gamma_B[k]);
+			csc_theta = 1.0 / sqrt(1.0 - SQ(rh->geometry->muz[mu]));
+			for (k = 0; k < rh->atmos.Nspace; k++) {
+				sin_gamma = sin(rh->atmos.gamma_B[k]);
+				bx        = sin_gamma * cos(rh->atmos.chi_B[k]);
+				by        = sin_gamma * sin(rh->atmos.chi_B[k]);
+				bz        = cos(rh->atmos.gamma_B[k]);
 
-				b3 = geometry.mux[mu] * bx + geometry.muy[mu] * by +
-					 geometry.muz[mu] * bz;
-				b1 = csc_theta * (bz - geometry.muz[mu] * b3);
-				b2 = csc_theta * (geometry.muy[mu] * bx - geometry.mux[mu] * by);
+				b3 = rh->geometry->mux[mu] * bx + rh->geometry->muy[mu] * by +
+					 rh->geometry->muz[mu] * bz;
+				b1 = csc_theta * (bz - rh->geometry->muz[mu] * b3);
+				b2 = csc_theta * (rh->geometry->muy[mu] * bx - rh->geometry->mux[mu] * by);
 
-				atmos.cos_gamma[mu][k] = b3;
+				rh->atmos.cos_gamma[mu][k] = b3;
 				/* --- No transverse field (B along the ray): the angle chi is
 					   undefined, and the terms it enters carry a factor
 					   sin^2(gamma) = 0 (B-28) --         -------------- */
 
 				if (1.0 - SQ(b3) > 0.0) {
-					atmos.cos_2chi[mu][k] = (SQ(b1) - SQ(b2)) / (1.0 - SQ(b3));
-					atmos.sin_2chi[mu][k] = 2.0 * b1 * b2 / (1.0 - SQ(b3));
+					rh->atmos.cos_2chi[mu][k] = (SQ(b1) - SQ(b2)) / (1.0 - SQ(b3));
+					rh->atmos.sin_2chi[mu][k] = 2.0 * b1 * b2 / (1.0 - SQ(b3));
 				} else {
-					atmos.cos_2chi[mu][k] = 1.0;
-					atmos.sin_2chi[mu][k] = 0.0;
+					rh->atmos.cos_2chi[mu][k] = 1.0;
+					rh->atmos.sin_2chi[mu][k] = 0.0;
 				}
 			}
 		}

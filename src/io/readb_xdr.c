@@ -29,13 +29,13 @@
 #include "error.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern InputData input;
-extern char      messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- readB.c ----------------- */
 
@@ -48,10 +48,10 @@ bool_t readB(Atmosphere *atmos)
 	FILE  *fp_stokes;
 	XDR    xdrs;
 
-	if (!strcmp(input.Stokes_input, "none")) return FALSE;
+	if (!strcmp(rh->input.Stokes_input, "none")) return FALSE;
 
-	if ((fp_stokes = fopen(input.Stokes_input, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open inputfile %s", input.Stokes_input);
+	if ((fp_stokes = fopen(rh->input.Stokes_input, "r")) == NULL) {
+		sprintf(messageStr, "Unable to open inputfile %s", rh->input.Stokes_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
@@ -59,7 +59,7 @@ bool_t readB(Atmosphere *atmos)
 	atmos->gamma_B = (double *) malloc(atmos->Nspace * sizeof(double));
 	atmos->chi_B   = (double *) malloc(atmos->Nspace * sizeof(double));
 
-	if (input.xdr_endian) {
+	if (rh->input.xdr_endian) {
 		xdrstdio_create(&xdrs, fp_stokes, XDR_DECODE);
 
 		result &= xdr_vector(&xdrs, (char *) atmos->B, atmos->Nspace,
@@ -82,7 +82,7 @@ bool_t readB(Atmosphere *atmos)
 
 	if (!result) {
 		sprintf(messageStr, "Unable to read from input file %s",
-				input.Stokes_input);
+				rh->input.Stokes_input);
 		Error(ERROR_LEVEL_1, routineName, messageStr);
 	}
 

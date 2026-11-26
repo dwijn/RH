@@ -19,6 +19,7 @@
 #include "atom.h"
 #include "inputs.h"
 #include "constant.h"
+#include "state.h"
 
 /* --- Routines for wavelength- and angle-integrated contributions to
 	   the crosscoupling, Gamma matrix, and radiative rates.
@@ -32,10 +33,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- initGammaAtom.c --------- */
 
@@ -48,17 +46,17 @@ void initGammaAtom(Atom *atom, int niter)
 	/* --- Add the fixed rates into Gamma --             -------------- */
 
 	for (ij = 0; ij < SQ(atom->Nlevel); ij++) {
-		for (k = 0; k < atmos.Nspace; k++)
+		for (k = 0; k < rh->atmos.Nspace; k++)
 			atom->Gamma[ij][k] = atom->C[ij][k];
 	}
 	/* --- Apply Collisional Relaxation (CR) factor --   -------------- */
 
-	if (input.CR_Nstep > 0 && niter <= input.CR_Nstep) {
-		CR_factor = pow(input.CR_factor,
-						(1.0 - (double) input.CR_Nstep / niter));
+	if (rh->input.CR_Nstep > 0 && niter <= rh->input.CR_Nstep) {
+		CR_factor = pow(rh->input.CR_factor,
+						(1.0 - (double) rh->input.CR_Nstep / niter));
 
 		for (ij = 0; ij < SQ(atom->Nlevel); ij++) {
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				atom->Gamma[ij][k] *= CR_factor;
 		}
 	}
@@ -77,7 +75,7 @@ void initGammaMolecule(Molecule *molecule)
 		   overwrite their entries (B-38) --             -------------- */
 
 	for (ij = 0; ij < SQ(molecule->Nv); ij++) {
-		for (k = 0; k < atmos.Nspace; k++) molecule->Gamma[ij][k] = 0.0;
+		for (k = 0; k < rh->atmos.Nspace; k++) molecule->Gamma[ij][k] = 0.0;
 	}
 	/* --- Add the fixed rates into Gamma --             -------------- */
 
@@ -85,7 +83,7 @@ void initGammaMolecule(Molecule *molecule)
 		vj = vi + 1;
 		ij = vi * molecule->Nv + vj;
 		ji = vj * molecule->Nv + vi;
-		for (k = 0; k < atmos.Nspace; k++) {
+		for (k = 0; k < rh->atmos.Nspace; k++) {
 			if (molecule->n[k]) {
 				molecule->Gamma[ij][k] = molecule->C_ul[k];
 				molecule->Gamma[ji][k] = molecule->C_ul[k] *
@@ -108,12 +106,12 @@ void zeroGammaThreads(Atom *atom)
 {
 	register int nt, ij, k;
 
-	if (input.Nthreads <= 1) return; /* one thread uses atom->Gamma */
+	if (rh->input.Nthreads <= 1) return; /* one thread uses atom->Gamma */
 
-	for (nt = 0; nt < input.Nthreads; nt++) {
+	for (nt = 0; nt < rh->input.Nthreads; nt++) {
 		if (atom->rhth[nt].Gamma == NULL) continue;
 		for (ij = 0; ij < SQ(atom->Nlevel); ij++) {
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				atom->rhth[nt].Gamma[ij][k] = 0.0;
 		}
 	}
@@ -126,12 +124,12 @@ void zeroGammaThreadsMolecule(Molecule *molecule)
 {
 	register int nt, ij, k;
 
-	if (input.Nthreads <= 1) return;
+	if (rh->input.Nthreads <= 1) return;
 
-	for (nt = 0; nt < input.Nthreads; nt++) {
+	for (nt = 0; nt < rh->input.Nthreads; nt++) {
 		if (molecule->rhth[nt].Gamma == NULL) continue;
 		for (ij = 0; ij < SQ(molecule->Nv); ij++) {
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				molecule->rhth[nt].Gamma[ij][k] = 0.0;
 		}
 	}
@@ -152,12 +150,12 @@ void mergeGammaThreads(Atom *atom)
 {
 	register int nt, ij, k;
 
-	if (input.Nthreads <= 1) return; /* already accumulated in place */
+	if (rh->input.Nthreads <= 1) return; /* already accumulated in place */
 
-	for (nt = 0; nt < input.Nthreads; nt++) {
+	for (nt = 0; nt < rh->input.Nthreads; nt++) {
 		if (atom->rhth[nt].Gamma == NULL) continue;
 		for (ij = 0; ij < SQ(atom->Nlevel); ij++) {
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				atom->Gamma[ij][k] += atom->rhth[nt].Gamma[ij][k];
 		}
 	}
@@ -170,12 +168,12 @@ void mergeGammaThreadsMolecule(Molecule *molecule)
 {
 	register int nt, ij, k;
 
-	if (input.Nthreads <= 1) return;
+	if (rh->input.Nthreads <= 1) return;
 
-	for (nt = 0; nt < input.Nthreads; nt++) {
+	for (nt = 0; nt < rh->input.Nthreads; nt++) {
 		if (molecule->rhth[nt].Gamma == NULL) continue;
 		for (ij = 0; ij < SQ(molecule->Nv); ij++) {
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				molecule->Gamma[ij][k] += molecule->rhth[nt].Gamma[ij][k];
 		}
 	}
@@ -266,20 +264,20 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 
 	twohc = 2.0 * HPLANCK * CLIGHT / CUBE(NM_TO_M);
 
-	as = &spectrum.as[nspect];
-	nt = nspect % input.Nthreads;
+	as = &rh->spectrum.as[nspect];
+	nt = nspect % rh->input.Nthreads;
 
 	/* --- Contributions from the active transitions in atoms -- ------ */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 
 		/* --- With a single thread, accumulate straight into the shared
 			   Gamma, as a serial run always did. With more threads each
 			   thread has its own copy (no lock needed), merged into the
 			   shared one after the sweep. --              -------------- */
 
-		Gam = (input.Nthreads > 1) ? atom->rhth[nt].Gamma : atom->Gamma;
+		Gam = (rh->input.Nthreads > 1) ? atom->rhth[nt].Gamma : atom->Gamma;
 
 		for (n = 0; n < as->Nactiveatomrt[nact]; n++) {
 			switch (as->art[nact][n].type) {
@@ -294,7 +292,7 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 				continuum  = as->art[nact][n].ptype.continuum;
 				i          = continuum->i;
 				j          = continuum->j;
-				twohnu3_c2 = twohc / CUBE(spectrum.lambda[nspect]);
+				twohnu3_c2 = twohc / CUBE(rh->spectrum.lambda[nspect]);
 				break;
 
 			default:
@@ -316,14 +314,14 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 								   atom->rhth[nt].gij[n], atom->n[i], atom->n[j],
 								   atom->rhth[nt].Uji_down[i],
 								   atom->rhth[nt].Uji_down[j], I, Psi, wmu,
-								   atmos.Nspace, Gam);
+								   rh->atmos.Nspace, Gam);
 		}
 	}
 	/* --- Add the active molecular contributions --     -------------- */
 
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
-		Gam      = (input.Nthreads > 1) ? molecule->rhth[nt].Gamma : molecule->Gamma;
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
+		Gam      = (rh->input.Nthreads > 1) ? molecule->rhth[nt].Gamma : molecule->Gamma;
 
 		for (n = 0; n < as->Nactivemolrt[nact]; n++) {
 			switch (as->mrt[nact][n].type) {
@@ -346,7 +344,7 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 			ij = i * molecule->Nv + j;
 			ji = j * molecule->Nv + i;
 
-			for (k = 0; k < atmos.Nspace; k++) {
+			for (k = 0; k < rh->atmos.Nspace; k++) {
 				if (molecule->n[k]) {
 					wlamu = molecule->rhth[nt].Vij[n][k] *
 							molecule->rhth[nt].wla[n][k] * wmu;
@@ -376,30 +374,30 @@ void addtoCoupling(int nspect)
 
 	twohc = 2.0 * HPLANCK * CLIGHT / CUBE(NM_TO_M);
 
-	as = &spectrum.as[nspect];
-	nt = nspect % input.Nthreads;
+	as = &rh->spectrum.as[nspect];
+	nt = nspect % rh->input.Nthreads;
 
 	/* --- Emission coefficient Uji_down[a] summed over the active
 		   transitions with upper level a, for the preconditioning in
 		   addPreconditionedRates. It is zero for levels that are only
 		   lower levels at this wavelength --             -------------- */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 
 		for (n = 0; n < as->Nlower[nact]; n++) {
 			i = as->lower_levels[nact][n];
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				atom->rhth[nt].Uji_down[i][k] = 0.0;
 		}
 		for (n = 0; n < as->Nupper[nact]; n++) {
 			j = as->upper_levels[nact][n];
-			for (k = 0; k < atmos.Nspace; k++)
+			for (k = 0; k < rh->atmos.Nspace; k++)
 				atom->rhth[nt].Uji_down[j][k] = 0.0;
 		}
 	}
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 
 		for (n = 0; n < as->Nactiveatomrt[nact]; n++) {
 			switch (as->art[nact][n].type) {
@@ -412,7 +410,7 @@ void addtoCoupling(int nspect)
 			case ATOMIC_CONTINUUM:
 				continuum  = as->art[nact][n].ptype.continuum;
 				j          = continuum->j;
-				twohnu3_c2 = twohc / CUBE(spectrum.lambda[nspect]);
+				twohnu3_c2 = twohc / CUBE(rh->spectrum.lambda[nspect]);
 				break;
 
 			default:
@@ -421,7 +419,7 @@ void addtoCoupling(int nspect)
 				twohnu3_c2 = 0.0;
 			}
 			if (twohnu3_c2) {
-				for (k = 0; k < atmos.Nspace; k++) {
+				for (k = 0; k < rh->atmos.Nspace; k++) {
 					atom->rhth[nt].Uji_down[j][k] +=
 						twohnu3_c2 * atom->rhth[nt].gij[n][k] * atom->rhth[nt].Vij[n][k];
 				}
@@ -450,17 +448,17 @@ void zeroRates(bool_t redistribute)
 		   zeroed, matching the set of lines addtoRates() actually
 		   updates during a PRD sub-iteration.          -------------- */
 
-	for (n = 0; n < atmos.Natom; n++) {
-		atom = &atmos.atoms[n];
+	for (n = 0; n < rh->atmos.Natom; n++) {
+		atom = &rh->atmos.atoms[n];
 		if (atom->active) {
 			for (kr = 0; kr < atom->Nline; kr++) {
 				if (!redistribute || (redistribute && atom->line[kr].PRD)) {
-					for (k = 0; k < atmos.Nspace; k++) {
+					for (k = 0; k < rh->atmos.Nspace; k++) {
 						atom->line[kr].Rij[k] = 0.0;
 						atom->line[kr].Rji[k] = 0.0;
 					}
-					for (nt = 0; input.Nthreads > 1 && nt < input.Nthreads; nt++) {
-						for (k = 0; k < atmos.Nspace; k++) {
+					for (nt = 0; rh->input.Nthreads > 1 && nt < rh->input.Nthreads; nt++) {
+						for (k = 0; k < rh->atmos.Nspace; k++) {
 							atom->line[kr].Rij_thread[nt][k] = 0.0;
 							atom->line[kr].Rji_thread[nt][k] = 0.0;
 						}
@@ -469,12 +467,12 @@ void zeroRates(bool_t redistribute)
 			}
 			if (!redistribute) {
 				for (kr = 0; kr < atom->Ncont; kr++) {
-					for (k = 0; k < atmos.Nspace; k++) {
+					for (k = 0; k < rh->atmos.Nspace; k++) {
 						atom->continuum[kr].Rij[k] = 0.0;
 						atom->continuum[kr].Rji[k] = 0.0;
 					}
-					for (nt = 0; input.Nthreads > 1 && nt < input.Nthreads; nt++) {
-						for (k = 0; k < atmos.Nspace; k++) {
+					for (nt = 0; rh->input.Nthreads > 1 && nt < rh->input.Nthreads; nt++) {
+						for (k = 0; k < rh->atmos.Nspace; k++) {
 							atom->continuum[kr].Rij_thread[nt][k] = 0.0;
 							atom->continuum[kr].Rji_thread[nt][k] = 0.0;
 						}
@@ -502,15 +500,15 @@ void mergeRates(bool_t redistribute)
 
 	Atom *atom;
 
-	if (input.Nthreads <= 1) return; /* rates were accumulated in place */
+	if (rh->input.Nthreads <= 1) return; /* rates were accumulated in place */
 
-	for (n = 0; n < atmos.Natom; n++) {
-		atom = &atmos.atoms[n];
+	for (n = 0; n < rh->atmos.Natom; n++) {
+		atom = &rh->atmos.atoms[n];
 		if (atom->active) {
 			for (kr = 0; kr < atom->Nline; kr++) {
 				if (!redistribute || (redistribute && atom->line[kr].PRD)) {
-					for (nt = 0; nt < input.Nthreads; nt++) {
-						for (k = 0; k < atmos.Nspace; k++) {
+					for (nt = 0; nt < rh->input.Nthreads; nt++) {
+						for (k = 0; k < rh->atmos.Nspace; k++) {
 							atom->line[kr].Rij[k] += atom->line[kr].Rij_thread[nt][k];
 							atom->line[kr].Rji[k] += atom->line[kr].Rji_thread[nt][k];
 						}
@@ -519,8 +517,8 @@ void mergeRates(bool_t redistribute)
 			}
 			if (!redistribute) {
 				for (kr = 0; kr < atom->Ncont; kr++) {
-					for (nt = 0; nt < input.Nthreads; nt++) {
-						for (k = 0; k < atmos.Nspace; k++) {
+					for (nt = 0; nt < rh->input.Nthreads; nt++) {
+						for (k = 0; k < rh->atmos.Nspace; k++) {
 							atom->continuum[kr].Rij[k] +=
 								atom->continuum[kr].Rij_thread[nt][k];
 							atom->continuum[kr].Rji[k] +=
@@ -581,11 +579,11 @@ void addtoRates(int nspect, int mu, bool_t to_obs, double wmu,
 
 	twohc = 2.0 * HPLANCK * CLIGHT / CUBE(NM_TO_M);
 
-	as = &spectrum.as[nspect];
-	nt = nspect % input.Nthreads;
+	as = &rh->spectrum.as[nspect];
+	nt = nspect % rh->input.Nthreads;
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 
 		for (n = 0; n < as->Nactiveatomrt[nact]; n++) {
 			switch (as->art[nact][n].type) {
@@ -594,8 +592,8 @@ void addtoRates(int nspect, int mu, bool_t to_obs, double wmu,
 				if (redistribute && !line->PRD)
 					Rij = NULL;
 				else {
-					Rij        = (input.Nthreads > 1) ? line->Rij_thread[nt] : line->Rij;
-					Rji        = (input.Nthreads > 1) ? line->Rji_thread[nt] : line->Rji;
+					Rij        = (rh->input.Nthreads > 1) ? line->Rij_thread[nt] : line->Rij;
+					Rji        = (rh->input.Nthreads > 1) ? line->Rji_thread[nt] : line->Rji;
 					twohnu3_c2 = line->Aji / line->Bji;
 				}
 				break;
@@ -605,9 +603,9 @@ void addtoRates(int nspect, int mu, bool_t to_obs, double wmu,
 					Rij = NULL;
 				else {
 					continuum  = as->art[nact][n].ptype.continuum;
-					Rij        = (input.Nthreads > 1) ? continuum->Rij_thread[nt] : continuum->Rij;
-					Rji        = (input.Nthreads > 1) ? continuum->Rji_thread[nt] : continuum->Rji;
-					twohnu3_c2 = twohc / CUBE(spectrum.lambda[nspect]);
+					Rij        = (rh->input.Nthreads > 1) ? continuum->Rij_thread[nt] : continuum->Rij;
+					Rji        = (rh->input.Nthreads > 1) ? continuum->Rji_thread[nt] : continuum->Rji;
+					twohnu3_c2 = twohc / CUBE(rh->spectrum.lambda[nspect]);
 				}
 				break;
 
@@ -621,7 +619,7 @@ void addtoRates(int nspect, int mu, bool_t to_obs, double wmu,
 				   mergeRates() after all threads have been joined -- ----- */
 
 			if (Rij != NULL) {
-				addRates(atmos.Nspace, wmu, twohnu3_c2, atom->rhth[nt].Vij[n],
+				addRates(rh->atmos.Nspace, wmu, twohnu3_c2, atom->rhth[nt].Vij[n],
 						 atom->rhth[nt].wla[n], atom->rhth[nt].gij[n], I, Rij, Rji);
 			}
 		}

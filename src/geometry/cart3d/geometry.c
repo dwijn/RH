@@ -71,6 +71,7 @@
 #include "inputs.h"
 #include "statistics.h"
 #include "error.h"
+#include "state.h"
 
 #define MIN_FRAC 0.1
 
@@ -91,8 +92,7 @@ void           setStencil(Geometry *geometry, int mu, int k,
 
 /* --- Global variables --                             -------------- */
 
-extern InputData input;
-extern char      messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- fillMesh.c -------------- */
 
@@ -319,7 +319,7 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 		m0 = floor(frac2);
 		frac2 -= m0;
 
-		switch (input.interpolate_3D) {
+		switch (rh->input.interpolate_3D) {
 		case LINEAR_3D:
 			st->xbase[0]   = l0;
 			st->xbase[1]   = l0 + 1;
@@ -474,7 +474,7 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 		m0    = floor(longfracy);
 		frac2 = longfracy - m0;
 
-		switch (input.interpolate_3D) {
+		switch (rh->input.interpolate_3D) {
 		case LINEAR_3D:
 			lc->stencil[0].xbase[0]   = l0;
 			lc->stencil[0].xbase[1]   = l0 + 1;
@@ -591,7 +591,7 @@ static double interpolate3D(double *f, Geometry *geometry, Stencil *st,
 	case XY:
 		offset1 = st->zbase[0] * geometry->Nplane;
 
-		switch (input.interpolate_3D) {
+		switch (rh->input.interpolate_3D) {
 		case LINEAR_3D:
 			for (i = 0; i < 2; i++) {
 				xbase[i] = MODULO(l + st->xbase[i], geometry->Nx);

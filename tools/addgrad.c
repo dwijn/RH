@@ -12,6 +12,7 @@
 #include "atom.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -20,8 +21,9 @@ void writeModelAtom(Atom *atom, FILE *fp_out);
 
 /* --- Global variables --                             -------------- */
 
-CommandLine commandline;
-char        messageStr[MAX_LINE_SIZE];
+static RHState rh_state;
+RHState *const rh = &rh_state;
+char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- addgrad.c --------------- */
 
@@ -30,8 +32,8 @@ int main(int argc, char *argv[])
 	FILE *fp_out;
 	Atom  atom;
 
-	commandline.quiet   = FALSE;
-	commandline.logfile = stderr;
+	rh->commandline.quiet   = FALSE;
+	rh->commandline.logfile = stderr;
 
 	if (argc >= 3)
 		fp_out = fopen(argv[2], "w");

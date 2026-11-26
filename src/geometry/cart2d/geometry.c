@@ -54,6 +54,7 @@
 #include "inputs.h"
 #include "statistics.h"
 #include "error.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -70,10 +71,7 @@ void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
 
 /* --- Global variables --                             -------------- */
 
-extern char       messageStr[];
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
+extern char messageStr[];
 
 /* ------- begin -------------------------- fillMesh.c -------------- */
 
@@ -108,7 +106,7 @@ void fillMesh(Geometry *geometry)
 	} else
 		geometry->longchar = NULL;
 
-	order = (input.interpolate_2D == LINEAR_2D) ? SC_LINEAR : SC_BEZIER;
+	order = (rh->input.interpolate_2D == LINEAR_2D) ? SC_LINEAR : SC_BEZIER;
 
 	/* --- For each direction ray go through the x-z grid and store the
 		   stencil of interpolation indices and coefficients in the

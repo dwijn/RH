@@ -53,13 +53,11 @@
 #include "error.h"
 #include "statistics.h"
 #include "solver.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere  atmos;
-extern InputData   input;
-extern CommandLine commandline;
-extern char        messageStr[];
+extern char messageStr[];
 
 #define GCHECK_SEED_P 12345u
 #define GCHECK_SEED_V 54321u
@@ -259,7 +257,7 @@ void gcheckRun(const GCheckOptions *opt)
 						" before the end; PRD sub-iterations per G: %d;"
 						" threads: %d\n",
 			opt->Nsteps, opt->lag,
-			(atmos.NPRDactive > 0) ? input.PRD_NmaxIter : 0, input.Nthreads);
+			(rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0, rh->input.Nthreads);
 	Error(MESSAGE, NULL, messageStr);
 
 	/* --- Iterate plain G to x_a, keep x_b --          -------------- */

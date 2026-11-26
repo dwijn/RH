@@ -17,11 +17,11 @@
 #include "error.h"
 #include "negtau.h"
 #include "bezier.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
 
-extern Spectrum spectrum;
-extern char     messageStr[];
+extern char messageStr[];
 
 /* --- The most negative detection since the last reset, filled by the
 	   threads of solveSpectrum under the mutex --    -------------- */
@@ -334,7 +334,7 @@ void negTauMessage(char *message, size_t size)
 			 "negative total opacity at lambda = %.6f nm (wavelength %d),"
 			 " ray %d%s: optical depth %.4g between depth points %d and %d%s"
 			 " (limit %g)",
-			 spectrum.lambda[detected.nspect], detected.nspect, detected.mu,
+			 rh->spectrum.lambda[detected.nspect], detected.nspect, detected.mu,
 			 (detected.to_obs < 0) ? "" : (detected.to_obs) ? " upward"
 															: " downward",
 			 detected.tau,

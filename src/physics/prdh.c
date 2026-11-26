@@ -22,13 +22,11 @@
 #include "error.h"
 #include "inputs.h"
 #include "prdh.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- prdhShift.c ------------- */
 
@@ -39,7 +37,7 @@ double prdhShift(int mu, int to_obs, int k)
 
 	double sign = (to_obs) ? 1.0 : -1.0;
 
-	return 1.0 + spectrum.v_los[mu][k] * sign / CLIGHT;
+	return 1.0 + rh->spectrum.v_los[mu][k] * sign / CLIGHT;
 }
 /* ------- end ---------------------------- prdhShift.c ------------- */
 
@@ -89,8 +87,8 @@ void prdhBracket(int nspect, double fac, PRDhBracket *b)
 		   point below (or above) with weight 1. Such an interval is
 		   empty, so its weight is never evaluated --     -------------- */
 
-	const double *lambda = spectrum.lambda;
-	long          N      = spectrum.Nspect;
+	const double *lambda = rh->spectrum.lambda;
+	long          N      = rh->spectrum.Nspect;
 
 	b->prv = lambda[MAX(nspect - 1, 0)] * fac;
 	b->gas = lambda[nspect] * fac;
@@ -116,7 +114,7 @@ double prdhWeight(const PRDhBracket *b, long idx)
 		   interpolation between the shifted neighbours, 1 beyond the
 		   ends of the grid --                            -------------- */
 
-	const double *lambda = spectrum.lambda;
+	const double *lambda = rh->spectrum.lambda;
 
 	if (idx < b->r[1])
 		return (b->lo_end) ? 1.0 : (lambda[idx] - b->prv) / (b->gas - b->prv);
@@ -170,26 +168,26 @@ void initPRDhTables(void)
 	AtomicLine *line;
 	PRDhBracket b;
 
-	if (input.prdh_limit_mem) return;
+	if (rh->input.prdh_limit_mem) return;
 
 	/* --- Interpolation of rho --                       -------------- */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 		for (kr = 0; kr < atom->Nline; kr++) {
 			line = &atom->line[kr];
 			if (!line->PRD) continue;
 
-			Nlamu      = 2 * atmos.Nrays * line->Nlambda;
-			line->frac = matrix_double(Nlamu, atmos.Nspace);
-			line->id0  = matrix_int(Nlamu, atmos.Nspace);
-			line->id1  = matrix_int(Nlamu, atmos.Nspace);
+			Nlamu      = 2 * rh->atmos.Nrays * line->Nlambda;
+			line->frac = matrix_double(Nlamu, rh->atmos.Nspace);
+			line->id0  = matrix_int(Nlamu, rh->atmos.Nspace);
+			line->id1  = matrix_int(Nlamu, rh->atmos.Nspace);
 
 			for (la = 0; la < line->Nlambda; la++) {
-				for (mu = 0; mu < atmos.Nrays; mu++) {
+				for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 					for (to_obs = 0; to_obs <= 1; to_obs++) {
-						lamu = 2 * (atmos.Nrays * la + mu) + to_obs;
-						for (k = 0; k < atmos.Nspace; k++)
+						lamu = 2 * (rh->atmos.Nrays * la + mu) + to_obs;
+						for (k = 0; k < rh->atmos.Nspace; k++)
 							prdhRhoWeights(line, line->lambda[la] * prdhShift(mu, to_obs, k),
 										   &line->id0[lamu][k], &line->id1[lamu][k],
 										   &line->frac[lamu][k]);
@@ -203,45 +201,45 @@ void initPRDhTables(void)
 		   (wavelength, ray, direction, location) contributes to, as a
 		   running sum in spectrum.nc, then the points and weights -- */
 
-	Nlamuk      = 2L * atmos.Nrays * spectrum.Nspect * atmos.Nspace;
-	spectrum.nc = (long *) malloc(Nlamuk * sizeof(long));
-	if (spectrum.nc == NULL) {
+	Nlamuk          = 2L * rh->atmos.Nrays * rh->spectrum.Nspect * rh->atmos.Nspace;
+	rh->spectrum.nc = (long *) malloc(Nlamuk * sizeof(long));
+	if (rh->spectrum.nc == NULL) {
 		sprintf(messageStr,
 				"Unable to allocate the hybrid PRD interpolation table (%ld points)", Nlamuk);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	Ncoef = 0;
-	for (la = 0; la < spectrum.Nspect; la++) {
-		for (mu = 0; mu < atmos.Nrays; mu++) {
+	for (la = 0; la < rh->spectrum.Nspect; la++) {
+		for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 			for (to_obs = 0; to_obs <= 1; to_obs++) {
-				for (k = 0; k < atmos.Nspace; k++) {
+				for (k = 0; k < rh->atmos.Nspace; k++) {
 					prdhBracket(la, prdhShift(mu, to_obs, k), &b);
 					Ncoef += b.r[2] - b.r[0];
-					spectrum.nc[prdhIndex(la, mu, to_obs, k)] = Ncoef;
+					rh->spectrum.nc[prdhIndex(la, mu, to_obs, k)] = Ncoef;
 				}
 			}
 		}
 	}
-	spectrum.iprdh = (int *) malloc(MAX(Ncoef, 1) * sizeof(int));
-	spectrum.cprdh = (double *) malloc(MAX(Ncoef, 1) * sizeof(double));
-	if (spectrum.iprdh == NULL || spectrum.cprdh == NULL) {
+	rh->spectrum.iprdh = (int *) malloc(MAX(Ncoef, 1) * sizeof(int));
+	rh->spectrum.cprdh = (double *) malloc(MAX(Ncoef, 1) * sizeof(double));
+	if (rh->spectrum.iprdh == NULL || rh->spectrum.cprdh == NULL) {
 		sprintf(messageStr,
 				"Unable to allocate the hybrid PRD interpolation table"
 				" (%ld points, %ld coefficients)",
 				Nlamuk, Ncoef);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
-	for (la = 0; la < spectrum.Nspect; la++) {
-		for (mu = 0; mu < atmos.Nrays; mu++) {
+	for (la = 0; la < rh->spectrum.Nspect; la++) {
+		for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 			for (to_obs = 0; to_obs <= 1; to_obs++) {
-				for (k = 0; k < atmos.Nspace; k++) {
+				for (k = 0; k < rh->atmos.Nspace; k++) {
 					fac   = prdhShift(mu, to_obs, k);
 					lamuk = prdhIndex(la, mu, to_obs, k);
-					lc    = (lamuk == 0) ? 0 : spectrum.nc[lamuk - 1];
+					lc    = (lamuk == 0) ? 0 : rh->spectrum.nc[lamuk - 1];
 					prdhBracket(la, fac, &b);
 					for (idx = b.r[0]; idx < b.r[2]; idx++, lc++) {
-						spectrum.iprdh[lc] = (int) idx;
-						spectrum.cprdh[lc] = prdhWeight(&b, idx);
+						rh->spectrum.iprdh[lc] = (int) idx;
+						rh->spectrum.cprdh[lc] = prdhWeight(&b, idx);
 					}
 				}
 			}

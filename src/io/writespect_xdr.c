@@ -22,16 +22,13 @@
 #include "error.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern enum Topology topology;
-
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- writeSpectrum.c --------- */
 
@@ -46,11 +43,11 @@ void writeSpectrum(Spectrum *spectrum)
 	FILE   *fp_spectrum;
 	XDR     xdrs;
 
-	if (!strcmp(input.spectrum_output, "none")) return;
+	if (!strcmp(rh->input.spectrum_output, "none")) return;
 
-	if ((fp_spectrum = fopen(input.spectrum_output, "w")) == NULL) {
+	if ((fp_spectrum = fopen(rh->input.spectrum_output, "w")) == NULL) {
 		sprintf(messageStr, "Unable to open output file %s",
-				input.spectrum_output);
+				rh->input.spectrum_output);
 		Error(ERROR_LEVEL_1, routineName, messageStr);
 		return;
 	}
@@ -68,15 +65,15 @@ void writeSpectrum(Spectrum *spectrum)
 		result &= xdr_vector(&xdrs, (char *) spectrum->lambda, spectrum->Nspect,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 
-	switch (topology) {
+	switch (rh->topology) {
 	case ONE_D_PLANE:
-		Nintensity = atmos.Nrays * spectrum->Nspect;
+		Nintensity = rh->atmos.Nrays * spectrum->Nspect;
 		break;
 	case TWO_D_PLANE:
-		Nintensity = atmos.N[0] * atmos.Nrays * spectrum->Nspect;
+		Nintensity = rh->atmos.N[0] * rh->atmos.Nrays * spectrum->Nspect;
 		break;
 	case THREE_D_PLANE:
-		Nintensity = atmos.N[0] * atmos.N[1] * atmos.Nrays * spectrum->Nspect;
+		Nintensity = rh->atmos.N[0] * rh->atmos.N[1] * rh->atmos.Nrays * spectrum->Nspect;
 		break;
 	default:
 		Nintensity = 0;
@@ -88,7 +85,7 @@ void writeSpectrum(Spectrum *spectrum)
 	result &= xdr_bool(&xdrs, &spectrum->vacuum_to_air);
 	result &= xdr_double(&xdrs, &vacuum_to_air_limit);
 
-	if (atmos.Stokes || input.backgr_pol) {
+	if (rh->atmos.Stokes || rh->input.backgr_pol) {
 		result &= xdr_vector(&xdrs, (char *) spectrum->Stokes_Q[0], Nintensity,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		result &= xdr_vector(&xdrs, (char *) spectrum->Stokes_U[0], Nintensity,
@@ -99,7 +96,7 @@ void writeSpectrum(Spectrum *spectrum)
 
 	if (!result) {
 		sprintf(messageStr, "Unable to write proper amount to output file %s",
-				input.spectrum_output);
+				rh->input.spectrum_output);
 		Error(ERROR_LEVEL_1, routineName, messageStr);
 	}
 	xdr_destroy(&xdrs);
@@ -107,10 +104,10 @@ void writeSpectrum(Spectrum *spectrum)
 
 	/* --- Write angle-averaged mean intensity to file -- ------------- */
 
-	if (spectrum->updateJ && !input.limit_memory) {
+	if (spectrum->updateJ && !rh->input.limit_memory) {
 		if ((spectrum->fd_J =
-				 open(input.JFile, O_WRONLY | O_CREAT, PERMISSIONS)) == -1) {
-			sprintf(messageStr, "Unable to open output file %s", input.JFile);
+				 open(rh->input.JFile, O_WRONLY | O_CREAT, PERMISSIONS)) == -1) {
+			sprintf(messageStr, "Unable to open output file %s", rh->input.JFile);
 			Error(ERROR_LEVEL_1, routineName, messageStr);
 			return;
 		}
@@ -121,7 +118,7 @@ void writeSpectrum(Spectrum *spectrum)
 
 		/* --- Write the anisotropy J^2_0 in the z-direction -- --------- */
 
-		if (input.backgr_pol) {
+		if (rh->input.backgr_pol) {
 			if ((spectrum->fd_J20 =
 					 open(J20_DOT_OUT, O_WRONLY | O_CREAT, PERMISSIONS)) == -1) {
 				sprintf(messageStr, "Unable to open output file %s", J20_DOT_OUT);
@@ -135,8 +132,8 @@ void writeSpectrum(Spectrum *spectrum)
 		}
 		/* --- Write the mean intensity transformed to the gas frame -- - */
 
-		if (atmos.NPRDactive > 0 &&
-			input.PRD_angle_dep == PRD_ANGLE_APPROX) {
+		if (rh->atmos.NPRDactive > 0 &&
+			rh->input.PRD_angle_dep == PRD_ANGLE_APPROX) {
 
 			writeJgas(spectrum->Jgas);
 		}
@@ -157,7 +154,7 @@ void freeSpectrum(Spectrum *spectrum)
 
 	free(spectrum->lambda);
 
-	if (atmos.NPRDactive > 0 && input.PRD_angle_dep == PRD_ANGLE_DEP)
+	if (rh->atmos.NPRDactive > 0 && rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
 		free(spectrum->PRDindex);
 
 	free(spectrum->PRDrow);
@@ -165,33 +162,33 @@ void freeSpectrum(Spectrum *spectrum)
 	freeMatrix((void **) spectrum->I);
 	freeMatrix((void **) spectrum->J);
 
-	if (atmos.Stokes || input.backgr_pol) {
+	if (rh->atmos.Stokes || rh->input.backgr_pol) {
 		freeMatrix((void **) spectrum->Stokes_Q);
 		freeMatrix((void **) spectrum->Stokes_U);
 		freeMatrix((void **) spectrum->Stokes_V);
 	}
-	if (input.backgr_pol) freeMatrix((void **) spectrum->J20);
+	if (rh->input.backgr_pol) freeMatrix((void **) spectrum->J20);
 
 	for (nspect = 0; nspect < spectrum->Nspect; nspect++) {
 		as = &spectrum->as[nspect];
 
-		for (nact = 0; nact < atmos.Nactiveatom; nact++) {
+		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 			if (as->Nactiveatomrt[nact] > 0) {
 				free(as->art[nact]);
 				free(as->lower_levels[nact]);
 				free(as->upper_levels[nact]);
 			}
 		}
-		if (atmos.Nactiveatom > 0) free(as->art);
+		if (rh->atmos.Nactiveatom > 0) free(as->art);
 
 		/* --- Reallocate space for the molecular transition arrays -- -- */
 
-		for (nact = 0; nact < atmos.Nactivemol; nact++) {
+		for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 			if (as->Nactivemolrt[nact] > 0) {
 				free(as->mrt[nact]);
 			}
 		}
-		if (atmos.Nactivemol > 0) free(as->mrt);
+		if (rh->atmos.Nactivemol > 0) free(as->mrt);
 	}
 	free(spectrum->as);
 }

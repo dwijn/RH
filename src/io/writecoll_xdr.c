@@ -17,6 +17,7 @@
 #include "error.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -24,9 +25,7 @@ bool_t xdr_collrate(XDR *xdrs, Atom *atom);
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- writeCollisionRate.c ---- */
 
@@ -40,7 +39,7 @@ bool_t writeCollisionRate(Atom *atom)
 
 	/* --- Write collision rates --                      -------------- */
 
-	if (!strcmp(input.collrateFile, "none")) return FALSE;
+	if (!strcmp(rh->input.collrateFile, "none")) return FALSE;
 
 	sprintf(ratesfile, (atom->ID[1] == ' ') ? "collrate.%.1s.out" : "collrate.%.2s.out", atom->ID);
 
@@ -72,7 +71,7 @@ bool_t readCollisionRate(Atom *atom)
 	FILE *fp_rate;
 	XDR   xdrs;
 
-	if (!strcmp(input.collrateFile, "none")) return FALSE;
+	if (!strcmp(rh->input.collrateFile, "none")) return FALSE;
 
 	sprintf(ratesfile, (atom->ID[1] == ' ') ? "collrate.%.1s.out" : "collrate.%.2s.out", atom->ID);
 
@@ -104,7 +103,7 @@ bool_t xdr_collrate(XDR *xdrs, Atom *atom)
 	bool_t result = TRUE;
 
 	for (ij = 0; ij < SQ(atom->Nlevel); ij++) {
-		result &= xdr_vector(xdrs, (char *) atom->C[ij], atmos.Nspace,
+		result &= xdr_vector(xdrs, (char *) atom->C[ij], rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	}
 	return result;

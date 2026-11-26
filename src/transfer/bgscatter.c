@@ -117,14 +117,13 @@
 #include "error.h"
 #include "bgscatter.h"
 #include "geometryops.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern InputData input;
-extern Spectrum  spectrum;
-extern char      messageStr[];
+extern char messageStr[];
 
 #define L_MAX       0.9999
 #define COND_MAX    1.0E+08 /* as ANDERSON_COND_MAX */
@@ -141,7 +140,7 @@ static long            Nlinear;
 
 int bgScatterActive(void)
 {
-	return input.bg_NmaxIter > 0;
+	return rh->input.bg_NmaxIter > 0;
 }
 /* ------- end ---------------------------- bgScatterActive.c ------- */
 
@@ -157,43 +156,43 @@ void bgScatterSetup(void)
 		   background scattering keeps the lambda iteration, with a
 		   warning if BACKGROUND_N_MAX_ITER was set -- -------------- */
 
-	if (input.bg_NmaxIter == 0) return;
+	if (rh->input.bg_NmaxIter == 0) return;
 	if ((why = geometryOps.bg_supported()) != NULL) {
-		if (input.bg_NmaxIter_set) {
+		if (rh->input.bg_NmaxIter_set) {
 			sprintf(messageStr,
 					"BACKGROUND_N_MAX_ITER = %d is ignored: %s.\n"
 					" The background scattering is lambda iterated.",
-					input.bg_NmaxIter, why);
+					rh->input.bg_NmaxIter, why);
 			Error(WARNING, routineName, messageStr);
 		}
-		input.bg_NmaxIter = 0;
+		rh->input.bg_NmaxIter = 0;
 		return;
 	}
 	sprintf(messageStr,
 			" Background scattering iterated at each wavelength (N-51):"
 			" BACKGROUND_OPERATOR = %s,\n  BACKGROUND_ANDERSON_DEPTH = %d,"
 			" BACKGROUND_ITER_LIMIT = %.2E, BACKGROUND_N_MAX_ITER = %d\n",
-			(input.bg_operator == BG_OPERATOR_TRIDIAGONAL) ? "TRIDIAGONAL"
-														   : "DIAGONAL",
-			input.bg_depth, input.bg_iterLimit, input.bg_NmaxIter);
+			(rh->input.bg_operator == BG_OPERATOR_TRIDIAGONAL) ? "TRIDIAGONAL"
+															   : "DIAGONAL",
+			rh->input.bg_depth, rh->input.bg_iterLimit, rh->input.bg_NmaxIter);
 	Error(MESSAGE, routineName, messageStr);
 
 	/* --- The first sweep iterates every wavelength first -- ------ */
 
 	if (pending == NULL) {
-		pending = (unsigned char *) malloc(spectrum.Nspect);
-		memset(pending, 1, spectrum.Nspect);
-		kappa = (float *) calloc(spectrum.Nspect, sizeof(float));
+		pending = (unsigned char *) malloc(rh->spectrum.Nspect);
+		memset(pending, 1, rh->spectrum.Nspect);
+		kappa = (float *) calloc(rh->spectrum.Nspect, sizeof(float));
 	}
 
 	if (geometryOps.bg_linear_fallback() && linear == NULL) {
-		linear = (unsigned char *) calloc(spectrum.Nspect, 1);
+		linear = (unsigned char *) calloc(rh->spectrum.Nspect, 1);
 		sprintf(messageStr,
 				"  with S_INTERPOLATION = S_BEZIER3: wavelengths whose albedo"
 				" exceeds BACKGROUND_LINEAR_ALBEDO = %.2f\n  below vertical"
 				" optical depth BACKGROUND_LINEAR_TAU = %.2f use S_LINEAR"
 				" (N-52)\n",
-				input.bg_linearAlbedo, input.bg_linearTau);
+				rh->input.bg_linearAlbedo, rh->input.bg_linearTau);
 		Error(MESSAGE, routineName, messageStr);
 	}
 }
@@ -268,7 +267,7 @@ static void precondStep(int N, const double *u, const double *Jfs,
 		   tridiagonal system is singular, the Jacobi step. A point that
 		   would get J < 0 takes the lambda value Jfs -- ---------- */
 
-	if (input.bg_operator == BG_OPERATOR_TRIDIAGONAL) {
+	if (rh->input.bg_operator == BG_OPERATOR_TRIDIAGONAL) {
 		for (k = 0; k < N; k++) {
 			lo[k] = (k > 0) ? -A[3 * k] : 0.0;
 			d[k]  = 1.0 - A[3 * k + 1];
@@ -464,7 +463,7 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 {
 	register int k;
 
-	int m = input.bg_depth, niter = 0, converged = FALSE,
+	int m = rh->input.bg_depth, niter = 0, converged = FALSE,
 		Npairs = 0, inew = 0, fresh = FALSE;
 	long    start[2] = {0, Nspace};
 	double *u, *g, *un, *Jn, *An, *w, *gamma, *work, *hu, *hf, r,
@@ -491,7 +490,7 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 	/* --- Nothing to iterate where the error estimated from the step,
 		   with the last kappa, is below the limit -- -------------- */
 
-	if (errFactor(*kap, amax) * r <= input.bg_iterLimit) {
+	if (errFactor(*kap, amax) * r <= rh->input.bg_iterLimit) {
 		memcpy(J, g, Nspace * sizeof(double));
 		free(u);
 		return 0;
@@ -524,17 +523,17 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 			   and the span of so few differences misses the slowest
 			   mode -- --                                -------------- */
 
-		if (r <= input.bg_iterLimit) {
+		if (r <= rh->input.bg_iterLimit) {
 			kn    = fmax(secantKappa(Nspace, Npairs, inew, hu, hf, w,
 									 hf + KAPPA_PAIRS * Nspace),
 						 *kap);
 			fresh = TRUE;
-			if (errFactor(kn, amax) * r <= input.bg_iterLimit) {
+			if (errFactor(kn, amax) * r <= rh->input.bg_iterLimit) {
 				converged = TRUE;
 				break;
 			}
 		}
-		if (niter >= input.bg_NmaxIter) break;
+		if (niter >= rh->input.bg_NmaxIter) break;
 
 		/* --- The next point: Anderson, or the Jacobi step. An
 			   extrapolated J that is not positive takes g -- ----- */
@@ -643,7 +642,7 @@ void bgScatterAfter(int nspect, int Nspace, const double *u,
 	precondStep(Nspace, u, Jfs, A, g, g + Nspace);
 	if (errFactor(kappa[nspect], maxAlbedo(Nspace, albedo)) *
 			relChange(Nspace, u, g) >
-		input.bg_iterLimit)
+		rh->input.bg_iterLimit)
 		pending[nspect] = 1;
 	free(g);
 }
@@ -672,7 +671,7 @@ bool_t bgScatterLinear(int nspect, double albedo)
 
 	if (linear == NULL) return FALSE;
 	if (albedo < 0.0) return linear[nspect];
-	lin = (albedo > input.bg_linearAlbedo);
+	lin = (albedo > rh->input.bg_linearAlbedo);
 	if (lin != linear[nspect]) {
 		pthread_mutex_lock(&lock);
 		if (lin) {

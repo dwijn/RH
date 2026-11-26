@@ -24,9 +24,7 @@
 #include "atmos.h"
 #include "inputs.h"
 #include "check.h"
-
-extern InputData   input;
-extern CommandLine commandline;
+#include "state.h"
 
 bool_t RLKdet_level(char *label, RLK_level *level);
 
@@ -35,9 +33,9 @@ int main(void)
 	RLK_level level;
 	char      ok[] = "s6D)4d f7D", lower[] = "4d f7d", empty[] = "";
 
-	commandline.logfile = stderr;
-	commandline.quiet   = TRUE;
-	input.RLK_explicit  = FALSE;
+	rh->commandline.logfile = stderr;
+	rh->commandline.quiet   = TRUE;
+	rh->input.RLK_explicit  = FALSE;
 
 	memset(&level, 0, sizeof(level));
 	CHECK(RLKdet_level(ok, &level), "\"s6D)4d f7D\" not parsed");

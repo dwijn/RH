@@ -73,6 +73,7 @@ FORMAT(F11.4,F7.3,F6.2,F12.3,F5.2,1X,A10,F12.3,F5.2,1X,A10,
 #include "constant.h"
 #include "inputs.h"
 #include "error.h"
+#include "state.h"
 
 #define COMMENT_CHAR             "#"
 #define RLK_RECORD_LENGTH        160
@@ -113,9 +114,7 @@ static RLK_Tables rlk_tab = {NULL, NULL, NULL};
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- readKuruczLines.c ------- */
 
@@ -169,13 +168,13 @@ void readKuruczLines(char *inputFile)
 			if (*inputLine != *commentChar && *inputLine != '\n') Nline++;
 		rewind(fp_linelist);
 
-		if (atmos.Nrlk == 0) atmos.rlk_lines = NULL;
-		atmos.rlk_lines = (RLK_Line *)
-			realloc(atmos.rlk_lines, (Nline + atmos.Nrlk) * sizeof(RLK_Line));
+		if (rh->atmos.Nrlk == 0) rh->atmos.rlk_lines = NULL;
+		rh->atmos.rlk_lines = (RLK_Line *)
+			realloc(rh->atmos.rlk_lines, (Nline + rh->atmos.Nrlk) * sizeof(RLK_Line));
 
 		/* --- Read lines from file --                     -------------- */
 
-		rlk = atmos.rlk_lines + atmos.Nrlk;
+		rlk = rh->atmos.rlk_lines + rh->atmos.Nrlk;
 		while (fgets(inputLine, RLK_RECORD_LENGTH + 1, fp_linelist) != NULL) {
 			if (*inputLine != *commentChar && *inputLine != '\n') {
 
@@ -250,7 +249,7 @@ void readKuruczLines(char *inputFile)
 
 				determined       = (RLKdet_level(labeli, &rlk->level_i) &&
                               RLKdet_level(labelj, &rlk->level_j));
-				rlk->polarizable = (atmos.Stokes && determined);
+				rlk->polarizable = (rh->atmos.Stokes && determined);
 
 				/* --- Line broadening --                      -------------- */
 
@@ -347,7 +346,7 @@ void readKuruczLines(char *inputFile)
 		sprintf(messageStr, "Read %d Kurucz lines from file %s\n",
 				Nline, listName);
 		Error(MESSAGE, routineName, messageStr);
-		atmos.Nrlk += Nline;
+		rh->atmos.Nrlk += Nline;
 	}
 
 	fclose(fp_Kurucz);
@@ -447,7 +446,7 @@ void rlk_prepare(void)
 	register int k, n;
 
 	bool_t    hunt, unsold = FALSE;
-	int       Nelem = atmos.Nelem;
+	int       Nelem = rh->atmos.Nelem;
 	double    vtherm;
 	Element  *element;
 	RLK_Line *rlk;
@@ -463,9 +462,9 @@ void rlk_prepare(void)
 	rlk_tab.vbroad = (double **) calloc(Nelem, sizeof(double *));
 	rlk_tab.T03    = NULL;
 
-	for (n = 0; n < atmos.Nrlk; n++) {
-		rlk     = &atmos.rlk_lines[n];
-		element = &atmos.elements[rlk->pt_index - 1];
+	for (n = 0; n < rh->atmos.Nrlk; n++) {
+		rlk     = &rh->atmos.rlk_lines[n];
+		element = &rh->atmos.elements[rlk->pt_index - 1];
 
 		/* --- Same condition as in rlk_opacity --       -------------- */
 
@@ -473,7 +472,7 @@ void rlk_prepare(void)
 			continue;
 
 		if (element->n == NULL) {
-			element->n = matrix_double(element->Nstage, atmos.Nspace);
+			element->n = matrix_double(element->Nstage, rh->atmos.Nspace);
 			LTEpops_elem(element);
 		}
 		if (rlk->polarizable && rlk->zm == NULL) RLKZeeman(rlk);
@@ -483,25 +482,25 @@ void rlk_prepare(void)
 				(double **) calloc(element->Nstage, sizeof(double *));
 
 		if (rlk_tab.lnU[rlk->pt_index - 1][rlk->stage] == NULL) {
-			double *pf = (double *) malloc(atmos.Nspace * sizeof(double));
-			Linear(atmos.Npf, atmos.Tpf, element->pf[rlk->stage],
-				   atmos.Nspace, atmos.T, pf, hunt = TRUE);
+			double *pf = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+			Linear(rh->atmos.Npf, rh->atmos.Tpf, element->pf[rlk->stage],
+				   rh->atmos.Nspace, rh->atmos.T, pf, hunt = TRUE);
 			rlk_tab.lnU[rlk->pt_index - 1][rlk->stage] = pf;
 		}
 		if (rlk_tab.vbroad[rlk->pt_index - 1] == NULL) {
-			double *vb = (double *) malloc(atmos.Nspace * sizeof(double));
+			double *vb = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 			vtherm = 2.0 * KBOLTZMANN / (AMU * element->weight);
-			for (k = 0; k < atmos.Nspace; k++)
-				vb[k] = sqrt(vtherm * atmos.T[k] + SQ(atmos.vturb[k]));
+			for (k = 0; k < rh->atmos.Nspace; k++)
+				vb[k] = sqrt(vtherm * rh->atmos.T[k] + SQ(rh->atmos.vturb[k]));
 			rlk_tab.vbroad[rlk->pt_index - 1] = vb;
 		}
 		if (rlk->Grad && rlk->vdwaals == UNSOLD) unsold = TRUE;
 	}
 	if (unsold) {
-		rlk_tab.T03 = (double *) malloc(atmos.Nspace * sizeof(double));
-		for (k = 0; k < atmos.Nspace; k++)
-			rlk_tab.T03[k] = pow(atmos.T[k], 0.3);
+		rlk_tab.T03 = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		for (k = 0; k < rh->atmos.Nspace; k++)
+			rlk_tab.T03[k] = pow(rh->atmos.T[k], 0.3);
 	}
 }
 /* ------- end ---------------------------- rlk_prepare.c ---------- */
@@ -517,9 +516,9 @@ void rlk_cleanup(void)
 		   Nstage of each element bounds the scan. --  -------------- */
 
 	if (rlk_tab.lnU != NULL) {
-		for (n = 0; n < atmos.Nelem; n++) {
+		for (n = 0; n < rh->atmos.Nelem; n++) {
 			if (rlk_tab.lnU[n] != NULL) {
-				for (i = 0; i < atmos.elements[n].Nstage; i++)
+				for (i = 0; i < rh->atmos.elements[n].Nstage; i++)
 					free(rlk_tab.lnU[n][i]);
 				free(rlk_tab.lnU[n]);
 			}
@@ -527,7 +526,7 @@ void rlk_cleanup(void)
 		free(rlk_tab.lnU);
 	}
 	if (rlk_tab.vbroad != NULL) {
-		for (n = 0; n < atmos.Nelem; n++) free(rlk_tab.vbroad[n]);
+		for (n = 0; n < rh->atmos.Nelem; n++) free(rlk_tab.vbroad[n]);
 		free(rlk_tab.vbroad);
 	}
 	free(rlk_tab.T03);
@@ -570,9 +569,9 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 
 	/* --- If wavelength outside our list return without calculation -- */
 
-	dlamb_char = lambda * Q_WING * (atmos.vmicro_char / CLIGHT);
-	if (lambda < atmos.rlk_lines[0].lambda0 - dlamb_char ||
-		lambda > atmos.rlk_lines[atmos.Nrlk - 1].lambda0 + dlamb_char) {
+	dlamb_char = lambda * Q_WING * (rh->atmos.vmicro_char / CLIGHT);
+	if (lambda < rh->atmos.rlk_lines[0].lambda0 - dlamb_char ||
+		lambda > rh->atmos.rlk_lines[rh->atmos.Nrlk - 1].lambda0 + dlamb_char) {
 		return backgrflags;
 	}
 
@@ -580,7 +579,7 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 	fourPI = 4.0 * PI;
 	hc_4PI = hc / fourPI;
 
-	if (input.rlkscatter) {
+	if (rh->input.rlkscatter) {
 		C = 2 * PI * (Q_ELECTRON / EPSILON_0) *
 			(Q_ELECTRON / M_ELECTRON) / CLIGHT;
 		C2_atom = 2.15E-6;
@@ -590,54 +589,54 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 	/* --- locate wavelength lambda in table of lines -- -------------- */
 
 	Nwhite = 0;
-	rlk_locate(atmos.Nrlk, atmos.rlk_lines, lambda, &Nwhite);
+	rlk_locate(rh->atmos.Nrlk, rh->atmos.rlk_lines, lambda, &Nwhite);
 	Nblue = Nwhite;
-	while (atmos.rlk_lines[Nblue].lambda0 + dlamb_char > lambda &&
+	while (rh->atmos.rlk_lines[Nblue].lambda0 + dlamb_char > lambda &&
 		   Nblue > 0) Nblue--;
 	Nred = Nwhite;
-	while (atmos.rlk_lines[Nred].lambda0 - dlamb_char < lambda &&
-		   Nred < atmos.Nrlk - 1) Nred++;
+	while (rh->atmos.rlk_lines[Nred].lambda0 - dlamb_char < lambda &&
+		   Nred < rh->atmos.Nrlk - 1) Nred++;
 
 	/* --- Initialize the contribution for this wavelength and angle -- */
 
 	if (Nred >= Nblue) {
-		if (atmos.Stokes) {
+		if (rh->atmos.Stokes) {
 			NrecStokes = 4;
 
 			/* --- Use pointers to sub-arrays for Q, U, and V -- ---------- */
 
-			chi_Q = chi + atmos.Nspace;
-			chi_U = chi + 2 * atmos.Nspace;
-			chi_V = chi + 3 * atmos.Nspace;
+			chi_Q = chi + rh->atmos.Nspace;
+			chi_U = chi + 2 * rh->atmos.Nspace;
+			chi_V = chi + 3 * rh->atmos.Nspace;
 
-			eta_Q = eta + atmos.Nspace;
-			eta_U = eta + 2 * atmos.Nspace;
-			eta_V = eta + 3 * atmos.Nspace;
+			eta_Q = eta + rh->atmos.Nspace;
+			eta_U = eta + 2 * rh->atmos.Nspace;
+			eta_V = eta + 3 * rh->atmos.Nspace;
 
-			if (input.magneto_optical) {
+			if (rh->input.magneto_optical) {
 				chip_Q = chip;
-				chip_U = chip + atmos.Nspace;
-				chip_V = chip + 2 * atmos.Nspace;
+				chip_U = chip + rh->atmos.Nspace;
+				chip_V = chip + 2 * rh->atmos.Nspace;
 
-				for (k = 0; k < 3 * atmos.Nspace; k++) chip[k] = 0.0;
+				for (k = 0; k < 3 * rh->atmos.Nspace; k++) chip[k] = 0.0;
 			}
 		} else
 			NrecStokes = 1;
 
-		for (k = 0; k < NrecStokes * atmos.Nspace; k++) {
+		for (k = 0; k < NrecStokes * rh->atmos.Nspace; k++) {
 			chi[k] = 0.0;
 			eta[k] = 0.0;
 		}
-		if (input.rlkscatter) {
-			for (k = 0; k < atmos.Nspace; k++) scatt[k] = 0.0;
+		if (rh->input.rlkscatter) {
+			for (k = 0; k < rh->atmos.Nspace; k++) scatt[k] = 0.0;
 		}
 	}
 	/* --- Add opacities from lines at this wavelength -- ------------- */
 
 	for (n = Nblue; n <= Nred; n++) {
-		rlk = &atmos.rlk_lines[n];
+		rlk = &rh->atmos.rlk_lines[n];
 		if (fabs(rlk->lambda0 - lambda) <= dlamb_char) {
-			element = &atmos.elements[rlk->pt_index - 1];
+			element = &rh->atmos.elements[rlk->pt_index - 1];
 
 			/* --- Check whether partition function is present for this
 			   stage, and if abundance is set --         -------------- */
@@ -652,7 +651,7 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 					for (kr = 0; kr < metal->Nline; kr++) {
 						line       = metal->line + kr;
 						dlamb_wing = line->lambda0 * line->qwing *
-									 (atmos.vmicro_char / CLIGHT);
+									 (rh->atmos.vmicro_char / CLIGHT);
 						if (fabs(lambda - line->lambda0) <= dlamb_wing &&
 							metal->stage[line->i] == rlk->stage) {
 							contributes = FALSE;
@@ -671,7 +670,7 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 							rlk->hyperfine_frac * rlk->level_i.g;
 				twohnu3_c2 = rlk->Aji / rlk->Bji;
 
-				if (input.rlkscatter) {
+				if (rh->input.rlkscatter) {
 					if (rlk->stage == 0) {
 						x  = 0.68;
 						C3 = C / (C2_atom * SQ(rlk->lambda0 * NM_TO_M));
@@ -693,13 +692,13 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 
 				pf = rlk_tab.lnU[rlk->pt_index - 1][rlk->stage];
 
-				for (k = 0; k < atmos.Nspace; k++) {
+				for (k = 0; k < rh->atmos.Nspace; k++) {
 					phi = RLKProfile(rlk, k, mu, to_obs, lambda,
 									 &phi_Q, &phi_U, &phi_V,
 									 &psi_Q, &psi_U, &psi_V);
 
 					if (phi) {
-						kT    = 1.0 / (KBOLTZMANN * atmos.T[k]);
+						kT    = 1.0 / (KBOLTZMANN * rh->atmos.T[k]);
 						ni_gi = element->n[rlk->stage][k] *
 								exp(-rlk->level_i.E * kT - pf[k]);
 						nj_gj = ni_gi * exp(-hc_la * kT);
@@ -707,10 +706,10 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 						chi_l = Bijhc_4PI * (ni_gi - nj_gj);
 						eta_l = Bijhc_4PI * twohnu3_c2 * nj_gj;
 
-						if (input.rlkscatter) {
-							epsilon = 1.0 / (1.0 + C3 * pow(atmos.T[k], 1.5) /
-													   (atmos.ne[k] *
-														pow(KBOLTZMANN * atmos.T[k] / dE, 1 + x)));
+						if (rh->input.rlkscatter) {
+							epsilon = 1.0 / (1.0 + C3 * pow(rh->atmos.T[k], 1.5) /
+													   (rh->atmos.ne[k] *
+														pow(KBOLTZMANN * rh->atmos.T[k] / dE, 1 + x)));
 
 							scatt[k] += (1.0 - epsilon) * chi_l * phi;
 							chi_l *= epsilon;
@@ -729,7 +728,7 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 							eta_U[k] += eta_l * phi_U;
 							eta_V[k] += eta_l * phi_V;
 
-							if (input.magneto_optical) {
+							if (rh->input.magneto_optical) {
 								chip_Q[k] += chi_l * psi_Q;
 								chip_U[k] += chi_l * psi_U;
 								chip_V[k] += chi_l * psi_V;
@@ -764,7 +763,7 @@ double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
 	vbroad = rlk_tab.vbroad[rlk->pt_index - 1][k];
 
 	v = (lambda / rlk->lambda0 - 1.0) * CLIGHT / vbroad;
-	if (atmos.moving) {
+	if (rh->atmos.moving) {
 		if (to_obs)
 			v += vproject(k, mu) / vbroad;
 		else
@@ -779,16 +778,16 @@ double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
 			break;
 
 		case BARKLEM:
-			GvdW = rlk->cross * pow(atmos.T[k], (1.0 - rlk->alpha) / 2.0);
+			GvdW = rlk->cross * pow(rh->atmos.T[k], (1.0 - rlk->alpha) / 2.0);
 			break;
 
 		default:
 			GvdW = rlk->GvdWaals;
 			break;
 		}
-		np    = atmos.H->n[atmos.H->Nlevel - 1];
-		adamp = (rlk->Grad + rlk->GStark * atmos.ne[k] +
-				 GvdW * (atmos.nHtot[k] - np[k])) *
+		np    = rh->atmos.H->n[rh->atmos.H->Nlevel - 1];
+		adamp = (rlk->Grad + rlk->GStark * rh->atmos.ne[k] +
+				 GvdW * (rh->atmos.nHtot[k] - np[k])) *
 				(rlk->lambda0 * NM_TO_M) / (4.0 * PI * vbroad);
 	} else {
 		phi = (fabs(v) <= MAX_GAUSS_DOPPLER) ? exp(-v * v) : 0.0;
@@ -796,8 +795,8 @@ double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
 	}
 
 	if (rlk->polarizable) {
-		sin2_gamma = 1.0 - SQ(atmos.cos_gamma[mu][k]);
-		vB         = (LARMOR * rlk->lambda0) * atmos.B[k] / vbroad;
+		sin2_gamma = 1.0 - SQ(rh->atmos.cos_gamma[mu][k]);
+		vB         = (LARMOR * rlk->lambda0) * rh->atmos.B[k] / vbroad;
 		sign       = (to_obs) ? 1.0 : -1.0;
 
 		phi_sm = phi_pi = phi_sp = 0.0;
@@ -825,17 +824,17 @@ double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
 
 		phi = (phi_delta * sin2_gamma + 0.5 * phi_sigma) * sv;
 
-		*phi_Q = sign * phi_delta * sin2_gamma * atmos.cos_2chi[mu][k] * sv;
-		*phi_U = phi_delta * sin2_gamma * atmos.sin_2chi[mu][k] * sv;
-		*phi_V = sign * 0.5 * (phi_sp - phi_sm) * atmos.cos_gamma[mu][k] * sv;
+		*phi_Q = sign * phi_delta * sin2_gamma * rh->atmos.cos_2chi[mu][k] * sv;
+		*phi_U = phi_delta * sin2_gamma * rh->atmos.sin_2chi[mu][k] * sv;
+		*phi_V = sign * 0.5 * (phi_sp - phi_sm) * rh->atmos.cos_gamma[mu][k] * sv;
 
-		if (input.magneto_optical) {
+		if (rh->input.magneto_optical) {
 			psi_sigma = psi_sp + psi_sm;
 			psi_delta = 0.5 * psi_pi - 0.25 * psi_sigma;
 
-			*psi_Q = sign * psi_delta * sin2_gamma * atmos.cos_2chi[mu][k] * sv;
-			*psi_U = psi_delta * sin2_gamma * atmos.sin_2chi[mu][k] * sv;
-			*psi_V = sign * 0.5 * (psi_sp - psi_sm) * atmos.cos_gamma[mu][k] * sv;
+			*psi_Q = sign * psi_delta * sin2_gamma * rh->atmos.cos_2chi[mu][k] * sv;
+			*psi_U = psi_delta * sin2_gamma * rh->atmos.sin_2chi[mu][k] * sv;
+			*psi_V = sign * 0.5 * (psi_sp - psi_sm) * rh->atmos.cos_gamma[mu][k] * sv;
 		}
 	} else
 		phi = Voigt(adamp, v, NULL) * sv;
@@ -965,7 +964,7 @@ bool_t RLKdet_level(char *label, RLK_level *level)
 
 	   --                                                -------------- */
 
-	if (!input.RLK_explicit) {
+	if (!rh->input.RLK_explicit) {
 
 		words = getWords(label, " ", &count);
 		if (words[0]) {
@@ -1108,8 +1107,8 @@ void getUnsoldcross(RLK_Line *rlk)
 	double   Z, deltaR, vrel35_H, vrel35_He, C625;
 	Element *element, *He;
 
-	element = &atmos.elements[rlk->pt_index - 1];
-	He      = &atmos.elements[1];
+	element = &rh->atmos.elements[rlk->pt_index - 1];
+	He      = &rh->atmos.elements[1];
 
 	if (rlk->stage > element->Nstage - 1) {
 		rlk->vdwaals = KURUCZ;
@@ -1126,7 +1125,7 @@ void getUnsoldcross(RLK_Line *rlk)
 	}
 
 	vrel35_H  = pow(8.0 * KBOLTZMANN / (PI * AMU * element->weight) *
-						(1.0 + element->weight / atmos.H->weight),
+						(1.0 + element->weight / rh->atmos.H->weight),
 					0.3);
 	vrel35_He = pow(8.0 * KBOLTZMANN / (PI * AMU * element->weight) *
 						(1.0 + element->weight / He->weight),

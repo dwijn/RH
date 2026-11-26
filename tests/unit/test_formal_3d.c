@@ -35,11 +35,7 @@
 
 #define CONE_BOUND (1.0 + 1.0e-12)
 #include "stokes_exact.h"
-
-extern InputData   input;
-extern CommandLine commandline;
-extern Atmosphere  atmos;
-extern Spectrum    spectrum;
+#include "state.h"
 
 /* --- Rays (mux, muy, muz) in different octants and a vertical one - */
 
@@ -222,8 +218,8 @@ static void check_method(const Method *m, bool_t verbose)
 {
 	const double lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
 
-	input.S_interpolation = m->S_interpolation;
-	input.interpolate_3D  = m->interpolate_3D;
+	rh->input.S_interpolation = m->S_interpolation;
+	rh->input.interpolate_3D  = m->interpolate_3D;
 
 	for (int mesh = 0; mesh < NMESH; mesh++) {
 		Slab      **sl = &slabs[m->interpolate_3D][0][0];
@@ -272,12 +268,12 @@ static double **stokes_S[NINTERP][NMESH], **stokes_I[NINTERP][NMESH];
 static void stokes_set(Slab *slab, double **Sv, const double s[NPOLY], double kscale)
 {
 	int        Nspace = NX * NY * slab->Nz;
-	ActiveSet *as     = &spectrum.as[0];
+	ActiveSet *as     = &rh->spectrum.as[0];
 	Mat        K;
 
-	atmos.Nspace = Nspace;
-	as->chi_c    = realloc(as->chi_c, 4 * Nspace * sizeof(double));
-	as->chip_c   = realloc(as->chip_c, 3 * Nspace * sizeof(double));
+	rh->atmos.Nspace = Nspace;
+	as->chi_c        = realloc(as->chi_c, 4 * Nspace * sizeof(double));
+	as->chip_c       = realloc(as->chip_c, 3 * Nspace * sizeof(double));
 	full_K(K_ELEMENTS, kscale, K);
 	set_source(slab, s);
 	for (int n = 0; n < Nspace; n++) {
@@ -309,19 +305,19 @@ static void set_boundary(Slab *slab, const double s[NPOLY], int mu)
 
 static void check_stokes(bool_t verbose)
 {
-	const enum S_interpol lc_saved   = input.S_interpolation_longchar;
+	const enum S_interpol lc_saved   = rh->input.S_interpolation_longchar;
 	const double          lin[NPOLY] = {1.0, 2.0, 0.0, 0.0}, cub[NPOLY] = {1.0, 1.0, 0.5, 0.1};
 	int                   Nplane = NX * NY;
 
-	spectrum.as                      = calloc(1, sizeof(ActiveSet));
-	atmos.backgrflags                = calloc(1, sizeof(flags));
-	atmos.backgrflags[0].ispolarized = TRUE;
-	input.magneto_optical            = TRUE;
-	input.S_interpolation            = S_BEZIER3;
-	input.S_interpolation_stokes     = DELO_BEZIER3;
+	rh->spectrum.as                      = calloc(1, sizeof(ActiveSet));
+	rh->atmos.backgrflags                = calloc(1, sizeof(flags));
+	rh->atmos.backgrflags[0].ispolarized = TRUE;
+	rh->input.magneto_optical            = TRUE;
+	rh->input.S_interpolation            = S_BEZIER3;
+	rh->input.S_interpolation_stokes     = DELO_BEZIER3;
 
 	for (int i = 0; i < NINTERP; i++) {
-		input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
+		rh->input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
 		for (int mesh = 0; mesh < NMESH; mesh++) {
 			Slab    *slab   = slabs[i][1][mesh];
 			int      Nspace = Nplane * slab->Nz;
@@ -334,7 +330,7 @@ static void check_stokes(bool_t verbose)
 			for (int lc = 0; lc < 2; lc++) {
 				const char *lcname = lc ? "BEZIER3" : "LINEAR";
 
-				input.S_interpolation_longchar = lc ? S_BEZIER3 : S_LINEAR;
+				rh->input.S_interpolation_longchar = lc ? S_BEZIER3 : S_LINEAR;
 				double unpol = 0.0, quv = 0.0, lin_err = 0.0;
 				Mat    K;
 
@@ -378,7 +374,7 @@ static void check_stokes(bool_t verbose)
 			}
 		}
 	}
-	input.S_interpolation_longchar = lc_saved;
+	rh->input.S_interpolation_longchar = lc_saved;
 }
 
 /* --- Positions of the long-characteristic points (B-52, B-53): x, y and z
@@ -432,7 +428,7 @@ static void check_longchar_positions_rays(bool_t verbose, int set,
 	const int N = 128, Nz = 17, Nplane = N * N, Nspace = Nplane * Nz, k = 8,
 			  l = 64, m = 64;
 	const double  dx = 1.0 / 64, dtau = 0.25;
-	enum order_3D saved = input.interpolate_3D;
+	enum order_3D saved = rh->input.interpolate_3D;
 	double       *xyz[3];
 	int           Noblique = 0;
 
@@ -444,7 +440,7 @@ static void check_longchar_positions_rays(bool_t verbose, int set,
 		Geometry   *geo = pos_mesh[set][i] = calloc(1, sizeof(Geometry));
 		const char *iname                  = (i == 0) ? "linear" : "bicubic";
 
-		input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
+		rh->input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
 		geo->x_boundary = geo->y_boundary = PERIODIC;
 		geo->Nx = geo->Ny = N;
 		geo->Nz           = Nz;
@@ -545,7 +541,7 @@ static void check_longchar_positions_rays(bool_t verbose, int set,
 		}
 	}
 	for (int c = 0; c < 3; c++) free(xyz[c]);
-	input.interpolate_3D = saved;
+	rh->input.interpolate_3D = saved;
 }
 
 /* --- The Stokes cone (B-63), as in test_formal_2d: per column in x
@@ -560,11 +556,11 @@ static const double CONE_I[NX] = {27.0, 1.0, 30.0, 200.0}, CONE_Q[NX] = {-26.9, 
 
 static void check_cone(bool_t verbose)
 {
-	ActiveSet *as     = &spectrum.as[0];
+	ActiveSet *as     = &rh->spectrum.as[0];
 	int        Nplane = NX * NY;
 
 	for (int i = 0; i < NINTERP; i++) {
-		input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
+		rh->input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
 		for (int mesh = 0; mesh < NMESH; mesh++) {
 			Slab    *slab   = slabs[i][1][mesh];
 			int      Nspace = Nplane * slab->Nz;
@@ -572,9 +568,9 @@ static void check_cone(bool_t verbose)
 				   Imin = HUGE_VAL;
 			double *chi = malloc(Nspace * sizeof(double));
 
-			atmos.Nspace = Nspace;
-			as->chi_c    = realloc(as->chi_c, 4 * Nspace * sizeof(double));
-			as->chip_c   = realloc(as->chip_c, 3 * Nspace * sizeof(double));
+			rh->atmos.Nspace = Nspace;
+			as->chi_c        = realloc(as->chi_c, 4 * Nspace * sizeof(double));
+			as->chip_c       = realloc(as->chip_c, 3 * Nspace * sizeof(double));
 			for (int n = 0; n < Nspace; n++) {
 				int l = n % NX;
 
@@ -623,15 +619,15 @@ static void check_psi_bound(bool_t verbose)
 {
 	int Nplane = NX * NY;
 
-	input.S_interpolation = S_BEZIER3;
+	rh->input.S_interpolation = S_BEZIER3;
 	for (int i = 0; i < NINTERP; i++) {
-		input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
+		rh->input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
 		for (int m = 0; m < NMESH; m++) {
 			Slab  *slab   = slabs[i][0][m];
 			int    Nspace = Nplane * slab->Nz;
 			double worst = -1.0, *Psi = malloc(Nspace * sizeof(double));
 
-			atmos.Nspace = Nspace;
+			rh->atmos.Nspace = Nspace;
 			for (int profile = 0; profile < 3; profile++) {
 				unsigned int seed  = 24680u + profile;
 				double       scale = (profile == 1) ? 1.0e6 : 1.0;
@@ -680,11 +676,11 @@ int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
 
-	commandline.logfile = stdout;
-	commandline.quiet   = !verbose;
+	rh->commandline.logfile = stdout;
+	rh->commandline.quiet   = !verbose;
 
 	for (int i = 0; i < NINTERP; i++) {
-		input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
+		rh->input.interpolate_3D = (i == 0) ? LINEAR_3D : BICUBIC_3D;
 		for (int r = 0; r < NREFINE; r++)
 			for (int m = 0; m < NMESH; m++)
 				slabs[i][r][m] = slab_new(40 * (1 << r) + 1, mesh_dx[m]);

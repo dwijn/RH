@@ -17,14 +17,15 @@
 #include "atom.h"
 #include "atmos.h"
 #include "inputs.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-CommandLine commandline;
-InputData   input;
-char        messageStr[MAX_LINE_SIZE];
+static RHState rh_state;
+RHState *const rh = &rh_state;
+char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- avgmolweight.c ---------- */
 
@@ -32,16 +33,16 @@ int main(int argc, char *argv[])
 {
 	Atmosphere atmos;
 
-	commandline.quiet   = FALSE;
-	commandline.logfile = stderr;
+	rh->commandline.quiet   = FALSE;
+	rh->commandline.logfile = stderr;
 
 	if (argc < 2) {
 		fprintf(stderr, "Usage: %s abund_file Kurucz_pf_file\n", argv[0]);
 		exit(0);
 	}
-	strcpy(input.abund_input, argv[1]);
-	strcpy(input.KuruczData, "none");
-	strcpy(input.pfData, argv[2]);
+	strcpy(rh->input.abund_input, argv[1]);
+	strcpy(rh->input.KuruczData, "none");
+	strcpy(rh->input.pfData, argv[2]);
 	readAbundance(&atmos);
 	fprintf(stderr, "\n  The average weight per Hydrogen atom for \n"
 					"  abundance file %s is %6.4f",

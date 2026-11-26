@@ -48,6 +48,7 @@
 #include "atmos.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 #define COMMENT_CHAR "#"
 
@@ -57,9 +58,7 @@ int pthread_setconcurrency(int new_level);
 
 /* --- Global variables --                             -------------- */
 
-extern InputData   input;
-extern CommandLine commandline;
-extern char        messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- readValues.c ------------ */
 
@@ -310,17 +309,17 @@ void setThreadValue(char *value, void *pointer)
 			  - SCHED_OTHER             for scheduling policy
 		  ---                                          -------------- */
 
-		pthread_attr_init(&input.thread_attr);
+		pthread_attr_init(&rh->input.thread_attr);
 
-		if (pthread_attr_setscope(&input.thread_attr, PTHREAD_SCOPE_PROCESS))
+		if (pthread_attr_setscope(&rh->input.thread_attr, PTHREAD_SCOPE_PROCESS))
 			Error(WARNING, routineName, "Non-default thread scope");
-		if (pthread_attr_setdetachstate(&input.thread_attr,
+		if (pthread_attr_setdetachstate(&rh->input.thread_attr,
 										PTHREAD_CREATE_JOINABLE))
 			Error(WARNING, routineName, "Non-default thread detach state");
-		if (pthread_attr_setinheritsched(&input.thread_attr,
+		if (pthread_attr_setinheritsched(&rh->input.thread_attr,
 										 PTHREAD_INHERIT_SCHED))
 			Error(WARNING, routineName, "Non-default thread scheduling inheritance");
-		if (pthread_attr_setschedpolicy(&input.thread_attr, SCHED_OTHER))
+		if (pthread_attr_setschedpolicy(&rh->input.thread_attr, SCHED_OTHER))
 			Error(WARNING, routineName, "Non-default thread scheduling policy");
 
 		/* --- Suggest thread concurrency to the operating system -- ---- */

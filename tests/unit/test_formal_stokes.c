@@ -55,11 +55,7 @@
 #include "bezier.h"
 #include "check.h"
 #include "stokes_exact.h"
-
-extern Geometry   geometry;
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
+#include "state.h"
 
 void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs, double *chi,
 						  double *S, double *I, double *Psi);
@@ -96,11 +92,11 @@ static void slab_init(Slab *slab, int Ndep, bool_t vary, double kscale)
 	slab->S    = matrix_double(4, Ndep);
 	slab->I    = matrix_double(4, Ndep);
 
-	geometry.Ndep   = Ndep;
-	atmos.Nspace    = Ndep;
-	geometry.height = realloc(geometry.height, Ndep * sizeof(double));
+	rh->geometry->Ndep   = Ndep;
+	rh->atmos.Nspace     = Ndep;
+	rh->geometry->height = realloc(rh->geometry->height, Ndep * sizeof(double));
 
-	ActiveSet *as = &spectrum.as[0];
+	ActiveSet *as = &rh->spectrum.as[0];
 	as->chi_c     = realloc(as->chi_c, 4 * Ndep * sizeof(double));
 	as->chip_c    = realloc(as->chip_c, 3 * Ndep * sizeof(double));
 
@@ -108,9 +104,9 @@ static void slab_init(Slab *slab, int Ndep, bool_t vary, double kscale)
 		double t = TAU_MIN * pow(TAU_MAX / TAU_MIN, (double) k / (Ndep - 1)),
 			   f = kscale * K_scale(slab, t);
 
-		slab->tau[k]       = t;
-		slab->chi[k]       = 1.0;
-		geometry.height[k] = -t;
+		slab->tau[k]            = t;
+		slab->chi[k]            = 1.0;
+		rh->geometry->height[k] = -t;
 
 		/* --- StokesK: K[0][1..3] = chi_c[Q,U,V], K[1][2] = chip_c[2N]
 			   (rho_V), K[1][3] = -chip_c[N] (rho_U), K[2][3] = chip_c[0]
@@ -146,10 +142,10 @@ static void set_source(Slab *slab, const double s[NPOLY], double kscale)
 		for (int n = 0; n < 4; n++) slab->S[n][k] = K[n][0] * St;
 	}
 	for (int mu = 0; mu < NMU; mu++) {
-		geometry.Itop[0][mu]    = 0.0;
-		geometry.Ibottom[0][mu] = S_deriv(s, 0, TAU_MAX) + mus[mu] * s[1] +
-								  2.0 * mus[mu] * mus[mu] * s[2] +
-								  6.0 * pow(mus[mu], 3) * s[3];
+		rh->geometry->Itop[0][mu]    = 0.0;
+		rh->geometry->Ibottom[0][mu] = S_deriv(s, 0, TAU_MAX) + mus[mu] * s[1] +
+									   2.0 * mus[mu] * mus[mu] * s[2] +
+									   6.0 * pow(mus[mu], 3) * s[3];
 	}
 }
 
@@ -464,8 +460,8 @@ static void set_profile(Slab *slab, int p, const double e[6])
 		for (int n = 1; n < 4; n++) slab->S[n][k] = e[n - 1] * s;
 	}
 	for (int mu = 0; mu < NMU; mu++) {
-		geometry.Itop[0][mu]    = 0.0;
-		geometry.Ibottom[0][mu] = slab->S[0][N - 1];
+		rh->geometry->Itop[0][mu]    = 0.0;
+		rh->geometry->Ibottom[0][mu] = slab->S[0][N - 1];
 	}
 }
 
@@ -481,7 +477,7 @@ static void check_psi_bound(bool_t verbose)
 	for (int s = 0; s < 3; s++) {
 		static const double zero[6] = {0.0};
 		const double       *e       = eset[s] ? eset[s] : zero;
-		ActiveSet          *as      = &spectrum.as[0];
+		ActiveSet          *as      = &rh->spectrum.as[0];
 		int                 N       = slab.Ndep;
 
 		for (int k = 0; k < N; k++) {
@@ -512,17 +508,17 @@ int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
 
-	geometry.Nrays             = NMU;
-	geometry.muz               = mus;
-	geometry.Itop              = matrix_double(1, NMU);
-	geometry.Ibottom           = matrix_double(1, NMU);
-	geometry.vboundary[TOP]    = ZERO;
-	geometry.vboundary[BOTTOM] = IRRADIATED;
+	rh->geometry->Nrays             = NMU;
+	rh->geometry->muz               = mus;
+	rh->geometry->Itop              = matrix_double(1, NMU);
+	rh->geometry->Ibottom           = matrix_double(1, NMU);
+	rh->geometry->vboundary[TOP]    = ZERO;
+	rh->geometry->vboundary[BOTTOM] = IRRADIATED;
 
-	spectrum.as                      = calloc(1, sizeof(ActiveSet));
-	atmos.backgrflags                = calloc(1, sizeof(flags));
-	atmos.backgrflags[0].ispolarized = TRUE;
-	input.magneto_optical            = TRUE;
+	rh->spectrum.as                      = calloc(1, sizeof(ActiveSet));
+	rh->atmos.backgrflags                = calloc(1, sizeof(flags));
+	rh->atmos.backgrflags[0].ispolarized = TRUE;
+	rh->input.magneto_optical            = TRUE;
 
 	check_unpolarized(verbose);
 	check_linear(verbose);

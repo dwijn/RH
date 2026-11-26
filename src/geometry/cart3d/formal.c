@@ -28,14 +28,11 @@
 #include "constant.h"
 #include "statistics.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Geometry   geometry;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- bgSupported.c ----------- */
 
@@ -64,7 +61,7 @@ static void solve_3D(int nspect, int mu, bool_t to_obs, double *chi,
 {
 	(void) Tri;
 	(void) lin;
-	ShortChar(&geometry, nspect, mu, to_obs, chi, S, I, Psi);
+	ShortChar(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
 }
 /* ------- end ---------------------------- solve_3D.c -------------- */
 
@@ -73,7 +70,7 @@ static void solve_3D(int nspect, int mu, bool_t to_obs, double *chi,
 static void solveStokes_3D(int nspect, int mu, bool_t to_obs, double *chi,
 						   double **S, double **I, double *Psi)
 {
-	ShortChar_Stokes(&geometry, nspect, mu, to_obs, chi, S, I, Psi);
+	ShortChar_Stokes(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
 }
 /* ------- end ---------------------------- solveStokes_3D.c -------- */
 
@@ -82,8 +79,8 @@ static void solveStokes_3D(int nspect, int mu, bool_t to_obs, double *chi,
 static bool_t checkTau_3D(int nspect, int mu, int to_obs, const double *chi,
 						  enum negtau_quadrature quad)
 {
-	return negTauColumns(nspect, mu, to_obs, geometry.Nz, geometry.Nplane, chi,
-						 geometry.z, geometry.muz[mu], quad);
+	return negTauColumns(nspect, mu, to_obs, rh->geometry->Nz, rh->geometry->Nplane, chi,
+						 rh->geometry->z, rh->geometry->muz[mu], quad);
 }
 /* ------- end ---------------------------- checkTau_3D.c ----------- */
 
@@ -95,15 +92,15 @@ static void emergent_3D(int nspect, int mu, const double *I, double **Ipol)
 {
 	register int l;
 
-	int n = nspect * atmos.Nrays + mu;
+	int n = nspect * rh->atmos.Nrays + mu;
 
-	for (l = 0; l < geometry.Nplane; l++)
-		spectrum.I[n][l] = I[l];
+	for (l = 0; l < rh->geometry->Nplane; l++)
+		rh->spectrum.I[n][l] = I[l];
 	if (Ipol) {
-		for (l = 0; l < geometry.Nplane; l++) {
-			spectrum.Stokes_Q[n][l] = Ipol[1][l];
-			spectrum.Stokes_U[n][l] = Ipol[2][l];
-			spectrum.Stokes_V[n][l] = Ipol[3][l];
+		for (l = 0; l < rh->geometry->Nplane; l++) {
+			rh->spectrum.Stokes_Q[n][l] = Ipol[1][l];
+			rh->spectrum.Stokes_U[n][l] = Ipol[2][l];
+			rh->spectrum.Stokes_V[n][l] = Ipol[3][l];
 		}
 	}
 }
@@ -111,11 +108,11 @@ static void emergent_3D(int nspect, int mu, const double *I, double **Ipol)
 
 static double muz_3D(int mu)
 {
-	return geometry.muz[mu];
+	return rh->geometry->muz[mu];
 }
 static double wmu_3D(int mu)
 {
-	return geometry.wmu[mu];
+	return rh->geometry->wmu[mu];
 }
 
 /* --- The operations of the 3-D geometry for the driver -- -------- */
@@ -143,7 +140,7 @@ void Hydrostatic(int NmaxIter, double iterLimit)
 	(void) NmaxIter;
 	(void) iterLimit;
 
-	if (atmos.hydrostatic) {
+	if (rh->atmos.hydrostatic) {
 		sprintf(messageStr,
 				"Can only establish hydrostatic equilibrium in 1-D geometry");
 		Error(ERROR_LEVEL_2, routineName, messageStr);

@@ -61,13 +61,11 @@
 #include "newton.h"
 #include "mpe.h"
 #include "solver.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* --- One block of the state vector: a contiguous array of RH -- --- */
 
@@ -140,20 +138,20 @@ long stateInit(void)
 	Nblocks = 0;
 	Nstate  = 0;
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 		sprintf(name, "populations %s", atom->ID);
-		addBlock(name, atom->n[0], (long) atom->Nlevel * atmos.Nspace,
+		addBlock(name, atom->n[0], (long) atom->Nlevel * rh->atmos.Nspace,
 				 BLOCK_ATOM, atom);
 	}
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
 		sprintf(name, "populations %s", molecule->ID);
-		addBlock(name, molecule->nv[0], (long) molecule->Nv * atmos.Nspace,
+		addBlock(name, molecule->nv[0], (long) molecule->Nv * rh->atmos.Nspace,
 				 BLOCK_MOLECULE, molecule);
 	}
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 		for (kr = 0; kr < atom->Nline; kr++) {
 			line = atom->line + kr;
 			if (line->PRD) {
@@ -162,14 +160,14 @@ long stateInit(void)
 			}
 		}
 	}
-	addBlock("J", spectrum.J[0], (long) spectrum.Nspect * atmos.Nspace, BLOCK_J,
+	addBlock("J", rh->spectrum.J[0], (long) rh->spectrum.Nspect * rh->atmos.Nspace, BLOCK_J,
 			 NULL);
-	if (spectrum.J20 != NULL)
-		addBlock("J20", spectrum.J20[0], (long) spectrum.Nspect * atmos.Nspace,
+	if (rh->spectrum.J20 != NULL)
+		addBlock("J20", rh->spectrum.J20[0], (long) rh->spectrum.Nspect * rh->atmos.Nspace,
 				 BLOCK_J20, NULL);
 
-	if (input.solve_ne == ITERATION)
-		addBlock("ne", atmos.ne, atmos.Nspace, BLOCK_NE, NULL);
+	if (rh->input.solve_ne == ITERATION)
+		addBlock("ne", rh->atmos.ne, rh->atmos.Nspace, BLOCK_NE, NULL);
 
 	return Nstate;
 }
@@ -344,8 +342,8 @@ static void printRhoNe(const double *x, const double *saved, const double *gx)
 		   ITER_LIMIT test. With saved (rhoNeSave) the old values are
 		   taken from there instead of x -- ------------- */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		Atom  *atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		Atom  *atom = rh->atmos.activeatoms[nact];
 		bool_t any  = FALSE;
 
 		dpops = 0.0;
@@ -399,8 +397,8 @@ static double prdSubIterations(int Nsub)
 
 	for (nsub = 1; nsub <= Nsub; nsub++) {
 		drhomax = 0.0;
-		for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-			atom = atmos.activeatoms[nact];
+		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+			atom = rh->atmos.activeatoms[nact];
 			for (kr = 0; kr < atom->Nline; kr++) {
 				line = atom->line + kr;
 				if (!line->PRD) continue;
@@ -409,7 +407,7 @@ static double prdSubIterations(int Nsub)
 				old = (double *) realloc(old, N * sizeof(double));
 				memcpy(old, line->rho_prd[0], N * sizeof(double));
 
-				if (input.PRD_angle_dep == PRD_ANGLE_DEP)
+				if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
 					PRDAngleScatter(line);
 				else
 					PRDScatter(line);
@@ -464,9 +462,9 @@ bool_t G_eval(const double *x_in, double *x_out)
 		   values where G's point is negative alone, and the probes of
 		   Newton have none --                           -------------- */
 
-	if (negTauInTrial() && atmos.NPRDactive > 0) {
-		for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-			Atom *atom = atmos.activeatoms[nact];
+	if (negTauInTrial() && rh->atmos.NPRDactive > 0) {
+		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+			Atom *atom = rh->atmos.activeatoms[nact];
 
 			for (int kr = 0; kr < atom->Nline; kr++) {
 				if (atom->line[kr].PRD && !PRDRhoCheck(atom, kr)) {
@@ -481,17 +479,17 @@ bool_t G_eval(const double *x_in, double *x_out)
 		   LTE populations, collision and fixed rates, chemical
 		   equilibrium, background opacities --        -------------- */
 
-	if (input.solve_ne == ITERATION) BackgroundOfState(FALSE);
+	if (rh->input.solve_ne == ITERATION) BackgroundOfState(FALSE);
 
 	/* --- 1. Collisional and fixed rates into Gamma -- -------------- */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		initGammaAtom(atmos.activeatoms[nact], 0);
-		zeroGammaThreads(atmos.activeatoms[nact]);
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		initGammaAtom(rh->atmos.activeatoms[nact], 0);
+		zeroGammaThreads(rh->atmos.activeatoms[nact]);
 	}
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		initGammaMolecule(atmos.activemols[nact]);
-		zeroGammaThreadsMolecule(atmos.activemols[nact]);
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		initGammaMolecule(rh->atmos.activemols[nact]);
+		zeroGammaThreadsMolecule(rh->atmos.activemols[nact]);
 	}
 	/* --- 2. Formal solution with the approximate operator -- ------- */
 
@@ -500,17 +498,17 @@ bool_t G_eval(const double *x_in, double *x_out)
 		Gcount++;
 		return FALSE;
 	}
-	for (nact = 0; nact < atmos.Nactiveatom; nact++)
-		mergeGammaThreads(atmos.activeatoms[nact]);
-	for (nact = 0; nact < atmos.Nactivemol; nact++)
-		mergeGammaThreadsMolecule(atmos.activemols[nact]);
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++)
+		mergeGammaThreads(rh->atmos.activeatoms[nact]);
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++)
+		mergeGammaThreadsMolecule(rh->atmos.activemols[nact]);
 
 	/* --- 3. Statistical equilibrium, no acceleration -- ------------ */
 
-	for (nact = 0; nact < atmos.Nactiveatom && !negTauFound(); nact++)
-		statEquil(atmos.activeatoms[nact], input.isum);
-	for (nact = 0; nact < atmos.Nactivemol && !negTauFound(); nact++)
-		statEquilMolecule(atmos.activemols[nact], 0);
+	for (nact = 0; nact < rh->atmos.Nactiveatom && !negTauFound(); nact++)
+		statEquil(rh->atmos.activeatoms[nact], rh->input.isum);
+	for (nact = 0; nact < rh->atmos.Nactivemol && !negTauFound(); nact++)
+		statEquilMolecule(rh->atmos.activemols[nact], 0);
 	if (negTauFound()) { /* bad LU populations (N-8) */
 
 		/* --- statEquil has overwritten the populations: put the state
@@ -523,7 +521,7 @@ bool_t G_eval(const double *x_in, double *x_out)
 
 	/* --- 4. PRD sub-iterations --                     -------------- */
 
-	if (atmos.NPRDactive > 0) prdSubIterations(input.PRD_NmaxIter);
+	if (rh->atmos.NPRDactive > 0) prdSubIterations(rh->input.PRD_NmaxIter);
 	if (negTauFound()) {
 		stateScatter(x_in); /* rho of the sub-iterations goes too */
 		Gcount++;
@@ -533,8 +531,8 @@ bool_t G_eval(const double *x_in, double *x_out)
 	/* --- 5. With ne in the state: ne from charge conservation with
 		   the new populations, Newton from the ne of x_in -- ------- */
 
-	if (input.solve_ne == ITERATION) {
-		neChange   = Solve_ne_OfState(atmos.ne, N_NE_ITER_OF_STATE);
+	if (rh->input.solve_ne == ITERATION) {
+		neChange   = Solve_ne_OfState(rh->atmos.ne, N_NE_ITER_OF_STATE);
 		chemChange = chemLastChangeReset();
 	}
 	stateGather(x_out);
@@ -574,26 +572,26 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 			"\n -- SOLVER = FIXED_POINT: x <- G(x), %ld unknowns;"
 			" PRD sub-iterations per G: %d;\n    Ng on G: order %d,"
 			" delay %d, period %d%s\n",
-			Nstate, (atmos.NPRDactive > 0) ? input.PRD_NmaxIter : 0,
-			input.Ngorder, input.Ngdelay, input.Ngperiod,
-			(input.Ngorder > 0) ? "" : " (none: plain G)");
+			Nstate, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
+			rh->input.Ngorder, rh->input.Ngdelay, rh->input.Ngperiod,
+			(rh->input.Ngorder > 0) ? "" : " (none: plain G)");
 	Error(MESSAGE, routineName, messageStr);
 
 	/* --- Ng histories on the populations, as in the default solver.
 		   With NG_ORDER = 0 they only keep the previous iterate for
 		   the change measure --                         -------------- */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom       = atmos.activeatoms[nact];
-		atom->Ng_n = NgInit(atom->Nlevel * atmos.Nspace, input.Ngdelay,
-							input.Ngorder, input.Ngperiod, atom->n[0]);
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom       = rh->atmos.activeatoms[nact];
+		atom->Ng_n = NgInit(atom->Nlevel * rh->atmos.Nspace, rh->input.Ngdelay,
+							rh->input.Ngorder, rh->input.Ngperiod, atom->n[0]);
 	}
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
-		Ngorder  = (input.accelerate_mols) ? input.Ngorder : 0;
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
+		Ngorder  = (rh->input.accelerate_mols) ? rh->input.Ngorder : 0;
 
-		molecule->Ng_nv = NgInit(molecule->Nv * atmos.Nspace, input.Ngdelay,
-								 Ngorder, input.Ngperiod, molecule->nv[0]);
+		molecule->Ng_nv = NgInit(molecule->Nv * rh->atmos.Nspace, rh->input.Ngdelay,
+								 Ngorder, rh->input.Ngperiod, molecule->nv[0]);
 	}
 	stateGather(x);
 
@@ -614,23 +612,23 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 		sprintf(messageStr, "\n -- Iteration %3d\n", niter);
 		Error(MESSAGE, routineName, messageStr);
 		dpopsmax = 0.0;
-		for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-			atom  = atmos.activeatoms[nact];
+		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+			atom  = rh->atmos.activeatoms[nact];
 			accel = Accelerate(atom->Ng_n, atom->n[0]);
 			sprintf(messageStr, " %s,", atom->ID);
 			dpops = MaxChange(atom->Ng_n, messageStr, quiet = FALSE);
 			Error(MESSAGE, NULL, NgStatus(atom->Ng_n, accel));
 			dpopsmax = MAX(dpops, dpopsmax);
 		}
-		for (nact = 0; nact < atmos.Nactivemol; nact++) {
-			molecule = atmos.activemols[nact];
+		for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+			molecule = rh->atmos.activemols[nact];
 			accel    = Accelerate(molecule->Ng_nv, molecule->nv[0]);
 			sprintf(messageStr, " %s ,", molecule->ID);
 			dpops = MaxChange(molecule->Ng_nv, messageStr, quiet = FALSE);
 			Error(MESSAGE, NULL, NgStatus(molecule->Ng_nv, accel));
 			dpopsmax = MAX(dpops, dpopsmax);
 		}
-		if (input.solve_ne == ITERATION) {
+		if (rh->input.solve_ne == ITERATION) {
 			sprintf(messageStr, " ne: last Newton step %.2E, chemical"
 								" equilibrium: last Newton step %.2E\n",
 					neChange, chemChange);
@@ -675,22 +673,22 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	/* --- With Ng the residuals are those of accelerated iterates:
 		   no estimate, as for ANDERSON and NEWTON_KRYLOV --  ------- */
 
-	if (input.Ngorder == 0) printContraction(routineName);
+	if (rh->input.Ngorder == 0) printContraction(routineName);
 	sprintf(messageStr, " -- G evaluations: %ld\n", Gcount);
 	Error(MESSAGE, routineName, messageStr);
 
 	/* --- With ne in the state: the background of the final state, for
 		   the final formal solution and the output --   -------------- */
 
-	if (input.solve_ne == ITERATION) BackgroundOfState(TRUE);
+	if (rh->input.solve_ne == ITERATION) BackgroundOfState(TRUE);
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 		freeMatrix((void **) atom->Gamma);
 		NgFree(atom->Ng_n);
 	}
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
 		freeMatrix((void **) molecule->Gamma);
 		NgFree(molecule->Ng_nv);
 	}
@@ -807,7 +805,7 @@ static void setVarScale(const double *x0)
 	register long i;
 	register int  p, n, l;
 
-	long      off, poff, k, Nspace = atmos.Nspace;
+	long      off, poff, k, Nspace = rh->atmos.Nspace;
 	double    total;
 	Atom     *atom;
 	Molecule *molecule;
@@ -836,7 +834,7 @@ static void setVarScale(const double *x0)
 			for (i = 0; i < blocks[n].N; i++) varScale[poff + i] = x0[off + i];
 			break;
 		case BLOCK_NE:
-			for (i = 0; i < blocks[n].N; i++) varScale[poff + i] = atmos.nHtot[i];
+			for (i = 0; i < blocks[n].N; i++) varScale[poff + i] = rh->atmos.nHtot[i];
 			break;
 		default: /* rho, J20 (J20 / J is used instead) */
 			for (i = 0; i < blocks[n].N; i++) varScale[poff + i] = 1.0;
@@ -1012,14 +1010,14 @@ static double printChange(const char *routineName, int niter, const double *x,
 		Error(MESSAGE, NULL, messageStr);
 		dpopsmax = MAX(dpops, dpopsmax);
 	}
-	if (input.solve_ne == ITERATION) {
+	if (rh->input.solve_ne == ITERATION) {
 		sprintf(messageStr, " ne: last Newton step %.2E, chemical"
 							" equilibrium: last Newton step %.2E\n",
 				neChange, chemChange);
 		Error(MESSAGE, NULL, messageStr);
 	}
 	printRhoNe(x, NULL, gx);
-	if (input.errorLimit > 0.0) {
+	if (rh->input.errorLimit > 0.0) {
 		for (n = 0; n < Nblocks; n++) {
 			if (blocks[n].kind != BLOCK_J) continue;
 			sprintf(messageStr, " J: delta = %6.4E\n",
@@ -1083,8 +1081,8 @@ static long errorSize(void)
 
 static void errorTestInit(ErrorTest *t, const char *routineName)
 {
-	t->limit     = input.errorLimit;
-	t->target    = input.errorLimit;
+	t->limit     = rh->input.errorLimit;
+	t->target    = rh->input.errorLimit;
 	t->residual  = -1.0;
 	t->estimate  = -1.0;
 	t->Nestimate = 0;
@@ -1096,9 +1094,9 @@ static void errorTestInit(ErrorTest *t, const char *routineName)
 			" of the\n    populations, rho, ne and J is below it%s; each"
 			" estimate takes %d plain G\n    steps (memory %.1f MB)\n",
 			t->limit,
-			(input.iterLimit_set) ? " and the residual of the populations below"
-									" ITER_LIMIT"
-								  : "",
+			(rh->input.iterLimit_set) ? " and the residual of the populations below"
+										" ITER_LIMIT"
+									  : "",
 			ERROR_STEPS,
 			((double) ERROR_STEPS * errorSize() + 2.0 * Nstate) * sizeof(double) /
 				1.0E6);
@@ -1264,7 +1262,7 @@ static void errorTestLimits(const ErrorTest *t, char *s, size_t n, double dpopsm
 				 (t->estimate < t->limit) ? "<" : ">=");
 	else
 		snprintf(est, sizeof(est), "unknown,");
-	if (input.iterLimit_set)
+	if (rh->input.iterLimit_set)
 		snprintf(s, n,
 				 "max change %.4E %s ITER_LIMIT = %.4E,\n    estimated error %s"
 				 " ERROR_LIMIT = %.2E",
@@ -1309,7 +1307,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 
 	bool_t    converged = FALSE, stopped = FALSE, Gok;
 	char      what[256], limits[256];
-	int       m = input.Anderson_depth, Nsolve, delay, t;
+	int       m = rh->input.Anderson_depth, Nsolve, delay, t;
 	ErrorTest et;
 	long      i, Ndamped = 0, Nguardplain = 0, Ncarried = 0, Ncarried_ok = 0,
 			Nbadtrial = 0;
@@ -1329,24 +1327,24 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	x      = (double *) malloc(Nstate * sizeof(double));
 	gx     = (double *) malloc(Nstate * sizeof(double));
 	gacc   = (double *) malloc(Nstate * sizeof(double));
-	w      = setupVariables(input.Anderson_variables, input.Anderson_extrapolate, x);
+	w      = setupVariables(rh->input.Anderson_variables, rh->input.Anderson_extrapolate, x);
 	u      = (double *) malloc(Npacked * sizeof(double));
 	gu     = (double *) malloc(Npacked * sizeof(double));
 	un     = (double *) malloc(Npacked * sizeof(double));
 	valid  = (unsigned char *) malloc(Npacked);
 	validg = (unsigned char *) malloc(Npacked);
-	Nsolve = (input.Anderson_coefficients == ANDERSON_PER_BLOCK) ? Npack : 1;
+	Nsolve = (rh->input.Anderson_coefficients == ANDERSON_PER_BLOCK) ? Npack : 1;
 	gamma  = (double *) calloc((size_t) Nsolve * (m > 0 ? m : 1), sizeof(double));
 	info   = (AndersonSolve *) calloc(Nsolve, sizeof(AndersonSolve));
 	a      = andersonInit(Npacked, m);
 
 	opt.Nblock    = Npack;
 	opt.start     = packStart;
-	opt.per_block = (input.Anderson_coefficients == ANDERSON_PER_BLOCK);
-	opt.cond_max  = input.Anderson_cond_max;
-	opt.safeguard = input.Anderson_safeguard;
-	opt.window    = input.Anderson_safeguard_window;
-	delay         = MAX(input.Anderson_delay, 2);
+	opt.per_block = (rh->input.Anderson_coefficients == ANDERSON_PER_BLOCK);
+	opt.cond_max  = rh->input.Anderson_cond_max;
+	opt.safeguard = rh->input.Anderson_safeguard;
+	opt.window    = rh->input.Anderson_safeguard_window;
+	delay         = MAX(rh->input.Anderson_delay, 2);
 
 	sprintf(messageStr,
 			"\n -- SOLVER = ANDERSON: %ld unknowns in %d blocks; PRD"
@@ -1358,13 +1356,13 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			" %ld unknowns in %d blocks extrapolated;\n    memory: history"
 			" and variables %.1f MB, x, G(x) and G at the last accepted"
 			" point %.1f MB\n",
-			Nstate, Nblocks, (atmos.NPRDactive > 0) ? input.PRD_NmaxIter : 0, m,
-			input.Anderson_delay, input.Anderson_cond_max,
-			input.Anderson_safeguard, input.Anderson_safeguard_window,
+			Nstate, Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0, m,
+			rh->input.Anderson_delay, rh->input.Anderson_cond_max,
+			rh->input.Anderson_safeguard, rh->input.Anderson_safeguard_window,
 			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
 			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
-			extrapolateName[input.Anderson_extrapolate],
-			input.Anderson_extrapolate_default ? " (the default)" : "", Npacked, Npack,
+			extrapolateName[rh->input.Anderson_extrapolate],
+			rh->input.Anderson_extrapolate_default ? " (the default)" : "", Npacked, Npack,
 			((3.0 * m + 7 + (varKind == VARIABLES_RELATIVE)) * sizeof(double) + m + 4) *
 				Npacked / 1.0E6,
 			3.0 * sizeof(double) * Nstate / 1.0E6);
@@ -1374,8 +1372,8 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		   on as POPULATIONS (S-11). The 2-D and 3-D default says
 		   nothing: the banner lists the extrapolated blocks -- ----- */
 
-	if (input.Anderson_extrapolate == EXTRAPOLATE_POPULATIONS_RHO &&
-		!input.Anderson_extrapolate_default) {
+	if (rh->input.Anderson_extrapolate == EXTRAPOLATE_POPULATIONS_RHO &&
+		!rh->input.Anderson_extrapolate_default) {
 		for (n = 0; n < Nblocks && blocks[n].kind != BLOCK_RHO; n++);
 		if (n == Nblocks) {
 			sprintf(messageStr,
@@ -1549,12 +1547,12 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		Error(MESSAGE, routineName, messageStr);
 	}
 
-	if (input.solve_ne == ITERATION) BackgroundOfState(TRUE);
+	if (rh->input.solve_ne == ITERATION) BackgroundOfState(TRUE);
 
-	for (n = 0; n < atmos.Nactiveatom; n++)
-		freeMatrix((void **) atmos.activeatoms[n]->Gamma);
-	for (n = 0; n < atmos.Nactivemol; n++)
-		freeMatrix((void **) atmos.activemols[n]->Gamma);
+	for (n = 0; n < rh->atmos.Nactiveatom; n++)
+		freeMatrix((void **) rh->atmos.activeatoms[n]->Gamma);
+	for (n = 0; n < rh->atmos.Nactivemol; n++)
+		freeMatrix((void **) rh->atmos.activemols[n]->Gamma);
 
 	andersonFree(a);
 	free(x);
@@ -1667,14 +1665,14 @@ void iterateNewton(int NmaxIter, double iterLimit)
 
 	bool_t converged = FALSE, stopped = FALSE, accepted, Gok;
 	char   limits[256];
-	int    k = input.Newton_krylov_max, kmax, nback, Nhalve, n, ninf,
+	int    k = rh->input.Newton_krylov_max, kmax, nback, Nhalve, n, ninf,
 		Nreason[GUARD_NRESULT], Nbadtrial = 0;
 	ErrorTest et;
 	long      i, Neval = 0, Nbase = 0, Nkrylov = 0, Nline = 0, Nplain = 0,
 			Nguard = 0, Nsteps = 0, Nlost = 0, Nrestore = 0;
 	double *x, *gx, *u, *gu, *r, *d, *xt, *gt, *ut, *gut, *rt, *w;
 	double  dpopsmax = 0.0, rnorm, rnorm_prev = 0.0, eta = 0.0, rtnorm, dinf,
-		   lambda, h = sqrt(input.Newton_noise);
+		   lambda, h = sqrt(rh->input.Newton_noise);
 	unsigned char   *valid, *validg, *validt, *validgt;
 	enum GuardResult guard;
 	GmresResult      gres;
@@ -1693,7 +1691,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	ut      = (double *) malloc(Nstate * sizeof(double));
 	gut     = (double *) malloc(Nstate * sizeof(double));
 	rt      = (double *) malloc(Nstate * sizeof(double));
-	w       = setupVariables(input.Newton_variables, EXTRAPOLATE_ALL, x);
+	w       = setupVariables(rh->input.Newton_variables, EXTRAPOLATE_ALL, x);
 	valid   = (unsigned char *) malloc(Nstate);
 	validg  = (unsigned char *) malloc(Nstate);
 	validt  = (unsigned char *) malloc(Nstate);
@@ -1727,9 +1725,9 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			" safeguard above %g,\n    floor 0.5 x ITER_LIMIT / |R|_W;"
 			" line search: lambda = 1 ... 1/%d, Armijo %.0E;\n"
 			"    N_MAX_ITER caps G evaluations; memory %.1f MB\n",
-			Nstate, Nblocks, (atmos.NPRDactive > 0) ? input.PRD_NmaxIter : 0,
-			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE", input.Newton_noise,
-			h, k, input.Newton_eta_max, NEWTON_EW_GAMMA, NEWTON_EW_ALPHA,
+			Nstate, Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
+			(varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE", rh->input.Newton_noise,
+			h, k, rh->input.Newton_eta_max, NEWTON_EW_GAMMA, NEWTON_EW_ALPHA,
 			NEWTON_EW_SAFE, 1 << NEWTON_N_BACKTRACK, NEWTON_ARMIJO,
 			((k + 1.0 + 12 + (varKind == VARIABLES_RELATIVE)) * sizeof(double) + 4) *
 				Nstate / 1.0E6);
@@ -1762,7 +1760,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 		getCPU(2, TIME_START, NULL);
 		rnorm = residualOf(x, gx, u, gu, valid, validg, r, w);
 		eta   = newtonForcing(Nsteps == 0, eta, rnorm, rnorm_prev,
-							  input.Newton_eta_max,
+							  rh->input.Newton_eta_max,
                             (et.limit > 0.0) ? MIN(iterLimit, et.target) : iterLimit);
 		kmax  = (int) MIN((long) k, NmaxIter - Neval - 1);
 		for (i = 0; i < Nstate; i++) rt[i] = -r[i];
@@ -1942,12 +1940,12 @@ void iterateNewton(int NmaxIter, double iterLimit)
 		Error(MESSAGE, routineName, messageStr);
 	}
 
-	if (input.solve_ne == ITERATION) BackgroundOfState(TRUE);
+	if (rh->input.solve_ne == ITERATION) BackgroundOfState(TRUE);
 
-	for (i = 0; i < atmos.Nactiveatom; i++)
-		freeMatrix((void **) atmos.activeatoms[i]->Gamma);
-	for (i = 0; i < atmos.Nactivemol; i++)
-		freeMatrix((void **) atmos.activemols[i]->Gamma);
+	for (i = 0; i < rh->atmos.Nactiveatom; i++)
+		freeMatrix((void **) rh->atmos.activeatoms[i]->Gamma);
+	for (i = 0; i < rh->atmos.Nactivemol; i++)
+		freeMatrix((void **) rh->atmos.activemols[i]->Gamma);
 
 	gmresFree(gm);
 	free(x);

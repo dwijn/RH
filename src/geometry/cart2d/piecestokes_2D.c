@@ -41,14 +41,11 @@
 #include "geometry.h"
 #include "inputs.h"
 #include "error.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
-
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
 
 /* ------- begin -------------------------- StokesK_2D_convex.c ----- */
 
@@ -82,7 +79,7 @@ static void StokesK_2D_convex(StokesGrid *sg, Stencil *st, enum direction direct
 	  See: Rees, Murphy, & Durrant, 1989, ApJ 339, 1093-1106.
 
 		   --                                            -------------- */
-	as = &spectrum.as[nspect];
+	as = &rh->spectrum.as[nspect];
 
 	for (j = 0; j < 4; j++)
 		for (i = 0; i < 4; i++) K[j][i] = 0.0;
@@ -90,17 +87,17 @@ static void StokesK_2D_convex(StokesGrid *sg, Stencil *st, enum direction direct
 	/* --- First the contribution from the active set -- -------------- */
 
 	if (containsPolarized(as)) {
-		K[0][1] = Interp_2D(as->chi + atmos.Nspace,
+		K[0][1] = Interp_2D(as->chi + rh->atmos.Nspace,
 							st, direction);
-		K[0][2] = Interp_2D(as->chi + 2 * atmos.Nspace,
+		K[0][2] = Interp_2D(as->chi + 2 * rh->atmos.Nspace,
 							st, direction);
-		K[0][3] = Interp_2D(as->chi + 3 * atmos.Nspace,
+		K[0][3] = Interp_2D(as->chi + 3 * rh->atmos.Nspace,
 							st, direction);
 
-		if (input.magneto_optical) {
-			K[1][2] = Interp_2D(as->chip + 2 * atmos.Nspace,
+		if (rh->input.magneto_optical) {
+			K[1][2] = Interp_2D(as->chip + 2 * rh->atmos.Nspace,
 								st, direction);
-			K[1][3] = Interp_2D(as->chip + atmos.Nspace,
+			K[1][3] = Interp_2D(as->chip + rh->atmos.Nspace,
 								st, direction);
 			K[2][3] = Interp_2D(as->chip,
 								st, direction);
@@ -108,18 +105,18 @@ static void StokesK_2D_convex(StokesGrid *sg, Stencil *st, enum direction direct
 	}
 	/* --- Add possible contribution from the background -- ----------- */
 
-	if (atmos.backgrflags[nspect].ispolarized) {
-		K[0][1] += Interp_2D(as->chi_c + atmos.Nspace,
+	if (rh->atmos.backgrflags[nspect].ispolarized) {
+		K[0][1] += Interp_2D(as->chi_c + rh->atmos.Nspace,
 							 st, direction);
-		K[0][2] += Interp_2D(as->chi_c + 2 * atmos.Nspace,
+		K[0][2] += Interp_2D(as->chi_c + 2 * rh->atmos.Nspace,
 							 st, direction);
-		K[0][3] += Interp_2D(as->chi_c + 3 * atmos.Nspace,
+		K[0][3] += Interp_2D(as->chi_c + 3 * rh->atmos.Nspace,
 							 st, direction);
 
-		if (input.magneto_optical) {
-			K[1][2] += Interp_2D(as->chip_c + 2 * atmos.Nspace,
+		if (rh->input.magneto_optical) {
+			K[1][2] += Interp_2D(as->chip_c + 2 * rh->atmos.Nspace,
 								 st, direction);
-			K[1][3] += Interp_2D(as->chip_c + atmos.Nspace,
+			K[1][3] += Interp_2D(as->chip_c + rh->atmos.Nspace,
 								 st, direction);
 			K[2][3] += Interp_2D(as->chip_c,
 								 st, direction);
@@ -135,7 +132,7 @@ static void StokesK_2D_convex(StokesGrid *sg, Stencil *st, enum direction direct
 	}
 	/* --- Anti-symmetric magneto-optical elements --    -------------- */
 
-	if (input.magneto_optical) {
+	if (rh->input.magneto_optical) {
 		K[1][3] *= -1.0;
 		K[2][1] *= -1.0;
 		K[3][2] *= -1.0;

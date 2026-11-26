@@ -41,8 +41,7 @@
 #include "atmos.h"
 #include "statistics.h"
 #include "check.h"
-
-extern Atmosphere atmos;
+#include "state.h"
 
 static bool_t table;
 
@@ -276,12 +275,12 @@ static void test_statequil(void)
 
 	memset(&atom, 0, sizeof(atom));
 	strcpy(atom.ID, "XX");
-	atom.Nlevel  = N;
-	atom.Gamma   = matrix_double(N * N, Nspace);
-	atom.C       = matrix_double(N * N, Nspace);
-	atom.n       = matrix_double(N, Nspace);
-	atom.ntotal  = malloc(Nspace * sizeof(double));
-	atmos.Nspace = Nspace;
+	atom.Nlevel      = N;
+	atom.Gamma       = matrix_double(N * N, Nspace);
+	atom.C           = matrix_double(N * N, Nspace);
+	atom.n           = matrix_double(N, Nspace);
+	atom.ntotal      = malloc(Nspace * sizeof(double));
+	rh->atmos.Nspace = Nspace;
 
 	for (int i = 0; i < N; i++)
 		for (int j = 0; j < i; j++) c[i][j] = c[j][i] = 1.0 + uniform();

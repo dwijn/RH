@@ -30,12 +30,11 @@
 #include "inputs.h"
 #include "error.h"
 #include "statistics.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
 
-extern Spectrum  spectrum;
-extern InputData input;
-extern char      messageStr[];
+extern char messageStr[];
 
 static WorkCounters work; /* zero: phase WORK_INITIAL, no counts */
 
@@ -118,7 +117,7 @@ void printWork(void)
 
 	sprintf(messageStr,
 			"\n -- Work (wavelength solves; one formal solution = %d)\n",
-			spectrum.Nspect);
+			rh->spectrum.Nspect);
 	Error(MESSAGE, NULL, messageStr);
 	for (phase = 0; phase < WORK_NPHASE; phase++) {
 		sprintf(messageStr, "    %-8s", phaseName[phase]);
@@ -135,7 +134,7 @@ void printWork(void)
 			"  Iterate %.3f s;  threads %d\n",
 			work.calls[WORK_BACKGROUND], work.seconds[WORK_BACKGROUND],
 			work.calls[WORK_HYDROSTATIC], work.seconds[WORK_HYDROSTATIC],
-			work.seconds[WORK_ITERATION], input.Nthreads);
+			work.seconds[WORK_ITERATION], rh->input.Nthreads);
 	Error(MESSAGE, NULL, messageStr);
 	if (work.bg_lambda[WORK_INITIAL] + work.bg_lambda[WORK_ITERATE] +
 			work.bg_lambda[WORK_FINAL] >

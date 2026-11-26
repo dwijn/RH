@@ -27,6 +27,7 @@
 #include "error.h"
 #include "inputs.h"
 #include "statistics.h"
+#include "state.h"
 
 #define COMMENT_CHAR "#"
 #define N_MAX_CONFIG 10
@@ -52,9 +53,7 @@ char *getMoleculeID(char *molecule_file);
 
 /* --- Global variables --                             -------------- */
 
-extern InputData  input;
-extern Atmosphere atmos;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- readMolecule.c ---------- */
 
@@ -132,9 +131,9 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 		if (strlen(elementID) == 1) strcat(elementID, " ");
 
 		match = FALSE;
-		for (m = 0; m < atmos.Nelem; m++) {
-			if (strstr(elementID, atmos.elements[m].ID)) {
-				if (atmos.elements[m].abundance_set) {
+		for (m = 0; m < rh->atmos.Nelem; m++) {
+			if (strstr(elementID, rh->atmos.elements[m].ID)) {
+				if (rh->atmos.elements[m].abundance_set) {
 					molecule->pt_index[n] = m;
 					match                 = TRUE;
 				}
@@ -206,7 +205,7 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 			Nread += sscanf(strtok(NULL, " "), "%lf", molecule->pf_coef + n);
 		checkNread(Nread, molecule->Npf + 1, routineName, checkPoint = 6);
 	}
-	molecule->pf = (double *) malloc(atmos.Nspace * sizeof(double));
+	molecule->pf = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 	/* --- Get fit parameters for equilibrium constant -- ------------- */
 
@@ -225,17 +224,17 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 	molecule->weight = 0.0;
 	for (n = 0; n < molecule->Nelement; n++)
 		molecule->weight += molecule->pt_count[n] *
-							atmos.elements[molecule->pt_index[n]].weight;
+							rh->atmos.elements[molecule->pt_index[n]].weight;
 
 	/* --- Allocate memory for total population numbers, broadening
 		   velocity and partition function --            -------------- */
 
-	molecule->n      = (double *) malloc(atmos.Nspace * sizeof(double));
-	molecule->vbroad = (double *) malloc(atmos.Nspace * sizeof(double));
+	molecule->n      = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	molecule->vbroad = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 	vtherm = 2.0 * KBOLTZMANN / (AMU * molecule->weight);
-	for (k = 0; k < atmos.Nspace; k++)
-		molecule->vbroad[k] = sqrt(vtherm * atmos.T[k] + SQ(atmos.vturb[k]));
+	for (k = 0; k < rh->atmos.Nspace; k++)
+		molecule->vbroad[k] = sqrt(vtherm * rh->atmos.T[k] + SQ(rh->atmos.vturb[k]));
 
 	/* --- Collect the line transitions from separate data files -- --- */
 
@@ -338,11 +337,11 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 			   the rotational states will be assumed to be in LTE -- --- */
 
 		molecule->nv     = matrix_double(molecule->Nv * molecule->Nconfig,
-										 atmos.Nspace);
+										 rh->atmos.Nspace);
 		molecule->nvstar = matrix_double(molecule->Nv * molecule->Nconfig,
-										 atmos.Nspace);
+										 rh->atmos.Nspace);
 		molecule->pfv    = matrix_double(molecule->Nv * molecule->Nconfig,
-										 atmos.Nspace);
+										 rh->atmos.Nspace);
 
 		sprintf(popsFile, "pops_mol.%s.out", molecule->ID);
 		molecule->popsFile =
@@ -361,8 +360,8 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 			/* --- Otherwise, the total partition function is interpolated
 			   from a polynomial in T --                 -------------- */
 
-			for (k = 0; k < atmos.Nspace; k++)
-				molecule->pf[k] = partfunction(molecule, atmos.T[k]);
+			for (k = 0; k < rh->atmos.Nspace; k++)
+				molecule->pf[k] = partfunction(molecule, rh->atmos.T[k]);
 		}
 	}
 	/* --- Report once per molecule when the atmosphere leaves the range
@@ -372,13 +371,13 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 
 	{
 		int    Nout = 0;
-		double Tlo = atmos.T[0], Thi = atmos.T[0];
+		double Tlo = rh->atmos.T[0], Thi = rh->atmos.T[0];
 
-		for (k = 0; k < atmos.Nspace; k++) {
-			if (atmos.T[k] < molecule->Tmin || atmos.T[k] > molecule->Tmax)
+		for (k = 0; k < rh->atmos.Nspace; k++) {
+			if (rh->atmos.T[k] < molecule->Tmin || rh->atmos.T[k] > molecule->Tmax)
 				Nout++;
-			Tlo = MIN(Tlo, atmos.T[k]);
-			Thi = MAX(Thi, atmos.T[k]);
+			Tlo = MIN(Tlo, rh->atmos.T[k]);
+			Thi = MAX(Thi, rh->atmos.T[k]);
 		}
 		if (Nout > 0) {
 			sprintf(messageStr,
@@ -386,7 +385,7 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 					"range [%.0f, %.0f] K (atmosphere T = %.0f - %.0f K).\n"
 					" Partition function held at the edge value, equilibrium "
 					"constant extrapolated linearly in 5040/T.",
-					molecule->ID, Nout, atmos.Nspace, molecule->Tmin,
+					molecule->ID, Nout, rh->atmos.Nspace, molecule->Tmin,
 					molecule->Tmax, Tlo, Thi);
 			Error(WARNING, routineName, messageStr);
 		}
@@ -396,7 +395,7 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 	if (molecule->active) {
 		for (kr = 0; kr < molecule->Nrt; kr++) {
 			mrt          = &molecule->mrt[kr];
-			dlambda_wing = mrt->qwing * atmos.vmicro_char / CLIGHT;
+			dlambda_wing = mrt->qwing * rh->atmos.vmicro_char / CLIGHT;
 			dlambda      = 2.0 * dlambda_wing * mrt->lambda0 / (mrt->Nlambda - 1);
 
 			mrt->lambda = (double *) malloc(mrt->Nlambda * sizeof(double));
@@ -410,7 +409,7 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 		/* --- Allocate space for thread dependent quantities -- -------- */
 
 		molecule->rhth =
-			(rhthread *) calloc(input.Nthreads, sizeof(rhthread));
+			(rhthread *) calloc(rh->input.Nthreads, sizeof(rhthread));
 	}
 
 	fclose(fp_molecule);
@@ -473,7 +472,7 @@ void freeMolecule(Molecule *molecule)
 
 		/* --- Per-thread work arrays, allocated lazily in alloc_as() -- - */
 
-		for (nt = 0; nt < input.Nthreads; nt++) {
+		for (nt = 0; nt < rh->input.Nthreads; nt++) {
 			struct rhthread *th = &molecule->rhth[nt];
 
 			free(th->eta);
@@ -537,8 +536,8 @@ void freeMolLine(MolecularLine *mrt)
 		free(mrt->wquad);
 	}
 
-	if (atmos.Stokes &&
-		input.StokesMode == FULL_STOKES &&
+	if (rh->atmos.Stokes &&
+		rh->input.StokesMode == FULL_STOKES &&
 		mrt->polarizable) {
 		freeZeeman(mrt->zm);
 	}
@@ -946,7 +945,7 @@ void readMolecularLines(struct Molecule *molecule, char *line_data)
 				/* --- Set the polarized flag only if the atmosphere has magnetic
 					   fields --                               -------------- */
 
-				if (atmos.Stokes) mrt->polarizable = TRUE;
+				if (rh->atmos.Stokes) mrt->polarizable = TRUE;
 			} else
 				mrt->polarizable = FALSE;
 		}
@@ -983,38 +982,38 @@ void readMolecularModels(void)
 
 	/* --- Open input file for molecular models --       -------------- */
 
-	if ((fp_molecules = fopen(input.molecules_input, "r")) == NULL) {
+	if ((fp_molecules = fopen(rh->input.molecules_input, "r")) == NULL) {
 		sprintf(messageStr, "Unable to open input file %s",
-				input.molecules_input);
+				rh->input.molecules_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	/* --- Get the number of molecular models to be read -- ----------- */
 
 	getLine(fp_molecules, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
-	Nread = sscanf(inputLine, "%d", &atmos.Nmolecule);
+	Nread = sscanf(inputLine, "%d", &rh->atmos.Nmolecule);
 	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 1);
 
 	/* --- H2 is required: the background opacities (H2- free-free,
 		   Rayleigh scattering by H2), H2 collisions and hydrostatic
 		   equilibrium use atmos.H2 (B-62) --          -------------- */
 
-	if (atmos.Nmolecule < 1) {
+	if (rh->atmos.Nmolecule < 1) {
 		snprintf(messageStr, MAX_MESSAGE_LENGTH,
 				 "Number of molecules in %.200s is %d: the list must contain"
 				 " at least H2, as the first molecule",
-				 input.molecules_input, atmos.Nmolecule);
+				 rh->input.molecules_input, rh->atmos.Nmolecule);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
-	atmos.molecules =
-		(Molecule *) malloc(atmos.Nmolecule * sizeof(Molecule));
+	rh->atmos.molecules =
+		(Molecule *) malloc(rh->atmos.Nmolecule * sizeof(Molecule));
 
-	atmos.H2 = NULL;
-	atmos.OH = NULL;
-	atmos.CH = NULL;
+	rh->atmos.H2 = NULL;
+	rh->atmos.OH = NULL;
+	rh->atmos.CH = NULL;
 
 	/* --- Read molecular data for the various molecules -- ----------- */
 
-	for (n = 0; n < atmos.Nmolecule; n++) {
+	for (n = 0; n < rh->atmos.Nmolecule; n++) {
 
 		getLine(fp_molecules, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%s %s %s %s",
@@ -1031,32 +1030,32 @@ void readMolecularModels(void)
 		if (n == 0 && strcmp(moleculeID, "H2") != 0) {
 			snprintf(messageStr, MAX_MESSAGE_LENGTH,
 					 "The first molecule in %.200s must be H2, not %s (%.200s)",
-					 input.molecules_input, moleculeID, filename);
+					 rh->input.molecules_input, moleculeID, filename);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		/* --- Check for duplicate molecule IDs --         -------------- */
 
 		for (m = 0; m < n; m++) {
-			if (strcmp(moleculeID, atmos.molecules[m].ID) == 0) {
+			if (strcmp(moleculeID, rh->atmos.molecules[m].ID) == 0) {
 				sprintf(messageStr, "Duplicate model for molecule %s\n",
 						moleculeID);
 				Error(ERROR_LEVEL_2, routineName, messageStr);
 			}
 		}
 
-		molecule = &atmos.molecules[n];
+		molecule = &rh->atmos.molecules[n];
 		readMolecule(molecule, filename,
 					 active = (strstr(actionKey, "ACTIVE") ? TRUE : FALSE));
 
 		/* --- Create an alias to the hydrogen molecule  structure -- ----- */
 
-		if (strcmp(molecule->ID, "H2") == 0) atmos.H2 = molecule;
+		if (strcmp(molecule->ID, "H2") == 0) rh->atmos.H2 = molecule;
 
 		/* --- Store pointers to OH and CH molecules, if appropriate,
 			   for use in bf opacity calculation (see ohchbf.c) -- ------ */
 
-		if (strcmp(molecule->ID, "OH") == 0) atmos.OH = molecule;
-		if (strcmp(molecule->ID, "CH") == 0) atmos.CH = molecule;
+		if (strcmp(molecule->ID, "OH") == 0) rh->atmos.OH = molecule;
+		if (strcmp(molecule->ID, "CH") == 0) rh->atmos.CH = molecule;
 
 		/* --- Set flag for initial soltion --             -------------- */
 
@@ -1090,12 +1089,12 @@ void readMolecularModels(void)
 		   check above and the duplicate check use getMoleculeID's upper
 		   case (B-62) --                              -------------- */
 
-	if (atmos.H2 != &atmos.molecules[0]) {
+	if (rh->atmos.H2 != &rh->atmos.molecules[0]) {
 		snprintf(messageStr, MAX_MESSAGE_LENGTH,
 				 "%.200s: the first molecule must be the only model with ID"
 				 " H2 (found %s)",
-				 input.molecules_input,
-				 (atmos.H2 == NULL) ? "none" : "another one later in the list");
+				 rh->input.molecules_input,
+				 (rh->atmos.H2 == NULL) ? "none" : "another one later in the list");
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	fclose(fp_molecules);
@@ -1103,13 +1102,13 @@ void readMolecularModels(void)
 	/* --- Figure out for each element in which molecule it may be
 		   bound and store the indices of those molecules -- ---------- */
 
-	for (n = 0; n < atmos.Nelem; n++) {
-		element            = &atmos.elements[n];
+	for (n = 0; n < rh->atmos.Nelem; n++) {
+		element            = &rh->atmos.elements[n];
 		element->Nmolecule = 0;
-		element->mol_index = (int *) malloc(atmos.Nmolecule * sizeof(int));
+		element->mol_index = (int *) malloc(rh->atmos.Nmolecule * sizeof(int));
 
-		for (m = 0; m < atmos.Nmolecule; m++) {
-			molecule = &atmos.molecules[m];
+		for (m = 0; m < rh->atmos.Nmolecule; m++) {
+			molecule = &rh->atmos.molecules[m];
 			for (i = 0; i < molecule->Nelement; i++) {
 				if (molecule->pt_index[i] == n) {
 					element->mol_index[element->Nmolecule++] = m;
@@ -1131,7 +1130,7 @@ void readMolecularModels(void)
 
 	/* --- Allocate memory for H^- --                    -------------- */
 
-	atmos.nHmin = (double *) malloc(atmos.Nspace * sizeof(double));
+	rh->atmos.nHmin = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 	getCPU(2, TIME_POLL, "Read molecular input");
 }

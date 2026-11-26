@@ -16,6 +16,7 @@
 #include "constant.h"
 #include "error.h"
 #include "inputs.h"
+#include "state.h"
 
 #define NLAMB_DEFAULT 15
 #define QCORE_DEFAULT 1.0
@@ -30,8 +31,9 @@ void writeModelAtom(Atom *atom, FILE *fpOut);
 
 /* --- Global variables --                             -------------- */
 
-CommandLine commandline;
-char        messageStr[MAX_LINE_SIZE];
+static RHState rh_state;
+RHState *const rh = &rh_state;
+char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- readTopBase.c ----------- */
 
@@ -52,8 +54,8 @@ int main(int argc, char *argv[])
 	AtomicLine      *line;
 	AtomicContinuum *continuum;
 
-	commandline.quiet   = FALSE;
-	commandline.logfile = stderr;
+	rh->commandline.quiet   = FALSE;
+	rh->commandline.logfile = stderr;
 
 	if (argc <= 2) {
 		fprintf(stderr, "Usage: %s energyFile Nlevel", argv[0]);

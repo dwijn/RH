@@ -43,14 +43,13 @@
 #include "statistics.h"
 #include "error.h"
 #include "negtau.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* --- The first location of a call where GTH could not be used, for
 	   the message --                                  -------------- */
@@ -168,7 +167,7 @@ static void reportFallback(const char *ID, const SEFallback *fb,
 	}
 	sprintf(messageStr, " %s: rate equations solved with LU at %d of %d"
 						" locations (first: %s)\n",
-			ID, fb->Nlu, atmos.Nspace, why);
+			ID, fb->Nlu, rh->atmos.Nspace, why);
 	Error(MESSAGE, NULL, messageStr);
 }
 /* ------- end ---------------------------- reportFallback.c -------- */
@@ -234,20 +233,20 @@ void statEquil(Atom *atom, int isum)
 	R   = matrix_double(Nlevel, Nlevel);
 	A   = matrix_double(Nlevel, Nlevel);
 
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		for (i = 0; i < Nlevel; i++) n_k[i] = atom->n[i][k];
 
 		solveRates(Nlevel, atom->Gamma, k, isum, atom->ntotal[k], n_k, R, A,
 				   &fb);
 		for (i = 0; i < Nlevel; i++) atom->n[i][k] = n_k[i];
 	}
-	workRates(atmos.Nspace, fb.Nlu);
+	workRates(rh->atmos.Nspace, fb.Nlu);
 	if (fb.Nlu) reportFallback(atom->ID, &fb, atom->C, Nlevel);
 	if (fb.Nbad) {
 		char level[ATOM_LABEL_WIDTH + 8];
 
 		sprintf(level, " (%s)", atom->label[fb.ibad]);
-		badPopulations(atom->ID, level, atmos.Nspace, &fb);
+		badPopulations(atom->ID, level, rh->atmos.Nspace, &fb);
 	}
 
 	free(n_k);
@@ -276,7 +275,7 @@ void statEquilMolecule(struct Molecule *molecule, int isum)
 	R   = matrix_double(Nlevel, Nlevel);
 	A   = matrix_double(Nlevel, Nlevel);
 
-	for (k = 0; k < atmos.Nspace; k++) {
+	for (k = 0; k < rh->atmos.Nspace; k++) {
 		if (molecule->n[k] > 0.0) {
 			for (vi = 0; vi < Nlevel; vi++) n_k[vi] = molecule->nv[vi][k];
 
@@ -314,10 +313,10 @@ double updatePopulations(int niter)
 
 	/* --- Update active atoms --                        -------------- */
 
-	for (nact = 0; nact < atmos.Nactiveatom; nact++) {
-		atom = atmos.activeatoms[nact];
+	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
+		atom = rh->atmos.activeatoms[nact];
 
-		statEquil(atom, input.isum);
+		statEquil(atom, rh->input.isum);
 		accel = Accelerate(atom->Ng_n, atom->n[0]);
 
 		sprintf(messageStr, " %s,", atom->ID);
@@ -328,8 +327,8 @@ double updatePopulations(int niter)
 	}
 	/* --- Update active molecules --                    -------------- */
 
-	for (nact = 0; nact < atmos.Nactivemol; nact++) {
-		molecule = atmos.activemols[nact];
+	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
+		molecule = rh->atmos.activemols[nact];
 
 		statEquilMolecule(molecule, 0);
 		accel = Accelerate(molecule->Ng_nv, molecule->nv[0]);

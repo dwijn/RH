@@ -23,8 +23,7 @@
 #include "background.h"
 #include "constant.h"
 #include "check.h"
-
-extern Atmosphere atmos;
+#include "state.h"
 
 /* --- 1.0E-26 cm^4/dyn in m^5/J --                    -------------- */
 
@@ -118,11 +117,11 @@ int main(void)
 		static Atom    H;
 		double         want, lambdas[] = {150.0, 300.0, 500.0, 2000.0, 2.0E5};
 
-		H.n          = n;
-		atmos.H      = &H;
-		atmos.Nspace = NSPACE;
-		atmos.T      = T;
-		atmos.ne     = ne;
+		H.n              = n;
+		rh->atmos.H      = &H;
+		rh->atmos.Nspace = NSPACE;
+		rh->atmos.T      = T;
+		rh->atmos.ne     = ne;
 		for (i = 0; i < 5; i++) {
 			CHECK(Hminus_ff(lambdas[i], chi), "%s", "Hminus_ff returns FALSE");
 			for (k = 0; k < NSPACE; k++) {

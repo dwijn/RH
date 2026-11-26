@@ -61,14 +61,13 @@
 #include "error.h"
 #include "inputs.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern InputData input;
-extern Spectrum  spectrum;
-extern char      messageStr[];
+extern char messageStr[];
 
 static XDR xdrs;
 
@@ -91,17 +90,17 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 
 	/* --- Open input file for model atmosphere --       -------------- */
 
-	if ((atmos->fp_atmos = fopen(input.atmos_input, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open inputfile %s", input.atmos_input);
+	if ((atmos->fp_atmos = fopen(rh->input.atmos_input, "r")) == NULL) {
+		sprintf(messageStr, "Unable to open inputfile %s", rh->input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	/* --- Construct atmosID from filename and last modification date - */
 
-	stat(input.atmos_input, &statBuffer);
-	if ((filename = strrchr(input.atmos_input, '/')) != NULL)
+	stat(rh->input.atmos_input, &statBuffer);
+	if ((filename = strrchr(rh->input.atmos_input, '/')) != NULL)
 		filename++;
 	else
-		filename = input.atmos_input;
+		filename = rh->input.atmos_input;
 	sprintf(atmos->ID, "%s (%.24s)", filename,
 			asctime(localtime(&statBuffer.st_mtime)));
 
@@ -112,7 +111,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	result = xdr_int(&xdrs, &Nx);
 	result &= xdr_int(&xdrs, &Nz);
 	if (!result) {
-		sprintf(messageStr, "Unable to read grid size from file %s", input.atmos_input);
+		sprintf(messageStr, "Unable to read grid size from file %s", rh->input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	Nspace = Nx * Nz;
@@ -121,7 +120,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 
 	result = xdr_int(&xdrs, &atmos->NHydr);
 	if (!result) {
-		sprintf(messageStr, "Unable to read NHydr from file %s", input.atmos_input);
+		sprintf(messageStr, "Unable to read NHydr from file %s", rh->input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	if (atmos->NHydr < 2 && !atmos->H_LTE) {
@@ -145,7 +144,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	result = xdr_vector(&xdrs, (char *) bc, 3,
 						sizeof(int), (xdrproc_t) rh_xdr_int);
 	if (!result) {
-		sprintf(messageStr, "Unable to read boundary conditions from file %s", input.atmos_input);
+		sprintf(messageStr, "Unable to read boundary conditions from file %s", rh->input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	geometry->hboundary = (enum boundary) bc[0];
@@ -191,7 +190,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	result       = xdr_vector(&xdrs, (char *) geometry->dx, Nx,
 							  sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
-		sprintf(messageStr, "Unable to read x grid from file %s", input.atmos_input);
+		sprintf(messageStr, "Unable to read x grid from file %s", rh->input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
@@ -215,7 +214,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	result      = xdr_vector(&xdrs, (char *) geometry->z, Nz,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
-		sprintf(messageStr, "Unable to read z grid from file %s", input.atmos_input);
+		sprintf(messageStr, "Unable to read z grid from file %s", rh->input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	for (k = 0; k < Nz; k++) geometry->z[k] *= KM_TO_M;
@@ -253,7 +252,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	result &= xdr_vector(&xdrs, (char *) geometry->vz, Nspace,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
-		sprintf(messageStr, "Unable to read atmospheric quantities from file %s", input.atmos_input);
+		sprintf(messageStr, "Unable to read atmospheric quantities from file %s", rh->input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 
@@ -281,7 +280,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	result    = xdr_vector(&xdrs, (char *) atmos->nH[0], atmos->NHydr * Nspace,
 						   sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
-		sprintf(messageStr, "Unable to read hydrogen density from file %s", input.atmos_input);
+		sprintf(messageStr, "Unable to read hydrogen density from file %s", rh->input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	atmos->nHtot = (double *) calloc(Nspace, sizeof(double));
@@ -312,7 +311,7 @@ void getBoundary(Atmosphere *atmos, Geometry *geometry)
 	const char routineName[] = "getBoundary";
 
 	bool_t result = TRUE;
-	int    Nx = geometry->Nx, Nz = geometry->Nz, Nspect = spectrum.Nspect;
+	int    Nx = geometry->Nx, Nz = geometry->Nz, Nspect = rh->spectrum.Nspect;
 
 	/* --- Read boundary conditions and irradiation. First VERTICAL
 		   boundary conditions --                        -------------- */

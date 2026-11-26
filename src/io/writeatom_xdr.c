@@ -20,6 +20,7 @@
 #include "constant.h"
 #include "error.h"
 #include "xdr.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -27,10 +28,7 @@ bool_t xdr_adamp(XDR *xdrs, struct Atom *atom);
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- writeAtom.c ------------- */
 
@@ -109,7 +107,7 @@ bool_t xdr_atom(XDR *xdrs, struct Atom *atom)
 		result &= xdr_int(xdrs, &line->Nlambda);
 		result &= xdr_int(xdrs, &line->Nblue);
 
-		if (spectrum.vacuum_to_air) {
+		if (rh->spectrum.vacuum_to_air) {
 			vacuum_to_air(1, &line->lambda0, &lambda_air);
 			result &= xdr_double(xdrs, &lambda_air);
 		} else
@@ -135,7 +133,7 @@ bool_t xdr_atom(XDR *xdrs, struct Atom *atom)
 		result &= xdr_int(xdrs, &continuum->Nlambda);
 		result &= xdr_int(xdrs, &continuum->Nblue);
 
-		if (spectrum.vacuum_to_air) {
+		if (rh->spectrum.vacuum_to_air) {
 			vacuum_to_air(1, &continuum->lambda0, &lambda_air);
 			result &= xdr_double(xdrs, &lambda_air);
 		} else
@@ -174,7 +172,7 @@ bool_t xdr_atom(XDR *xdrs, struct Atom *atom)
 		result &= xdr_int(xdrs, &ft->i);
 		result &= xdr_int(xdrs, &ft->j);
 
-		if (spectrum.vacuum_to_air) {
+		if (rh->spectrum.vacuum_to_air) {
 			vacuum_to_air(1, &ft->lambda0, &lambda_air);
 			result &= xdr_double(xdrs, &lambda_air);
 		} else
@@ -198,16 +196,16 @@ bool_t xdr_adamp(XDR *xdrs, Atom *atom)
 	double     *adamp;
 	AtomicLine *line;
 
-	adamp = (double *) malloc(atmos.Nspace * sizeof(double));
+	adamp = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 	for (kr = 0; kr < atom->Nline; kr++) {
 		line = atom->line + kr;
 		if (line->Voigt)
 			Damping(line, adamp);
 		else
-			for (k = 0; k < atmos.Nspace; k++) adamp[k] = 0.0;
+			for (k = 0; k < rh->atmos.Nspace; k++) adamp[k] = 0.0;
 
-		result &= xdr_vector(xdrs, (char *) adamp, atmos.Nspace,
+		result &= xdr_vector(xdrs, (char *) adamp, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	}
 	free(adamp);

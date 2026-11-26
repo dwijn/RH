@@ -39,6 +39,7 @@
 #include "error.h"
 #include "check.h"
 #include "kernels_reference.h"
+#include "state.h"
 
 double E1(double x);
 double E2(double x);
@@ -453,8 +454,6 @@ static void test_w3js_selection(void)
 	   checked in a child process. Bounds: 5e-13 for j <= 20 and 1e-6
 	   for j = 32 .. 48 -- ------------------------------------- */
 
-extern CommandLine commandline;
-
 static bool_t w3js_stops(double j)
 {
 	pid_t pid;
@@ -464,7 +463,7 @@ static bool_t w3js_stops(double j)
 	fflush(stderr);
 	if ((pid = fork()) == 0) {
 		if (!freopen("/dev/null", "w", stdout) || !freopen("/dev/null", "w", stderr)) _exit(1);
-		commandline.logfile = stderr;
+		rh->commandline.logfile = stderr;
 		w3js(j, j, j, 0.0, 0.0, 0.0);
 		_exit(0);
 	}

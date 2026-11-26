@@ -6,6 +6,7 @@
 #include "constant.h"
 #include "inputs.h"
 #include "error.h"
+#include "state.h"
 
 #define MAX_REC_LENGTH 142
 #define COMMENT_CHAR   "#"
@@ -16,8 +17,9 @@ struct NIST_Level {
 	float E, g, g_Landee;
 };
 
-CommandLine commandline;
-char        messageStr[MAX_LINE_SIZE];
+static RHState rh_state;
+RHState *const rh = &rh_state;
+char           messageStr[MAX_LINE_SIZE];
 
 int main(int argc, char *argv[])
 {
@@ -31,8 +33,8 @@ int main(int argc, char *argv[])
 	FILE              *fp_NIST;
 	struct NIST_Level *levels, *nl;
 
-	commandline.quiet   = FALSE;
-	commandline.logfile = stderr;
+	rh->commandline.quiet   = FALSE;
+	rh->commandline.logfile = stderr;
 
 	if (argc < 2) {
 		fprintf(stderr, "Usage: %s inFile E0\n", argv[0]);

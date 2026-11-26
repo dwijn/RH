@@ -41,13 +41,10 @@
 #include "inputs.h"
 #include "error.h"
 #include "check.h"
+#include "state.h"
 
 double summers(int i, int j, double nne, struct Atom *atom);
 double fone(double x);
-
-extern Atmosphere  atmos;
-extern InputData   input;
-extern CommandLine commandline;
 
 static int in_child = 0;
 
@@ -133,11 +130,11 @@ static void run_logged(const char *records)
 	char  *buf  = NULL;
 	size_t size = 0;
 	FILE  *log  = open_memstream(&buf, &size);
-	FILE  *old  = commandline.logfile;
+	FILE  *old  = rh->commandline.logfile;
 
-	commandline.logfile = log;
+	rh->commandline.logfile = log;
 	run(records);
-	commandline.logfile = old;
+	rh->commandline.logfile = old;
 	fclose(log);
 	snprintf(logText, sizeof(logText), "%s", buf);
 	free(buf);
@@ -165,7 +162,7 @@ static int is_fatal(const char *records)
 	if ((pid = fork()) == 0) {
 		in_child = 1;
 		if (!freopen("/dev/null", "w", stdout) || !freopen("/dev/null", "w", stderr)) _exit(1);
-		commandline.logfile = stderr;
+		rh->commandline.logfile = stderr;
 		run(records);
 		_exit(0);
 	}
@@ -175,10 +172,10 @@ static int is_fatal(const char *records)
 
 static void set_temperatures(double Tlo, double Thi, int n)
 {
-	atmos.Nspace = n;
+	rh->atmos.Nspace = n;
 	for (int k = 0; k < n; k++) {
-		atmos.T[k]  = (n > 1) ? Tlo * pow(Thi / Tlo, (double) k / (n - 1)) : Tlo;
-		atmos.ne[k] = 1e18;
+		rh->atmos.T[k]  = (n > 1) ? Tlo * pow(Thi / Tlo, (double) k / (n - 1)) : Tlo;
+		rh->atmos.ne[k] = 1e18;
 	}
 }
 
@@ -189,13 +186,13 @@ static void check_all_finite_nonneg(const char *what)
 	for (int ij = 0; ij < NLEVEL * NLEVEL; ij++) {
 		double mn = 1e300, mx = 0.0;
 
-		for (int k = 0; k < atmos.Nspace; k++) {
+		for (int k = 0; k < rh->atmos.Nspace; k++) {
 			double c = atom.C[ij][k];
 
 			if (!isfinite(c) || c < 0.0) {
 				if (bad++ < 5)
 					fprintf(stderr, "%s: C[%d][%d] at T = %g: %g\n", what, ij / NLEVEL,
-							ij % NLEVEL, atmos.T[k], c);
+							ij % NLEVEL, rh->atmos.T[k], c);
 			}
 			if (c < mn) mn = c;
 			if (c > mx) mx = c;
@@ -209,13 +206,13 @@ static void check_all_finite_nonneg(const char *what)
 
 static void setup(void)
 {
-	commandline.logfile = fopen("/dev/null", "w");
-	input.Nthreads      = 1;
-	atmos.Nspace        = NT;
-	atmos.T             = (double *) calloc(NT, sizeof(double));
-	atmos.ne            = (double *) calloc(NT, sizeof(double));
-	atmos.elements      = (Element *) calloc(30, sizeof(Element));
-	for (int n = 0; n < 28; n++) strcpy(atmos.elements[n].ID, elementID[n]);
+	rh->commandline.logfile = fopen("/dev/null", "w");
+	rh->input.Nthreads      = 1;
+	rh->atmos.Nspace        = NT;
+	rh->atmos.T             = (double *) calloc(NT, sizeof(double));
+	rh->atmos.ne            = (double *) calloc(NT, sizeof(double));
+	rh->atmos.elements      = (Element *) calloc(30, sizeof(Element));
+	for (int n = 0; n < 28; n++) strcpy(rh->atmos.elements[n].ID, elementID[n]);
 
 	memset(&atom, 0, sizeof(atom));
 	strcpy(atom.ID, "C");
@@ -241,7 +238,7 @@ static void setup(void)
 		for (int k = 0; k < NT; k++)
 			hydrogen.n[i][k] = (i == 7) ? 3e10 : (i == 5) ? 2e10
 														  : 1e10 + i;
-	atmos.H = &hydrogen;
+	rh->atmos.H = &hydrogen;
 }
 
 /* --- Hydrogen of Nlevel levels: level 5 (if there is one) has n5, the
@@ -285,10 +282,10 @@ int main(int argc, char **argv)
 		CHECK(count("negative contribution") == 1, "SHULL82 B = -3: messages: %d\n%s", count("negative contribution"), logText);
 		CHECK(strstr(logText, "SHULL82 0 3") != NULL && strstr(logText, "s^-1"), "SHULL82 message names the record and the unit");
 		for (int k = 0; k < NT; k++) {
-			double T      = atmos.T[k];
-			double sm     = summers(0, 3, atmos.ne[k], &atom);
+			double T      = rh->atmos.T[k];
+			double sm     = summers(0, 3, rh->atmos.ne[k], &atom);
 			double expect = sm * 1e-10 / T / sqrt(T) * exp(-1e4 / T) * (1.0 - 3.0 * exp(-1e5 / T));
-			expect        = (expect < 0.0) ? 0.0 : expect * atmos.ne[k] * 1e-6; /* cm3 -> m3 */
+			expect        = (expect < 0.0) ? 0.0 : expect * rh->atmos.ne[k] * 1e-6; /* cm3 -> m3 */
 			CHECK(atom.C[0 * NLEVEL + 3][k] >= 0.0, "SHULL82: C[0][3] at T = %g: %g", T, atom.C[0 * NLEVEL + 3][k]);
 			CHECK_CLOSE(atom.C[0 * NLEVEL + 3][k], expect, 1e-9, 0.0, "SHULL82 at T = %g", T);
 			nzero += (expect == 0.0);
@@ -314,7 +311,7 @@ int main(int argc, char **argv)
 	run_logged("BADNELL 0 3 2\n0 1e4\n1e-8 -1e-6\n");
 	CHECK(count("negative contribution") == 1 && strstr(logText, "BADNELL 0 3"), "BADNELL: %s", logText);
 	for (int k = 0; k < NT; k++) {
-		double T    = atmos.T[k];
+		double T    = rh->atmos.T[k];
 		double s    = (1e-8 - 1e-6 * exp(-1e4 / T)) * pow(T, -1.5);
 		double want = (s < 0.0) ? 0.0 : s;
 
@@ -337,10 +334,10 @@ int main(int argc, char **argv)
 	run_logged("AR85-CDI 0 3 1\n 11.3 -1.0 0.0 0.0 0.0\n");
 	CHECK(count("negative contribution") == 1 && strstr(logText, "AR85-CDI 0 3"), "AR85-CDI: %s", logText);
 	for (int k = 0; k < NT; k++) {
-		double x = 11.3 * EV / (KBOLTZMANN * atmos.T[k]), up = atom.C[3 * NLEVEL + 0][k],
+		double x = 11.3 * EV / (KBOLTZMANN * rh->atmos.T[k]), up = atom.C[3 * NLEVEL + 0][k],
 			   dn = atom.C[0 * NLEVEL + 3][k];
 
-		CHECK(up == 0.0 && dn == 0.0, "AR85-CDI clipped at T = %g (x = %g)", atmos.T[k], x);
+		CHECK(up == 0.0 && dn == 0.0, "AR85-CDI clipped at T = %g (x = %g)", rh->atmos.T[k], x);
 	}
 
 	/* --- fone and the AR85-CDI bracket 1 + x - x (2 + x) fone, which
@@ -382,9 +379,9 @@ int main(int argc, char **argv)
 	run_logged("AR85-CDI 0 3 1\n 11.3 0.0 1.0 0.0 0.0\n");
 	CHECK(count("negative contribution") == 0, "AR85-CDI bracket: %s", logText);
 	for (int k = 0, nchecked = 0; k < NT; k++) {
-		double x = 11.3 * EV / (KBOLTZMANN * atmos.T[k]), up = atom.C[3 * NLEVEL + 0][k];
+		double x = 11.3 * EV / (KBOLTZMANN * rh->atmos.T[k]), up = atom.C[3 * NLEVEL + 0][k];
 
-		CHECK(up > 0.0 && isfinite(up), "AR85-CDI bracket at T = %g (x = %g): %g", atmos.T[k], x, up);
+		CHECK(up > 0.0 && isfinite(up), "AR85-CDI bracket at T = %g (x = %g): %g", rh->atmos.T[k], x, up);
 		if (x > 50.0) {
 			double br = 0.0, fact = 1.0;
 
@@ -392,9 +389,9 @@ int main(int argc, char **argv)
 				fact *= m;
 				br += ((m % 2) ? -1.0 : 1.0) * fact * (m - 1) / pow(x, m);
 			}
-			double want = atmos.ne[k] * 6.69E-7 / pow(11.3, 1.5) * exp(-x) * sqrt(x) * br * CUBE(CM_TO_M);
+			double want = rh->atmos.ne[k] * 6.69E-7 / pow(11.3, 1.5) * exp(-x) * sqrt(x) * br * CUBE(CM_TO_M);
 
-			CHECK_CLOSE(up, want, 1e-9, 0.0, "AR85-CDI bracket rate at T = %g (x = %g)", atmos.T[k], x);
+			CHECK_CLOSE(up, want, 1e-9, 0.0, "AR85-CDI bracket rate at T = %g (x = %g)", rh->atmos.T[k], x);
 			nchecked++;
 		}
 		if (k == NT - 1) CHECK(nchecked == 9, "AR85-CDI bracket: %d temperatures above x = 50", nchecked);
@@ -407,7 +404,7 @@ int main(int argc, char **argv)
 	run_logged("AR85-CHH 0 3 2e3 2e5 1.0 0.5 -3.0 5.0\n");
 	CHECK(count("negative contribution") == 1 && strstr(logText, "AR85-CHH 0 3"), "AR85-CHH negative: %s", logText);
 	CHECK(count("only defined for") == 1, "AR85-CHH range: %s", logText);
-	for (int k = 0; k < NT; k++) CHECK(atom.C[0 * NLEVEL + 3][k] == 0.0, "AR85-CHH at T = %g", atmos.T[k]);
+	for (int k = 0; k < NT; k++) CHECK(atom.C[0 * NLEVEL + 3][k] == 0.0, "AR85-CHH at T = %g", rh->atmos.T[k]);
 
 	/* --- AR85-CHH positive: unchanged, zero outside the range, with a
 		   message for the range only -- ------------------------- */
@@ -416,7 +413,7 @@ int main(int argc, char **argv)
 	run_logged("AR85-CHH 0 3 2e3 2e5 1.0 0.5 0.1 -1.0\n");
 	CHECK(count("negative contribution") == 0 && count("only defined for") == 1, "AR85-CHH positive: %s", logText);
 	for (int k = 0; k < NT; k++) {
-		double T = atmos.T[k], t4 = T / 1e4;
+		double T = rh->atmos.T[k], t4 = T / 1e4;
 		double want = (T >= 2e3 && T <= 2e5)
 						  ? 1.0 * 1e-9 * pow(t4, 0.5) * (1.0 + 0.1 * exp(-t4)) * hydrogen.n[0][k] * 1e-6
 						  : 0.0;
@@ -432,7 +429,7 @@ int main(int argc, char **argv)
 	run_logged("AR85-CHP 0 3 5e3 5e5 2.0 0.3 0.2 0.1\n");
 	CHECK(count("negative contribution") == 0 && count("only defined for") == 1, "AR85-CHP: %s", logText);
 	for (int k = 0; k < NT; k++) {
-		double T = atmos.T[k], t4 = T / 1e4;
+		double T = rh->atmos.T[k], t4 = T / 1e4;
 		double want = (T >= 5e3 && T <= 5e5)
 						  ? 2.0 * 1e-9 * pow(t4, 0.3) * exp(-0.2 * t4) * exp(-0.1 * EV / KBOLTZMANN / T) *
 								CHP_PROTONS * 1e-6
@@ -447,7 +444,7 @@ int main(int argc, char **argv)
 	change_hydrogen(2, 4e10, CHP_PROTONS);
 	run_logged("AR85-CHP 0 3 5e3 5e5 2.0 0.3 0.2 0.1\n");
 	for (int k = 0; k < NT; k++) {
-		double T = atmos.T[k], t4 = T / 1e4;
+		double T = rh->atmos.T[k], t4 = T / 1e4;
 		double want = (T >= 5e3 && T <= 5e5)
 						  ? 2.0 * 1e-9 * pow(t4, 0.3) * exp(-0.2 * t4) * exp(-0.1 * EV / KBOLTZMANN / T) *
 								CHP_PROTONS * 1e-6
@@ -494,7 +491,7 @@ int main(int argc, char **argv)
 
 	run_logged("SHULL82 0 3 1e-9 0 0 0.5 0 0 1e4 1e5\n");
 	for (int k = 0; k < NT; k++)
-		CHECK(atom.C[3 * NLEVEL + 0][k] == 0.0 && atom.C[0 * NLEVEL + 3][k] == 0.0, "SHULL82 T_col = 0 at T = %g", atmos.T[k]);
+		CHECK(atom.C[3 * NLEVEL + 0][k] == 0.0 && atom.C[0 * NLEVEL + 3][k] == 0.0, "SHULL82 T_col = 0 at T = %g", rh->atmos.T[k]);
 	CHECK(strlen(logText) == 0, "SHULL82 T_col = 0: %s", logText);
 
 	freeMatrix((void **) hydrogen.n);
@@ -503,8 +500,8 @@ int main(int argc, char **argv)
 	free(atom.g);
 	free(atom.E);
 	free(atom.stage);
-	free(atmos.T);
-	free(atmos.ne);
-	free(atmos.elements);
+	free(rh->atmos.T);
+	free(rh->atmos.ne);
+	free(rh->atmos.elements);
 	return check_summary("test_collision_formulas");
 }

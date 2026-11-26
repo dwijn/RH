@@ -31,10 +31,7 @@
 #include "check.h"
 #include "slab_exact.h"
 #include "bezier_reference.h"
-
-extern Geometry   geometry;
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
+#include "state.h"
 
 /* --- The solvers under test (src/geometry/plane1d/) -- ---------- */
 
@@ -73,16 +70,16 @@ static void slab_init(Slab *slab, int Ndep, bool_t exp_chi)
 	slab->P    = malloc(Ndep * sizeof(double));
 	slab->dI   = malloc(Ndep * sizeof(double));
 
-	geometry.Ndep   = Ndep;
-	geometry.height = realloc(geometry.height, Ndep * sizeof(double));
+	rh->geometry->Ndep   = Ndep;
+	rh->geometry->height = realloc(rh->geometry->height, Ndep * sizeof(double));
 	for (int k = 0; k < Ndep; k++) {
 		slab->tau[k] = tau_min * pow(tau_max / tau_min, (double) k / (Ndep - 1));
 		if (exp_chi) {
-			slab->chi[k]       = slab->tau[k];
-			geometry.height[k] = -log(slab->tau[k]);
+			slab->chi[k]            = slab->tau[k];
+			rh->geometry->height[k] = -log(slab->tau[k]);
 		} else {
-			slab->chi[k]       = 1.0;
-			geometry.height[k] = -slab->tau[k];
+			slab->chi[k]            = 1.0;
+			rh->geometry->height[k] = -slab->tau[k];
 		}
 	}
 }
@@ -105,8 +102,8 @@ static void set_source(Slab *slab, const double s[NPOLY])
 		slab->S[k] = s[0] + t * (s[1] + t * (s[2] + t * s[3]));
 	}
 	for (int mu = 0; mu < NMU; mu++) {
-		geometry.Itop[0][mu] = 0.0;
-		geometry.Ibottom[0][mu] =
+		rh->geometry->Itop[0][mu] = 0.0;
+		rh->geometry->Ibottom[0][mu] =
 			I_exact(s, slab->tau[slab->Ndep - 1], 0.0, mus[mu], TRUE);
 	}
 }
@@ -331,11 +328,11 @@ static double psi_error(const Method *m, Slab *slab, int mu, bool_t to_obs)
 			slab->S[k] -= dS;
 			dIdS = (slab->I[k] - I0) / dS;
 		} else {
-			double Itop = geometry.Itop[0][mu], Ibottom = geometry.Ibottom[0][mu];
+			double Itop = rh->geometry->Itop[0][mu], Ibottom = rh->geometry->Ibottom[0][mu];
 
 			for (int l = 0; l < slab->Ndep; l++)
 				S1[l] = (l == k) ? 1.0 : 0.0;
-			geometry.Itop[0][mu] = geometry.Ibottom[0][mu] = 0.0;
+			rh->geometry->Itop[0][mu] = rh->geometry->Ibottom[0][mu] = 0.0;
 			if (m->solver) {
 				m->solver(0, mu, to_obs, slab->chi, S1, slab->I, NULL);
 				dIdS = slab->I[k];
@@ -343,8 +340,8 @@ static double psi_error(const Method *m, Slab *slab, int mu, bool_t to_obs)
 				Feautrier(0, mu, slab->chi, S1, m->order, slab->P, NULL);
 				dIdS = slab->P[k];
 			}
-			geometry.Itop[0][mu]    = Itop;
-			geometry.Ibottom[0][mu] = Ibottom;
+			rh->geometry->Itop[0][mu]    = Itop;
+			rh->geometry->Ibottom[0][mu] = Ibottom;
 		}
 		/* --- No contribution from the upwind boundary point -- --- */
 
@@ -390,7 +387,7 @@ static double psi_excess(Slab *slab)
 {
 	double worst = -1.0;
 
-	geometry.vboundary[BOTTOM] = ZERO;
+	rh->geometry->vboundary[BOTTOM] = ZERO;
 	for (int mu = 0; mu < NMU; mu++) {
 		for (int to_obs = 0; to_obs <= 1; to_obs++) {
 			Piecewise_Bezier3_1D(0, mu, to_obs, slab->chi, slab->S, slab->I,
@@ -402,7 +399,7 @@ static double psi_excess(Slab *slab)
 			}
 		}
 	}
-	geometry.vboundary[BOTTOM] = IRRADIATED;
+	rh->geometry->vboundary[BOTTOM] = IRRADIATED;
 	return worst;
 }
 
@@ -486,12 +483,12 @@ int main(int argc, char *argv[])
 {
 	bool_t verbose = (argc > 1 && strcmp(argv[1], "-v") == 0);
 
-	geometry.Nrays             = NMU;
-	geometry.muz               = mus;
-	geometry.Itop              = matrix_double(1, NMU);
-	geometry.Ibottom           = matrix_double(1, NMU);
-	geometry.vboundary[TOP]    = ZERO;
-	geometry.vboundary[BOTTOM] = IRRADIATED;
+	rh->geometry->Nrays             = NMU;
+	rh->geometry->muz               = mus;
+	rh->geometry->Itop              = matrix_double(1, NMU);
+	rh->geometry->Ibottom           = matrix_double(1, NMU);
+	rh->geometry->vboundary[TOP]    = ZERO;
+	rh->geometry->vboundary[BOTTOM] = IRRADIATED;
 
 	check_bezier_weights(1.0e-11, verbose); /* 8.5e-13 at dt = 0.32 */
 

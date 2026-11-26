@@ -27,13 +27,11 @@
 #include "geometry.h"
 #include "spectrum.h"
 #include "bezier.h"
+#include "state.h"
 
 /* --- Global variables --                             -------------- */
 
-extern Geometry   geometry;
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- Piece_Stokes_Bezier3_1D.c */
 
@@ -54,15 +52,15 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 
 	register int k, n, m, i;
 
-	int    Ndep = geometry.Ndep, k_start, k_end, dk, k_last;
+	int    Ndep = rh->geometry->Ndep, k_start, k_end, dk, k_last;
 	double dtau_uw, dtau_dw = 0.0, c1, c2, dsdn2, dchi_dn = 0.0,
 					I_upw[4], Bnu[2];
 	double  dchi_up, dchi_c, psi, I_loc[4];
 	double  dsup, dsdn;
 	double  Ku[4][4], K0[4][4], Kd[4][4], dKu[4][4], dK0[4][4];
 	double  Su[4], S0[4], Sd[4], dSu[4], dS0[4];
-	double  imu = 1.0 / geometry.muz[mu];
-	double *z   = geometry.height;
+	double  imu = 1.0 / rh->geometry->muz[mu];
+	double *z   = rh->geometry->height;
 
 	if (to_obs) {
 		dk      = -1;
@@ -79,36 +77,36 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 	/* --- Boundary conditions --                        -------------- */
 
 	if (to_obs) {
-		switch (geometry.vboundary[BOTTOM]) {
+		switch (rh->geometry->vboundary[BOTTOM]) {
 		case ZERO:
 			for (n = 0; n < 4; n++) I_upw[n] = 0.0;
 			break;
 		case THERMALIZED:
-			Planck(2, &atmos.T[Ndep - 2], spectrum.lambda[nspect], Bnu);
+			Planck(2, &rh->atmos.T[Ndep - 2], rh->spectrum.lambda[nspect], Bnu);
 			I_upw[0] = Bnu[1] - (Bnu[0] - Bnu[1]) / dtau_uw;
 			for (n = 1; n < 4; n++) I_upw[n] = 0.0;
 			break;
 		case IRRADIATED:
-			I_upw[0] = geometry.Ibottom[nspect][mu];
+			I_upw[0] = rh->geometry->Ibottom[nspect][mu];
 			for (n = 1; n < 4; n++) I_upw[n] = 0.0;
 			break;
 		case REFLECTIVE:
 			sprintf(messageStr, "Boundary condition not implemented: %d",
-					geometry.vboundary[BOTTOM]);
+					rh->geometry->vboundary[BOTTOM]);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 	} else {
-		switch (geometry.vboundary[TOP]) {
+		switch (rh->geometry->vboundary[TOP]) {
 		case ZERO:
 			for (n = 0; n < 4; n++) I_upw[n] = 0.0;
 			break;
 		case IRRADIATED:
-			I_upw[0] = geometry.Itop[nspect][mu];
+			I_upw[0] = rh->geometry->Itop[nspect][mu];
 			for (n = 1; n < 4; n++) I_upw[n] = 0.0;
 			break;
 		default:
 			sprintf(messageStr, "Boundary condition not implemented: %d",
-					geometry.vboundary[TOP]);
+					rh->geometry->vboundary[TOP]);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 	}
@@ -285,7 +283,7 @@ void Piecewise_Bezier3_1D_tri(int nspect, int mu, bool_t to_obs,
 	register int k;
 	const char   routineName[] = "Piecewise_Bezier3_1D";
 
-	int    k_start, k_end, dk, Ndep = geometry.Ndep;
+	int    k_start, k_end, dk, Ndep = rh->geometry->Ndep;
 	double dtau_uw, dtau_dw = 0.0, I_upw = 0.0, c1, c2, zmu, Bnu[2];
 	double dsup, dsdn, dt03, eps = 0, alpha = 0, beta = 0, gamma = 0, theta = 0;
 	double dS_up, dS_c, dchi_up, dchi_c, dchi_dn = 0.0, dsdn2;
@@ -299,7 +297,7 @@ void Piecewise_Bezier3_1D_tri(int nspect, int mu, bool_t to_obs,
 
 	double cSc[3] = {0.0, 0.0, 0.0}, cSup[3], T0 = 0.0, Tp = 0.0;
 
-	zmu = 1.0 / geometry.muz[mu];
+	zmu = 1.0 / rh->geometry->muz[mu];
 
 	/* --- Distinguish between rays going from BOTTOM to TOP
 		   (to_obs == TRUE), and vice versa --           -------------- */
@@ -315,42 +313,42 @@ void Piecewise_Bezier3_1D_tri(int nspect, int mu, bool_t to_obs,
 	}
 
 	dtau_uw = 0.5 * zmu * (chi[k_start] + chi[k_start + dk]) *
-			  fabs(geometry.height[k_start] - geometry.height[k_start + dk]);
+			  fabs(rh->geometry->height[k_start] - rh->geometry->height[k_start + dk]);
 
 	/* --- Boundary conditions --                        -------------- */
 
 	if (to_obs) {
-		switch (geometry.vboundary[BOTTOM]) {
+		switch (rh->geometry->vboundary[BOTTOM]) {
 		case ZERO:
 			I_upw = 0.0;
 			break;
 		case THERMALIZED:
-			Planck(2, &atmos.T[Ndep - 2], spectrum.lambda[nspect], Bnu);
+			Planck(2, &rh->atmos.T[Ndep - 2], rh->spectrum.lambda[nspect], Bnu);
 			I_upw = Bnu[1] - (Bnu[0] - Bnu[1]) / dtau_uw;
 			break;
 		case IRRADIATED:
-			I_upw = geometry.Ibottom[nspect][mu];
+			I_upw = rh->geometry->Ibottom[nspect][mu];
 			break;
 		case REFLECTIVE:
 			sprintf(messageStr, "Boundary condition not implemented: %d",
-					geometry.vboundary[BOTTOM]);
+					rh->geometry->vboundary[BOTTOM]);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 	} else {
-		switch (geometry.vboundary[TOP]) {
+		switch (rh->geometry->vboundary[TOP]) {
 		case ZERO:
 			I_upw = 0.0;
 			break;
 		case THERMALIZED:
-			Planck(2, &atmos.T[0], spectrum.lambda[nspect], Bnu);
+			Planck(2, &rh->atmos.T[0], rh->spectrum.lambda[nspect], Bnu);
 			I_upw = Bnu[0] - (Bnu[1] - Bnu[0]) / dtau_uw;
 			break;
 		case IRRADIATED:
-			I_upw = geometry.Itop[nspect][mu];
+			I_upw = rh->geometry->Itop[nspect][mu];
 			break;
 		case REFLECTIVE:
 			sprintf(messageStr, "Boundary condition not implemented: %d",
-					geometry.vboundary[BOTTOM]);
+					rh->geometry->vboundary[BOTTOM]);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 	}
@@ -363,8 +361,8 @@ void Piecewise_Bezier3_1D_tri(int nspect, int mu, bool_t to_obs,
 		   shift for all next iterations --              -------------- */
 
 	k       = k_start + dk;
-	dsup    = fabs(geometry.height[k] - geometry.height[k - dk]) * zmu;
-	dsdn    = fabs(geometry.height[k + dk] - geometry.height[k]) * zmu;
+	dsup    = fabs(rh->geometry->height[k] - rh->geometry->height[k - dk]) * zmu;
+	dsdn    = fabs(rh->geometry->height[k + dk] - rh->geometry->height[k]) * zmu;
 	dchi_up = (chi[k] - chi[k - dk]) / dsup;
 
 	/* --- dchi/ds at central point --                   -------------- */
@@ -393,13 +391,13 @@ void Piecewise_Bezier3_1D_tri(int nspect, int mu, bool_t to_obs,
 
 			/* --- Downwind path length --                   -------------- */
 
-			dsdn = fabs(geometry.height[k + dk] - geometry.height[k]) * zmu;
+			dsdn = fabs(rh->geometry->height[k + dk] - rh->geometry->height[k]) * zmu;
 
 			/* --- dchi/ds at downwind point --             -------------- */
 
 			if (abs(k - k_end) > 1) {
-				dsdn2 = fabs(geometry.height[k + 2 * dk] -
-							 geometry.height[k + dk]) *
+				dsdn2 = fabs(rh->geometry->height[k + 2 * dk] -
+							 rh->geometry->height[k + dk]) *
 						zmu;
 				dchi_dn = cent_deriv(dsdn, dsdn2, chi[k], chi[k + dk], chi[k + 2 * dk]);
 			} else {

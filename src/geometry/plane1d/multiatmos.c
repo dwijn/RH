@@ -27,6 +27,7 @@
 #include "inputs.h"
 #include "statistics.h"
 #include "xdr.h"
+#include "state.h"
 
 #define MULTI_COMMENT_CHAR "*"
 #define N_HYDROGEN_MULTI   6
@@ -35,9 +36,7 @@
 
 /* --- Global variables --                             -------------- */
 
-extern Spectrum  spectrum;
-extern InputData input;
-extern char      messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- MULTIatmos.c ------------ */
 
@@ -66,12 +65,12 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 
 	/* --- Open the input file for model atmosphere in MULTI format - - */
 
-	if ((atmos->fp_atmos = fopen(input.atmos_input, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open inputfile %s", input.atmos_input);
+	if ((atmos->fp_atmos = fopen(rh->input.atmos_input, "r")) == NULL) {
+		sprintf(messageStr, "Unable to open inputfile %s", rh->input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	} else {
 		sprintf(messageStr, "\n -- reading input file: %s\n\n",
-				input.atmos_input);
+				rh->input.atmos_input);
 		Error(MESSAGE, NULL, messageStr);
 	}
 
@@ -79,7 +78,7 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 
 	/* --- Boundary condition at TOP of atmosphere --      ------------ */
 
-	if (strcmp(input.Itop, "none"))
+	if (strcmp(rh->input.Itop, "none"))
 		geometry->vboundary[TOP] = IRRADIATED;
 	else
 		geometry->vboundary[TOP] = ZERO;
@@ -96,11 +95,11 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 
 		/* --- Construct atmosID from filename and last modification date */
 
-		stat(input.atmos_input, &statBuffer);
-		if ((filename = strrchr(input.atmos_input, '/')) != NULL)
+		stat(rh->input.atmos_input, &statBuffer);
+		if ((filename = strrchr(rh->input.atmos_input, '/')) != NULL)
 			filename++;
 		else
-			filename = input.atmos_input;
+			filename = rh->input.atmos_input;
 		sprintf(atmos->ID, "%s (%.24s)", filename,
 				asctime(localtime(&statBuffer.st_mtime)));
 		Nread = 1;
@@ -160,7 +159,7 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 		break;
 	default:
 		sprintf(messageStr, "Unknown depth scale string in file %s: %s",
-				input.atmos_input, scaleStr);
+				rh->input.atmos_input, scaleStr);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	}
 	free(dscale);
@@ -201,7 +200,7 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 	if (k > 0 && k < Ndep) {
 		sprintf(messageStr,
 				"Reached end of input file %s before all data was read",
-				input.atmos_input);
+				rh->input.atmos_input);
 		Error(ERROR_LEVEL_2, routineName, messageStr);
 	} else if (k == 0) {
 
@@ -212,7 +211,7 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 			sprintf(messageStr,
 					"Height scale should be COLUMNMASS when nH not supplied: "
 					"File %s",
-					input.atmos_input);
+					rh->input.atmos_input);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		atmos->nHtot = (double *) calloc(Ndep, sizeof(double));
@@ -272,9 +271,9 @@ void convertScales(Atmosphere *atmos, Geometry *geometry)
 
 	/* --- Get opacity of reference wavelength --          ------------ */
 
-	Locate(spectrum.Nspect, spectrum.lambda, atmos->lambda_ref, &ref_index);
+	Locate(rh->spectrum.Nspect, rh->spectrum.lambda, atmos->lambda_ref, &ref_index);
 
-	as = &spectrum.as[ref_index];
+	as = &rh->spectrum.as[ref_index];
 	alloc_as(ref_index, FALSE);
 	readBackground(ref_index, 0, 0);
 
@@ -342,21 +341,21 @@ void getBoundary(Geometry *geometry)
 	case IRRADIATED:
 
 		sprintf(messageStr, "\n -- reading irradiance input file: %s\n\n",
-				input.Itop);
+				rh->input.Itop);
 		Error(MESSAGE, NULL, messageStr);
 
-		geometry->Itop = matrix_double(spectrum.Nspect, geometry->Nrays);
+		geometry->Itop = matrix_double(rh->spectrum.Nspect, geometry->Nrays);
 
 		/* --- Open input file for irradiation at TOP --     -------------- */
 
-		if ((fp_Itop = fopen(input.Itop, "r")) == NULL) {
-			sprintf(messageStr, "Unable to open inputfile %s", input.Itop);
+		if ((fp_Itop = fopen(rh->input.Itop, "r")) == NULL) {
+			sprintf(messageStr, "Unable to open inputfile %s", rh->input.Itop);
 			Error(ERROR_LEVEL_2, routineName, messageStr);
 		}
 		xdrstdio_create(&xdrs, fp_Itop, XDR_DECODE);
 
 		result &= xdr_vector(&xdrs, (char *) geometry->Itop[0],
-							 spectrum.Nspect * geometry->Nrays,
+							 rh->spectrum.Nspect * geometry->Nrays,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
 			sprintf(messageStr,
@@ -377,7 +376,7 @@ void getBoundary(Geometry *geometry)
 	case ZERO: break;
 	case THERMALIZED: break;
 	case IRRADIATED:
-		geometry->Ibottom = matrix_double(spectrum.Nspect, geometry->Nrays);
+		geometry->Ibottom = matrix_double(rh->spectrum.Nspect, geometry->Nrays);
 
 		/* --- Infalling intensities at BOTTOM should be read here -- --- */
 

@@ -11,15 +11,13 @@
 #include "atmos.h"
 #include "spectrum.h"
 #include "inputs.h"
+#include "state.h"
 
 /* --- Function prototypes --                          -------------- */
 
 /* --- Global variables --                             -------------- */
 
-extern Atmosphere atmos;
-extern Spectrum   spectrum;
-extern InputData  input;
-extern char       messageStr[];
+extern char messageStr[];
 
 /* ------- begin -------------------------- StokesK.c --------------- */
 
@@ -40,30 +38,30 @@ void StokesK(int nspect, int k, double chi_I, double K[4][4])
 	  See: Rees, Murphy, & Durrant, 1989, ApJ 339, 1093-1106.
 
 		   --                                            -------------- */
-	as = &spectrum.as[nspect];
+	as = &rh->spectrum.as[nspect];
 
 	for (j = 0; j < 4; j++)
 		for (i = 0; i < 4; i++) K[j][i] = 0.0;
 
 	if (containsPolarized(as)) {
-		K[0][1] = as->chi[atmos.Nspace + k];
-		K[0][2] = as->chi[2 * atmos.Nspace + k];
-		K[0][3] = as->chi[3 * atmos.Nspace + k];
+		K[0][1] = as->chi[rh->atmos.Nspace + k];
+		K[0][2] = as->chi[2 * rh->atmos.Nspace + k];
+		K[0][3] = as->chi[3 * rh->atmos.Nspace + k];
 
-		if (input.magneto_optical) {
-			K[1][2] = as->chip[2 * atmos.Nspace + k];
-			K[1][3] = as->chip[atmos.Nspace + k];
+		if (rh->input.magneto_optical) {
+			K[1][2] = as->chip[2 * rh->atmos.Nspace + k];
+			K[1][3] = as->chip[rh->atmos.Nspace + k];
 			K[2][3] = as->chip[k];
 		}
 	}
-	if (atmos.backgrflags[nspect].ispolarized) {
-		K[0][1] += as->chi_c[atmos.Nspace + k];
-		K[0][2] += as->chi_c[2 * atmos.Nspace + k];
-		K[0][3] += as->chi_c[3 * atmos.Nspace + k];
+	if (rh->atmos.backgrflags[nspect].ispolarized) {
+		K[0][1] += as->chi_c[rh->atmos.Nspace + k];
+		K[0][2] += as->chi_c[2 * rh->atmos.Nspace + k];
+		K[0][3] += as->chi_c[3 * rh->atmos.Nspace + k];
 
-		if (input.magneto_optical) {
-			K[1][2] += as->chip_c[2 * atmos.Nspace + k];
-			K[1][3] += as->chip_c[atmos.Nspace + k];
+		if (rh->input.magneto_optical) {
+			K[1][2] += as->chip_c[2 * rh->atmos.Nspace + k];
+			K[1][3] += as->chip_c[rh->atmos.Nspace + k];
 			K[2][3] += as->chip_c[k];
 		}
 	}
@@ -77,7 +75,7 @@ void StokesK(int nspect, int k, double chi_I, double K[4][4])
 	}
 	/* --- Anti-symmetric magneto-optical elements --    -------------- */
 
-	if (input.magneto_optical) {
+	if (rh->input.magneto_optical) {
 		K[1][3] *= -1.0;
 		K[2][1] *= -1.0;
 		K[3][2] *= -1.0;
