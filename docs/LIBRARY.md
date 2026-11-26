@@ -771,6 +771,9 @@ flowchart TB
    module (Q-46). `messageStr` waits for phase 3, the 27 tables loaded once
    for phase 4, the 13 scratch buffers for phase 3 and the 5 file handles
    for phase 5.
+   *Done 2026-11-25 (#594, #595). As built: the module parts' types were
+   declared by hand and the uses of the statics rewritten by a script, as
+   for the globals; the opacity buffer pool moved with them (37 variables).*
 3. **Pass it explicitly, return status, stop path.** Module by module,
    leaves first: the struct pointer becomes the first parameter, and
    functions that can fail return `rh_status` instead of calling
