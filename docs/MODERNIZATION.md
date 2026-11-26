@@ -23,8 +23,8 @@ upstream. Newest changes go at the top of the changelog.
 *Status on 2026-11-25.* The work is on the fork
 [dwijn/RH](https://github.com/dwijn/RH), integration branch `modernize`.
 Every change is a pull request, verified against upstream RH (`c95bdf6`)
-or against its base commit. 245 issues are logged; 167 are fixed and 5
-closed without a fix. Of the 73 open, 35 are on the wishlist.
+or against its base commit. 245 issues are logged; 168 are fixed and 5
+closed without a fix. Of the 72 open, 35 are on the wishlist.
 Plan steps 1–4 (crash fixes, build and hygiene, tests, the solver) are
 done: step 4 closed on 2026-11-23, its research items and the parts not
 needed now on the wishlist (§4). The library track (errors that return,
@@ -640,7 +640,7 @@ Estimated for a realistic 3-D run: 256×256×200 grid (one array V = 105 MB),
 |---|---|---|---|---|
 | [T-1](https://github.com/dwijn/RH/issues/49) | medium | Shared global `messageStr` written from threaded code paths | `rhf1d/formal.c:209,228`, `bezier_1D.c`, `piecestokes_1D.c:93`, `opacity.c:312,408`, `readj.c` | open |
 | [T-2](https://github.com/dwijn/RH/issues/50) | medium | Function-static lazy initialization (data race): Voigt tables, `BiLinear` hunt indices, wigner, hydrogen, metal | `voigt.c:261,447`, `linear.c:59`, `wigner.c:166`, `hydrogen.c:336,548,693`, `metal.c:160` | open |
-| [T-3](https://github.com/dwijn/RH/issues/51) | low | File-static spline state, not reentrant (only called serially today) | `spline.c:22-36`, `expspline.c:25-36` | open |
+| [T-3](https://github.com/dwijn/RH/issues/51) | low | File-static spline state, not reentrant (only called serially today). *Moot since Q-35 (#512, 2026-11-20) removed both files; closed 2026-11-25.* | `spline.c:22-36`, `expspline.c:25-36` | fixed (#512) |
 | [T-4](https://github.com/dwijn/RH/issues/179) | high | Hybrid PRD (`PRD_ANGLE_APPROX`) with `N_THREADS > 1`: the formal solution runs threads over wavelengths, and each adds its intensity into the gas-frame mean intensity `Jgas` of *neighbouring* wavelengths (`Jgas[iprdh[idx]][k] +=`, and the `prdh_limit_mem` branch) without a lock, so concurrent updates are lost. After one iteration on a Bifrost column, `Jgas` on 4 threads differs from 1 thread by up to 34% (30% of entries), two 4-thread runs by 51%. The corrupted J feeds the PRD emission profile: the same run converges in 30 iterations on 1 thread (1-D; 36 in 2-D, byte-identical when repeated) and in 42 to 78 on 4, or stalls for 200 (2-D); "converged" populations differ by 2.5%. Present in all three geometries and upstream | `rhf1d/formal.c:295-330`, `rhsc2d/formal.c:283-339`, `rhsc3d/formal.c:256-312` | fixed (#182) |
 | [T-5](https://github.com/dwijn/RH/issues/219) | medium | Shared state in the background opacity loop, which blocks threading it (P-13): `rlk_opacity` allocates `element->n` and calls `LTEpops_elem` lazily and calls `RLKZeeman` on first use; `MolecularOpacity` calls `MolZeeman` on first use; `passive_bb` keeps a static list of lines (damping cache) across wavelengths; `Metal_bf` and `Hydrogen_bf` use the file-static spline (T-3); the free-free routines in `hydrogen.c` keep static `Hunt` indices and lazily allocated tables (T-2); records in `background.dat` are numbered by a running counter. All removed on `perf/background-threads`: one-time setup in `backgroundPrepare`/`rlk_prepare`, reentrant `SplineTable`, explicit `passive_bb` cache and free-free state (step 1); atomic record reservation (step 2) | `kurucz.c`, `opacity.c` (`MolecularOpacity`), `metal.c:156-158`, `hydrogen.c:336,547,690`, `background.c:307,569,622` | fixed (#220) |
 
