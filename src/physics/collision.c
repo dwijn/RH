@@ -67,7 +67,6 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double E1(RHState *rh, double x);
 double fone(RHState *rh, double x);
 double ftwo(double x);
 void   atomnm(RHState *rh, int anr, char *cseq);
@@ -123,7 +122,12 @@ double fone(RHState *rh, double x)
 	  terms; below 50, E1 (A&S 5.1.56, 2e-8) leaves that bracket within
 	  3e-4, and the two sides meet to 5e-5 at x = 50 --  ----------- */
 
-	if (x <= 50.0) return exp(x) * E1(rh, x);
+	if (x <= 50.0) {
+		double e1;
+
+		ExitOnError(rh, E1(rh, x, &e1));
+		return exp(x) * e1;
+	}
 
 	double term = 1.0 / x, sum = term;
 
@@ -754,7 +758,7 @@ void CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 	double **cdi = NULL, **badi = NULL;
 	double   acolsh, tcolsh, aradsh, xradsh, adish, bdish, t0sh, t1sh, summrs, tg, cdn, cup;
 	double   ar85t1, ar85t2, ar85a, ar85b, ar85c, ar85d, t4;
-	double   de, zz, betab, cbar, dekt, dekti, wlog, wb, sumscl;
+	double   de, zz, betab, cbar, dekt, dekti, wlog, wb, sumscl, e1;
 
 	getCPU(rh, 3, TIME_START, NULL);
 
@@ -1054,7 +1058,7 @@ void CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 				   where the problem is --                   -------------- */
 
 			checkFiniteValues(rh, atom, keyword, i1, i2, coeff, Nitem, T);
-			pchipTableInit(rh, &ctable, Nitem, T, coeff, PCHIP_LOGLOG);
+			ExitOnError(rh, pchipTableInit(rh, &ctable, Nitem, T, coeff, PCHIP_LOGLOG));
 			pchipTableEval(&ctable, Nspace, rh->atmos.T, C);
 			pchipTableFree(&ctable);
 			tableRangeCount(rh, &tabrange[tableType(keyword)], T, Nitem, Nspace);
@@ -1336,8 +1340,9 @@ void CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 				dekti = 1.0 / dekt;
 				wlog  = log(1.0 + dekti);
 				wb    = pow(wlog, betab / (1.0 + dekti));
-				cup   = 2.1715E-8 * cbar * pow(13.6 / de, 1.5) * sqrt(dekt) *
-					  E1(rh, dekt) * wb * rh->atmos.ne[k] * CUBE(CM_TO_M);
+				ExitOnError(rh, E1(rh, dekt, &e1));
+				cup = 2.1715E-8 * cbar * pow(13.6 / de, 1.5) * sqrt(dekt) *
+					  e1 * wb * rh->atmos.ne[k] * CUBE(CM_TO_M);
 
 				/* --- Add fudge factor --                     -------------- */
 

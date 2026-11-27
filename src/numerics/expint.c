@@ -26,8 +26,6 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double E1(RHState *rh, double x);
-
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- E1.c -------------------- */
@@ -35,7 +33,7 @@ double E1(RHState *rh, double x);
 #define N_53 6
 #define N_56 4
 
-double E1(RHState *rh, double x)
+rh_status E1(RHState *rh, double x, double *e1)
 {
 	/* --- Use Eq 5.1.53 and 5.1.56 --                   ------------- */
 
@@ -45,21 +43,21 @@ double E1(RHState *rh, double x)
 									 8.6347608925, 0.2677737343};
 	static const double b56[N_56] = {9.5733223454, 25.6329561486,
 									 21.0996530827, 3.9584969228};
-	double              E1        = 0.0;
+	double              e         = 0.0;
 
 	if (x <= 0.0) {
-		Error(rh, ERROR_LEVEL_2, "E1", "Exponential integral E1 of x = %e", x);
-	} else if (x > 0.0 && x <= 1.0) {
-		E1 = -log(x) + a53[0] + x * (a53[1] + x * (a53[2] + x * (a53[3] + x * (a53[4] + x * a53[5]))));
+		return Fail(rh, RH_E_NUMERIC, "E1", "Exponential integral E1 of x = %e", x);
+	} else if (x <= 1.0) {
+		e = -log(x) + a53[0] + x * (a53[1] + x * (a53[2] + x * (a53[3] + x * (a53[4] + x * a53[5]))));
 	} else if (x <= X_UNDERFLOW) {
 		/* --- 5.1.56 holds for all x >= 1 -- --------------------------- */
 
-		E1 = a56[3] / x + a56[2] + x * (a56[1] + x * (a56[0] + x));
-		E1 /= b56[3] + x * (b56[2] + x * (b56[1] + x * (b56[0] + x)));
-		E1 *= exp(-x);
+		e = a56[3] / x + a56[2] + x * (a56[1] + x * (a56[0] + x));
+		e /= b56[3] + x * (b56[2] + x * (b56[1] + x * (b56[0] + x)));
+		e *= exp(-x);
 	}
-
-	return E1;
+	*e1 = e;
+	return RH_OK;
 }
 /* ------- end ---------------------------- E1.c -------------------- */
 
@@ -67,42 +65,43 @@ double E1(RHState *rh, double x)
 
 #define E2_MAX_ITER 100
 
-double E2(RHState *rh, double x)
+rh_status E2(RHState *rh, double x, double *e2)
 {
 	register int i;
 
-	double E2 = 0.0, an, b, c, d, delta;
+	double e = 0.0, e1, an, b, c, d, delta;
 
 	if (x <= 0.0) {
-		Error(rh, ERROR_LEVEL_2, "E2", "Exponential integral E2 of x = %e", x);
+		return Fail(rh, RH_E_NUMERIC, "E2", "Exponential integral E2 of x = %e", x);
 	} else if (x < 1.0) {
 
 		/* --- Use the recurrence relation En+1 = 1/n (exp(-x) - xEn(x))
 			   (Eq. 5.1.14) --                           -------------- */
 
-		E2 = exp(-x) - x * E1(rh, x);
+		RH_TRY(E1(rh, x, &e1));
+		e = exp(-x) - x * e1;
 	} else if (x <= X_UNDERFLOW) {
 
 		/* --- For x >= 1 the recurrence cancels (x E1 -> exp(-x)): use
 			   the continued fraction of E_n (5.1.22) with n = 2, by the
 			   modified Lentz method -- ----------------------------- */
 
-		b  = x + 2.0;
-		c  = 1.0 / DBL_MIN;
-		d  = 1.0 / b;
-		E2 = d;
+		b = x + 2.0;
+		c = 1.0 / DBL_MIN;
+		d = 1.0 / b;
+		e = d;
 		for (i = 1; i <= E2_MAX_ITER; i++) {
 			an = -i * (i + 1.0);
 			b += 2.0;
 			d     = 1.0 / (an * d + b);
 			c     = b + an / c;
 			delta = c * d;
-			E2 *= delta;
+			e *= delta;
 			if (fabs(delta - 1.0) < DBL_EPSILON) break;
 		}
-		E2 *= exp(-x);
+		e *= exp(-x);
 	}
-
-	return E2;
+	*e2 = e;
+	return RH_OK;
 }
 /* ------- end ---------------------------- E2.c -------------------- */

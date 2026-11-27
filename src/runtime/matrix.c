@@ -119,13 +119,9 @@ void freeMatrix(RHState *rh, void **matrix)
 {
 	const char routineName[] = "freeMatrix";
 
-	if (matrix == NULL || matrix[0] == NULL) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Trying to free NULL pointer");
-	} else {
-		/* --- Free the memory allocated for matrix matrix -- ----------- */
-
-		free(matrix[0]);
-		free(matrix);
-	}
+	RH_ASSERT(rh, matrix != NULL && matrix[0] != NULL, routineName,
+			  "Trying to free NULL pointer");
+	free(matrix[0]);
+	free(matrix);
 }
 /* ------- end ---------------------------- freeMatrix.c ------------ */

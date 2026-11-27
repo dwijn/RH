@@ -889,7 +889,7 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 	atomic_init(&job.backgrrecno, 0);
 	for (n = 0; n < Nworker; n++) job.scratch[n] = backgroundScratchCreate(rh);
 
-	parallelForDynamic(rh, rh->spectrum.Nspect, chunk, Nworker, backgroundRange, &job);
+	ExitOnError(rh, parallelForDynamic(rh, rh->spectrum.Nspect, chunk, Nworker, backgroundRange, &job));
 
 	if (rh->atmos.Nrlk > 0) rlk_cleanup(rh);
 

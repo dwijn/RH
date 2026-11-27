@@ -41,8 +41,23 @@
 #include "kernels_reference.h"
 #include "state.h"
 
-double E1(RHState *rh, double x);
-double E2(RHState *rh, double x);
+/* --- E1 and E2 of x > 0 (the status is checked) -- -------------- */
+
+static double expint1(double x)
+{
+	double e = 0.0;
+
+	CHECK_OK(E1(rh, x, &e));
+	return e;
+}
+
+static double expint2(double x)
+{
+	double e = 0.0;
+
+	CHECK_OK(E2(rh, x, &e));
+	return e;
+}
 
 static bool_t table;
 
@@ -64,7 +79,7 @@ static void test_expint(void)
 		   max_rel_e2_small = 0.0, max_rel_e2_mid = 0.0, max_rel_e2_large = 0.0;
 
 	for (int n = 0; n < EXP_REF_N; n++) {
-		double x = exp_ref_x[n], e1 = E1(rh, x), e2 = E2(rh, x);
+		double x = exp_ref_x[n], e1 = expint1(x), e2 = expint2(x);
 		double r1 = fabs(e1 - exp_ref_E1[n]) / exp_ref_E1[n];
 		double r2 = fabs(e2 - exp_ref_E2[n]) / exp_ref_E2[n];
 
@@ -97,10 +112,26 @@ static void test_expint(void)
 		   x ~ 708), and for x = inf (fixedrate.c with T = 0); before N-22
 		   both returned 0 beyond x = 80 -- ----------------------- */
 
-	CHECK(E1(rh, 700.0) > 0.0 && E2(rh, 700.0) > 0.0, "E1(700) = %g, E2(700) = %g", E1(rh, 700.0), E2(rh, 700.0));
-	CHECK(E1(rh, 800.0) == 0.0 && E2(rh, 800.0) == 0.0, "underflow: E1(800) = %g, E2(800) = %g", E1(rh, 800.0), E2(rh, 800.0));
-	CHECK(E1(rh, 1e200) == 0.0 && E2(rh, 1e200) == 0.0, "E1(1e200) = %g, E2(1e200) = %g", E1(rh, 1e200), E2(rh, 1e200));
-	CHECK(E1(rh, HUGE_VAL) == 0.0 && E2(rh, HUGE_VAL) == 0.0, "E1(inf) = %g, E2(inf) = %g", E1(rh, HUGE_VAL), E2(rh, HUGE_VAL));
+	CHECK(expint1(700.0) > 0.0 && expint2(700.0) > 0.0, "E1(700) = %g, E2(700) = %g", expint1(700.0), expint2(700.0));
+	CHECK(expint1(800.0) == 0.0 && expint2(800.0) == 0.0, "underflow: E1(800) = %g, E2(800) = %g", expint1(800.0), expint2(800.0));
+	CHECK(expint1(1e200) == 0.0 && expint2(1e200) == 0.0, "E1(1e200) = %g, E2(1e200) = %g", expint1(1e200), expint2(1e200));
+	/* --- Outside the domain (x <= 0): a status, and the process goes
+		   on (Q-51) --                                    -------------- */
+
+	{
+		double    v = -1.0;
+		rh_status s;
+
+		s = E1(rh, -1.0, &v);
+		CHECK(s == RH_E_NUMERIC && Failed(rh) && v == -1.0 &&
+				  strcmp(rh->error.message, "Exponential integral E1 of x = -1.000000e+00") == 0,
+			  "E1(-1): status %d, message %s", s, rh->error.message ? rh->error.message : "NULL");
+		ClearError(rh);
+		s = E2(rh, 0.0, &v);
+		CHECK(s == RH_E_NUMERIC && Failed(rh) && v == -1.0, "E2(0): status %d", s);
+		ClearError(rh);
+	}
+	CHECK(expint1(HUGE_VAL) == 0.0 && expint2(HUGE_VAL) == 0.0, "E1(inf) = %g, E2(inf) = %g", expint1(HUGE_VAL), expint2(HUGE_VAL));
 
 	/* --- Properties: E1 and E2 positive and decreasing, E2 < E1
 		   (for x > 0), E2(x) -> 1 as x -> 0 (E2(0) = 1) and
@@ -110,7 +141,7 @@ static void test_expint(void)
 		double prev1 = HUGE_VAL, prev2 = HUGE_VAL;
 
 		for (int k = 1; k <= 3000; k++) {
-			double x = 0.2 * k, e1 = E1(rh, x), e2 = E2(rh, x);
+			double x = 0.2 * k, e1 = expint1(x), e2 = expint2(x);
 
 			CHECK(e1 > 0.0 && e2 > 0.0 && e1 < prev1 && e2 < prev2 && e2 < e1,
 				  "monotonic and positive at x = %g: E1 %g, E2 %g", x, e1, e2);
@@ -118,8 +149,8 @@ static void test_expint(void)
 			prev2 = e2;
 		}
 	}
-	CHECK_CLOSE(E2(rh, 1e-9), 1.0, 5e-8, 0.0, "E2 near 0, code %d", 0);
-	CHECK_CLOSE(E1(rh, 1e-9), -log(1e-9) - 0.5772156649015329, 5e-8, 0.0, "E1 near 0, code %d", 0);
+	CHECK_CLOSE(expint2(1e-9), 1.0, 5e-8, 0.0, "E2 near 0, code %d", 0);
+	CHECK_CLOSE(expint1(1e-9), -log(1e-9) - 0.5772156649015329, 5e-8, 0.0, "E1 near 0, code %d", 0);
 }
 
 /* --- Planck -- ---------------------------------------------------- */

@@ -409,8 +409,8 @@ void Profile(RHState *rh, AtomicLine *line)
 						: NULL;
 	job.polarized = polarized;
 
-	parallelFor(rh, rh->atmos.Nspace, (rh->input.limit_memory) ? 1 : rh->input.Nthreads,
-				profileWorker, &job);
+	ExitOnError(rh, parallelFor(rh, rh->atmos.Nspace, (rh->input.limit_memory) ? 1 : rh->input.Nthreads,
+								profileWorker, &job));
 
 	/* --- Store the inverse of the profile normalization -- ---------- */
 

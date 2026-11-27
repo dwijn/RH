@@ -53,6 +53,10 @@ static inline void check_fail(const char *file, int line, const char *what,
 		if (!(cond)) check_fail(__FILE__, __LINE__, #cond, __VA_ARGS__); \
 	} while (0)
 
+/* --- A call that returns an rh_status must return RH_OK (Q-51) -- */
+
+#define CHECK_OK(call) CHECK((call) == RH_OK, "%s failed", #call)
+
 static inline int check_close(double got, double want, double rtol, double atol)
 {
 	return fabs(got - want) <= rtol * fabs(want) + atol;

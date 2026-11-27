@@ -35,8 +35,6 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double E1(RHState *rh, double x);
-double E2(RHState *rh, double x);
 double f(double x);
 double g0(int n);
 double g1(int n);
@@ -53,6 +51,24 @@ void   writeModelAtom(Atom *atom, FILE *fpOut);
 double         E_Rydberg;
 static RHState rh_state = RH_STATE_INIT(ONE_D_PLANE, NULL);
 RHState *const rh       = &rh_state;
+
+/* --- E1 and E2 that end the program on a domain error -- --------- */
+
+static double e1(double x)
+{
+	double e;
+
+	ExitOnError(rh, E1(rh, x, &e));
+	return e;
+}
+
+static double e2(double x)
+{
+	double e;
+
+	ExitOnError(rh, E2(rh, x, &e));
+	return e;
+}
 
 /* ------- begin -------------------------- make_H.c ---------------- */
 
@@ -275,7 +291,7 @@ void Johnson_CI(int Ntemp, double *temp, int Nlevel)
 			y    = E_Rydberg / (n * n * KBOLTZMANN * temp[k]);
 			z    = rn + y;
 
-			CI = 2.0 * PIa0sq * SQ(n) * kT_m * SQ(y) * (Gn * (E1(rh, y) / y - E1(rh, z) / z) + (Bn - Gn * log(2.0 * SQ(n))) * (f(y) - f(z)));
+			CI = 2.0 * PIa0sq * SQ(n) * kT_m * SQ(y) * (Gn * (e1(y) / y - e1(z) / z) + (Bn - Gn * log(2.0 * SQ(n))) * (f(y) - f(z)));
 			CI *= exp(y) / sqrt(temp[k]);
 
 			fprintf(stdout, "%9.3e%2s", CI,
@@ -341,8 +357,8 @@ void Johnson_CE(int Ntemp, double *temp, int Nlevel)
 				z    = rnnp + y;
 
 				CE = 2 * PIa0sq * SQ(n) / x * kT_m * SQ(y) *
-					 (Annp * (E1(rh, y) * (1.0 / y + 0.5) - E1(rh, z) * (1.0 / z + 0.5)) +
-					  (Bnnp - Annp * log(2.0 * SQ(n) / x)) * (E2(rh, y) / y - E2(rh, z) / z));
+					 (Annp * (e1(y) * (1.0 / y + 0.5) - e1(z) * (1.0 / z + 0.5)) +
+					  (Bnnp - Annp * log(2.0 * SQ(n) / x)) * (e2(y) / y - e2(z) / z));
 				CE *= exp(y) / sqrt(temp[k]);
 
 				fprintf(stdout, "%9.3e%2s", CE,
@@ -357,7 +373,7 @@ void Johnson_CE(int Ntemp, double *temp, int Nlevel)
 
 double f(double x)
 {
-	return exp(-x) / x - 2 * E1(rh, x) + E2(rh, x);
+	return exp(-x) / x - 2 * e1(x) + e2(x);
 }
 /* ------- end ---------------------------- f.c --------------------- */
 

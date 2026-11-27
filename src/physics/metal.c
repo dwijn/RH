@@ -91,9 +91,9 @@ void metalPrepare(RHState *rh)
 			for (kr = 0; kr < metal->Ncont; kr++) {
 				continuum = metal->continuum + kr;
 				if (!continuum->hydrogenic && continuum->bftable.x == NULL)
-					pchipTableInit(rh, &continuum->bftable, continuum->Nlambda,
-								   continuum->lambda, continuum->alpha,
-								   PCHIP_LOGLOG);
+					ExitOnError(rh, pchipTableInit(rh, &continuum->bftable, continuum->Nlambda,
+												   continuum->lambda, continuum->alpha,
+												   PCHIP_LOGLOG));
 			}
 		}
 	}

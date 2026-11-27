@@ -43,10 +43,10 @@ struct Ng *NgInit(RHState *rh, int N, int Ndelay, int Norder, int Nperiod,
 		   count modulo Norder + 2, so a negative order corrupts the
 		   allocation or divides by zero (B-45). readInput checks the
 		   keywords; this covers callers that do not read them -- -- */
-	if (Norder < 0 || (Norder > 0 && Nperiod < 1))
-		Error(rh, ERROR_LEVEL_2, "NgInit",
+	RH_ASSERT(rh, Norder >= 0 && (Norder == 0 || Nperiod >= 1), "NgInit",
 			  "Ng order must be at least 0, and the period at least 1"
-			  " when the order is positive");
+			  " when the order is positive (order %d, period %d)",
+			  Norder, Nperiod);
 
 	Ngs = (struct Ng *) malloc(sizeof(struct Ng));
 
@@ -72,8 +72,9 @@ struct Ng *NgInit(RHState *rh, int N, int Ndelay, int Norder, int Nperiod,
 
 /* ------- begin -------------------------- Accelerate.c ------------ */
 
-bool_t Accelerate(RHState *rh, struct Ng *Ngs, double *solution)
+rh_status Accelerate(RHState *rh, struct Ng *Ngs, double *solution, bool_t *accelerated)
 {
+	rh_status    status;
 	register int i, j, k;
 
 	int      Norder = Ngs->Norder, ip, ipp, i0;
@@ -126,7 +127,12 @@ bool_t Accelerate(RHState *rh, struct Ng *Ngs, double *solution)
 				}
 			}
 		}
-		SolveLinearEq(rh, Norder, Ngs->A, Ngs->b, TRUE);
+		if ((status = SolveLinearEq(rh, Norder, Ngs->A, Ngs->b, TRUE)) != RH_OK) {
+			free(weight);
+			freeMatrix(rh, (void **) Delta);
+			*accelerated = FALSE;
+			return status;
+		}
 
 		/* --- Construct the linear combination for the accelerated
 		   solution, and restore the accelerated solution --  ----- */
@@ -168,11 +174,12 @@ bool_t Accelerate(RHState *rh, struct Ng *Ngs, double *solution)
 		freeMatrix(rh, (void **) Delta);
 
 		getCPU(rh, 4, TIME_POLL, "Accelerate");
-		return (Ngs->rejected == 0);
+		*accelerated = (Ngs->rejected == 0);
 	} else {
 		Ngs->rejected = 0;
-		return FALSE;
+		*accelerated  = FALSE;
 	}
+	return RH_OK;
 }
 /* ------- end ---------------------------- Accelerate.c ------------ */
 

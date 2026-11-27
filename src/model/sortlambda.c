@@ -351,8 +351,8 @@ void SortLambda(RHState *rh)
 					   went negative around resonances --  -------------- */
 
 				alpha_original = continuum->alpha;
-				pchipTableInit(rh, &bftable, Nlambda_original, continuum->lambda,
-							   alpha_original, PCHIP_LOGLOG);
+				ExitOnError(rh, pchipTableInit(rh, &bftable, Nlambda_original, continuum->lambda,
+											   alpha_original, PCHIP_LOGLOG));
 
 				continuum->alpha =
 					(double *) malloc(continuum->Nlambda * sizeof(double));

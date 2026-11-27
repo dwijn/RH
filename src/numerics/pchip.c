@@ -112,17 +112,22 @@ static void pchipSlopes(int N, const double *x, const double *y, double *d)
 
 /* ------- begin -------------------------- pchipTableInit.c -------- */
 
-void pchipTableInit(RHState *rh, PchipTable *pt, int N, const double *x, const double *y,
-					int scale)
+rh_status pchipTableInit(RHState *rh, PchipTable *pt, int N, const double *x,
+						 const double *y, int scale)
 {
+	/* --- On a failure the table is empty (pchipTableFree may be
+		   called on it) --                                -------------- */
+
 	const char   routineName[] = "pchipTableInit";
 	register int k;
 
 	bool_t ascend, mixed = FALSE;
 	int    kk, a;
 
+	pt->x = pt->y = pt->d = pt->ylin = pt->dlin = NULL;
+	pt->N                                       = 0;
 	if (N < 1) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Table needs at least one point (N = %d)", N);
+		return Fail(rh, RH_E_DATA, routineName, "Table needs at least one point (N = %d)", N);
 	}
 	pt->N    = N;
 	pt->logx = (scale & PCHIP_LOGX) != 0;
@@ -145,8 +150,9 @@ void pchipTableInit(RHState *rh, PchipTable *pt, int N, const double *x, const d
 	for (k = 0; k < N; k++) {
 		kk = (ascend) ? k : N - 1 - k;
 		if (pt->logx && !(x[kk] > 0.0)) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Interpolation in log x needs x > 0 (x = %g)",
-				  x[kk]);
+			pchipTableFree(pt);
+			return Fail(rh, RH_E_DATA, routineName, "Interpolation in log x needs x > 0 (x = %g)",
+						x[kk]);
 		}
 		pt->x[k] = (pt->logx) ? log(x[kk]) : x[kk];
 		pt->y[k] = (pt->logy && y[kk] > 0.0) ? log(y[kk]) : y[kk];
@@ -154,14 +160,15 @@ void pchipTableInit(RHState *rh, PchipTable *pt, int N, const double *x, const d
 	}
 	for (k = 1; k < N; k++) {
 		if (!(pt->x[k] > pt->x[k - 1])) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Table abscissae are not strictly monotonic"
-												  " (point %d of %d)",
-				  k, N);
+			pchipTableFree(pt);
+			return Fail(rh, RH_E_DATA, routineName, "Table abscissae are not strictly monotonic"
+													" (point %d of %d)",
+						k, N);
 		}
 	}
 	if (!mixed) {
 		pchipSlopes(N, pt->x, pt->y, pt->d);
-		return;
+		return RH_OK;
 	}
 
 	/* --- Mixed (N-49): the slopes in y over the whole table, for the
@@ -179,6 +186,7 @@ void pchipTableInit(RHState *rh, PchipTable *pt, int N, const double *x, const d
 		pchipSlopes(k - a + 1, pt->x + a, pt->y + a, pt->d + a);
 		a = k + 1;
 	}
+	return RH_OK;
 }
 /* ------- end ---------------------------- pchipTableInit.c -------- */
 
