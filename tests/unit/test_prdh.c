@@ -69,7 +69,7 @@ static void check_brackets(void)
 		makeGrid(N);
 		fac = (t == 0) ? 1.0 : 1.0 + ((t % 2) ? 1 : -1) * 3e-4 * urand() * (t % 5 + 1);
 		for (la = 0; la < N; la++) {
-			prdhBracket(la, fac, &b);
+			prdhBracket(rh, la, fac, &b);
 
 			/* --- Membership: a point is in the first range exactly
 				   when the scan of the old code over the whole grid
@@ -108,9 +108,9 @@ static void check_partition(void)
 		fac = (t == 0) ? 1.0 : 1.0 + ((t % 2) ? 1 : -1) * 1e-3 * urand() * t;
 		memset(W, 0, N * sizeof(double));
 		for (la = 0; la < N; la++) {
-			prdhBracket(la, fac, &b);
+			prdhBracket(rh, la, fac, &b);
 			for (idx = b.r[0]; idx < b.r[2]; idx++) {
-				double w = prdhWeight(&b, idx);
+				double w = prdhWeight(rh, &b, idx);
 
 				W[idx] += w;
 				if (fac == 1.0)
@@ -151,8 +151,8 @@ static void check_collapse(void)
 
 	memset(W, 0, N * sizeof(double));
 	for (la = 0; la < N; la++) {
-		prdhBracket(la, fac, &b);
-		for (idx = b.r[0]; idx < b.r[2]; idx++) W[idx] += prdhWeight(&b, idx);
+		prdhBracket(rh, la, fac, &b);
+		for (idx = b.r[0]; idx < b.r[2]; idx++) W[idx] += prdhWeight(rh, &b, idx);
 
 		/* --- The collapsed interval is empty from both sides -- --- */
 
@@ -177,19 +177,19 @@ static void check_jgas(void)
 	rh->atmos.Nrays       = Nrays;
 	rh->atmos.Nspace      = Nspace;
 	rh->atmos.Nactiveatom = 0;
-	rh->spectrum.v_los    = matrix_double(Nrays, Nspace);
+	rh->spectrum.v_los    = matrix_double(rh, Nrays, Nspace);
 	for (mu = 0; mu < Nrays; mu++)
 		for (k = 0; k < Nspace; k++)
 			rh->spectrum.v_los[mu][k] = (k % 3 == 0) ? 0.0 : 2.0e4 * (2.0 * urand() - 1.0); /* m/s */
 
-	rh->spectrum.Jgas = matrix_double(N, Nspace);
-	initJgasLocks();
+	rh->spectrum.Jgas = matrix_double(rh, N, Nspace);
+	initJgasLocks(rh);
 	rh->input.prdh_limit_mem = FALSE;
-	initPRDhTables();
+	initPRDhTables(rh);
 
-	Jtab = matrix_double(N, Nspace);
-	Jmem = matrix_double(N, Nspace);
-	J    = matrix_double(N, Nspace);
+	Jtab = matrix_double(rh, N, Nspace);
+	Jmem = matrix_double(rh, N, Nspace);
+	J    = matrix_double(rh, N, Nspace);
 	I    = (double *) malloc(Nspace * sizeof(double));
 
 	for (rest = 0; rest < 2; rest++) {
@@ -201,7 +201,7 @@ static void check_jgas(void)
 				wmu = 0.5 * (mu + 1.0) / 6.0;
 				for (to_obs = 0; to_obs <= 1; to_obs++) {
 					for (k = 0; k < Nspace; k++) I[k] = 1.0 + urand();
-					addJgasRay(la, mu, to_obs, wmu, I);
+					addJgasRay(rh, la, mu, to_obs, wmu, I);
 					if (rest == 0)
 						for (k = 0; k < Nspace; k++) J[la][k] += wmu * I[k];
 				}
@@ -220,9 +220,9 @@ static void check_jgas(void)
 		  Jtab[0][0] / J[0][0], Jtab[N - 1][0] / J[N - 1][0]);
 
 	free(I);
-	freeMatrix((void **) J);
-	freeMatrix((void **) Jmem);
-	freeMatrix((void **) Jtab);
+	freeMatrix(rh, (void **) J);
+	freeMatrix(rh, (void **) Jmem);
+	freeMatrix(rh, (void **) Jtab);
 }
 
 static void check_rho(void)

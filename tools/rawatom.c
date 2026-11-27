@@ -26,6 +26,8 @@
 
 /* --- Global variables --                             -------------- */
 
+extern RHState *const rh; /* the tool's, in its main file */
+
 /* ------- begin -------------------------- rawAtom.c --------------- */
 
 void rawAtom(Atom *atom, char *atomFileName)
@@ -47,13 +49,13 @@ void rawAtom(Atom *atom, char *atomFileName)
 	/* --- Open the data file for current model atom --  -------------- */
 
 	if ((atomFile = fopen(atomFileName, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s", atomFileName);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s", atomFileName);
 	}
 	/* --- Read atom ID and convert to uppercase --      -------------- */
 
-	getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%2s", atom->ID);
-	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 1);
+	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 1);
 	for (n = 0; n < (int) strlen(atom->ID); n++)
 		atom->ID[n] = toupper(atom->ID[n]);
 	if (strlen(atom->ID) == 1) strcat(atom->ID, " ");
@@ -67,14 +69,14 @@ void rawAtom(Atom *atom, char *atomFileName)
 		}
 	}
 	if (!match) {
-		Error(ERROR_LEVEL_2, routineName, "Found no matching element for %s", atom->ID);
+		Error(rh, ERROR_LEVEL_2, routineName, "Found no matching element for %s", atom->ID);
 	}
 	/* --- Get Number of levels, lines fixed transitions, and continua  */
 
-	getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%d %d %d %d",
 				   &atom->Nlevel, &atom->Nline, &atom->Ncont, &atom->Nfixed);
-	checkNread(Nread, Nrequired = 4, routineName, checkPoint = 2);
+	checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 2);
 	Nlevel = atom->Nlevel;
 	Nline  = atom->Nline;
 	Ncont  = atom->Ncont;
@@ -90,15 +92,15 @@ void rawAtom(Atom *atom, char *atomFileName)
 
 	for (i = 0; i < Nlevel; i++) {
 		atom->label[i] = (char *) calloc((ATOM_LABEL_WIDTH + 1), sizeof(char));
-		getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%lf %lf '%20c' %d",
 					   &atom->E[i], &atom->g[i], atom->label[i], &atom->stage[i]);
-		checkNread(Nread, Nrequired = 4, routineName, checkPoint = 3);
+		checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 3);
 
 		atom->E[i] *= (HPLANCK * CLIGHT) / CM_TO_M;
 	}
 	if (atom->stage[Nlevel - 1] != (atom->stage[Nlevel - 2] + 1)) {
-		Error(ERROR_LEVEL_2, routineName, "Found no overlying continuum for atom %s", atom->ID);
+		Error(rh, ERROR_LEVEL_2, routineName, "Found no overlying continuum for atom %s", atom->ID);
 	}
 
 	C = 2 * PI * (Q_ELECTRON / EPSILON_0) * (Q_ELECTRON / M_ELECTRON) / CLIGHT;
@@ -112,7 +114,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 		line->atom         = atom;
 		line->isotope_frac = 1.0;
 
-		getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine,
 					   "%d %d %lf %s %d %s %lf %lf %s %lf %lf %lf %lf %lf %lf %lf",
 					   &j, &i, &f, shapeStr,
@@ -121,7 +123,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 					   &line->cvdWaals[0], &line->cvdWaals[1],
 					   &line->cvdWaals[2], &line->cvdWaals[3],
 					   &line->Grad, &line->cStark, &line->g_Lande_eff);
-		checkNread(Nread, Nrequired = 15, routineName, checkPoint = 4);
+		checkNread(rh, Nread, Nrequired = 15, routineName, checkPoint = 4);
 		if (Nread == 15) line->g_Lande_eff = 0.0;
 
 		line->j = MAX(i, j);
@@ -131,7 +133,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 
 		if (!strstr(shapeStr, "PRD") &&
 			!strstr(shapeStr, "VOIGT") && !strstr(shapeStr, "GAUSS")) {
-			Error(ERROR_LEVEL_2, routineName, "Invalid value for line-shape string: %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for line-shape string: %s",
 				  shapeStr);
 		}
 		if (strstr(shapeStr, "PRD")) {
@@ -163,11 +165,11 @@ void rawAtom(Atom *atom, char *atomFileName)
 		continuum->atom         = atom;
 		continuum->isotope_frac = 1.0;
 
-		getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%d %d %lf %d %s %lf",
 					   &j, &i, &continuum->alpha0, &continuum->Nlambda,
 					   nuDepStr, &lambdamin);
-		checkNread(Nread, Nrequired = 6, routineName, checkPoint = 5);
+		checkNread(rh, Nread, Nrequired = 6, routineName, checkPoint = 5);
 
 		continuum->j = MAX(i, j);
 		continuum->i = MIN(i, j);
@@ -184,21 +186,21 @@ void rawAtom(Atom *atom, char *atomFileName)
 		if (strstr(nuDepStr, "EXPLICIT")) {
 			continuum->hydrogenic = FALSE;
 			for (la = continuum->Nlambda - 1; la >= 0; la--) {
-				getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+				getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 				Nread = sscanf(inputLine, "%lf %lf",
 							   &continuum->lambda[la], &continuum->alpha[la]);
-				checkNread(Nread, Nrequired = 2, routineName, checkPoint = 6);
+				checkNread(rh, Nread, Nrequired = 2, routineName, checkPoint = 6);
 			}
 			for (la = 1; la < continuum->Nlambda; la++) {
 				if (continuum->lambda[la] < continuum->lambda[la - 1]) {
-					Error(ERROR_LEVEL_2, routineName, "Continuum %d does not have monotonous wavelengths",
+					Error(rh, ERROR_LEVEL_2, routineName, "Continuum %d does not have monotonous wavelengths",
 						  kr - Nline);
 				}
 			}
 		} else {
 			continuum->hydrogenic = TRUE;
 			if (lambdamin >= continuum->lambda0) {
-				Error(ERROR_LEVEL_2, routineName, "Minimum wavelength for continuum %d too long", kr - Nline);
+				Error(rh, ERROR_LEVEL_2, routineName, "Minimum wavelength for continuum %d too long", kr - Nline);
 			}
 			dlamb                = (continuum->lambda0 - lambdamin) / (continuum->Nlambda - 1);
 			continuum->lambda[0] = lambdamin;
@@ -214,11 +216,11 @@ void rawAtom(Atom *atom, char *atomFileName)
 		for (kf = 0; kf < Nfixed; kf++) {
 			fixed = atom->ft + kf;
 
-			getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 			Nread = sscanf(inputLine, "%d %d %lf %lf %s",
 						   &j, &i, &fixed->strength,
 						   &fixed->Trad, optionStr);
-			checkNread(Nread, Nrequired = 5, routineName, checkPoint = 7);
+			checkNread(rh, Nread, Nrequired = 5, routineName, checkPoint = 7);
 
 			fixed->j = MAX(i, j);
 			fixed->i = MIN(i, j);
@@ -228,15 +230,15 @@ void rawAtom(Atom *atom, char *atomFileName)
 			for (kr = 0; kr < Nline; kr++) {
 				line = atom->line + kr;
 				if (line->i == i && line->j == j) {
-					Error(ERROR_LEVEL_2, routineName, "Fixed transition j = %d, i = %d duplicates active line",
+					Error(rh, ERROR_LEVEL_2, routineName, "Fixed transition j = %d, i = %d duplicates active line",
 						  j, i);
 				}
 			}
 			for (kr = 0; kr < Ncont; kr++) {
 				continuum = atom->continuum + kr;
 				if (continuum->i == i && continuum->j == j) {
-					Error(ERROR_LEVEL_2, routineName, "Fixed transition j = %d,  i = %d"
-													  " duplicates active continuum",
+					Error(rh, ERROR_LEVEL_2, routineName, "Fixed transition j = %d,  i = %d"
+														  " duplicates active continuum",
 						  j, i);
 				}
 			}
@@ -255,7 +257,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 			else if (strstr(optionStr, "TRAD_CHROMOSPHERIC"))
 				fixed->option = TRAD_CHROMOSPHERIC;
 			else {
-				Error(ERROR_LEVEL_2, routineName, "Inavlid value for TRAD option: %s", optionStr);
+				Error(rh, ERROR_LEVEL_2, routineName, "Inavlid value for TRAD option: %s", optionStr);
 			}
 		}
 	}

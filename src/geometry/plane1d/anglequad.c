@@ -30,7 +30,7 @@
 
 /* ------- begin -------------------------- getAngleQuad.c ---------- */
 
-void getAngleQuad(Geometry *geometry)
+void getAngleQuad(RHState *rh, Geometry *geometry)
 {
 	register int mu;
 

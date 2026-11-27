@@ -56,7 +56,7 @@ static void lognormalize(double **x, int N, int k, double total, bool_t clip)
 
 /* ------- begin -------------------------- LTEpops.c --------------- */
 
-void LTEpops(Atom *atom, bool_t Debeye)
+void LTEpops(RHState *rh, Atom *atom, bool_t Debeye)
 {
 	register int k, i, m;
 
@@ -81,7 +81,7 @@ void LTEpops(Atom *atom, bool_t Debeye)
 
 		 --                                              -------------- */
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	/* --- Depth-independent constants --               --------------- */
 
@@ -112,8 +112,8 @@ void LTEpops(Atom *atom, bool_t Debeye)
 
 	for (k = 0; k < Nspace; k++) {
 		if (rh->atmos.ne[k] <= 0.0) {
-			Error(ERROR_LEVEL_2, "LTEpops", "Electron density must be positive for LTE populations "
-											"(atom %s, ne[%d] = %g)\n",
+			Error(rh, ERROR_LEVEL_2, "LTEpops", "Electron density must be positive for LTE populations "
+												"(atom %s, ne[%d] = %g)\n",
 				  atom->ID, k, rh->atmos.ne[k]);
 		}
 		if (Debeye) dEion = c2 * sqrt(rh->atmos.ne[k] / rh->atmos.T[k]);
@@ -137,20 +137,20 @@ void LTEpops(Atom *atom, bool_t Debeye)
 	free(dE);
 
 	sprintf(labelStr, "LTEpops %2s", atom->ID);
-	getCPU(3, TIME_POLL, labelStr);
+	getCPU(rh, 3, TIME_POLL, labelStr);
 }
 /* ------- end ---------------------------- LTEpops.c --------------- */
 
 /* ------- begin -------------------------- LTEpops_elem.c ---------- */
 
-void LTEpops_elem(Element *element)
+void LTEpops_elem(RHState *rh, Element *element)
 {
 	register int k, i;
 
 	bool_t  hunt;
 	double *Uk, *Ukp1, C1, *lCT_ne, ln2 = log(2.0);
 
-	getCPU(4, TIME_START, NULL);
+	getCPU(rh, 4, TIME_START, NULL);
 
 	C1 = (HPLANCK / (2.0 * PI * M_ELECTRON)) * (HPLANCK / KBOLTZMANN);
 
@@ -160,8 +160,8 @@ void LTEpops_elem(Element *element)
 
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		if (rh->atmos.ne[k] <= 0.0) {
-			Error(ERROR_LEVEL_2, "LTEpops_elem", "Electron density must be positive for LTE populations "
-												 "(element %s, ne[%d] = %g)\n",
+			Error(rh, ERROR_LEVEL_2, "LTEpops_elem", "Electron density must be positive for LTE populations "
+													 "(element %s, ne[%d] = %g)\n",
 				  element->ID, k, rh->atmos.ne[k]);
 		}
 		/* --- ln(CT_ne) of the Saha equation; n[i] holds ln(n_i/n_0) -- */
@@ -201,7 +201,7 @@ void LTEpops_elem(Element *element)
 
 /* ------- begin -------------------------- LTEmolecule.c ----------- */
 
-void LTEmolecule(Molecule *molecule)
+void LTEmolecule(RHState *rh, Molecule *molecule)
 {
 	/* --- Calculate partition functions for each molecular vibrational
 		   state v of the molecule. LTE populations are then given by:
@@ -219,11 +219,11 @@ void LTEmolecule(Molecule *molecule)
 	MolecularLine *mrt;
 
 	if (!molecule->active) {
-		Error(ERROR_LEVEL_2, "LTEmolecule", "Molecule must be active: %s\n", molecule->ID);
+		Error(rh, ERROR_LEVEL_2, "LTEmolecule", "Molecule must be active: %s\n", molecule->ID);
 	}
 	/* --- Fill energy matrix --                         -------------- */
 
-	E = matrix_double(molecule->Nv, molecule->NJ);
+	E = matrix_double(rh, molecule->Nv, molecule->NJ);
 	for (kr = 0; kr < molecule->Nrt; kr++) {
 		mrt = molecule->mrt + kr;
 
@@ -247,16 +247,16 @@ void LTEmolecule(Molecule *molecule)
 			molecule->pf[k] += molecule->pfv[v][k];
 	}
 
-	freeMatrix((void **) E);
+	freeMatrix(rh, (void **) E);
 
 	sprintf(labelStr, "LTEpops %3s", molecule->ID);
-	getCPU(4, TIME_POLL, labelStr);
+	getCPU(rh, 4, TIME_POLL, labelStr);
 }
 /* ------- end ---------------------------- LTEmolecule.c ----------- */
 
 /* ------- begin -------------------------- SetLTEQuantities.c ------ */
 
-void SetLTEQuantities(void)
+void SetLTEQuantities(RHState *rh)
 {
 	register int n;
 
@@ -268,7 +268,7 @@ void SetLTEQuantities(void)
 
 		/* --- Get LTE populations for each atom --        -------------- */
 
-		LTEpops(atom, Debeye);
+		LTEpops(rh, atom, Debeye);
 
 		if (atom->active) {
 
@@ -279,14 +279,14 @@ void SetLTEQuantities(void)
 				   collisional data first --                 -------------- */
 
 			if (fseek(atom->fp_input, atom->offset_coll, SEEK_SET) != 0) {
-				Error(ERROR_LEVEL_2, "SetLTEQuantities", "Cannot rewind to the collisional data of atom %s",
+				Error(rh, ERROR_LEVEL_2, "SetLTEQuantities", "Cannot rewind to the collisional data of atom %s",
 					  atom->ID);
 			}
-			CollisionRate(atom, atom->fp_input);
+			CollisionRate(rh, atom, atom->fp_input);
 
 			/* --- Compute the fixed rates and store in Cij -- ------------ */
 
-			if (atom->Nfixed > 0) FixedRate(atom);
+			if (atom->Nfixed > 0) FixedRate(rh, atom);
 		}
 	}
 }

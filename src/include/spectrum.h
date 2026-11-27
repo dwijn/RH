@@ -53,16 +53,16 @@ typedef struct {
 
 /* --- Associated function prototypes --               -------------- */
 
-double Formal(int nspect, bool_t eval_operator, bool_t redistribute);
-double solveSpectrum(bool_t eval_operator, bool_t redistribute);
+double Formal(RHState *rh, int nspect, bool_t eval_operator, bool_t redistribute);
+double solveSpectrum(RHState *rh, bool_t eval_operator, bool_t redistribute);
 
-void addtoGamma(int nspect, double wmu, double *P, double *Psi);
-void addtoRates(int nspect, int mu, bool_t to_obs, double wmu,
+void addtoGamma(RHState *rh, int nspect, double wmu, double *P, double *Psi);
+void addtoRates(RHState *rh, int nspect, int mu, bool_t to_obs, double wmu,
 				double *I, bool_t redistribute);
-void initScatter(void);
+void initScatter(RHState *rh);
 
-void StokesK(int nspect, int k, double chi_I, double K[4][4]);
-void addtoCoupling(int nspect);
+void StokesK(RHState *rh, int nspect, int k, double chi_I, double K[4][4]);
+void addtoCoupling(RHState *rh, int nspect);
 void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 							const double *Vij, const double *wla,
 							const double *gij, const double *n_i,
@@ -73,14 +73,14 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 
 /* --- What type of lines are present in active set as? -- ---------- */
 
-bool_t containsPolarized(ActiveSet *as);
-bool_t containsBoundBound(ActiveSet *as);
-bool_t containsPRDline(ActiveSet *as);
-bool_t containsActive(ActiveSet *as);
+bool_t containsPolarized(RHState *rh, ActiveSet *as);
+bool_t containsBoundBound(RHState *rh, ActiveSet *as);
+bool_t containsPRDline(RHState *rh, ActiveSet *as);
+bool_t containsActive(RHState *rh, ActiveSet *as);
 
 void init_as(ActiveSet *as);
-void alloc_as(int nspect, bool_t crosscoupling);
-void free_as(int nspect, bool_t crosscoupling);
+void alloc_as(RHState *rh, int nspect, bool_t crosscoupling);
+void free_as(RHState *rh, int nspect, bool_t crosscoupling);
 
 /* --- The opacity buffers of alloc_as, pooled per thread slot (see
 	   opacity.c), its part of RHState (rh->opacity, Q-46) -- ------ */
@@ -91,35 +91,35 @@ typedef struct {
 } AsPool;
 
 typedef struct {
-	AsPool        *as_pool; /* input.Nthreads slots, made at first use */
-	pthread_once_t as_pool_once;
+	AsPool         *as_pool; /* input.Nthreads slots, made at first use */
+	pthread_mutex_t as_pool_lock;
 } OpacityState;
 
-#define OPACITY_STATE_INIT {.as_pool_once = PTHREAD_ONCE_INIT}
+#define OPACITY_STATE_INIT {.as_pool_lock = PTHREAD_MUTEX_INITIALIZER}
 void initSpectrum(void);
-void Opacity(int nspect, int mu, bool_t top_to_bottom, bool_t activate);
+void Opacity(RHState *rh, int nspect, int mu, bool_t top_to_bottom, bool_t activate);
 void Planck(int Nspace, double *T, double lambda0, double *Bnu);
 
-void readJlambda(int nspect, double *J);
-void writeJlambda(int nspect, double *J);
-void readJ20lambda(int nspect, double *J20);
-void writeJ20lambda(int nspect, double *J20);
-void writeJgas(double **Jgas);
-void initJgasRows(const char *isPRD);
-void beginJgas(bool_t redistribute);
-void endJgas(bool_t redistribute);
-void addJgasRow(int nspect, double wmu, double *I);
-void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I);
-long prdhIndex(int nspect, int mu, int to_obs, int k);
-void initJgasLocks(void);
+void readJlambda(RHState *rh, int nspect, double *J);
+void writeJlambda(RHState *rh, int nspect, double *J);
+void readJ20lambda(RHState *rh, int nspect, double *J20);
+void writeJ20lambda(RHState *rh, int nspect, double *J20);
+void writeJgas(RHState *rh, double **Jgas);
+void initJgasRows(RHState *rh, const char *isPRD);
+void beginJgas(RHState *rh, bool_t redistribute);
+void endJgas(RHState *rh, bool_t redistribute);
+void addJgasRow(RHState *rh, int nspect, double wmu, double *I);
+void addJgasRay(RHState *rh, int nspect, int mu, int to_obs, double wmu, double *I);
+long prdhIndex(RHState *rh, int nspect, int mu, int to_obs, int k);
+void initJgasLocks(RHState *rh);
 void freeJgasBuffer(void);
-void readJgas(double **Jgas);
+void readJgas(RHState *rh, double **Jgas);
 
-void readImu(int nspect, int mu, bool_t to_obs, double *I);
-void writeImu(int nspect, int mu, bool_t to_obs, double *I);
-void writeSpectrum(Spectrum *spectrum);
-void freeSpectrum(Spectrum *spectrum);
-void writeOpacity();
+void readImu(RHState *rh, int nspect, int mu, bool_t to_obs, double *I);
+void writeImu(RHState *rh, int nspect, int mu, bool_t to_obs, double *I);
+void writeSpectrum(RHState *rh, Spectrum *spectrum);
+void freeSpectrum(RHState *rh, Spectrum *spectrum);
+void writeOpacity(RHState *rh);
 
 /* --- Wavelength conversion --                         ------------- */
 

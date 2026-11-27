@@ -35,7 +35,7 @@
 
 /* ------- begin -------------------------- initGammaAtom.c --------- */
 
-void initGammaAtom(Atom *atom, int niter)
+void initGammaAtom(RHState *rh, Atom *atom, int niter)
 {
 	register int ij, k;
 
@@ -63,7 +63,7 @@ void initGammaAtom(Atom *atom, int niter)
 
 /* ------- begin -------------------------- initGammaMolecule.c ----- */
 
-void initGammaMolecule(Molecule *molecule)
+void initGammaMolecule(RHState *rh, Molecule *molecule)
 {
 	register int ij, ji, k, vi, vj;
 
@@ -100,7 +100,7 @@ void initGammaMolecule(Molecule *molecule)
 	   first use for this atom) -- skip it; a freshly calloc'd buffer
 	   already starts at zero, so there is nothing to clear. -- ---- */
 
-void zeroGammaThreads(Atom *atom)
+void zeroGammaThreads(RHState *rh, Atom *atom)
 {
 	register int nt, ij, k;
 
@@ -118,7 +118,7 @@ void zeroGammaThreads(Atom *atom)
 
 /* ------- begin -------------------------- zeroGammaThreadsMolecule.c */
 
-void zeroGammaThreadsMolecule(Molecule *molecule)
+void zeroGammaThreadsMolecule(RHState *rh, Molecule *molecule)
 {
 	register int nt, ij, k;
 
@@ -144,7 +144,7 @@ void zeroGammaThreadsMolecule(Molecule *molecule)
 	   after solveSpectrum()'s eval_operator pass completes, before
 	   the result is used to update populations. --      -------------- */
 
-void mergeGammaThreads(Atom *atom)
+void mergeGammaThreads(RHState *rh, Atom *atom)
 {
 	register int nt, ij, k;
 
@@ -162,7 +162,7 @@ void mergeGammaThreads(Atom *atom)
 
 /* ------- begin -------------------------- mergeGammaThreadsMolecule.c */
 
-void mergeGammaThreadsMolecule(Molecule *molecule)
+void mergeGammaThreadsMolecule(RHState *rh, Molecule *molecule)
 {
 	register int nt, ij, k;
 
@@ -245,7 +245,7 @@ void addPreconditionedRates(int Nlevel, int i, int j, double twohnu3_c2,
 
 /* ------- begin -------------------------- addtoGamma.c ------------ */
 
-void addtoGamma(int nspect, double wmu, double *I, double *Psi)
+void addtoGamma(RHState *rh, int nspect, double wmu, double *I, double *Psi)
 {
 	const char   routineName[] = "addtoGamma";
 	register int nact, n, k;
@@ -294,7 +294,7 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 				break;
 
 			default:
-				Error(ERROR_LEVEL_1, routineName, "Invalid transition type");
+				Error(rh, ERROR_LEVEL_1, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 
@@ -331,7 +331,7 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 				break;
 
 			default:
-				Error(ERROR_LEVEL_1, routineName, "Invalid transition type");
+				Error(rh, ERROR_LEVEL_1, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 
@@ -356,7 +356,7 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 
 /* ------- begin -------------------------- addtoCoupling.c --------- */
 
-void addtoCoupling(int nspect)
+void addtoCoupling(RHState *rh, int nspect)
 {
 	const char   routineName[] = "addtoCoupling";
 	register int nact, n, k;
@@ -410,7 +410,7 @@ void addtoCoupling(int nspect)
 				break;
 
 			default:
-				Error(ERROR_LEVEL_1, routineName, "Invalid transition type");
+				Error(rh, ERROR_LEVEL_1, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 			if (twohnu3_c2) {
@@ -426,7 +426,7 @@ void addtoCoupling(int nspect)
 
 /* ------- begin -------------------------- zeroRates.c ------------- */
 
-void zeroRates(bool_t redistribute)
+void zeroRates(RHState *rh, bool_t redistribute)
 {
 	register int kr, k, n, nt;
 
@@ -489,7 +489,7 @@ void zeroRates(bool_t redistribute)
 	   (PRDScatter, RADRATE_OUTPUT, ...) reads the result.
 	   --                                               -------------- */
 
-void mergeRates(bool_t redistribute)
+void mergeRates(RHState *rh, bool_t redistribute)
 {
 	register int kr, k, n, nt;
 
@@ -549,7 +549,7 @@ static void addRates(int Nspace, double wmu, double twohnu3_c2,
 	}
 }
 
-void addtoRates(int nspect, int mu, bool_t to_obs, double wmu,
+void addtoRates(RHState *rh, int nspect, int mu, bool_t to_obs, double wmu,
 				double *I, bool_t redistribute)
 {
 	register int nact, n;

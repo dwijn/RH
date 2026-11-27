@@ -50,7 +50,7 @@
 
 /* ------- begin -------------------------- Piecewise_Linear_2D.c --- */
 
-void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
+void Piecewise_Linear_2D(RHState *rh, Geometry *geometry, int nspect, int mu,
 						 bool_t to_observer, double *chi, double *S,
 						 double *I, double *Psi)
 {
@@ -132,12 +132,12 @@ void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
 				local++;
 			}
 		} else {
-			Error(ERROR_LEVEL_2, routineName,
+			Error(rh, ERROR_LEVEL_2, routineName,
 				  "Boundary condition THERMALIZED not implemented for TOP");
 		}
 		break;
 	case REFLECTIVE:
-		Error(ERROR_LEVEL_2, routineName,
+		Error(rh, ERROR_LEVEL_2, routineName,
 			  "Boundary condition REFLECTIVE not implemented");
 		break;
 	}
@@ -202,7 +202,7 @@ void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
 			S_uw    = Interp_2D(S, st, upwind);
 
 			if (geometry->hboundary == PERIODIC && l == lc->lstart && lc->Nlc > 0)
-				I_uw = SolveLong(lc, local, chi, S, I);
+				I_uw = SolveLong(rh, lc, local, chi, S, I);
 			else
 				I_uw = Interp_2D(I, st, upwind);
 

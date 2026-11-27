@@ -54,14 +54,14 @@ int main(void)
 	strcpy(rh->input.HminusBfData, RH_SOURCE_DIR "/Atoms/Hminus_bf.ecsv");
 	CHECK(log != NULL, "%s", "tmpfile");
 	rh->commandline.logfile = log;
-	hydrogenPrepare();
+	hydrogenPrepare(rh);
 
 	/* --- Table nodes (theta = 0.5 for depth 0, T = 2500 K for depth 1) --- */
 
-	CHECK(H2minus_ff(15188.3, chi0), "%s", "H2minus_ff at the last node");
+	CHECK(H2minus_ff(rh, 15188.3, chi0), "%s", "H2minus_ff at the last node");
 	want = nH2[0] * 1.0E-29 * ne[0] * KBOLTZMANN * T[0] * 71.6;
 	CHECK_CLOSE(chi0[0], want, 1.0E-12, 0.0, "%s", "H2- node, theta = 0.5");
-	CHECK(H2plus_ff(10000.0, chi), "%s", "H2plus_ff at the last node");
+	CHECK(H2plus_ff(rh, 10000.0, chi), "%s", "H2plus_ff at the last node");
 	want = nH[1] * 1.0E-29 * np[1] * 1.0E-20 * 1.39;
 	CHECK_CLOSE(chi[1], want, 1.0E-12, 0.0, "%s", "H2+ node, T = 2500 K");
 
@@ -69,15 +69,15 @@ int main(void)
 
 	for (i = 0; i < 3; i++) {
 		lam = lambdas[i];
-		CHECK(H2minus_ff(lam, chi), "H2minus_ff returns FALSE at %.0f nm", lam);
+		CHECK(H2minus_ff(rh, lam, chi), "H2minus_ff returns FALSE at %.0f nm", lam);
 		for (k = 0; k < NSPACE; k++) {
 			CHECK(chi[k] > 0.0 && isfinite(chi[k]), "H2- %g at %.0f nm", chi[k],
 				  lam);
 			CHECK_CLOSE(chi[k], chi0[k] * SQ(lam / 15188.3), 1.0E-12, 0.0,
 						"H2- lambda^2 at %.0f nm, depth %d", lam, k);
 		}
-		CHECK(H2plus_ff(lam, chi), "H2plus_ff returns FALSE at %.0f nm", lam);
-		CHECK(H2plus_ff(10000.0, chip0), "%s", "H2plus_ff at the last node");
+		CHECK(H2plus_ff(rh, lam, chi), "H2plus_ff returns FALSE at %.0f nm", lam);
+		CHECK(H2plus_ff(rh, 10000.0, chip0), "%s", "H2plus_ff at the last node");
 		for (k = 0; k < NSPACE; k++) {
 			CHECK(chi[k] > 0.0 && isfinite(chi[k]), "H2+ %g at %.0f nm", chi[k],
 				  lam);
@@ -88,12 +88,12 @@ int main(void)
 
 	/* --- Continuous at the last node --              -------------- */
 
-	H2minus_ff(15188.3 * (1.0 - 1.0E-9), chi);
-	H2minus_ff(15188.3, chi0);
+	H2minus_ff(rh, 15188.3 * (1.0 - 1.0E-9), chi);
+	H2minus_ff(rh, 15188.3, chi0);
 	for (k = 0; k < NSPACE; k++)
 		CHECK_CLOSE(chi[k], chi0[k], 1.0E-7, 0.0, "H2- join, depth %d", k);
-	H2plus_ff(10000.0 * (1.0 - 1.0E-9), chi);
-	H2plus_ff(10000.0, chi0);
+	H2plus_ff(rh, 10000.0 * (1.0 - 1.0E-9), chi);
+	H2plus_ff(rh, 10000.0, chi0);
 	for (k = 0; k < NSPACE; k++)
 		CHECK_CLOSE(chi[k], chi0[k], 1.0E-7, 0.0, "H2+ join, depth %d", k);
 
@@ -108,7 +108,7 @@ int main(void)
 	CHECK(nmp == 1, "H2plus_ff messages: %d", nmp);
 	fclose(log);
 
-	hydrogenCleanup();
+	hydrogenCleanup(rh);
 	return check_summary("test_h2ff");
 }
 /* ------- end ---------------------------- test_h2ff.c ------------- */

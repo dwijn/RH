@@ -41,12 +41,13 @@
 	   supports the iteration: here it does, with the linear fallback of
 	   rhf1d (N-52) --                                -------------- */
 
-static const char *bgSupported(void)
+static const char *bgSupported(RHState *rh)
 {
+	(void) rh;
 	return NULL;
 }
 
-static bool_t bgLinearFallback(void)
+static bool_t bgLinearFallback(RHState *rh)
 {
 	return rh->input.S_interpolation != S_LINEAR;
 }
@@ -114,13 +115,14 @@ static void slab_free(Slab *s)
 	   A[3k + i] = dJ_k / du_k-1+i, as in src/geometry/plane1d/formal.c
 	   --                                              -------------- */
 
-static void sweep(void *ctx, const double *u, double *J, double *A,
+static void sweep(RHState *rh, void *ctx, const double *u, double *J, double *A,
 				  double *albedo)
 {
 	Slab  *s   = (Slab *) ctx;
 	int    N   = s->N;
 	double sca = 1.0 - s->eps, *chi = malloc(N * sizeof(double)), dm, dp;
 
+	(void) rh;
 	for (int k = 0; k < N; k++) {
 		chi[k]  = 1.0;
 		s->S[k] = s->eps + sca * u[k];
@@ -133,9 +135,9 @@ static void sweep(void *ctx, const double *u, double *J, double *A,
 			double w = 0.5 * wmus[mu];
 
 			if (s->bezier)
-				Piecewise_Bezier3_1D_tri(0, mu, to_obs, chi, s->S, s->I, NULL, s->Tri);
+				Piecewise_Bezier3_1D_tri(rh, 0, mu, to_obs, chi, s->S, s->I, NULL, s->Tri);
 			else
-				Piecewise_Linear_1D_tri(0, mu, to_obs, chi, s->S, s->I, NULL, s->Tri);
+				Piecewise_Linear_1D_tri(rh, 0, mu, to_obs, chi, s->S, s->I, NULL, s->Tri);
 			for (int k = 0; k < N; k++) {
 				J[k] += w * s->I[k];
 				dm = (to_obs) ? s->Tri[3 * k + 2] : s->Tri[3 * k];
@@ -187,10 +189,10 @@ static void exact(Slab *s, double *Jx, double *Lam)
 		   *J1 = malloc(N * sizeof(double)), *A = malloc(3 * N * sizeof(double)),
 		   *M = malloc(N * N * sizeof(double));
 
-	sweep(s, u, J0, A, NULL);
+	sweep(rh, s, u, J0, A, NULL);
 	for (int j = 0; j < N; j++) {
 		u[j] = 1.0;
-		sweep(s, u, J1, A, NULL);
+		sweep(rh, s, u, J1, A, NULL);
 		u[j] = 0.0;
 		for (int k = 0; k < N; k++) Lam[k * N + j] = J1[k] - J0[k];
 	}
@@ -217,7 +219,7 @@ static void check_tri_linear(double eps)
 
 	slab_init(&s, N, eps, FALSE);
 	exact(&s, Jx, Lam);
-	sweep(&s, u, J, A, NULL);
+	sweep(rh, &s, u, J, A, NULL);
 	for (int k = 0; k < N; k++)
 		for (int i = 0; i < 3; i++) {
 			int j = k - 1 + i;
@@ -249,11 +251,11 @@ static void check_tri_bezier(void)
 	slab_init(&s, N, 1.0e-2, FALSE);
 	exact(&s, u, Lam); /* a smooth, monotonic u */
 	s.bezier = TRUE;
-	sweep(&s, u, J0, A, NULL);
+	sweep(rh, &s, u, J0, A, NULL);
 	for (int j = 0; j < N; j++) {
 		du = 1.0e-7 * u[j];
 		u[j] += du;
-		sweep(&s, u, J1, A1, NULL);
+		sweep(rh, &s, u, J1, A1, NULL);
 		u[j] -= du;
 		for (int k = (j > 0) ? j - 1 : 0; k <= j + 1 && k < N; k++)
 			err = fmax(err, fabs((J1[k] - J0[k]) / du - A[3 * k + (j - k + 1)]));
@@ -289,11 +291,11 @@ static void check_iterate(double eps, enum bg_operator op, int depth,
 	rh->input.bg_NmaxIter  = 1000;
 	for (int k = 0; k < N; k++) alb[k] = 1.0 - eps;
 
-	bgScatterStats(&st, TRUE);
-	sweep(&s, Jdag, Jfs, A, NULL);
+	bgScatterStats(rh, &st, TRUE);
+	sweep(rh, &s, Jdag, Jfs, A, NULL);
 	kap = 0.0;
-	bgScatterIterate(N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
-	bgScatterStats(&st, TRUE);
+	bgScatterIterate(rh, N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
+	bgScatterStats(rh, &st, TRUE);
 	for (int k = 0; k < N; k++) err = fmax(err, fabs(J[k] / Jx[k] - 1.0));
 
 	CHECK(st.Nunconverged == 0 && err < 1.0e-8,
@@ -312,8 +314,8 @@ static void check_iterate(double eps, enum bg_operator op, int depth,
 
 	rh->input.bg_NmaxIter = 3;
 	kap                   = 0.0;
-	bgScatterIterate(N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
-	bgScatterStats(&st, TRUE);
+	bgScatterIterate(rh, N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
+	bgScatterStats(rh, &st, TRUE);
 	CHECK(st.Nsweeps == 3 && st.Nunconverged == 1, "N_MAX_ITER = 3: %ld solves",
 		  st.Nsweeps);
 	for (int k = 0; k < N; k++) CHECK(J[k] > 0.0, "J[%d] = %g", k, J[k]);
@@ -353,10 +355,10 @@ static void check_error_bound(double eps, enum bg_operator op, int depth)
 	for (double tol = 1.0e-3; tol > 1.0e-8; tol *= 0.01) {
 		rh->input.bg_iterLimit = tol;
 		kap                    = 0.0;
-		bgScatterStats(&st, TRUE);
-		sweep(&s, Jdag, Jfs, A, NULL);
-		bgScatterIterate(N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
-		bgScatterStats(&st, TRUE);
+		bgScatterStats(rh, &st, TRUE);
+		sweep(rh, &s, Jdag, Jfs, A, NULL);
+		bgScatterIterate(rh, N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
+		bgScatterStats(rh, &st, TRUE);
 		err = 0.0;
 		for (int k = 0; k < N; k++) err = fmax(err, fabs(J[k] / Jx[k] - 1.0));
 		CHECK(st.Nunconverged == 0 && err <= tol,
@@ -405,15 +407,15 @@ static double warm_error(double eps, enum bg_operator op, double tol,
 	rh->input.bg_NmaxIter  = 5000;
 	rh->input.bg_iterLimit = tol;
 	for (int k = 0; k < N; k++) alb[k] = 1.0 - eps;
-	sweep(&s, J0, Jfs, A, NULL);
-	bgScatterIterate(N, J0, Jfs, A, alb, J1, &kap, sweep, &s);
+	sweep(rh, &s, J0, Jfs, A, NULL);
+	bgScatterIterate(rh, N, J0, Jfs, A, alb, J1, &kap, sweep, &s);
 
 	s.eps *= 1.05;
 	exact(&s, Jx, Lam);
 	for (int k = 0; k < N; k++) alb[k] = 1.0 - s.eps;
 	if (!keep) kap = 0.0;
-	sweep(&s, J1, Jfs, A, NULL);
-	bgScatterIterate(N, J1, Jfs, A, alb, J, &kap, sweep, &s);
+	sweep(rh, &s, J1, Jfs, A, NULL);
+	bgScatterIterate(rh, N, J1, Jfs, A, alb, J, &kap, sweep, &s);
 	for (int k = 0; k < N; k++) err = fmax(err, fabs(J[k] / Jx[k] - 1.0));
 	*kap_out = kap;
 
@@ -472,27 +474,27 @@ static void check_before_after(void)
 	rh->input.bg_depth        = 3;
 	rh->input.bg_iterLimit    = 1.0e-10;
 	rh->input.bg_NmaxIter     = 1000;
-	bgScatterSetup();
-	CHECK(bgScatterPending(0) && bgScatterPending(1),
+	bgScatterSetup(rh);
+	CHECK(bgScatterPending(rh, 0) && bgScatterPending(rh, 1),
 		  "the first sweep does not iterate first");
 
-	bgScatterBefore(0, N, Jdag, Js, sweep, &s);
+	bgScatterBefore(rh, 0, N, Jdag, Js, sweep, &s);
 	for (int k = 0; k < N; k++) err = fmax(err, fabs(Js[k] / Jx[k] - 1.0));
 	CHECK(err < 1.0e-8, "J* from J = 0 off by %.2e", err);
-	CHECK(bgScatterPending(0), "an iterated wavelength was dropped");
+	CHECK(bgScatterPending(rh, 0), "an iterated wavelength was dropped");
 
 	memcpy(u, Js, N * sizeof(double));
-	bgScatterBefore(0, N, u, Js, sweep, &s);
-	CHECK(!bgScatterPending(0), "a converged wavelength stays pending");
-	CHECK(bgScatterPending(1), "wavelength 1 was dropped");
+	bgScatterBefore(rh, 0, N, u, Js, sweep, &s);
+	CHECK(!bgScatterPending(rh, 0), "a converged wavelength stays pending");
+	CHECK(bgScatterPending(rh, 1), "wavelength 1 was dropped");
 
-	sweep(&s, Jx, Jfs, A, alb);
-	bgScatterAfter(0, N, Jx, Jfs, A, alb);
-	CHECK(!bgScatterPending(0), "bgScatterAfter: converged J made it pending");
+	sweep(rh, &s, Jx, Jfs, A, alb);
+	bgScatterAfter(rh, 0, N, Jx, Jfs, A, alb);
+	CHECK(!bgScatterPending(rh, 0), "bgScatterAfter: converged J made it pending");
 	for (int k = 0; k < N; k++) u[k] = 0.5 * Jx[k];
-	sweep(&s, u, Jfs, A, alb);
-	bgScatterAfter(0, N, u, Jfs, A, alb);
-	CHECK(bgScatterPending(0), "bgScatterAfter: J off by 2 did not make it pending");
+	sweep(rh, &s, u, Jfs, A, alb);
+	bgScatterAfter(rh, 0, N, u, Jfs, A, alb);
+	CHECK(bgScatterPending(rh, 0), "bgScatterAfter: J off by 2 did not make it pending");
 
 	slab_free(&s);
 	free(Lam);
@@ -519,19 +521,19 @@ static void check_linear_choice(void)
 	rh->input.bg_NmaxIter     = 50;
 	rh->input.bg_linearAlbedo = 0.9;
 	rh->input.bg_linearTau    = 1.0;
-	bgScatterSetup();
+	bgScatterSetup(rh);
 
-	CHECK(!bgScatterLinear(0, -1.0), "query set the flag");
-	CHECK(!bgScatterLinear(0, 0.9), "albedo = threshold chose linear");
-	CHECK(bgScatterLinear(0, 0.95), "albedo 0.95 > 0.9 did not choose linear");
-	CHECK(bgScatterLinear(0, -1.0), "a query lost the choice");
-	CHECK(!bgScatterLinear(1, -1.0), "wavelength 1 chose linear");
-	bgScatterStats(&st, TRUE);
+	CHECK(!bgScatterLinear(rh, 0, -1.0), "query set the flag");
+	CHECK(!bgScatterLinear(rh, 0, 0.9), "albedo = threshold chose linear");
+	CHECK(bgScatterLinear(rh, 0, 0.95), "albedo 0.95 > 0.9 did not choose linear");
+	CHECK(bgScatterLinear(rh, 0, -1.0), "a query lost the choice");
+	CHECK(!bgScatterLinear(rh, 1, -1.0), "wavelength 1 chose linear");
+	bgScatterStats(rh, &st, TRUE);
 	CHECK(st.Nlinear == 1 && st.Nto == 1 && st.Nback == 0,
 		  "linear %ld, +%ld -%ld, not 1, +1 -0", st.Nlinear, st.Nto, st.Nback);
-	CHECK(!bgScatterLinear(0, 0.1), "albedo 0.1 kept the linear solver");
-	CHECK(!bgScatterLinear(0, -1.0), "a query lost the switch back");
-	bgScatterStats(&st, TRUE);
+	CHECK(!bgScatterLinear(rh, 0, 0.1), "albedo 0.1 kept the linear solver");
+	CHECK(!bgScatterLinear(rh, 0, -1.0), "a query lost the switch back");
+	bgScatterStats(rh, &st, TRUE);
 	CHECK(st.Nlinear == 0 && st.Nto == 0 && st.Nback == 1,
 		  "linear %ld, +%ld -%ld, not 0, +0 -1", st.Nlinear, st.Nto, st.Nback);
 }
@@ -542,8 +544,8 @@ int main(void)
 	rh->geometry->Nrays             = NMU;
 	rh->geometry->muz               = mus;
 	rh->geometry->wmu               = wmus;
-	rh->geometry->Itop              = matrix_double(1, NMU);
-	rh->geometry->Ibottom           = matrix_double(1, NMU);
+	rh->geometry->Itop              = matrix_double(rh, 1, NMU);
+	rh->geometry->Ibottom           = matrix_double(rh, 1, NMU);
 	rh->geometry->vboundary[TOP]    = ZERO;
 	rh->geometry->vboundary[BOTTOM] = IRRADIATED;
 

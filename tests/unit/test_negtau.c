@@ -69,24 +69,24 @@ static void check_threshold(void)
 	/* --- -49 does not fire, -51 does, and the deepest detection is
 		   kept --                                        -------------- */
 
-	negTauReset();
-	CHECK(!negTauCheck(3, 0, TRUE, 3, d, -1) && !negTauFound(), "-49 fired");
+	negTauReset(rh);
+	CHECK(!negTauCheck(rh, 3, 0, TRUE, 3, d, -1) && !negTauFound(rh), "-49 fired");
 	d[2] = -11.0;
-	CHECK(negTauCheck(3, 1, TRUE, 3, d, -1) && negTauFound(), "-51 did not fire");
+	CHECK(negTauCheck(rh, 3, 1, TRUE, 3, d, -1) && negTauFound(rh), "-51 did not fire");
 	d[2] = -30.0;
-	CHECK(negTauCheck(5, 2, FALSE, 3, d, -1), "-70 did not fire");
+	CHECK(negTauCheck(rh, 5, 2, FALSE, 3, d, -1), "-70 did not fire");
 	d[2] = -10.5;
-	CHECK(negTauCheck(7, 0, TRUE, 3, d, -1), "-50.5 did not fire");
+	CHECK(negTauCheck(rh, 7, 0, TRUE, 3, d, -1), "-50.5 did not fire");
 	{
 		char msg[256];
 
-		negTauMessage(msg, sizeof(msg));
+		negTauMessage(rh, msg, sizeof(msg));
 		CHECK(strstr(msg, "wavelength 5") && strstr(msg, "ray 2 downward") &&
 				  strstr(msg, "-70") && strstr(msg, "depth points 0 and 3"),
 			  "message does not name the deepest run: %s", msg);
 	}
-	negTauReset();
-	CHECK(!negTauFound(), "reset");
+	negTauReset(rh);
+	CHECK(!negTauFound(rh), "reset");
 }
 
 static void check_columns(void)
@@ -100,19 +100,19 @@ static void check_columns(void)
 	double       chi[8] = {1.0, 1.0, 1.0, -30.0, 1.0, -30.0, 1.0, 1.0};
 	char         msg[256];
 
-	negTauReset();
-	CHECK(negTauColumns(4, 1, TRUE, 4, 2, chi, z, 0.5, NEGTAU_LINEAR), "column bound did not fire");
-	negTauMessage(msg, sizeof(msg));
+	negTauReset(rh);
+	CHECK(negTauColumns(rh, 4, 1, TRUE, 4, 2, chi, z, 0.5, NEGTAU_LINEAR), "column bound did not fire");
+	negTauMessage(rh, msg, sizeof(msg));
 	CHECK(strstr(msg, "-118") && strstr(msg, "column 1"), "column message: %s", msg);
 
 	/* --- Vertical (muz = 1): -14.5 - 30 - 14.5 = -59 still fires;
 		   positive opacity everywhere never does --      -------------- */
 
-	negTauReset();
-	CHECK(negTauColumns(4, 0, TRUE, 4, 2, chi, z, 1.0, NEGTAU_LINEAR), "vertical: -59 did not fire");
+	negTauReset(rh);
+	CHECK(negTauColumns(rh, 4, 0, TRUE, 4, 2, chi, z, 1.0, NEGTAU_LINEAR), "vertical: -59 did not fire");
 	for (int n = 0; n < 8; n++) chi[n] = fabs(chi[n]);
-	negTauReset();
-	CHECK(!negTauColumns(4, 0, TRUE, 4, 2, chi, z, 0.1, NEGTAU_LINEAR) && !negTauFound(),
+	negTauReset(rh);
+	CHECK(!negTauColumns(rh, 4, 0, TRUE, 4, 2, chi, z, 0.1, NEGTAU_LINEAR) && !negTauFound(rh),
 		  "positive opacity fired");
 
 	/* --- Each column checked on its own (code review): negative
@@ -122,11 +122,11 @@ static void check_columns(void)
 	{
 		double c2[8] = {-14.5, 1.0, -14.5, 1.0, 1.0, -14.5, 1.0, -14.5};
 
-		negTauReset();
-		CHECK(!negTauColumns(4, 0, TRUE, 4, 2, c2, z, 0.5, NEGTAU_LINEAR) && !negTauFound(),
+		negTauReset(rh);
+		CHECK(!negTauColumns(rh, 4, 0, TRUE, 4, 2, c2, z, 0.5, NEGTAU_LINEAR) && !negTauFound(rh),
 			  "patches in different columns fired");
 	}
-	negTauReset();
+	negTauReset(rh);
 }
 
 static void check_bezier(void)
@@ -152,16 +152,16 @@ static void check_bezier(void)
 		  "cubic Bezier of the sign change: %.17g, the solver had -16179.700117111772",
 		  dtau[3]);
 
-	negTauReset();
-	CHECK(!negTauColumns(141, 0, FALSE, 8, 1, chi, z, muz, NEGTAU_LINEAR) && !negTauFound(),
+	negTauReset(rh);
+	CHECK(!negTauColumns(rh, 141, 0, FALSE, 8, 1, chi, z, muz, NEGTAU_LINEAR) && !negTauFound(rh),
 		  "trapezoid fired on the B-68 column");
-	negTauReset();
-	CHECK(negTauColumns(141, 0, FALSE, 8, 1, chi, z, muz, NEGTAU_BEZIER3_1D),
+	negTauReset(rh);
+	CHECK(negTauColumns(rh, 141, 0, FALSE, 8, 1, chi, z, muz, NEGTAU_BEZIER3_1D),
 		  "cubic Bezier did not fire on the B-68 column");
-	negTauReset();
-	CHECK(negTauColumns(141, 0, FALSE, 8, 1, chi, z, muz, NEGTAU_BEZIER_SC),
+	negTauReset(rh);
+	CHECK(negTauColumns(rh, 141, 0, FALSE, 8, 1, chi, z, muz, NEGTAU_BEZIER_SC),
 		  "quadratic Bezier did not fire on the B-68 column");
-	negTauReset();
+	negTauReset(rh);
 
 	/* --- Random columns (2 of them, uneven spacing, values of both
 		   signs over 6 decades): every Bezier interval lies between

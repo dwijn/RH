@@ -24,7 +24,7 @@
 
 /* ------- begin -------------------------- writeFlux.c ------------- */
 
-bool_t writeFlux(char *flux_output)
+bool_t writeFlux(RHState *rh, char *flux_output)
 {
 	const char   routineName[] = "writeFlux";
 	register int mu, nspect;
@@ -37,7 +37,7 @@ bool_t writeFlux(char *flux_output)
 	/* --- Write the radiative flux in the z-direction -- ------------ */
 
 	if ((fp_flux = fopen(flux_output, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open outputfile %s", flux_output);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open outputfile %s", flux_output);
 	}
 	xdrstdio_create(&xdrs, fp_flux, XDR_ENCODE);
 

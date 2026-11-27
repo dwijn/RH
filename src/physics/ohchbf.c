@@ -51,7 +51,7 @@
 #define NTOH 15
 #define NEOH 130
 
-bool_t OH_bf_opac(double lambda, double *chi, double *eta)
+bool_t OH_bf_opac(RHState *rh, double lambda, double *chi, double *eta)
 {
 	register int k;
 
@@ -383,7 +383,7 @@ bool_t OH_bf_opac(double lambda, double *chi, double *eta)
 #define NTCH 15
 #define NECH 105
 
-bool_t CH_bf_opac(double lambda, double *chi, double *eta)
+bool_t CH_bf_opac(RHState *rh, double lambda, double *chi, double *eta)
 {
 	register int k;
 
@@ -660,7 +660,7 @@ bool_t CH_bf_opac(double lambda, double *chi, double *eta)
 
 /* ------- begin -------------------------- OHCH_bf_check.c --------- */
 
-void OHCH_bf_check(void)
+void OHCH_bf_check(RHState *rh)
 {
 	const char   routineName[] = "OHCH_bf_check";
 	register int k;
@@ -683,10 +683,10 @@ void OHCH_bf_check(void)
 			Thi = MAX(Thi, rh->atmos.T[k]);
 		}
 		if (Nout > 0) {
-			Error(WARNING, routineName, "%s bound-free opacity: %d of %d depth points have T outside"
-										" the table range [%.0f, %.0f] K\n (atmosphere T = %.0f - %.0f"
-										" K). log(sigma) is held at the value at the nearest edge.",
-				  mol[n]->ID, Nout, rh->atmos.Nspace, OHCH_TMIN, OHCH_TMAX, Tlo, Thi);
+			Warning(rh, routineName, "%s bound-free opacity: %d of %d depth points have T outside"
+									 " the table range [%.0f, %.0f] K\n (atmosphere T = %.0f - %.0f"
+									 " K). log(sigma) is held at the value at the nearest edge.",
+					mol[n]->ID, Nout, rh->atmos.Nspace, OHCH_TMIN, OHCH_TMAX, Tlo, Thi);
 		}
 	}
 }

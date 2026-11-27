@@ -48,9 +48,9 @@
 
 /* --- Global variables --                             -------------- */
 
-static Geometry geometry_data;
-static RHState  rh_state = RH_STATE_INIT(TWO_D_PLANE, &geometry_data);
-RHState *const  rh       = &rh_state;
+static Geometry       geometry_data;
+static RHState        rh_state = RH_STATE_INIT(TWO_D_PLANE, &geometry_data);
+static RHState *const rh       = &rh_state;
 
 /* ------- begin -------------------------- solveray.c -------------- */
 
@@ -67,35 +67,35 @@ int main(int argc, char *argv[])
 	FILE      *fp_out, *fp_ray;
 	XDR        xdrs;
 
-	setOptions(argc, argv);
-	getCPU(0, TIME_START, NULL);
-	SetFPEtraps();
+	setOptions(rh, argc, argv);
+	getCPU(rh, 0, TIME_START, NULL);
+	SetFPEtraps(rh);
 
 	/* --- Read input data and initialize --             -------------- */
 
-	readInput();
+	readInput(rh);
 	rh->spectrum.updateJ = FALSE;
 
 	/* --- Read input data for atmosphere --             -------------- */
 
-	getCPU(1, TIME_START, NULL);
-	readAtmos(&rh->atmos, rh->geometry);
+	getCPU(rh, 1, TIME_START, NULL);
+	readAtmos(rh, &rh->atmos, rh->geometry);
 
 	/* --- Read direction cosines for ray --             -------------- */
 
 	if ((fp_ray = fopen(RAY_INPUT_FILE, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", RAY_INPUT_FILE);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", RAY_INPUT_FILE);
 	}
 
-	getLine(fp_ray, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_ray, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%lf %lf", &mux, &muz);
-	checkNread(Nread, Nrequired = 2, argv[0], checkPoint = 1);
+	checkNread(rh, Nread, Nrequired = 2, argv[0], checkPoint = 1);
 
 	if (mux <= -1.0 || mux >= 1.0) {
-		Error(ERROR_LEVEL_2, argv[0], "Value of mux = %f does not lie in interval <-1.0, 1.0>\n", mux);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Value of mux = %f does not lie in interval <-1.0, 1.0>\n", mux);
 	}
 	if (muz <= 0.0 || muz > 1.0) {
-		Error(ERROR_LEVEL_2, argv[0], "Value of muz = %f does not lie in interval <0.0, 1.0]\n", muz);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Value of muz = %f does not lie in interval <0.0, 1.0]\n", muz);
 	}
 
 	/* --- The third cosine follows from the first two. A sum of squares
@@ -108,8 +108,8 @@ int main(int argc, char *argv[])
 
 	sumsq = SQ(mux) + SQ(muz);
 	if (sumsq > 1.0 + MU_SUMSQ_TOL) {
-		Error(ERROR_LEVEL_2, argv[0], "mux = %.12g and muz = %.12g are inconsistent: "
-									  "mux^2 + muz^2 = %.12g exceeds 1\n",
+		Error(rh, ERROR_LEVEL_2, argv[0], "mux = %.12g and muz = %.12g are inconsistent: "
+										  "mux^2 + muz^2 = %.12g exceeds 1\n",
 			  mux, muz, sumsq);
 	}
 	muy = sqrt(fmax(0.0, 1.0 - sumsq));
@@ -130,41 +130,41 @@ int main(int argc, char *argv[])
 	rh->geometry->muz[0]                  = muz;
 	rh->geometry->wmu[0]                  = 1.0;
 
-	if (rh->atmos.Stokes) Bproject();
-	fillMesh(rh->geometry);
+	if (rh->atmos.Stokes) Bproject(rh);
+	fillMesh(rh, rh->geometry);
 
 	rh->input.startJ = OLD_J;
 
-	readAtomicModels();
-	readMolecularModels();
-	SortLambda();
+	readAtomicModels(rh);
+	readMolecularModels(rh);
+	SortLambda(rh);
 
-	getBoundary(&rh->atmos, rh->geometry);
+	getBoundary(rh, &rh->atmos, rh->geometry);
 
 	/* --- Open file with background opacities --        -------------- */
 
 	if (rh->atmos.moving || rh->atmos.Stokes) {
 		strcpy(rh->input.background_File, rh->input.background_ray_File);
-		Background(analyze_output = FALSE, equilibria_only = FALSE);
+		Background(rh, analyze_output = FALSE, equilibria_only = FALSE);
 	} else {
-		Background(analyze_output = FALSE, equilibria_only = TRUE);
+		Background(rh, analyze_output = FALSE, equilibria_only = TRUE);
 
 		if ((rh->atmos.fd_background =
 				 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s",
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s",
 				  rh->input.background_File);
 		}
-		readBRS();
+		readBRS(rh);
 	}
 
-	getProfiles();
-	initSolution();
-	initScatter();
-	getCPU(1, TIME_POLL, "Total initialize");
+	getProfiles(rh);
+	initSolution(rh);
+	initScatter(rh);
+	getCPU(rh, 1, TIME_POLL, "Total initialize");
 
 	/* --- Solve radiative transfer equations --     ------------------ */
 
-	solveSpectrum(FALSE, FALSE);
+	solveSpectrum(rh, FALSE, FALSE);
 
 	/* --- Write emergent spectrum to output file --  ----------------- */
 
@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
 			(mux >= 0.0) ? "spectrum_%4.2f_%4.2f" : "spectrum_%5.2f_%4.2f",
 			mux, muz);
 	if ((fp_out = fopen(rayFileName, "w")) == NULL) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open output file %s", rayFileName);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open output file %s", rayFileName);
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
@@ -182,20 +182,20 @@ int main(int argc, char *argv[])
 						 rh->spectrum.Nspect * rh->atmos.N[0],
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to write spectrum to file %s", rayFileName);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write spectrum to file %s", rayFileName);
 	}
 
 	/* --- Read wavelength indices for which chi and S are to be
 		   written out for the specified direction --    -------------- */
 
 	Nread = fscanf(fp_ray, "%d", &Nspect);
-	checkNread(Nread, 1, argv[0], checkPoint = 2);
+	checkNread(rh, Nread, 1, argv[0], checkPoint = 2);
 
 	if (Nspect > 0) {
 		wave_index = (int *) malloc(Nspect * sizeof(int));
 		Nread      = 0;
 		while (fscanf(fp_ray, "%d", &wave_index[Nread]) != EOF) Nread++;
-		checkNread(Nread, Nspect, argv[0], checkPoint = 3);
+		checkNread(rh, Nread, Nspect, argv[0], checkPoint = 3);
 		fclose(fp_ray);
 
 		chi = (double *) malloc(rh->atmos.Nspace * sizeof(double));
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 	}
 	result = xdr_int(&xdrs, &Nspect);
 	if (!result) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to write number of wavelengths to file %s", rayFileName);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write number of wavelengths to file %s", rayFileName);
 	}
 
 	/* --- Go through the list of wavelengths --         -------------- */
@@ -216,21 +216,21 @@ int main(int argc, char *argv[])
 
 	for (n = 0; n < Nspect; n++) {
 		if (wave_index[n] < 0 || wave_index[n] >= rh->spectrum.Nspect) {
-			Error(ERROR_LEVEL_2, argv[0], "Illegal value of wave_index[n]: %4d\n"
-										  "Value has to be between 0 and %4d\n",
+			Error(rh, ERROR_LEVEL_2, argv[0], "Illegal value of wave_index[n]: %4d\n"
+											  "Value has to be between 0 and %4d\n",
 				  wave_index[n], rh->spectrum.Nspect);
 			continue;
 		}
-		Error(MESSAGE, NULL, "Processing n = %4d, lambda = %9.3f [nm]\n",
-			  wave_index[n], rh->spectrum.lambda[wave_index[n]]);
+		Message(rh, "Processing n = %4d, lambda = %9.3f [nm]\n",
+				wave_index[n], rh->spectrum.lambda[wave_index[n]]);
 
 		as = &rh->spectrum.as[wave_index[n]];
-		alloc_as(wave_index[n], crosscoupling = FALSE);
-		Opacity(wave_index[n], 0, to_obs = TRUE, initialize = TRUE);
-		readBackground(wave_index[n], 0, to_obs = TRUE);
+		alloc_as(rh, wave_index[n], crosscoupling = FALSE);
+		Opacity(rh, wave_index[n], 0, to_obs = TRUE, initialize = TRUE);
+		readBackground(rh, wave_index[n], 0, to_obs = TRUE);
 
 		if (rh->input.limit_memory) {
-			readJlambda(wave_index[n], J);
+			readJlambda(rh, wave_index[n], J);
 		} else
 			J = rh->spectrum.J[wave_index[n]];
 
@@ -246,10 +246,10 @@ int main(int argc, char *argv[])
 		result &= xdr_vector(&xdrs, (char *) S, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to write chi and S to file %s", rayFileName);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write chi and S to file %s", rayFileName);
 		}
 
-		free_as(wave_index[n], crosscoupling = FALSE);
+		free_as(rh, wave_index[n], crosscoupling = FALSE);
 	}
 	/* --- If magnetic fields are present --             -------------- */
 
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
 							 rh->spectrum.Nspect * rh->atmos.N[0], sizeof(double),
 							 (xdrproc_t) rh_xdr_double);
 		if (!result) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to write Stokes spectra to file %s", rayFileName);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write Stokes spectra to file %s", rayFileName);
 		}
 	}
 
@@ -273,6 +273,6 @@ int main(int argc, char *argv[])
 
 	xdr_destroy(&xdrs);
 	fclose(fp_out);
-	printTotalCPU();
+	printTotalCPU(rh);
 }
 /* ------- end ---------------------------- solveray.c -------------- */

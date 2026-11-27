@@ -65,12 +65,12 @@ static void set_rates(double a, double b)
 
 static void run_invalid_outside(void)
 {
-	negTauInvalid("x");
+	negTauInvalid(rh, "x");
 }
 
 static void run_stop(void)
 {
-	statEquil(&atom, -1);
+	statEquil(rh, &atom, -1);
 }
 
 /* --- Run f in a child with its output discarded; TRUE if it ended
@@ -107,20 +107,20 @@ static void check_case(const char *name, double a, double b, bool_t bad,
 	}
 
 	set_rates(a, b);
-	negTauReset();
-	negTauTrial(TRUE);
-	statEquil(&atom, -1);
-	negTauTrial(FALSE);
-	CHECK(negTauFound() == bad, "%s: in a trial, invalid: %d, expected %d", name,
-		  negTauFound(), bad);
+	negTauReset(rh);
+	negTauTrial(rh, TRUE);
+	statEquil(rh, &atom, -1);
+	negTauTrial(rh, FALSE);
+	CHECK(negTauFound(rh) == bad, "%s: in a trial, invalid: %d, expected %d", name,
+		  negTauFound(rh), bad);
 	if (bad) {
-		negTauMessage(msg, sizeof(msg));
+		negTauMessage(rh, msg, sizeof(msg));
 		CHECK(strstr(msg, "XX") && strstr(msg, level) &&
 				  strstr(msg, "location 1") &&
 				  strstr(msg, "of 3 locations solved") && strstr(msg, tail),
 			  "%s: message: %s", name, msg);
-		negTauReset();
-		CHECK(!negTauFound(), "%s: still invalid after negTauReset", name);
+		negTauReset(rh);
+		CHECK(!negTauFound(rh), "%s: still invalid after negTauReset", name);
 	}
 }
 
@@ -135,9 +135,9 @@ int main(void)
 	atom.label    = (char **) malloc(N * sizeof(char *));
 	atom.label[0] = strdup("first");
 	atom.label[1] = strdup("second");
-	atom.Gamma    = matrix_double(N * N, NSPACE);
-	atom.C        = matrix_double(N * N, NSPACE);
-	atom.n        = matrix_double(N, NSPACE);
+	atom.Gamma    = matrix_double(rh, N * N, NSPACE);
+	atom.C        = matrix_double(rh, N * N, NSPACE);
+	atom.n        = matrix_double(rh, N, NSPACE);
 	atom.ntotal   = (double *) malloc(NSPACE * sizeof(double));
 
 	/* --- n_1 = a / (a + b) N: -1 for a = -0.5, b = 1 -- ------------ */
@@ -154,9 +154,9 @@ int main(void)
 	free(atom.label[0]);
 	free(atom.label[1]);
 	free(atom.label);
-	freeMatrix((void **) atom.Gamma);
-	freeMatrix((void **) atom.C);
-	freeMatrix((void **) atom.n);
+	freeMatrix(rh, (void **) atom.Gamma);
+	freeMatrix(rh, (void **) atom.C);
+	freeMatrix(rh, (void **) atom.n);
 	free(atom.ntotal);
 	return check_summary("test_negpop");
 }

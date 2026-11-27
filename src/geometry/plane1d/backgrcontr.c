@@ -26,9 +26,9 @@
 
 /* --- Global variables --                             -------------- */
 
-static Geometry geometry_data;
-static RHState  rh_state = RH_STATE_INIT(ONE_D_PLANE, &geometry_data);
-RHState *const  rh       = &rh_state;
+static Geometry       geometry_data;
+static RHState        rh_state = RH_STATE_INIT(ONE_D_PLANE, &geometry_data);
+static RHState *const rh       = &rh_state;
 
 /* ------- begin -------------------------- backgrcontr.c ----------- */
 
@@ -42,34 +42,34 @@ int main(int argc, char *argv[])
 
 	/* --- Read input data and initialize --             -------------- */
 
-	setOptions(argc, argv);
-	SetFPEtraps();
+	setOptions(rh, argc, argv);
+	SetFPEtraps(rh);
 
-	readInput();
-	MULTIatmos(&rh->atmos, rh->geometry);
-	readAtomicModels();
-	readMolecularModels();
+	readInput(rh);
+	MULTIatmos(rh, &rh->atmos, rh->geometry);
+	readAtomicModels(rh);
+	readMolecularModels(rh);
 
 	if ((fp = fopen(CONTR_INPUT_FILE, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", CONTR_INPUT_FILE);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", CONTR_INPUT_FILE);
 	}
 
 	result = fscanf(fp, "%d", &Nlambda);
 	if (result != 1) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to read Nlambda from inputfile %s",
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to read Nlambda from inputfile %s",
 			  CONTR_INPUT_FILE);
 	}
 	lambda = (double *) malloc(Nlambda * sizeof(double));
 	for (n = 0; n < Nlambda; n++) {
 		result = fscanf(fp, "%lf", &lambda[n]);
 		if (result != 1) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to read wavelength %d from inputfile %s",
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to read wavelength %d from inputfile %s",
 				  n, CONTR_INPUT_FILE);
 		}
 	}
 	fclose(fp);
 
-	backgrOpac(Nlambda, lambda);
+	backgrOpac(rh, Nlambda, lambda);
 
 	free(lambda);
 }

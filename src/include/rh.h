@@ -21,6 +21,11 @@
 #include <rpc/types.h>
 #include <pthread.h>
 
+/* --- The state of a run (state.h); a parameter of most functions
+	   (Q-49) --                                       -------------- */
+
+typedef struct RHState RHState;
+
 /* --- SPHERICAL_SYMMETRIC is no longer a geometry (rhsphere was
 	   retired in Q-43); it keeps its value because geometry.out
 	   stores the topology as a number (python/rhanalyze, idl) -- */
@@ -88,23 +93,23 @@ enum PRDangle { PRD_ANGLE_AVER = 0,
 
 /* --- Function prototypes --                          -------------- */
 
-void   SetFPEtraps(void);
-void   checkNread(int Nread, int Nrequired, const char *routineName,
+void   SetFPEtraps(RHState *rh);
+void   checkNread(RHState *rh, int Nread, int Nrequired, const char *routineName,
 				  int checkPoint);
-void   setOptions(int argc, char *argv[]);
-double vproject(int k, int mu);
-void   Bproject(void);
-bool_t StopRequested(void);
+void   setOptions(RHState *rh, int argc, char *argv[]);
+double vproject(RHState *rh, int k, int mu);
+void   Bproject(RHState *rh);
+bool_t StopRequested(RHState *rh);
 char **getWords(char *label, char *separator, int *count);
 
 /* --- Matrix manipulation --                          -------------- */
 
-char   **matrix_char(int Nrow, int Ncol);
-int    **matrix_int(int Nrow, int Ncol);
-double **matrix_double(int Nrow, int Ncol);
-float  **matrix_float(int Nrow, int Ncol);
-void     freeMatrix(void **Matrix);
-void     SolveLinearEq(int N, double **A, double *b, bool_t improve);
+char   **matrix_char(RHState *rh, int Nrow, int Ncol);
+int    **matrix_int(RHState *rh, int Nrow, int Ncol);
+double **matrix_double(RHState *rh, int Nrow, int Ncol);
+float  **matrix_float(RHState *rh, int Nrow, int Ncol);
+void     freeMatrix(RHState *rh, void **Matrix);
+void     SolveLinearEq(RHState *rh, int N, double **A, double *b, bool_t improve);
 
 /* --- Rate equations by GTH elimination (gth.c, N-31) -- ---------- */
 
@@ -133,7 +138,7 @@ enum tau_unity_status { TAU_UNITY_OK,
 						TAU_NOT_BRACKETED };
 
 int    heightAtUnityTau(int N, const double *tau_ref, const double *z, double *z1);
-double zeroPointAtUnityTau(const char *routineName, const char *atmosID,
+double zeroPointAtUnityTau(RHState *rh, const char *routineName, const char *atmosID,
 						   int N, const double *tau_ref, const double *z);
 
 /* --- Monotone piecewise cubic Hermite interpolation (pchip.c, N-32),
@@ -152,7 +157,7 @@ typedef struct {
 	double *ylin, *dlin; /* logy with a node <= 0 (N-49), else NULL */
 } PchipTable;
 
-void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
+void pchipTableInit(RHState *rh, PchipTable *pt, int N, const double *x, const double *y,
 					int scale);
 void pchipTableEval(const PchipTable *pt, int N, const double *x, double *y);
 void pchipTableFree(PchipTable *pt);

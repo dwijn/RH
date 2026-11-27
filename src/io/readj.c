@@ -46,7 +46,7 @@ size_t pread_rh(int fd, const void *buf, size_t count, off_t offset);
 
 /* ------- begin -------------------------- readJlambda.c ----------- */
 
-void readJlambda(int nspect, double *J)
+void readJlambda(RHState *rh, int nspect, double *J)
 {
 	const char routineName[] = "readJlambda";
 
@@ -60,7 +60,7 @@ void readJlambda(int nspect, double *J)
 	result &= (pread_rh(rh->spectrum.fd_J, J, recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -68,7 +68,7 @@ void readJlambda(int nspect, double *J)
 
 /* ------- begin -------------------------- writeJlambda.c ---------- */
 
-void writeJlambda(int nspect, double *J)
+void writeJlambda(RHState *rh, int nspect, double *J)
 {
 	const char routineName[] = "writeJlambda";
 
@@ -82,7 +82,7 @@ void writeJlambda(int nspect, double *J)
 	result &= (pwrite_rh(rh->spectrum.fd_J, J, recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -90,7 +90,7 @@ void writeJlambda(int nspect, double *J)
 
 /* ------- begin -------------------------- readJgas.c -------------- */
 
-void readJgas(double **Jgas)
+void readJgas(RHState *rh, double **Jgas)
 {
 	const char routineName[] = "readJgas";
 
@@ -99,11 +99,11 @@ void readJgas(double **Jgas)
 
 	recordsize = (size_t) rh->atmos.Nspace * rh->spectrum.Nspect;
 	if ((fp = fopen("Jgas.dat", "r")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Cannot open Jgas.dat for reading (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Cannot open Jgas.dat for reading (%s)",
 			  strerror(errno));
 	}
 	if (fread(&(Jgas[0][0]), sizeof(double), recordsize, fp) != recordsize) {
-		Error(ERROR_LEVEL_2, routineName, "Error reading Jgas.dat (%zu values expected)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error reading Jgas.dat (%zu values expected)",
 			  recordsize);
 	}
 
@@ -113,7 +113,7 @@ void readJgas(double **Jgas)
 
 /* ------- begin -------------------------- writeJgas.c ------------ */
 
-void writeJgas(double **Jgas)
+void writeJgas(RHState *rh, double **Jgas)
 {
 	const char routineName[] = "writeJgas";
 
@@ -122,11 +122,11 @@ void writeJgas(double **Jgas)
 
 	recordsize = (size_t) rh->atmos.Nspace * rh->spectrum.Nspect;
 	if ((fp = fopen("Jgas.dat", "w")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Cannot open Jgas.dat for writing (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Cannot open Jgas.dat for writing (%s)",
 			  strerror(errno));
 	}
 	if (fwrite(&(Jgas[0][0]), sizeof(double), recordsize, fp) != recordsize) {
-		Error(ERROR_LEVEL_2, routineName, "Error writing Jgas.dat (%zu values expected)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error writing Jgas.dat (%zu values expected)",
 			  recordsize);
 	}
 
@@ -136,7 +136,7 @@ void writeJgas(double **Jgas)
 
 /* ------- begin -------------------------- readJ20lambda.c --------- */
 
-void readJ20lambda(int nspect, double *J20)
+void readJ20lambda(RHState *rh, int nspect, double *J20)
 {
 	const char routineName[] = "readJ20lambda";
 
@@ -151,7 +151,7 @@ void readJ20lambda(int nspect, double *J20)
 						recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -159,7 +159,7 @@ void readJ20lambda(int nspect, double *J20)
 
 /* ------- begin -------------------------- writeJ20lambda.c -------- */
 
-void writeJ20lambda(int nspect, double *J20)
+void writeJ20lambda(RHState *rh, int nspect, double *J20)
 {
 	const char routineName[] = "writeJ20lambda";
 
@@ -174,7 +174,7 @@ void writeJ20lambda(int nspect, double *J20)
 						 recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -182,7 +182,7 @@ void writeJ20lambda(int nspect, double *J20)
 
 /* ------- begin -------------------------- readImu.c --------------- */
 
-void readImu(int nspect, int mu, bool_t to_obs, double *I)
+void readImu(RHState *rh, int nspect, int mu, bool_t to_obs, double *I)
 {
 	const char routineName[] = "readImu";
 
@@ -201,7 +201,7 @@ void readImu(int nspect, int mu, bool_t to_obs, double *I)
 						recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -209,7 +209,7 @@ void readImu(int nspect, int mu, bool_t to_obs, double *I)
 
 /* ------- begin -------------------------- writeImu.c -------------- */
 
-void writeImu(int nspect, int mu, bool_t to_obs, double *I)
+void writeImu(RHState *rh, int nspect, int mu, bool_t to_obs, double *I)
 {
 	const char routineName[] = "writeImu";
 
@@ -228,7 +228,7 @@ void writeImu(int nspect, int mu, bool_t to_obs, double *I)
 						 recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -249,7 +249,7 @@ void writeImu(int nspect, int mu, bool_t to_obs, double *I)
 static const char *bg_map;
 static size_t      bg_maplen;
 
-void mapBackground(void)
+void mapBackground(RHState *rh)
 {
 	struct stat st;
 	void       *p;
@@ -259,8 +259,8 @@ void mapBackground(void)
 
 	p = mmap(NULL, (size_t) st.st_size, PROT_READ, MAP_SHARED, rh->atmos.fd_background, 0);
 	if (p == MAP_FAILED) {
-		Error(WARNING, "mapBackground", "Cannot map the background file (%s); reading it with pread",
-			  strerror(errno));
+		Warning(rh, "mapBackground", "Cannot map the background file (%s); reading it with pread",
+				strerror(errno));
 		return;
 	}
 	bg_map    = (const char *) p;
@@ -281,7 +281,7 @@ void unmapBackground(void)
 
 /* ------- begin -------------------------- backgroundIO.c ---------- */
 
-static float *backgroundBuffer(void)
+static float *backgroundBuffer(RHState *rh)
 {
 	float *buffer = NULL;
 
@@ -291,12 +291,12 @@ static float *backgroundBuffer(void)
 	if (rh->atmos.backgrbytes == sizeof(float) && bg_map == NULL) {
 		buffer = (float *) malloc(4 * (size_t) rh->atmos.Nspace * sizeof(float));
 		if (buffer == NULL)
-			Error(ERROR_LEVEL_2, "backgroundBuffer", "Out of memory");
+			Error(rh, ERROR_LEVEL_2, "backgroundBuffer", "Out of memory");
 	}
 	return buffer;
 }
 
-static bool_t backgroundIO(double *values, int Nrec, off_t recordno,
+static bool_t backgroundIO(RHState *rh, double *values, int Nrec, off_t recordno,
 						   bool_t write_it, bool_t emissivity, float *buffer)
 {
 	const char routineName[] = "backgroundIO";
@@ -351,16 +351,16 @@ static bool_t backgroundIO(double *values, int Nrec, off_t recordno,
 		else
 			return (pread_rh(rh->atmos.fd_background, values, count, offset) == count);
 	} else if (rh->atmos.backgrbytes != sizeof(float) || buffer == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unknown format of the background file: %d bytes"
-										  " per value, emissivity scale 2^%d",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unknown format of the background file: %d bytes"
+											  " per value, emissivity scale 2^%d",
 			  rh->atmos.backgrbytes, rh->atmos.backgretaexp);
 	}
 	if (write_it) {
 		for (n = 0; n < Nvalues; n++) {
 			v = values[n] * scale;
 			if (fabs(v) > FLT_MAX && isfinite(v)) {
-				Error(ERROR_LEVEL_2, routineName, "Background %s %.3e out of the range of"
-												  " the (single-precision) background file",
+				Error(rh, ERROR_LEVEL_2, routineName, "Background %s %.3e out of the range of"
+													  " the (single-precision) background file",
 					  (emissivity) ? "emissivity" : "opacity", values[n]);
 			}
 			buffer[n] = (float) v;
@@ -377,13 +377,13 @@ static bool_t backgroundIO(double *values, int Nrec, off_t recordno,
 
 /* ------- begin -------------------------- readBackground.c -------- */
 
-void readBackground(int nspect, int mu, bool_t to_obs)
+void readBackground(RHState *rh, int nspect, int mu, bool_t to_obs)
 {
 	const char routineName[] = "readBackground";
 
 	int        recordno, NrecStokes, NskipStokes;
 	bool_t     result = TRUE;
-	float     *buffer = backgroundBuffer();
+	float     *buffer = backgroundBuffer(rh);
 	ActiveSet *as;
 
 	/* --- Read background opacity, emissivity and scattering opacity
@@ -412,35 +412,35 @@ void readBackground(int nspect, int mu, bool_t to_obs)
 
 	/* --- Read background opacity --                    -------------- */
 
-	result &= backgroundIO(as->chi_c, NrecStokes, recordno, FALSE, FALSE, buffer);
+	result &= backgroundIO(rh, as->chi_c, NrecStokes, recordno, FALSE, FALSE, buffer);
 	recordno += NskipStokes;
 
 	/* --- Read off-diagonal elements propagation matrix K -- --------- */
 
 	if (rh->atmos.backgrflags[nspect].ispolarized && rh->input.magneto_optical) {
 		if (rh->input.StokesMode == FULL_STOKES)
-			result &= backgroundIO(as->chip_c, 3, recordno, FALSE, FALSE, buffer);
+			result &= backgroundIO(rh, as->chip_c, 3, recordno, FALSE, FALSE, buffer);
 		recordno += 3;
 	}
 	/* --- Read background emissivity --                 -------------- */
 
-	result &= backgroundIO(as->eta_c, NrecStokes, recordno, FALSE, TRUE, buffer);
+	result &= backgroundIO(rh, as->eta_c, NrecStokes, recordno, FALSE, TRUE, buffer);
 	recordno += NskipStokes;
 
 	/* --- Read background scattering opacity --         -------------- */
 
-	result &= backgroundIO(as->sca_c, 1, recordno, FALSE, FALSE, buffer);
+	result &= backgroundIO(rh, as->sca_c, 1, recordno, FALSE, FALSE, buffer);
 	free(buffer);
 
 	/* --- Exit if reading is unsuccessful --            -------------- */
 
-	if (!result) Error(ERROR_LEVEL_2, routineName, "Error reading file");
+	if (!result) Error(rh, ERROR_LEVEL_2, routineName, "Error reading file");
 }
 /* ------- end ---------------------------- readBackground.c -------- */
 
 /* ------- begin -------------------------- backgroundRecords.c ----- */
 
-int backgroundRecords(int nspect)
+int backgroundRecords(RHState *rh, int nspect)
 {
 	int NrecStokes, Nrec;
 
@@ -465,7 +465,7 @@ int backgroundRecords(int nspect)
 
 /* ------- begin -------------------------- writeBackground.c ------- */
 
-int writeBackground(int nspect, int mu, bool_t to_obs,
+int writeBackground(RHState *rh, int nspect, int mu, bool_t to_obs,
 					double *chi_c, double *eta_c, double *sca_c,
 					double *chip_c)
 {
@@ -473,7 +473,7 @@ int writeBackground(int nspect, int mu, bool_t to_obs,
 
 	int    recordno, Nwrite, NrecStokes;
 	bool_t result = TRUE;
-	float *buffer = backgroundBuffer();
+	float *buffer = backgroundBuffer(rh);
 
 	/* --- Writes background opacity, emissivity, and scattering
 		   opacity. Returns Nwrite, the number of records written,
@@ -493,31 +493,31 @@ int writeBackground(int nspect, int mu, bool_t to_obs,
 
 	/* --- Write background opacity --                   -------------- */
 
-	result &= backgroundIO(chi_c, NrecStokes, recordno + Nwrite, TRUE, FALSE, buffer);
+	result &= backgroundIO(rh, chi_c, NrecStokes, recordno + Nwrite, TRUE, FALSE, buffer);
 	Nwrite += NrecStokes;
 
 	/* --- Write off-diagonal elements of propagation matrix K -- ----- */
 
 	if (rh->atmos.backgrflags[nspect].ispolarized && rh->input.magneto_optical) {
-		result &= backgroundIO(chip_c, 3, recordno + Nwrite, TRUE, FALSE, buffer);
+		result &= backgroundIO(rh, chip_c, 3, recordno + Nwrite, TRUE, FALSE, buffer);
 		Nwrite += 3;
 	}
 	/* --- Write background emissivity --                -------------- */
 
-	result &= backgroundIO(eta_c, NrecStokes, recordno + Nwrite, TRUE, TRUE, buffer);
+	result &= backgroundIO(rh, eta_c, NrecStokes, recordno + Nwrite, TRUE, TRUE, buffer);
 	Nwrite += NrecStokes;
 
 	/* --- Write background scattering opacity --        -------------- */
 
-	result &= backgroundIO(sca_c, 1, recordno + Nwrite, TRUE, FALSE, buffer);
+	result &= backgroundIO(rh, sca_c, 1, recordno + Nwrite, TRUE, FALSE, buffer);
 	Nwrite += 1;
 	free(buffer);
 
 	if (!result)
-		Error(ERROR_LEVEL_2, routineName, "Error writing file");
+		Error(rh, ERROR_LEVEL_2, routineName, "Error writing file");
 
-	if (Nwrite != backgroundRecords(nspect))
-		Error(ERROR_LEVEL_2, routineName,
+	if (Nwrite != backgroundRecords(rh, nspect))
+		Error(rh, ERROR_LEVEL_2, routineName,
 			  "Number of records written differs from backgroundRecords");
 
 	/* --- Return the number of written records --       -------------- */
@@ -528,7 +528,7 @@ int writeBackground(int nspect, int mu, bool_t to_obs,
 
 /* ------- begin -------------------------- readProfile.c ----------- */
 
-void readProfile(AtomicLine *line, int lamu, float *phi)
+void readProfile(RHState *rh, AtomicLine *line, int lamu, float *phi)
 {
 	const char routineName[] = "readProfile";
 
@@ -559,13 +559,13 @@ void readProfile(AtomicLine *line, int lamu, float *phi)
 	result &= (pread_rh(line->fd_profile, phi, recordsize, offset) ==
 			   recordsize);
 
-	if (!result) Error(ERROR_LEVEL_2, routineName, "Error reading file");
+	if (!result) Error(rh, ERROR_LEVEL_2, routineName, "Error reading file");
 }
 /* ------- end ---------------------------- readProfile.c ----------- */
 
 /* ------- begin -------------------------- writeProfile.c ---------- */
 
-void writeProfile(AtomicLine *line, int lamu, float *phi)
+void writeProfile(RHState *rh, AtomicLine *line, int lamu, float *phi)
 {
 	const char routineName[] = "writeProfile";
 
@@ -588,7 +588,7 @@ void writeProfile(AtomicLine *line, int lamu, float *phi)
 	result &= (pwrite_rh(line->fd_profile, phi, recordsize, offset) ==
 			   recordsize);
 
-	if (!result) Error(ERROR_LEVEL_2, routineName, "Error writing file");
+	if (!result) Error(rh, ERROR_LEVEL_2, routineName, "Error writing file");
 }
 /* ------- end ---------------------------- writeProfile.c ---------- */
 
@@ -656,14 +656,14 @@ static __thread int          jgas_bufrows;
 static __thread PRDhBracket *jgas_br; /* brackets of one ray, PRDH_LIMIT_MEM */
 static __thread int          jgas_brN;
 
-void initJgasLocks(void)
+void initJgasLocks(RHState *rh)
 {
 	int nspect;
 
 	rh->spectrum.Jgas_lock =
 		(pthread_mutex_t *) malloc(rh->spectrum.Nspect * sizeof(pthread_mutex_t));
 	if (rh->spectrum.Jgas_lock == NULL)
-		Error(ERROR_LEVEL_2, "initJgasLocks", "Out of memory");
+		Error(rh, ERROR_LEVEL_2, "initJgasLocks", "Out of memory");
 	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
 		pthread_mutex_init(&rh->spectrum.Jgas_lock[nspect], NULL);
 }
@@ -695,7 +695,7 @@ void freeJgasBuffer(void)
 	   initJgasRows). Everything else, and everything without
 	   spectrum.Jgas_fixed, goes into Jgas. --            -------------- */
 
-void initJgasRows(const char *isPRD)
+void initJgasRows(RHState *rh, const char *isPRD)
 {
 	int         nspect, mu, k, Nrows = 0, moving = FALSE;
 	long        n;
@@ -712,11 +712,11 @@ void initJgasRows(const char *isPRD)
 		   v_los is fixed in a run. --                   -------------- */
 
 	free(rh->spectrum.PRDrow);
-	if (rh->spectrum.Jgas_fixed != NULL) freeMatrix((void **) rh->spectrum.Jgas_fixed);
+	if (rh->spectrum.Jgas_fixed != NULL) freeMatrix(rh, (void **) rh->spectrum.Jgas_fixed);
 	rh->spectrum.Jgas_fixed = NULL;
 	rh->spectrum.NJgasFixed = 0;
 	rh->spectrum.PRDrow     = (int *) malloc(rh->spectrum.Nspect * sizeof(int));
-	if (rh->spectrum.PRDrow == NULL) Error(ERROR_LEVEL_2, "initJgasRows", "Out of memory");
+	if (rh->spectrum.PRDrow == NULL) Error(rh, ERROR_LEVEL_2, "initJgasRows", "Out of memory");
 	for (mu = 0; mu < rh->atmos.Nrays; mu++)
 		for (k = 0; k < rh->atmos.Nspace; k++)
 			vmax = MAX(vmax, fabs(rh->spectrum.v_los[mu][k]));
@@ -725,12 +725,12 @@ void initJgasRows(const char *isPRD)
 	shift_hi = 1.0 + vmax / CLIGHT;
 
 	reach = (char *) calloc(rh->spectrum.Nspect, 1);
-	if (reach == NULL) Error(ERROR_LEVEL_2, "initJgasRows", "Out of memory");
+	if (reach == NULL) Error(rh, ERROR_LEVEL_2, "initJgasRows", "Out of memory");
 	if (moving) {
 		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
 			if (isPRD[nspect]) continue;
-			prdhBracket(nspect, shift_lo, &lo);
-			prdhBracket(nspect, shift_hi, &hi);
+			prdhBracket(rh, nspect, shift_lo, &lo);
+			prdhBracket(rh, nspect, shift_hi, &hi);
 			for (n = lo.r[0]; n < hi.r[2]; n++) reach[n] = TRUE;
 		}
 	}
@@ -741,18 +741,18 @@ void initJgasRows(const char *isPRD)
 			rh->spectrum.PRDrow[nspect] = reach[nspect] ? Nrows++ : -2;
 	}
 	free(reach);
-	if (Nrows > 0) rh->spectrum.Jgas_fixed = matrix_double(Nrows, rh->atmos.Nspace);
+	if (Nrows > 0) rh->spectrum.Jgas_fixed = matrix_double(rh, Nrows, rh->atmos.Nspace);
 	rh->spectrum.NJgasFixed = Nrows;
 }
 
-static double *jgasRow(int src, int row)
+static double *jgasRow(RHState *rh, int src, int row)
 {
 	if (rh->spectrum.Jgas_fixed != NULL && rh->spectrum.PRDrow[src] == -1 && rh->spectrum.PRDrow[row] != -1) {
 		if (rh->spectrum.PRDrow[row] == -2) {
 
 			/* --- Called by worker threads, never with a lock held -- */
 
-			Error(ERROR_LEVEL_2, "jgasRow",
+			Error(rh, ERROR_LEVEL_2, "jgasRow",
 				  "Wavelength %d (%g nm) without PRD line gives to wavelength %d (%g nm) "
 				  "with PRD line, which the reach computed at the start excludes",
 				  src, rh->spectrum.lambda[src], row, rh->spectrum.lambda[row]);
@@ -762,7 +762,7 @@ static double *jgasRow(int src, int row)
 	return rh->spectrum.Jgas[row];
 }
 
-void beginJgas(bool_t redistribute)
+void beginJgas(RHState *rh, bool_t redistribute)
 {
 	int    nspect;
 	size_t n = (size_t) rh->spectrum.Nspect * rh->atmos.Nspace;
@@ -784,7 +784,7 @@ void beginJgas(bool_t redistribute)
 				   rh->atmos.Nspace * sizeof(double));
 }
 
-void endJgas(bool_t redistribute)
+void endJgas(RHState *rh, bool_t redistribute)
 {
 	int nspect, k;
 
@@ -799,17 +799,17 @@ void endJgas(bool_t redistribute)
 	}
 }
 
-static void addJgas(double *row, int nspect, int k, double value)
+static void addJgas(RHState *rh, double *row, int nspect, int k, double value)
 {
 	pthread_mutex_lock(&rh->spectrum.Jgas_lock[nspect]);
 	row[k] += value;
 	pthread_mutex_unlock(&rh->spectrum.Jgas_lock[nspect]);
 }
 
-void addJgasRow(int nspect, double wmu, double *I)
+void addJgasRow(RHState *rh, int nspect, double wmu, double *I)
 {
 	int     k;
-	double *row = jgasRow(nspect, nspect);
+	double *row = jgasRow(rh, nspect, nspect);
 
 	pthread_mutex_lock(&rh->spectrum.Jgas_lock[nspect]);
 	for (k = 0; k < rh->atmos.Nspace; k++) row[k] += wmu * I[k];
@@ -819,7 +819,7 @@ void addJgasRow(int nspect, double wmu, double *I)
 
 /* ------- begin -------------------------- prdhIndex.c ------------- */
 
-long prdhIndex(int nspect, int mu, int to_obs, int k)
+long prdhIndex(RHState *rh, int nspect, int mu, int to_obs, int k)
 {
 	/* --- Index of (wavelength, ray, direction, location) in the hybrid
 		   PRD table spectrum.nc, in long arithmetic: the table has
@@ -835,33 +835,33 @@ long prdhIndex(int nspect, int mu, int to_obs, int k)
 	   the table spectrum.nc, iprdh and cprdh, or, with PRDH_LIMIT_MEM,
 	   from prdhBracket and prdhWeight, which the table holds (P-17) -- */
 
-static inline long jgasFirst(long lamuk0, int k)
+static inline long jgasFirst(RHState *rh, long lamuk0, int k)
 {
 	if (rh->input.prdh_limit_mem) return jgas_br[k].r[0];
 	return (lamuk0 + k == 0) ? 0 : rh->spectrum.nc[lamuk0 + k - 1];
 }
 
-static inline long jgasLast(long lamuk0, int k)
+static inline long jgasLast(RHState *rh, long lamuk0, int k)
 {
 	if (rh->input.prdh_limit_mem) return jgas_br[k].r[2];
 	return rh->spectrum.nc[lamuk0 + k];
 }
 
-static inline void jgasPoint(int k, long n, int *idx, double *w)
+static inline void jgasPoint(RHState *rh, int k, long n, int *idx, double *w)
 {
 	/* --- n runs from jgasFirst to jgasLast: a grid index with
 		   PRDH_LIMIT_MEM, a position in the table otherwise -- ---- */
 
 	if (rh->input.prdh_limit_mem) {
 		*idx = (int) n;
-		*w   = prdhWeight(&jgas_br[k], n);
+		*w   = prdhWeight(rh, &jgas_br[k], n);
 	} else {
 		*idx = rh->spectrum.iprdh[n];
 		*w   = rh->spectrum.cprdh[n];
 	}
 }
 
-void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
+void addJgasRay(RHState *rh, int nspect, int mu, int to_obs, double wmu, double *I)
 {
 	/* --- Add the intensity I of ray (nspect, mu, to_obs) to Jgas.
 		   With and without PRDH_LIMIT_MEM the same points get the same
@@ -876,20 +876,20 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 			free(jgas_br);
 			jgas_br  = (PRDhBracket *) malloc(Nspace * sizeof(PRDhBracket));
 			jgas_brN = Nspace;
-			if (jgas_br == NULL) Error(ERROR_LEVEL_2, "addJgasRay", "Out of memory");
+			if (jgas_br == NULL) Error(rh, ERROR_LEVEL_2, "addJgasRay", "Out of memory");
 		}
 		for (k = 0; k < Nspace; k++)
-			prdhBracket(nspect, prdhShift(mu, to_obs, k), &jgas_br[k]);
+			prdhBracket(rh, nspect, prdhShift(rh, mu, to_obs, k), &jgas_br[k]);
 	} else
-		lamuk0 = prdhIndex(nspect, mu, to_obs, 0);
+		lamuk0 = prdhIndex(rh, nspect, mu, to_obs, 0);
 
 	imin = INT_MAX;
 	imax = -1;
 	for (k = 0; k < Nspace; k++) {
-		n0 = jgasFirst(lamuk0, k);
-		n1 = jgasLast(lamuk0, k);
+		n0 = jgasFirst(rh, lamuk0, k);
+		n1 = jgasLast(rh, lamuk0, k);
 		for (n = n0; n < n1; n++) {
-			jgasPoint(k, n, &idx, &w);
+			jgasPoint(rh, k, n, &idx, &w);
 			if (idx < imin) imin = idx;
 			if (idx > imax) imax = idx;
 		}
@@ -907,13 +907,13 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 
 		double **rowp = (double **) calloc(Nrow, sizeof(double *));
 
-		if (rowp == NULL) Error(ERROR_LEVEL_2, "addJgasRay", "Out of memory");
+		if (rowp == NULL) Error(rh, ERROR_LEVEL_2, "addJgasRay", "Out of memory");
 		for (k = 0; k < Nspace; k++) {
-			n1 = jgasLast(lamuk0, k);
-			for (n = jgasFirst(lamuk0, k); n < n1; n++) {
-				jgasPoint(k, n, &idx, &w);
-				if (rowp[idx - imin] == NULL) rowp[idx - imin] = jgasRow(nspect, idx);
-				addJgas(rowp[idx - imin], idx, k, wmu * w * I[k]);
+			n1 = jgasLast(rh, lamuk0, k);
+			for (n = jgasFirst(rh, lamuk0, k); n < n1; n++) {
+				jgasPoint(rh, k, n, &idx, &w);
+				if (rowp[idx - imin] == NULL) rowp[idx - imin] = jgasRow(rh, nspect, idx);
+				addJgas(rh, rowp[idx - imin], idx, k, wmu * w * I[k]);
 			}
 		}
 		free(rowp);
@@ -927,14 +927,14 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 		jgas_used    = (char *) malloc(Nrow);
 		jgas_bufrows = Nrow;
 		if (jgas_buf == NULL || jgas_used == NULL)
-			Error(ERROR_LEVEL_2, "addJgasRay", "Out of memory");
+			Error(rh, ERROR_LEVEL_2, "addJgasRay", "Out of memory");
 	}
 	memset(jgas_used, 0, Nrow);
 
 	for (k = 0; k < Nspace; k++) {
-		n1 = jgasLast(lamuk0, k);
-		for (n = jgasFirst(lamuk0, k); n < n1; n++) {
-			jgasPoint(k, n, &idx, &w);
+		n1 = jgasLast(rh, lamuk0, k);
+		for (n = jgasFirst(rh, lamuk0, k); n < n1; n++) {
+			jgasPoint(rh, k, n, &idx, &w);
 			row = idx - imin;
 			if (!jgas_used[row]) {
 
@@ -950,7 +950,7 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 		if (!jgas_used[row]) continue;
 		buf = jgas_buf + (size_t) row * Nspace;
 
-		jrow = jgasRow(nspect, imin + row);
+		jrow = jgasRow(rh, nspect, imin + row);
 		pthread_mutex_lock(&rh->spectrum.Jgas_lock[imin + row]);
 		for (k = 0; k < Nspace; k++) jrow[k] += buf[k];
 		pthread_mutex_unlock(&rh->spectrum.Jgas_lock[imin + row]);

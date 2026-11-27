@@ -81,8 +81,8 @@ static void check_set(const char *name, int Nt, const int *tl, const int *tu)
 {
 	double   V[MAXT][NSPACE], wla[MAXT][NSPACE], gij[MAXT][NSPACE], c2[MAXT];
 	double   n0[NLEVEL][NSPACE], n1[NLEVEL][NSPACE], I[NSPACE], Psi[NSPACE];
-	double **U   = matrix_double(NLEVEL, NSPACE),
-		   **Gam = matrix_double(NLEVEL * NLEVEL, NSPACE);
+	double **U   = matrix_double(rh, NLEVEL, NSPACE),
+		   **Gam = matrix_double(rh, NLEVEL * NLEVEL, NSPACE);
 	double wmu = 0.37, err_fix = 0.0, err_lin = 0.0;
 	bool_t connected[NLEVEL][NLEVEL] = {{FALSE}};
 
@@ -178,8 +178,8 @@ static void check_set(const char *name, int Nt, const int *tl, const int *tu)
 		printf("  %-24s %2d transitions  fixed point %.1e  linear %.1e\n", name, Nt,
 			   err_fix, err_lin);
 	}
-	freeMatrix((void **) U);
-	freeMatrix((void **) Gam);
+	freeMatrix(rh, (void **) U);
+	freeMatrix(rh, (void **) Gam);
 }
 
 int main(int argc, char *argv[])

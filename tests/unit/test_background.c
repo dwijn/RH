@@ -35,12 +35,12 @@
 #include "check.h"
 #include "state.h"
 
-void writeBRS(void);
-void readBRS(void);
-int  backgroundRecords(int nspect);
-int  writeBackground(int nspect, int mu, bool_t to_obs, double *chi_c,
+void writeBRS(RHState *rh);
+void readBRS(RHState *rh);
+int  backgroundRecords(RHState *rh, int nspect);
+int  writeBackground(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi_c,
 					 double *eta_c, double *sca_c, double *chip_c);
-void readBackground(int nspect, int mu, bool_t to_obs);
+void readBackground(RHState *rh, int nspect, int mu, bool_t to_obs);
 
 #define NSPACE 7
 #define NSPECT 3
@@ -77,7 +77,7 @@ static void setup(void)
 	rh->atmos.backgrflags[1].ispolarized = TRUE;
 	for (nspect = 0; nspect < NSPECT; nspect++) {
 		rh->atmos.backgrrecno[nspect] = rec;
-		rec += backgroundRecords(nspect);
+		rec += backgroundRecords(rh, nspect);
 		rh->spectrum.as[nspect].chi_c  = calloc(4 * NSPACE, sizeof(double));
 		rh->spectrum.as[nspect].eta_c  = calloc(4 * NSPACE, sizeof(double));
 		rh->spectrum.as[nspect].sca_c  = calloc(NSPACE, sizeof(double));
@@ -99,7 +99,7 @@ static int open_file(const char *name)
 static void write_all(void)
 {
 	for (int nspect = 0; nspect < NSPECT; nspect++)
-		writeBackground(nspect, 0, FALSE, chi[nspect], eta[nspect], sca[nspect],
+		writeBackground(rh, nspect, 0, FALSE, chi[nspect], eta[nspect], sca[nspect],
 						chip[nspect]);
 }
 
@@ -123,7 +123,7 @@ static void check_read_back(const char *what)
 		memset(as->eta_c, 0, 4 * NSPACE * sizeof(double));
 		memset(as->sca_c, 0, NSPACE * sizeof(double));
 		memset(as->chip_c, 0, 3 * NSPACE * sizeof(double));
-		readBackground(nspect, 0, FALSE);
+		readBackground(rh, nspect, 0, FALSE);
 
 		Nrec = rh->atmos.backgrflags[nspect].ispolarized ? 4 : 1;
 		for (k = 0; k < Nrec * NSPACE; k++) {
@@ -183,7 +183,7 @@ static bool_t is_fatal(void (*f)(void))
 static void write_huge_eta(void)
 {
 	eta[0][2] = 1.0e10; /* times 2^100: beyond FLT_MAX */
-	writeBackground(0, 0, FALSE, chi[0], eta[0], sca[0], chip[0]);
+	writeBackground(rh, 0, 0, FALSE, chi[0], eta[0], sca[0], chip[0]);
 }
 
 static void free_brs(void)
@@ -199,7 +199,7 @@ static void free_brs(void)
 static void read_bad_brs(void)
 {
 	free_brs();
-	readBRS();
+	readBRS(rh);
 }
 
 int main(void)
@@ -216,7 +216,7 @@ int main(void)
 		return 1;
 	}
 	setup();
-	for (nspect = 0; nspect < NSPECT; nspect++) Nrec += backgroundRecords(nspect);
+	for (nspect = 0; nspect < NSPECT; nspect++) Nrec += backgroundRecords(rh, nspect);
 
 	/* --- Single-precision file, emissivities scaled -- ------------ */
 
@@ -270,14 +270,14 @@ int main(void)
 
 	/* --- brs.out: the format ints round trip --        -------------- */
 
-	writeBRS();
+	writeBRS(rh);
 	rh->atmos.backgrbytes = rh->atmos.backgretaexp = -1;
 	free_brs();
-	readBRS();
+	readBRS(rh);
 	CHECK(rh->atmos.backgrbytes == sizeof(float) && rh->atmos.backgretaexp == BACKGR_ETA_EXP,
 		  "brs.out read back as %d bytes, scale 2^%d", rh->atmos.backgrbytes,
 		  rh->atmos.backgretaexp);
-	CHECK(rh->atmos.backgrrecno[1] == backgroundRecords(0), "record of wavelength 1: %d",
+	CHECK(rh->atmos.backgrrecno[1] == backgroundRecords(rh, 0), "record of wavelength 1: %d",
 		  rh->atmos.backgrrecno[1]);
 
 	/* --- A brs.out of an older version, without the ints: double -- */
@@ -289,7 +289,7 @@ int main(void)
 	CHECK(truncate("brs.out", size - 8) == 0, "%s", "truncate brs.out");
 	rh->atmos.backgrbytes = rh->atmos.backgretaexp = -1;
 	free_brs();
-	readBRS();
+	readBRS(rh);
 	CHECK(rh->atmos.backgrbytes == sizeof(double) && rh->atmos.backgretaexp == 0,
 		  "old brs.out read as %d bytes, scale 2^%d", rh->atmos.backgrbytes,
 		  rh->atmos.backgretaexp);
@@ -298,7 +298,7 @@ int main(void)
 
 	rh->atmos.backgrbytes  = 5;
 	rh->atmos.backgretaexp = 0;
-	writeBRS();
+	writeBRS(rh);
 	CHECK(is_fatal(read_bad_brs), "%s", "brs.out with 5 bytes per value was accepted");
 
 	close(rh->atmos.fd_background);

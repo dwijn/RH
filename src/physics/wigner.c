@@ -20,14 +20,14 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double fact(double xi);
-double triangleCoefficient(double a, double b, double c);
+double fact(RHState *rh, double xi);
+double triangleCoefficient(RHState *rh, double a, double b, double c);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- w3js.c ------------------ */
 
-double w3js(double j1, double j2, double j3,
+double w3js(RHState *rh, double j1, double j2, double j3,
 			double m1, double m2, double m3)
 {
 	register int t;
@@ -82,21 +82,21 @@ double w3js(double j1, double j2, double j3,
 	sumt = 0.0;
 	for (t = tmin; t <= tmax; t++) {
 		sumt += ((t % 2) ? -1.0 : 1.0) /
-				(fact(t) * fact(q3 - t) * fact(q4 - t) * fact(q5 - t) *
-				 fact(q1 + t) * fact(q2 + t));
+				(fact(rh, t) * fact(rh, q3 - t) * fact(rh, q4 - t) * fact(rh, q5 - t) *
+				 fact(rh, q1 + t) * fact(rh, q2 + t));
 	}
 
 	w3js = ((((int) (j1 - j2 - m3)) % 2) ? -1.0 : 1.0) *
-		   sqrt(triangleCoefficient(j1, j2, j3) *
-				fact(j1 + m1) * fact(j1 - m1) *
-				fact(j2 + m2) * fact(j2 - m2) *
-				fact(j3 + m3) * fact(j3 - m3)) *
+		   sqrt(triangleCoefficient(rh, j1, j2, j3) *
+				fact(rh, j1 + m1) * fact(rh, j1 - m1) *
+				fact(rh, j2 + m2) * fact(rh, j2 - m2) *
+				fact(rh, j3 + m3) * fact(rh, j3 - m3)) *
 		   sumt;
 
 	/* --- The products of factorials overflow from j ~ 50 -- -------- */
 
 	if (!isfinite(w3js)) {
-		Error(ERROR_LEVEL_2, "w3js", "3j symbol (%g %g %g; %g %g %g) overflows",
+		Error(rh, ERROR_LEVEL_2, "w3js", "3j symbol (%g %g %g; %g %g %g) overflows",
 			  j1, j2, j3, m1, m2, m3);
 	}
 	return w3js;
@@ -105,7 +105,7 @@ double w3js(double j1, double j2, double j3,
 
 /* ------- begin -------------------------- w6js.c ------------------ */
 
-double w6js(double j1, double j2, double j3,
+double w6js(RHState *rh, double j1, double j2, double j3,
 			double J1, double J2, double J3)
 {
 	register int z;
@@ -150,27 +150,27 @@ double w6js(double j1, double j2, double j3,
 
 	sumz = 0.0;
 	for (z = zmin; z <= zmax; z++) {
-		sumz += ((z % 2) ? -1.0 : 1.0) * fact(z + 1.0) /
-				(fact(z - sum1) * fact(z - sum2) * fact(z - sum3) * fact(z - sum4) *
-				 fact(q1 - z) * fact(q2 - z) * fact(q3 - z));
+		sumz += ((z % 2) ? -1.0 : 1.0) * fact(rh, z + 1.0) /
+				(fact(rh, z - sum1) * fact(rh, z - sum2) * fact(rh, z - sum3) * fact(rh, z - sum4) *
+				 fact(rh, q1 - z) * fact(rh, q2 - z) * fact(rh, q3 - z));
 	}
 
-	tc1 = triangleCoefficient(j1, j2, j3);
-	tc2 = triangleCoefficient(j1, J2, J3);
-	tc3 = triangleCoefficient(J1, j2, J3);
-	tc4 = triangleCoefficient(J1, J2, j3);
+	tc1 = triangleCoefficient(rh, j1, j2, j3);
+	tc2 = triangleCoefficient(rh, j1, J2, J3);
+	tc3 = triangleCoefficient(rh, J1, j2, J3);
+	tc4 = triangleCoefficient(rh, J1, J2, j3);
 
 	w6js = sqrt(tc1 * tc2 * tc3 * tc4) * sumz;
 
 	if (!isfinite(w6js)) {
-		Error(ERROR_LEVEL_2, "w6js", "6j symbol {%g %g %g; %g %g %g} overflows",
+		Error(rh, ERROR_LEVEL_2, "w6js", "6j symbol {%g %g %g; %g %g %g} overflows",
 			  j1, j2, j3, J1, J2, J3);
 	}
 	return w6js;
 }
 /* ------- begin -------------------------- fact.c ------------------ */
 
-double fact(double xi)
+double fact(RHState *rh, double xi)
 {
 	/* --- Returns the factorial of xi. On first call the factorials
 		   for the numbers 0 through 170 are stored in the static
@@ -190,7 +190,7 @@ double fact(double xi)
 		initialize = FALSE;
 	}
 	if (fmod(xi, 1.0) || xi < 0.0 || xi >= NFACT) {
-		Error(ERROR_LEVEL_2, "fact", "Factorial of %g: needs an integer from 0 to %d",
+		Error(rh, ERROR_LEVEL_2, "fact", "Factorial of %g: needs an integer from 0 to %d",
 			  xi, NFACT - 1);
 	}
 	return factorial[(int) xi];
@@ -199,7 +199,7 @@ double fact(double xi)
 
 /* ------- begin -------------------------- triangleCoefficient.c --- */
 
-double triangleCoefficient(double a, double b, double c)
+double triangleCoefficient(RHState *rh, double a, double b, double c)
 {
 	/* --- Returns the square of the triangular coefficient
 		   \Delta(a, b, c). Square root is not applied for efficiency
@@ -211,8 +211,8 @@ double triangleCoefficient(double a, double b, double c)
 
 	double tricoeff;
 
-	tricoeff = fact(a + b - c) * fact(a - b + c) * fact(-a + b + c) /
-			   fact(a + b + c + 1.0);
+	tricoeff = fact(rh, a + b - c) * fact(rh, a - b + c) * fact(rh, -a + b + c) /
+			   fact(rh, a + b + c + 1.0);
 
 	return tricoeff;
 }

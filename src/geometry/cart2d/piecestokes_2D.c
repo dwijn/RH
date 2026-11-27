@@ -58,7 +58,7 @@
 	   whose weights depend on each component, goes through the
 	   rapidity (stokesgrid.h, B-63) --                -------------- */
 
-static void StokesK_2D_convex(StokesGrid *sg, Stencil *st, enum direction direction,
+static void StokesK_2D_convex(RHState *rh, StokesGrid *sg, Stencil *st, enum direction direction,
 							  double chi_I, double K[4][4])
 {
 	register int i, j;
@@ -86,7 +86,7 @@ static void StokesK_2D_convex(StokesGrid *sg, Stencil *st, enum direction direct
 
 	/* --- First the contribution from the active set -- -------------- */
 
-	if (containsPolarized(as)) {
+	if (containsPolarized(rh, as)) {
 		K[0][1] = Interp_2D(as->chi + rh->atmos.Nspace,
 							st, direction);
 		K[0][2] = Interp_2D(as->chi + 2 * rh->atmos.Nspace,
@@ -142,7 +142,7 @@ static void StokesK_2D_convex(StokesGrid *sg, Stencil *st, enum direction direct
 
 /* ------- begin -------------------------- StokesK_2D.c ------------ */
 
-void StokesK_2D(StokesGrid *sg, Stencil *st, enum direction direction,
+void StokesK_2D(RHState *rh, StokesGrid *sg, Stencil *st, enum direction direction,
 				double chi_I, double K[4][4])
 {
 	/* --- The reduced 4x4 Stokes propagation matrix K',
@@ -161,7 +161,7 @@ void StokesK_2D(StokesGrid *sg, Stencil *st, enum direction direction,
 	double w[3], v[4];
 
 	if (st->order[direction] == SC_LINEAR) {
-		StokesK_2D_convex(sg, st, direction, chi_I, K);
+		StokesK_2D_convex(rh, sg, st, direction, chi_I, K);
 		return;
 	}
 	for (int j = 0; j < 4; j++)

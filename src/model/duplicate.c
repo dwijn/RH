@@ -32,7 +32,7 @@
 
 /* ------- begin -------------------------- duplicateLevel.c -------- */
 
-bool_t duplicateLevel(Atom *atom, char *label)
+bool_t duplicateLevel(RHState *rh, Atom *atom, char *label)
 {
 	const char   routineName[] = "duplicateLevel";
 	register int i;
@@ -49,7 +49,7 @@ bool_t duplicateLevel(Atom *atom, char *label)
 	if (ptr > multiplet)
 		*(ptr + 1) = '\0';
 	else {
-		Error(ERROR_LEVEL_1, routineName, "Cannot determine parity of atomic level %s", label);
+		Error(rh, ERROR_LEVEL_1, routineName, "Cannot determine parity of atomic level %s", label);
 		return FALSE;
 	}
 
@@ -70,7 +70,7 @@ bool_t duplicateLevel(Atom *atom, char *label)
 
 /* ------- begin -------------------------- duplicateLine.c --------- */
 
-bool_t duplicateLine(struct Atom *atom, char *labeli, char *labelj)
+bool_t duplicateLine(RHState *rh, struct Atom *atom, char *labeli, char *labelj)
 {
 	const char   routineName[] = "duplicateLine";
 	register int kr;
@@ -88,7 +88,7 @@ bool_t duplicateLine(struct Atom *atom, char *labeli, char *labelj)
 	if (ptr > multipleti)
 		*(ptr + 1) = '\0';
 	else {
-		Error(ERROR_LEVEL_1, routineName, "Cannot determine parity of atomic level %s", labeli);
+		Error(rh, ERROR_LEVEL_1, routineName, "Cannot determine parity of atomic level %s", labeli);
 	}
 	lengthi = strlen(multipleti);
 
@@ -98,7 +98,7 @@ bool_t duplicateLine(struct Atom *atom, char *labeli, char *labelj)
 	if (ptr > multipletj)
 		*(ptr + 1) = '\0';
 	else {
-		Error(ERROR_LEVEL_1, routineName, "Cannot determine parity of atomic level %s", labelj);
+		Error(rh, ERROR_LEVEL_1, routineName, "Cannot determine parity of atomic level %s", labelj);
 	}
 	lengthj = strlen(multipletj);
 

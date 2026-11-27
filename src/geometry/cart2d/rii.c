@@ -44,7 +44,7 @@
 
 /* ------- begin -------------------------- RII.c ------------------- */
 
-double RII(double v_emit, double v_abs, double adamp, int mu1, int mu2)
+double RII(RHState *rh, double v_emit, double v_abs, double adamp, int mu1, int mu2)
 {
 	double vmin, vplus, rii,
 		sin_theta, cos_theta, sec_theta, csc_theta2;

@@ -55,17 +55,17 @@ int main(int argc, char *argv[])
 	}
 
 	if ((fp_Trujillo = fopen(argv[1], "r")) == NULL) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open input file %s", argv[1]);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open input file %s", argv[1]);
 	}
 
 	strncpy(atmos.ID, "Atmospheric model from Javier Trujillo Bueno",
 			ATMOS_ID_WIDTH);
 	atmos.ID[ATMOS_ID_WIDTH - 1] = '\0';
 
-	getLine(fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF = TRUE);
+	getLine(rh, fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF = TRUE);
 	Nread = sscanf(line, "%d", &geometry.Ndep);
 	if (Nread != 1) {
-		Error(ERROR_LEVEL_2, argv[0], "Malformed input line:\n %.200s", line);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Malformed input line:\n %.200s", line);
 	}
 	atmos.Nspace = geometry.Ndep;
 
@@ -83,13 +83,13 @@ int main(int argc, char *argv[])
 	atmos.chi_B   = (double *) malloc(geometry.Ndep * sizeof(double));
 
 	for (k = geometry.Ndep - 1; k >= 0; k--) {
-		getLine(fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF = TRUE);
+		getLine(rh, fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF = TRUE);
 		Nread = sscanf(line, "%lf %lf %lf %lf %lf %lf %lf %lf",
 					   &geometry.tau_ref[k], &atmos.T[k], &Pe, &atmos.vturb[k],
 					   &atmos.B[k], &geometry.vel[k], &atmos.gamma_B[k],
 					   &atmos.chi_B[k]);
 		if (Nread != 8) {
-			Error(ERROR_LEVEL_2, argv[0], "Malformed input line:\n %.200s", line);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Malformed input line:\n %.200s", line);
 		}
 
 		geometry.tau_ref[k] = POW10(geometry.tau_ref[k]);

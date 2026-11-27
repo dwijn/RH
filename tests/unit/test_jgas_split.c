@@ -70,7 +70,7 @@ static void sweep(bool_t only_prd, int gen)
 			wmu = 0.5 * (mu + 1.0) / 3.0;
 			for (to_obs = 0; to_obs <= 1; to_obs++) {
 				for (k = 0; k < NSPACE; k++) I[k] = Ival(la, mu, to_obs, k, gen);
-				addJgasRay(la, mu, to_obs, wmu, I);
+				addJgasRay(rh, la, mu, to_obs, wmu, I);
 			}
 		}
 	}
@@ -78,16 +78,16 @@ static void sweep(bool_t only_prd, int gen)
 
 static void full(int gen)
 {
-	beginJgas(FALSE);
+	beginJgas(rh, FALSE);
 	sweep(FALSE, gen);
-	endJgas(FALSE);
+	endJgas(rh, FALSE);
 }
 
 static void subiter(int gen)
 {
-	beginJgas(TRUE);
+	beginJgas(rh, TRUE);
 	sweep(TRUE, gen);
-	endJgas(TRUE);
+	endJgas(rh, TRUE);
 }
 
 static double maxrel_prd(double **A, double **B)
@@ -122,7 +122,7 @@ int main(void)
 	rh->atmos.Nrays       = NRAYS;
 	rh->atmos.Nspace      = NSPACE;
 	rh->atmos.Nactiveatom = 0;
-	rh->spectrum.v_los    = matrix_double(NRAYS, NSPACE);
+	rh->spectrum.v_los    = matrix_double(rh, NRAYS, NSPACE);
 	for (mu = 0; mu < NRAYS; mu++)
 		for (k = 0; k < NSPACE; k++) rh->spectrum.v_los[mu][k] = 2.0e4 * (2.0 * urand() - 1.0);
 
@@ -136,10 +136,10 @@ int main(void)
 	}
 	CHECK(nprd > 20 && nprd < NWAVE - 20, "%d wavelengths with a PRD line", nprd);
 
-	rh->spectrum.Jgas        = matrix_double(NWAVE, NSPACE);
+	rh->spectrum.Jgas        = matrix_double(rh, NWAVE, NSPACE);
 	rh->input.prdh_limit_mem = FALSE;
-	initPRDhTables();
-	initJgasRows(isPRD);
+	initPRDhTables(rh);
+	initJgasRows(rh, isPRD);
 	{
 		int nrow = 0, nnone = 0;
 
@@ -151,8 +151,8 @@ int main(void)
 		CHECK(rh->spectrum.Jgas_fixed != NULL && nrow > 20 && nnone > 10,
 			  "%d PRD wavelengths with a row of Jgas_fixed, %d without", nrow, nnone);
 	}
-	initJgasLocks();
-	ref = matrix_double(NWAVE, NSPACE);
+	initJgasLocks(rh);
+	ref = matrix_double(rh, NWAVE, NSPACE);
 
 	/* --- 1 and 3: sub-iterations with changing intensities -- ------ */
 
@@ -195,15 +195,15 @@ int main(void)
 		full(2);
 		memcpy(ref[0], rh->spectrum.Jgas[0], n);
 		rh->spectrum.Jgas_fixed = NULL;
-		beginJgas(FALSE);
+		beginJgas(rh, FALSE);
 		sweep(FALSE, 2);
-		endJgas(FALSE);
+		endJgas(rh, FALSE);
 		rh->spectrum.Jgas_fixed = save;
 		err                     = maxrel_prd(ref, rh->spectrum.Jgas);
 		CHECK(err <= 1e-13, "without Jgas_fixed Jgas differs by %.2e", err);
 	}
 
 	freeJgasBuffer();
-	freeMatrix((void **) ref);
+	freeMatrix(rh, (void **) ref);
 	return check_summary("test_jgas_split");
 }

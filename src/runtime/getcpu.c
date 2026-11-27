@@ -35,7 +35,7 @@
 
 /* ------- begin -------------------------- getTime.c --------------- */
 
-void getCPU(int level, enum CPUaction action, char *label)
+void getCPU(RHState *rh, int level, enum CPUaction action, char *label)
 {
 	register int n;
 
@@ -53,7 +53,7 @@ void getCPU(int level, enum CPUaction action, char *label)
 		return;
 	else {
 		if ((CPUtime = clock()) == ((clock_t) -1)) {
-			Error(ERROR_LEVEL_1, "getCPU", "Cannot poll resources");
+			Error(rh, ERROR_LEVEL_1, "getCPU", "Cannot poll resources");
 		}
 
 		switch (action) {
@@ -82,7 +82,7 @@ void getCPU(int level, enum CPUaction action, char *label)
 
 /* ------- begin -------------------------- printTotalCPU ----------- */
 
-void printTotalCPU()
+void printTotalCPU(RHState *rh)
 {
 	double     user, system, total;
 	struct tms tms;

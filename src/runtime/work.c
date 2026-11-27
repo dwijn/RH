@@ -49,7 +49,7 @@ double wallClock(void)
 
 /* ------- begin -------------------------- workPhase.c ------------- */
 
-void workPhase(enum WorkPhase phase)
+void workPhase(RHState *rh, enum WorkPhase phase)
 {
 	rh->work.phase = phase;
 }
@@ -57,7 +57,7 @@ void workPhase(enum WorkPhase phase)
 
 /* ------- begin -------------------------- workSweep.c ------------- */
 
-void workSweep(bool_t eval_operator, bool_t redistribute, int Nsolved)
+void workSweep(RHState *rh, bool_t eval_operator, bool_t redistribute, int Nsolved)
 {
 	enum WorkKind kind;
 
@@ -70,7 +70,7 @@ void workSweep(bool_t eval_operator, bool_t redistribute, int Nsolved)
 
 /* ------- begin -------------------------- workAdd.c --------------- */
 
-void workAdd(enum WorkTimer timer, double seconds)
+void workAdd(RHState *rh, enum WorkTimer timer, double seconds)
 {
 	rh->work.calls[timer]++;
 	rh->work.seconds[timer] += seconds;
@@ -83,7 +83,7 @@ void workAdd(enum WorkTimer timer, double seconds)
 	   molecule), and how many of them with LU because GTH elimination
 	   could not be used (statequil.c) --              -------------- */
 
-void workRates(long Nsolved, long Nlu)
+void workRates(RHState *rh, long Nsolved, long Nlu)
 {
 	rh->work.Nrates += Nsolved;
 	rh->work.Nrates_lu += Nlu;
@@ -92,7 +92,7 @@ void workRates(long Nsolved, long Nlu)
 
 /* ------- begin -------------------------- workBgScatter.c --------- */
 
-void workBgScatter(long Nsolved)
+void workBgScatter(RHState *rh, long Nsolved)
 {
 	/* --- Wavelength solves of the background scattering iteration
 		   (N-51), on top of those of the sweep -- ----- -------------- */
@@ -103,7 +103,7 @@ void workBgScatter(long Nsolved)
 
 /* ------- begin -------------------------- printWork.c ------------- */
 
-void printWork(void)
+void printWork(RHState *rh)
 {
 	static const char *const kindName[WORK_NKIND] = {"operator", "plain", "PRD"};
 	int                      phase, kind;
@@ -111,33 +111,33 @@ void printWork(void)
 	/* --- One line per phase, a fixed format that
 		   tests/analyze_run.py parses --                -------------- */
 
-	Error(MESSAGE, NULL, "\n -- Work (wavelength solves; one formal solution = %d)\n",
-		  rh->spectrum.Nspect);
+	Message(rh, "\n -- Work (wavelength solves; one formal solution = %d)\n",
+			rh->spectrum.Nspect);
 	for (phase = 0; phase < WORK_NPHASE; phase++) {
-		Error(MESSAGE, NULL, "    %-8s", phaseName[phase]);
+		Message(rh, "    %-8s", phaseName[phase]);
 		for (kind = 0; kind < WORK_NKIND; kind++) {
-			Error(MESSAGE, NULL, "  %s %ld (%ld sweeps)", kindName[kind],
-				  rh->work.lambda[phase][kind], rh->work.sweeps[phase][kind]);
+			Message(rh, "  %s %ld (%ld sweeps)", kindName[kind],
+					rh->work.lambda[phase][kind], rh->work.sweeps[phase][kind]);
 		}
-		Error(MESSAGE, NULL, "\n");
+		Message(rh, "\n");
 	}
-	Error(MESSAGE, NULL, "    Background %ld calls %.3f s;  Hydrostatic %ld calls %.3f s;"
-						 "  Iterate %.3f s;  threads %d\n",
-		  rh->work.calls[WORK_BACKGROUND], rh->work.seconds[WORK_BACKGROUND],
-		  rh->work.calls[WORK_HYDROSTATIC], rh->work.seconds[WORK_HYDROSTATIC],
-		  rh->work.seconds[WORK_ITERATION], rh->input.Nthreads);
+	Message(rh, "    Background %ld calls %.3f s;  Hydrostatic %ld calls %.3f s;"
+				"  Iterate %.3f s;  threads %d\n",
+			rh->work.calls[WORK_BACKGROUND], rh->work.seconds[WORK_BACKGROUND],
+			rh->work.calls[WORK_HYDROSTATIC], rh->work.seconds[WORK_HYDROSTATIC],
+			rh->work.seconds[WORK_ITERATION], rh->input.Nthreads);
 	if (rh->work.bg_lambda[WORK_INITIAL] + rh->work.bg_lambda[WORK_ITERATE] +
 			rh->work.bg_lambda[WORK_FINAL] >
 		0) {
-		Error(MESSAGE, NULL, "    Background scattering iteration: initial %ld, iterate %ld,"
-							 " final %ld wavelength solves\n",
-			  rh->work.bg_lambda[WORK_INITIAL], rh->work.bg_lambda[WORK_ITERATE],
-			  rh->work.bg_lambda[WORK_FINAL]);
+		Message(rh, "    Background scattering iteration: initial %ld, iterate %ld,"
+					" final %ld wavelength solves\n",
+				rh->work.bg_lambda[WORK_INITIAL], rh->work.bg_lambda[WORK_ITERATE],
+				rh->work.bg_lambda[WORK_FINAL]);
 	}
 	if (rh->work.Nrates > 0) {
-		Error(MESSAGE, NULL, "    Rate equations %ld solved, %ld of them with LU"
-							 " instead of GTH\n",
-			  rh->work.Nrates, rh->work.Nrates_lu);
+		Message(rh, "    Rate equations %ld solved, %ld of them with LU"
+					" instead of GTH\n",
+				rh->work.Nrates, rh->work.Nrates_lu);
 	}
 }
 /* ------- end ---------------------------- printWork.c ------------- */

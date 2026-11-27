@@ -46,7 +46,7 @@
 
 /* ------- begin -------------------------- Feautrier.c ------------- */
 
-double Feautrier(int nspect, int mu, double *chi, double *S,
+double Feautrier(RHState *rh, int nspect, int mu, double *chi, double *S,
 				 enum FeautrierOrder F_order, double *P, double *Psi)
 {
 	const char   routineName[] = "Feautrier";
@@ -163,7 +163,7 @@ double Feautrier(int nspect, int mu, double *chi, double *S,
 
 	if (Psi) {
 		if (F_order == FEAUTRIER_HERMITE) {
-			Error(ERROR_LEVEL_1, routineName, "Higher order for diagonal operator calculation not yet implemented");
+			Error(rh, ERROR_LEVEL_1, routineName, "Higher order for diagonal operator calculation not yet implemented");
 		}
 
 		G[Ndep - 1] = abc[Ndep - 1] / A1[Ndep - 1];

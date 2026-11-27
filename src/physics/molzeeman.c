@@ -20,7 +20,7 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double MolZeemanStr(double Ju, double Mu, double Jl, double Ml);
+double MolZeemanStr(RHState *rh, double Ju, double Mu, double Jl, double Ml);
 double MolLande_a(double Lambda, double Sigma, double Omega, double J);
 double MolLande_b(double Lambda, double S, double N, double J);
 
@@ -28,7 +28,7 @@ double MolLande_b(double Lambda, double S, double N, double J);
 
 /* ------- begin -------------------------- MolZeemanStr.c ---------- */
 
-double MolZeemanStr(double Ju, double Mu, double Jl, double Ml)
+double MolZeemanStr(RHState *rh, double Ju, double Mu, double Jl, double Ml)
 {
 	const char routineName[] = "MolZeemanStr";
 
@@ -106,7 +106,7 @@ double MolZeemanStr(double Ju, double Mu, double Jl, double Ml)
 		break;
 
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
+		Error(rh, ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
 	}
 	/* --- The strengths are normalized already. --      -------------- */
 
@@ -150,7 +150,7 @@ double MolLande_b(double Lambda, double S, double N, double J)
 
 /* ------- begin -------------------------- MolLande_eff.c ---------- */
 
-double MolLande_eff(MolecularLine *mrt)
+double MolLande_eff(RHState *rh, MolecularLine *mrt)
 {
 	const char      routineName[] = "MolLande_eff";
 	register double Ml, Mu;
@@ -172,7 +172,7 @@ double MolLande_eff(MolecularLine *mrt)
 		gLl = MolLande_b(mrt->Lambdai, mrt->Si, Nl, Jl);
 		break;
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
 	}
 	switch (mrt->Hundj) {
 	case CASE_A:
@@ -183,14 +183,14 @@ double MolLande_eff(MolecularLine *mrt)
 		gLu = MolLande_b(mrt->Lambdaj, mrt->Sj, Nu, Ju);
 		break;
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
 	}
 
 	for (Ml = -Jl; Ml <= Jl; Ml++) {
 		for (Mu = -Ju; Mu <= Ju; Mu++) {
 			if ((Ml - Mu) == 1.0) {
 				shift    = gLl * Ml - gLu * Mu;
-				strength = MolZeemanStr(Ju, Mu, Jl, Ml);
+				strength = MolZeemanStr(rh, Ju, Mu, Jl, Ml);
 
 				g_eff += shift * strength;
 				norm += strength;
@@ -205,7 +205,7 @@ double MolLande_eff(MolecularLine *mrt)
 
 /* ------- begin -------------------------- MolZeeman.c ------------- */
 
-void MolZeeman(MolecularLine *mrt)
+void MolZeeman(RHState *rh, MolecularLine *mrt)
 {
 	const char routineName[] = "MolZeeman";
 
@@ -270,7 +270,7 @@ void MolZeeman(MolecularLine *mrt)
 			gLl = MolLande_b(mrt->Lambdai, mrt->Si, Nl, Jl);
 			break;
 		default:
-			Error(ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
+			Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
 		}
 		switch (mrt->Hundj) {
 		case CASE_A:
@@ -281,7 +281,7 @@ void MolZeeman(MolecularLine *mrt)
 			gLu = MolLande_b(mrt->Lambdaj, mrt->Sj, Nu, Ju);
 			break;
 		default:
-			Error(ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
+			Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
 		}
 		/* --- Determine the number of components --       -------------- */
 
@@ -305,7 +305,7 @@ void MolZeeman(MolecularLine *mrt)
 				if (fabs(Ml - Mu) <= 1.0) {
 					zm->q[n]        = (int) (Ml - Mu);
 					zm->shift[n]    = gLl * Ml - gLu * Mu;
-					zm->strength[n] = MolZeemanStr(Ju, Mu, Jl, Ml);
+					zm->strength[n] = MolZeemanStr(rh, Ju, Mu, Jl, Ml);
 
 					if ((Ml - Mu) == 1)
 						g_eff += zm->strength[n] * zm->shift[n];
@@ -321,9 +321,9 @@ void MolZeeman(MolecularLine *mrt)
 	}
 
 	vacuum_to_air(1, &(mrt->lambda0), &lambda_air);
-	Error(MESSAGE, routineName, " -- %2s line at %9.4f nm has %3d "
-								"Zeeman components, gL_eff = %7.4f\n",
-		  mrt->molecule->ID,
-		  lambda_air, zm->Ncomponent, mrt->g_Lande_eff);
+	Message(rh, " -- %2s line at %9.4f nm has %3d "
+				"Zeeman components, gL_eff = %7.4f\n",
+			mrt->molecule->ID,
+			lambda_air, zm->Ncomponent, mrt->g_Lande_eff);
 }
 /* ------- end ------------------------- MolZeeman.c ---------------- */

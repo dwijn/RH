@@ -50,7 +50,7 @@
 	   point, so that J depended negatively on the local S and the
 	   Lambda iteration of background scattering diverged -- ------- */
 
-double SolveLong(Geometry *geometry, Longchar *lc,
+double SolveLong(RHState *rh, Geometry *geometry, Longchar *lc,
 				 int k, int l, int m, double *chi, double *S, double *I)
 {
 	register int ls;
@@ -58,12 +58,12 @@ double SolveLong(Geometry *geometry, Longchar *lc,
 	int    local;
 	double chi_uw, chi_loc, chi_dw, S_uw, S_loc, S_dw, I_uw, ds_uw, ds_dw;
 
-	chi_uw = Interpolate_3D(chi, geometry, &lc->stencil[0], l, m);
-	S_uw   = Interpolate_3D(S, geometry, &lc->stencil[0], l, m);
-	I_uw   = Interpolate_3D(I, geometry, &lc->stencil[0], l, m);
+	chi_uw = Interpolate_3D(rh, chi, geometry, &lc->stencil[0], l, m);
+	S_uw   = Interpolate_3D(rh, S, geometry, &lc->stencil[0], l, m);
+	I_uw   = Interpolate_3D(rh, I, geometry, &lc->stencil[0], l, m);
 
-	chi_loc = Interpolate_3D(chi, geometry, &lc->stencil[1], l, m);
-	S_loc   = Interpolate_3D(S, geometry, &lc->stencil[1], l, m);
+	chi_loc = Interpolate_3D(rh, chi, geometry, &lc->stencil[1], l, m);
+	S_loc   = Interpolate_3D(rh, S, geometry, &lc->stencil[1], l, m);
 	ds_uw   = lc->stencil[0].ds;
 
 	for (ls = 2; ls <= lc->Nst; ls++) {
@@ -72,8 +72,8 @@ double SolveLong(Geometry *geometry, Longchar *lc,
 			chi_dw = chi[local];
 			S_dw   = S[local];
 		} else {
-			chi_dw = Interpolate_3D(chi, geometry, &lc->stencil[ls], l, m);
-			S_dw   = Interpolate_3D(S, geometry, &lc->stencil[ls], l, m);
+			chi_dw = Interpolate_3D(rh, chi, geometry, &lc->stencil[ls], l, m);
+			S_dw   = Interpolate_3D(rh, S, geometry, &lc->stencil[ls], l, m);
 		}
 		ds_dw = lc->stencil[ls - 1].ds;
 
@@ -98,7 +98,7 @@ double SolveLong(Geometry *geometry, Longchar *lc,
 
 /* ------- begin -------------------------- SolveLongStokes.c ------- */
 
-void SolveLongStokes(Geometry *geometry, Longchar *lc, StokesGrid *sg,
+void SolveLongStokes(RHState *rh, Geometry *geometry, Longchar *lc, StokesGrid *sg,
 					 int k, int l, int m, double *I_uw)
 {
 	/* --- The polarized counterpart of SolveLong: the same points, and
@@ -118,25 +118,25 @@ void SolveLongStokes(Geometry *geometry, Longchar *lc, StokesGrid *sg,
 	int     nspect = sg->nspect;
 	double *chi = sg->chi, **S = sg->S;
 
-	chi_uw = Interpolate_3D(chi, geometry, &lc->stencil[0], l, m);
-	StokesK_3D(sg, geometry, &lc->stencil[0], l, m, chi_uw, K_uw);
-	chi_loc = Interpolate_3D(chi, geometry, &lc->stencil[1], l, m);
-	StokesK_3D(sg, geometry, &lc->stencil[1], l, m, chi_loc, K_loc);
-	Interpolate_Stokes_3D(sg, STOKES_SOURCE, geometry, &lc->stencil[0], l, m, S_uw);
-	Interpolate_Stokes_3D(sg, STOKES_INTENSITY, geometry, &lc->stencil[0], l, m, I_uw);
-	Interpolate_Stokes_3D(sg, STOKES_SOURCE, geometry, &lc->stencil[1], l, m, S_loc);
+	chi_uw = Interpolate_3D(rh, chi, geometry, &lc->stencil[0], l, m);
+	StokesK_3D(rh, sg, geometry, &lc->stencil[0], l, m, chi_uw, K_uw);
+	chi_loc = Interpolate_3D(rh, chi, geometry, &lc->stencil[1], l, m);
+	StokesK_3D(rh, sg, geometry, &lc->stencil[1], l, m, chi_loc, K_loc);
+	Interpolate_Stokes_3D(rh, sg, STOKES_SOURCE, geometry, &lc->stencil[0], l, m, S_uw);
+	Interpolate_Stokes_3D(rh, sg, STOKES_INTENSITY, geometry, &lc->stencil[0], l, m, I_uw);
+	Interpolate_Stokes_3D(rh, sg, STOKES_SOURCE, geometry, &lc->stencil[1], l, m, S_loc);
 	ds_uw = lc->stencil[0].ds;
 
 	for (ls = 2; ls <= lc->Nst; ls++) {
 		if (ls == lc->Nst) {
 			local  = k * geometry->Nplane + m * geometry->Nx + l;
 			chi_dw = chi[local];
-			if (bezier) StokesK(nspect, local, chi_dw, K_dw);
+			if (bezier) StokesK(rh, nspect, local, chi_dw, K_dw);
 			for (n = 0; n < 4; n++) S_dw[n] = S[n][local];
 		} else {
-			chi_dw = Interpolate_3D(chi, geometry, &lc->stencil[ls], l, m);
-			StokesK_3D(sg, geometry, &lc->stencil[ls], l, m, chi_dw, K_dw);
-			Interpolate_Stokes_3D(sg, STOKES_SOURCE, geometry, &lc->stencil[ls], l, m, S_dw);
+			chi_dw = Interpolate_3D(rh, chi, geometry, &lc->stencil[ls], l, m);
+			StokesK_3D(rh, sg, geometry, &lc->stencil[ls], l, m, chi_dw, K_dw);
+			Interpolate_Stokes_3D(rh, sg, STOKES_SOURCE, geometry, &lc->stencil[ls], l, m, S_dw);
 		}
 		ds_dw = lc->stencil[ls - 1].ds;
 

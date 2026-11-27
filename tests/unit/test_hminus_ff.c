@@ -123,7 +123,7 @@ int main(void)
 		rh->atmos.T      = T;
 		rh->atmos.ne     = ne;
 		for (i = 0; i < 5; i++) {
-			CHECK(Hminus_ff(lambdas[i], chi), "%s", "Hminus_ff returns FALSE");
+			CHECK(Hminus_ff(rh, lambdas[i], chi), "%s", "Hminus_ff returns FALSE");
 			for (k = 0; k < NSPACE; k++) {
 				want = nH[k] * ne[k] * KBOLTZMANN * T[k] *
 					   Hminus_ff_kappa(lambdas[i], THETA0 / T[k]);

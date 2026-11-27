@@ -44,7 +44,7 @@
 
 /* ------- begin -------------------------- prdInflow.c -------------- */
 
-static void prdInflow(Atom *atom, AtomicLine *PRDline, AtomicLine **XRD,
+static void prdInflow(RHState *rh, Atom *atom, AtomicLine *PRDline, AtomicLine **XRD,
 					  int Nsubordinate, double *Yj)
 {
 	register int k, kr, ip, kxrd;
@@ -201,7 +201,7 @@ static void prdWindowOpen(PRDWindow *w, AtomicLine *PRDline, bool_t initialize,
 	w->win                      = NULL;
 }
 
-static void prdWindowFlush(PRDWindow *w, const char *routineName)
+static void prdWindowFlush(RHState *rh, PRDWindow *w, const char *routineName)
 {
 	size_t N;
 
@@ -209,8 +209,8 @@ static void prdWindowFlush(PRDWindow *w, const char *routineName)
 	N = (w->kstart[w->kwin_end - 1] - w->kstart[w->kwin_start]) / sizeof(prdw_t) +
 		w->blocksize[w->kwin_end - 1];
 	if (!prdFileIO(w->fd, w->win, N, w->kstart[w->kwin_start], TRUE)) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to write the redistribution weights of locations %d to %d"
-										  " to %s",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to write the redistribution weights of locations %d to %d"
+											  " to %s",
 			  w->kwin_start, w->kwin_end - 1, w->name);
 	}
 }
@@ -218,12 +218,12 @@ static void prdWindowFlush(PRDWindow *w, const char *routineName)
 /* --- The weights of location k: starts a new window (writing the
 	   finished one first, or reading the next one) when needed -- --- */
 
-static prdw_t *prdWindowBlock(PRDWindow *w, int k, const char *routineName)
+static prdw_t *prdWindowBlock(RHState *rh, PRDWindow *w, int k, const char *routineName)
 {
 	size_t bytes, N;
 
 	if (k == w->kwin_end) {
-		prdWindowFlush(w, routineName);
+		prdWindowFlush(rh, w, routineName);
 		w->kwin_start = k;
 		bytes         = 0;
 		w->kwin_end   = k;
@@ -244,36 +244,36 @@ static prdw_t *prdWindowBlock(PRDWindow *w, int k, const char *routineName)
 		if (N > w->cap) {
 			w->cap = MAX(N, PRD_IO_WINDOW / sizeof(prdw_t));
 			w->win = (prdw_t *) realloc(w->win, w->cap * sizeof(prdw_t));
-			if (w->win == NULL) Error(ERROR_LEVEL_2, routineName, "Out of memory");
+			if (w->win == NULL) Error(rh, ERROR_LEVEL_2, routineName, "Out of memory");
 		}
 		if (!w->initialize && !prdFileIO(w->fd, w->win, N, w->kstart[k], FALSE)) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to read the redistribution weights of locations %d to %d"
-											  " from %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read the redistribution weights of locations %d to %d"
+												  " from %s",
 				  k, w->kwin_end - 1, w->name);
 		}
 	}
 	return w->win + (w->kstart[k] - w->kstart[w->kwin_start]) / sizeof(prdw_t);
 }
 
-static void prdWindowClose(PRDWindow *w, const char *routineName)
+static void prdWindowClose(RHState *rh, PRDWindow *w, const char *routineName)
 {
-	prdWindowFlush(w, routineName);
+	prdWindowFlush(rh, w, routineName);
 	free(w->win);
 }
 
 /* --- A location's rows do not add up to its block: the ranges
 	   differ from when the weights were computed --    -------------- */
 
-static void prdBlockError(const char *routineName, int k, long n, long size)
+static void prdBlockError(RHState *rh, const char *routineName, int k, long n, long size)
 {
-	Error(ERROR_LEVEL_2, routineName, "Inconsistent block of redistribution weights at"
-									  " location %d: %ld instead of %ld",
+	Error(rh, ERROR_LEVEL_2, routineName, "Inconsistent block of redistribution weights at"
+										  " location %d: %ld instead of %ld",
 		  k, n, size);
 }
 
 /* --- Block offsets in the file from the block sizes -- ---------- */
 
-static off_t prdOffsets(long *blocksize, off_t *kstart, off_t offset)
+static off_t prdOffsets(RHState *rh, long *blocksize, off_t *kstart, off_t offset)
 {
 	int k;
 
@@ -287,14 +287,14 @@ static off_t prdOffsets(long *blocksize, off_t *kstart, off_t offset)
 /* --- Opens the scratch file of the weights of PRDline on the first
 	   call; TRUE when the weights still have to be computed -- ----- */
 
-static bool_t prdOpenFile(AtomicLine *PRDline, const char *routineName)
+static bool_t prdOpenFile(RHState *rh, AtomicLine *PRDline, const char *routineName)
 {
 	char filename[MAX_LINE_SIZE];
 
 	if (PRDline->fp_GII != NULL) return FALSE;
 	prdFileName(PRDline, filename);
 	if ((PRDline->fp_GII = fopen(filename, "w+")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to open temporary file %s", filename);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open temporary file %s", filename);
 	}
 	return TRUE;
 }
@@ -331,7 +331,7 @@ static void prdAbsGrid(Atom *atom, AtomicLine *XRDline, int k, double *q_abs)
 
 /* ------- begin -------------------------- prdBlockSizes.c --------- */
 
-static void prdBlockSizes(int kbeg, int kend, int nt, void *arg)
+static void prdBlockSizes(RHState *rh, int kbeg, int kend, int nt, void *arg)
 {
 	PRDjob     *job     = (PRDjob *) arg;
 	AtomicLine *PRDline = job->PRDline, *XRDline = job->XRDline;
@@ -339,6 +339,7 @@ static void prdBlockSizes(int kbeg, int kend, int nt, void *arg)
 	long        n;
 	double      q_emit, q0, qN, *q_abs;
 
+	(void) rh;
 	(void) nt;
 
 	q_abs = (double *) malloc(XRDline->Nlambda * sizeof(double));
@@ -359,7 +360,7 @@ static void prdBlockSizes(int kbeg, int kend, int nt, void *arg)
 
 /* ------- begin -------------------------- prdIntegrate.c ---------- */
 
-static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
+static void prdIntegrate(RHState *rh, int kbeg, int kend, int nt, void *arg)
 {
 	const char routineName[] = "PRDScatter";
 
@@ -382,7 +383,7 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 	prdWindowOpen(&win, job->PRDline, job->initialize, job->blocksize, job->kstart, kbeg, kend);
 
 	for (k = kbeg; k < kend; k++) {
-		wbuf = prdWindowBlock(&win, k, routineName);
+		wbuf = prdWindowBlock(rh, &win, k, routineName);
 		g    = atom->n[XRDline->i][k] * XRDline->Bij / job->Yj[k];
 
 		/* --- Local mean intensity (in the gas frame for hybrid PRD)
@@ -402,7 +403,7 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 					 (PRDline->lambda0 * atom->vbroad[k]);
 			Np  = prdGrid(q_emit, job->waveratio, &q0, &qN);
 			len = prdFoldRange(XRDline->Nlambda, q_abs, q0, Np, XRDline->symmetric, &m0);
-			if (pos + len > job->blocksize[k]) prdBlockError(routineName, k, pos + len, job->blocksize[k]);
+			if (pos + len > job->blocksize[k]) prdBlockError(rh, routineName, k, pos + len, job->blocksize[k]);
 
 			if (job->initialize) {
 
@@ -423,7 +424,7 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 					gnorm += gw[lap];
 				}
 				for (m = 0; m < len; m++) W[m] = 0.0;
-				prdFold(XRDline->Nlambda, q_abs, Np, qp, gw, m0, len, W);
+				prdFold(rh, XRDline->Nlambda, q_abs, Np, qp, gw, m0, len, W);
 				for (m = 0; m < len; m++) wbuf[pos + m] = (prdw_t) (W[m] / gnorm);
 			}
 
@@ -441,9 +442,9 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 			PRDline->rho_prd[la][k] += g * scatInt / wsum;
 			pos += len;
 		}
-		if (pos != job->blocksize[k]) prdBlockError(routineName, k, pos, job->blocksize[k]);
+		if (pos != job->blocksize[k]) prdBlockError(rh, routineName, k, pos, job->blocksize[k]);
 	}
-	prdWindowClose(&win, routineName);
+	prdWindowClose(rh, &win, routineName);
 
 	free(J_k);
 	free(q_abs);
@@ -454,7 +455,7 @@ static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
 }
 /* ------- end ---------------------------- prdIntegrate.c ---------- */
 
-void PRDScatter(AtomicLine *PRDline)
+void PRDScatter(RHState *rh, AtomicLine *PRDline)
 {
 	const char   routineName[] = "PRDScatter";
 	register int la, k, kxrd;
@@ -471,10 +472,10 @@ void PRDScatter(AtomicLine *PRDline)
 
 	atom = PRDline->atom;
 	if (!PRDline->PRD) {
-		Error(ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
+		Error(rh, ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
 			  PRDline->j, PRDline->i, atom->ID);
 	}
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	/* --- Set XRD line array --                         -------------- */
 
@@ -502,7 +503,7 @@ void PRDScatter(AtomicLine *PRDline)
 	adamp = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	cDop  = (NM_TO_M * PRDline->lambda0) / (4.0 * PI);
 
-	prdInflow(atom, PRDline, XRD, Nsubordinate, Yj);
+	prdInflow(rh, atom, PRDline, XRD, Nsubordinate, Yj);
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		adamp[k] = (PRDline->Grad + PRDline->Qelast[k]) * cDop / atom->vbroad[k];
 
@@ -515,7 +516,7 @@ void PRDScatter(AtomicLine *PRDline)
 
 	job.atom       = atom;
 	job.PRDline    = PRDline;
-	job.initialize = prdOpenFile(PRDline, routineName);
+	job.initialize = prdOpenFile(rh, PRDline, routineName);
 	job.Yj         = Yj;
 	job.adamp      = adamp;
 	job.kstart     = (off_t *) malloc(rh->atmos.Nspace * sizeof(off_t));
@@ -539,12 +540,12 @@ void PRDScatter(AtomicLine *PRDline)
 
 		/* --- Where each location's block of weights sits in the file -- */
 
-		if (job.initialize) parallelFor(rh->atmos.Nspace, rh->input.Nthreads, prdBlockSizes, &job);
-		offset = prdOffsets(job.blocksize, job.kstart, offset);
+		if (job.initialize) parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdBlockSizes, &job);
+		offset = prdOffsets(rh, job.blocksize, job.kstart, offset);
 
 		/* --- Loop over all spatial locations --          -------------- */
 
-		parallelFor(rh->atmos.Nspace, rh->input.Nthreads, prdIntegrate, &job);
+		parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdIntegrate, &job);
 	}
 	for (la = 0; la < PRDline->Nlambda; la++) {
 		for (k = 0; k < rh->atmos.Nspace; k++) PRDline->rho_prd[la][k] /= denom[k];
@@ -557,7 +558,7 @@ void PRDScatter(AtomicLine *PRDline)
 	free(adamp);
 
 	snprintf(label, sizeof(label), "Scatter Int %5.1f", PRDline->lambda0);
-	getCPU(3, TIME_POLL, label);
+	getCPU(rh, 3, TIME_POLL, label);
 }
 /* ------- end ---------------------------- PRDScatter.c ------------ */
 
@@ -611,7 +612,7 @@ static void prdAngleAbsGrid(PRDAngleJob *job, int k, int d, double *v_abs)
 	}
 }
 
-static void prdAngleBlockSizes(int kbeg, int kend, int nt, void *arg)
+static void prdAngleBlockSizes(RHState *rh, int kbeg, int kend, int nt, void *arg)
 {
 	PRDAngleJob *job  = (PRDAngleJob *) arg;
 	AtomicLine  *line = job->PRDline;
@@ -641,7 +642,7 @@ static void prdAngleBlockSizes(int kbeg, int kend, int nt, void *arg)
 	free(v_abs);
 }
 
-static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
+static void prdAngleIntegrate(RHState *rh, int kbeg, int kend, int nt, void *arg)
 {
 	const char routineName[] = "PRDAngleScatter";
 
@@ -664,7 +665,7 @@ static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
 	prdWindowOpen(&win, job->PRDline, job->initialize, job->blocksize, job->kstart, kbeg, kend);
 
 	for (k = kbeg; k < kend; k++) {
-		wbuf = prdWindowBlock(&win, k, routineName);
+		wbuf = prdWindowBlock(rh, &win, k, routineName);
 		for (d = 0; d < job->Ndir; d++) prdAngleAbsGrid(job, k, d, v_abs + d * Nl);
 
 		pos = 0;
@@ -681,7 +682,7 @@ static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
 						Nrow += len[d];
 					}
 					if (pos + Nrow > job->blocksize[k])
-						prdBlockError(routineName, k, pos + Nrow, job->blocksize[k]);
+						prdBlockError(rh, routineName, k, pos + Nrow, job->blocksize[k]);
 					if (job->initialize) {
 
 						/* --- RII(x, mu, x', mu') / phi(x, mu) on the fine
@@ -702,11 +703,11 @@ static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
 							mup  = d / 2;
 							wmup = 0.5 * rh->atmos.wmu[mup];
 							for (lap = 0; lap < Np; lap++) {
-								rii[lap] = RII(v_emit, vp[lap], job->adamp[k], mu, mup) *
+								rii[lap] = RII(rh, v_emit, vp[lap], job->adamp[k], mu, mup) *
 										   (job->sv[k] / phi) * prdQuadWeight(lap, Np) * wmup;
 								norm += rii[lap];
 							}
-							prdFold(Nl, v_abs + d * Nl, Np, vp, rii, m0[d], len[d], W + start);
+							prdFold(rh, Nl, v_abs + d * Nl, Np, vp, rii, m0[d], len[d], W + start);
 						}
 						for (m = 0; m < Nrow; m++) wbuf[pos + m] = (prdw_t) (W[m] / norm);
 					}
@@ -729,9 +730,9 @@ static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
 				}
 			}
 		}
-		if (pos != job->blocksize[k]) prdBlockError(routineName, k, pos, job->blocksize[k]);
+		if (pos != job->blocksize[k]) prdBlockError(rh, routineName, k, pos, job->blocksize[k]);
 	}
-	prdWindowClose(&win, routineName);
+	prdWindowClose(rh, &win, routineName);
 
 	free(v_abs);
 	free(W);
@@ -741,7 +742,7 @@ static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
 	free(rii);
 }
 
-void PRDAngleScatter(AtomicLine *PRDline)
+void PRDAngleScatter(RHState *rh, AtomicLine *PRDline)
 {
 	const char   routineName[] = "PRDAngleScatter";
 	register int k, mu, lap, d;
@@ -756,22 +757,22 @@ void PRDAngleScatter(AtomicLine *PRDline)
 	atom = PRDline->atom;
 
 	if (!PRDline->PRD) {
-		Error(ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
+		Error(rh, ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
 			  PRDline->j, PRDline->i, atom->ID);
 	}
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	cDop = (NM_TO_M * PRDline->lambda0) / (4.0 * PI);
 
 	job.atom       = atom;
 	job.PRDline    = PRDline;
-	job.initialize = prdOpenFile(PRDline, routineName);
+	job.initialize = prdOpenFile(rh, PRDline, routineName);
 	job.Ndir       = 2 * rh->atmos.Nrays;
 	job.g          = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	job.denom      = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	job.adamp      = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	job.sv         = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	job.v_los      = matrix_double(rh->atmos.Nrays, rh->atmos.Nspace);
+	job.v_los      = matrix_double(rh, rh->atmos.Nrays, rh->atmos.Nspace);
 	job.kstart     = (off_t *) malloc(rh->atmos.Nspace * sizeof(off_t));
 	if (job.initialize) {
 		free(PRDline->prd_block);
@@ -783,7 +784,7 @@ void PRDAngleScatter(AtomicLine *PRDline)
 	/* --- Inflow Yj into the upper level and the weight g of the
 		   scattering integral (see prdInflow) --         -------------- */
 
-	prdInflow(atom, PRDline, &PRDline, 1, Yj);
+	prdInflow(rh, atom, PRDline, &PRDline, 1, Yj);
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		job.g[k]     = atom->n[PRDline->i][k] * PRDline->Bij / Yj[k];
 		Jbar         = PRDline->Rij[k] / PRDline->Bij;
@@ -796,7 +797,7 @@ void PRDAngleScatter(AtomicLine *PRDline)
 
 	for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 		for (k = 0; k < rh->atmos.Nspace; k++)
-			job.v_los[mu][k] = vproject(k, mu) / atom->vbroad[k];
+			job.v_los[mu][k] = vproject(rh, k, mu) / atom->vbroad[k];
 	}
 
 	/* --- Specific intensity of every absorption direction d = 2 mup
@@ -809,10 +810,10 @@ void PRDAngleScatter(AtomicLine *PRDline)
 	job.Iall = (double *) malloc((size_t) job.Ndir * PRDline->Nlambda * rh->atmos.Nspace *
 								 sizeof(double));
 	Irow     = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	if (job.Iall == NULL || Irow == NULL) Error(ERROR_LEVEL_2, routineName, "Out of memory");
+	if (job.Iall == NULL || Irow == NULL) Error(rh, ERROR_LEVEL_2, routineName, "Out of memory");
 	for (d = 0; d < job.Ndir; d++)
 		for (lap = 0; lap < PRDline->Nlambda; lap++) {
-			readImu(PRDline->Nblue + lap, d / 2, d % 2, Irow);
+			readImu(rh, PRDline->Nblue + lap, d / 2, d % 2, Irow);
 			for (k = 0; k < rh->atmos.Nspace; k++)
 				job.Iall[((size_t) k * job.Ndir + d) * PRDline->Nlambda + lap] = Irow[k];
 		}
@@ -821,22 +822,22 @@ void PRDAngleScatter(AtomicLine *PRDline)
 	/* --- RII is called from several threads; a geometry that does not
 		   implement it stops here, in this thread --     -------------- */
 
-	if (job.initialize) (void) RII(0.0, 0.0, job.adamp[0], 0, 0);
+	if (job.initialize) (void) RII(rh, 0.0, 0.0, job.adamp[0], 0, 0);
 
-	if (job.initialize) parallelFor(rh->atmos.Nspace, rh->input.Nthreads, prdAngleBlockSizes, &job);
-	prdOffsets(job.blocksize, job.kstart, 0);
-	parallelFor(rh->atmos.Nspace, rh->input.Nthreads, prdAngleIntegrate, &job);
+	if (job.initialize) parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdAngleBlockSizes, &job);
+	prdOffsets(rh, job.blocksize, job.kstart, 0);
+	parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdAngleIntegrate, &job);
 
 	free(job.Iall);
 	free(job.g);
 	free(job.denom);
 	free(job.adamp);
 	free(job.sv);
-	freeMatrix((void **) job.v_los);
+	freeMatrix(rh, (void **) job.v_los);
 	free(job.kstart);
 	free(Yj);
 
 	snprintf(label, sizeof(label), "Scatter Int %5.1f", PRDline->lambda0);
-	getCPU(3, TIME_POLL, label);
+	getCPU(rh, 3, TIME_POLL, label);
 }
 /* ------- end ---------------------------- PRDAngleScatter.c ------- */

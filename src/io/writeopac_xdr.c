@@ -39,7 +39,7 @@
 
 /* ------- begin -------------------------- writeOpacity.c ---------- */
 
-void writeOpacity(void)
+void writeOpacity(RHState *rh)
 {
 	const char   routineName[] = "writeOpacity";
 	register int nspect, mu;
@@ -54,7 +54,7 @@ void writeOpacity(void)
 	if (!strcmp(rh->input.opac_output, "none")) return;
 
 	if ((fp_out = fopen(rh->input.opac_output, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s",
 			  rh->input.opac_output);
 		return;
 	}
@@ -71,24 +71,24 @@ void writeOpacity(void)
 	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
 		as = &rh->spectrum.as[nspect];
 
-		if (containsActive(as)) {
-			alloc_as(nspect, crosscoupling = FALSE);
+		if (containsActive(rh, as)) {
+			alloc_as(rh, nspect, crosscoupling = FALSE);
 
 			/* --- Check whether current active set includes a bound-bound
 				   and/or polarized transition and/or angledependent PRD
 				   transition. Otherwise, only angle-independent opacity and
 				   source functions are needed --            -------------- */
 
-			boundbound    = containsBoundBound(as);
-			PRD_angle_dep = (containsPRDline(as) && rh->input.PRD_angle_dep);
-			polarized     = containsPolarized(as);
+			boundbound    = containsBoundBound(rh, as);
+			PRD_angle_dep = (containsPRDline(rh, as) && rh->input.PRD_angle_dep);
+			polarized     = containsPolarized(rh, as);
 
 			/* --- Case of angle-dependent opacity and source function -- - */
 
 			if (polarized || PRD_angle_dep || (rh->atmos.moving && boundbound)) {
 				for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 					initialize = (mu == 0);
-					Opacity(nspect, mu, to_obs = TRUE, initialize);
+					Opacity(rh, nspect, mu, to_obs = TRUE, initialize);
 					result &= xdr_vector(&xdrs, (char *) as->chi, Nspace,
 										 sizeof(double), (xdrproc_t) rh_xdr_double);
 					result &= xdr_vector(&xdrs, (char *) as->eta, Nspace,
@@ -96,7 +96,7 @@ void writeOpacity(void)
 					as_rn[nspect * rh->atmos.Nrays + mu] = ++record;
 				}
 			} else {
-				Opacity(nspect, 0, to_obs = TRUE, initialize = TRUE);
+				Opacity(rh, nspect, 0, to_obs = TRUE, initialize = TRUE);
 				result &= xdr_vector(&xdrs, (char *) as->chi, Nspace,
 									 sizeof(double), (xdrproc_t) rh_xdr_double);
 				result &= xdr_vector(&xdrs, (char *) as->eta, Nspace,
@@ -109,7 +109,7 @@ void writeOpacity(void)
 				} else
 					as_rn[nspect] = ++record;
 			}
-			free_as(nspect, crosscoupling = FALSE);
+			free_as(rh, nspect, crosscoupling = FALSE);
 		} else {
 			if (rh->atmos.moving || rh->atmos.Stokes ||
 				(rh->atmos.NPRDactive > 0 && rh->input.PRD_angle_dep))
@@ -120,14 +120,14 @@ void writeOpacity(void)
 		}
 	}
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to write opacities to file %s",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to write opacities to file %s",
 			  rh->input.opac_output);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp_out);
 
 	if ((fp_out = fopen(ASRS_DOT_OUT, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", ASRS_DOT_OUT);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", ASRS_DOT_OUT);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
@@ -136,7 +136,7 @@ void writeOpacity(void)
 						 sizeof(int), (xdrproc_t) rh_xdr_int);
 	free(as_rn);
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to write record numbers to file %s",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to write record numbers to file %s",
 			  ASRS_DOT_OUT);
 	}
 	xdr_destroy(&xdrs);

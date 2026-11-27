@@ -20,13 +20,13 @@
 
 /* --- Function prototypes --                          -------------- */
 
-bool_t xdr_molecules(XDR *xdrs, Molecule *molecules);
+bool_t xdr_molecules(RHState *rh, XDR *xdrs, Molecule *molecules);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- writeMolecules.c -------- */
 
-void writeMolecules(char *fileName)
+void writeMolecules(RHState *rh, char *fileName)
 {
 	const char routineName[] = "writeMolecules";
 
@@ -36,12 +36,12 @@ void writeMolecules(char *fileName)
 	if (!strcmp(fileName, "none")) return;
 
 	if ((fp_molecules = fopen(fileName, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, "writeMolecules", "Unable to open output file %s", fileName);
+		Error(rh, ERROR_LEVEL_1, "writeMolecules", "Unable to open output file %s", fileName);
 	}
 	xdrstdio_create(&xdrs, fp_molecules, XDR_ENCODE);
 
-	if (!xdr_molecules(&xdrs, rh->atmos.molecules)) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to write to output file %s", fileName);
+	if (!xdr_molecules(rh, &xdrs, rh->atmos.molecules)) {
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to write to output file %s", fileName);
 	}
 
 	xdr_destroy(&xdrs);
@@ -51,7 +51,7 @@ void writeMolecules(char *fileName)
 
 /* ------- begin -------------------------- readMolecules.c --------- */
 
-void readMolecules(char *fileName)
+void readMolecules(RHState *rh, char *fileName)
 {
 	const char routineName[] = "readMolecules";
 
@@ -61,12 +61,12 @@ void readMolecules(char *fileName)
 	if (!strcmp(fileName, "none")) return;
 
 	if ((fp_molecules = fopen(fileName, "r")) == NULL) {
-		Error(ERROR_LEVEL_1, "readMolecules", "Unable to open intput file %s", fileName);
+		Error(rh, ERROR_LEVEL_1, "readMolecules", "Unable to open intput file %s", fileName);
 	}
 	xdrstdio_create(&xdrs, fp_molecules, XDR_DECODE);
 
-	if (!xdr_molecules(&xdrs, rh->atmos.molecules)) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to read from input file %s", fileName);
+	if (!xdr_molecules(rh, &xdrs, rh->atmos.molecules)) {
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s", fileName);
 	}
 
 	xdr_destroy(&xdrs);
@@ -76,7 +76,7 @@ void readMolecules(char *fileName)
 
 /* ------- begin -------------------------- xdr_molecules.c --------- */
 
-bool_t xdr_molecules(XDR *xdrs, Molecule *molecules)
+bool_t xdr_molecules(RHState *rh, XDR *xdrs, Molecule *molecules)
 {
 	register int n, kr;
 	bool_t       result = TRUE;
@@ -104,7 +104,7 @@ bool_t xdr_molecules(XDR *xdrs, Molecule *molecules)
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 
 		if (molecule->Nv > 0 && molecule->NJ > 0) {
-			E = matrix_double(molecule->Nv, molecule->NJ);
+			E = matrix_double(rh, molecule->Nv, molecule->NJ);
 
 			if (xdrs->x_op == XDR_ENCODE) {
 				for (kr = 0; kr < molecule->Nrt; kr++) {
@@ -116,7 +116,7 @@ bool_t xdr_molecules(XDR *xdrs, Molecule *molecules)
 			}
 			result &= xdr_vector(xdrs, (char *) E[0], molecule->Nv * molecule->NJ,
 								 sizeof(double), (xdrproc_t) rh_xdr_double);
-			freeMatrix((void **) E);
+			freeMatrix(rh, (void **) E);
 		}
 	}
 	result &= xdr_vector(xdrs, (char *) rh->atmos.nHmin, rh->atmos.Nspace,

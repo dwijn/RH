@@ -33,7 +33,7 @@
 
 /* ------- begin -------------------------- Hydrostatic.c ----------- */
 
-static void solveHydrostatic(int NmaxIter, double iterLimit)
+static void solveHydrostatic(RHState *rh, int NmaxIter, double iterLimit)
 {
 	const char   routineName[] = "Hydrostatic";
 	register int k, n, m, i;
@@ -56,8 +56,8 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 	/* --- Get the electron fraction F and its numerical derivative.
 		   ne^{met} = F(T, ne) n_H^{tot} --              -------------- */
 
-	FMetals(F);
-	dFMetals(dFdne);
+	FMetals(rh, F);
+	dFMetals(rh, dFdne);
 
 	/* --- Go through all depth points and iterate on the number
 		   densities of nH, ne, np, nH2, and nHtot --    -------------- */
@@ -74,7 +74,7 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 		Nhse = 5;
 		f    = (double *) malloc(Nhse * sizeof(double));
 		n_k  = (double *) malloc(Nhse * sizeof(double));
-		dfdn = matrix_double(Nhse, Nhse);
+		dfdn = matrix_double(rh, Nhse, Nhse);
 
 		/* --- Get the equilibrium constants for hydrogen ionization and
 			   H2 association and dissociation. This can be done because we
@@ -110,7 +110,7 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 
 		/* --- Initialize structure for Ng convergence acceleration -- -- */
 
-		Nghse = NgInit(Nhse, Ngdelay = NG_HSE_DELAY,
+		Nghse = NgInit(rh, Nhse, Ngdelay = NG_HSE_DELAY,
 					   Ngorder = NG_HSE_ORDER, Ngperiod = NG_HSE_PERIOD, n_k);
 
 		niter = 1;
@@ -165,26 +165,26 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 
 			/* --- Solve linearized set --                   -------------- */
 
-			SolveLinearEq(Nhse, dfdn, f, TRUE);
+			SolveLinearEq(rh, Nhse, dfdn, f, TRUE);
 			for (n = 0; n < Nhse; n++) n_k[n] -= f[n];
 
 			/* --- Check convergence and accelerate if appropriate -- ----- */
 
-			Accelerate(Nghse, n_k);
+			Accelerate(rh, Nghse, n_k);
 			snprintf(label, sizeof(label),
 					 "\n%s-- Hydrostatic equilibrium: depth %3.3d, iteration %d",
 					 (niter == 1) ? "\n" : "", k, niter);
 
-			if ((dnmax = MaxChange(Nghse, label, quiet = TRUE)) <= iterLimit)
+			if ((dnmax = MaxChange(rh, Nghse, label, quiet = TRUE)) <= iterLimit)
 				break;
 			niter++;
 		}
 		if (dnmax > iterLimit) {
-			Error(WARNING, routineName,
-				  "Hydrostatic equilibrium iteration not converged:\n"
-				  " temperature: %6.1f [K], \n"
-				  " hydrogen density: %9.3E [m^-3],\n dnmax: %9.3E\n",
-				  rh->atmos.T[k], rh->atmos.nHtot[k], dnmax);
+			Warning(rh, routineName,
+					"Hydrostatic equilibrium iteration not converged:\n"
+					" temperature: %6.1f [K], \n"
+					" hydrogen density: %9.3E [m^-3],\n dnmax: %9.3E\n",
+					rh->atmos.T[k], rh->atmos.nHtot[k], dnmax);
 		}
 		/* --- Store results --                            -------------- */
 
@@ -202,22 +202,22 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 		for (i = 0; i < rh->atmos.H->Nlevel; i++)
 			rh->atmos.H->n[i][k] *= rh->atmos.H->ntotal[k] / nHtot_old;
 
-		NgFree(Nghse);
+		NgFree(rh, Nghse);
 		free(f);
 		free(n_k);
-		freeMatrix((void **) dfdn);
+		freeMatrix(rh, (void **) dfdn);
 	}
 	/* --- Adjust total populations of background metals and recalculate
 		   all the LTE populations, including hydrogen -- ------------- */
 
-	LTEpops(rh->atmos.H, Debeye = TRUE);
+	LTEpops(rh, rh->atmos.H, Debeye = TRUE);
 
 	for (n = 1; n < rh->atmos.Natom; n++) {
 		atom = &rh->atmos.atoms[n];
 		for (k = 0; k < rh->atmos.Nspace; k++)
 			atom->ntotal[k] = atom->abundance * rh->atmos.nHtot[k];
 
-		LTEpops(atom, Debeye = TRUE);
+		LTEpops(rh, atom, Debeye = TRUE);
 	}
 
 	/* --- Clean up --                                   -------------- */
@@ -229,11 +229,11 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 /* --- Hydrostatic() with its calls and wall time counted for the work
 	   statistics (S-1, SOLVER.md section 4.1) --       -------------- */
 
-void Hydrostatic(int NmaxIter, double iterLimit)
+void Hydrostatic(RHState *rh, int NmaxIter, double iterLimit)
 {
 	double t_start = wallClock();
 
-	solveHydrostatic(NmaxIter, iterLimit);
-	workAdd(WORK_HYDROSTATIC, wallClock() - t_start);
+	solveHydrostatic(rh, NmaxIter, iterLimit);
+	workAdd(rh, WORK_HYDROSTATIC, wallClock() - t_start);
 }
 /* ------- end ---------------------------- Hydrostatic.c ----------- */

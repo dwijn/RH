@@ -71,7 +71,7 @@ struct PassiveBBCache {
 
 /* ------- begin -------------------------- metalPrepare.c ---------- */
 
-void metalPrepare(void)
+void metalPrepare(RHState *rh)
 {
 	register int m, kr;
 
@@ -91,7 +91,7 @@ void metalPrepare(void)
 			for (kr = 0; kr < metal->Ncont; kr++) {
 				continuum = metal->continuum + kr;
 				if (!continuum->hydrogenic && continuum->bftable.x == NULL)
-					pchipTableInit(&continuum->bftable, continuum->Nlambda,
+					pchipTableInit(rh, &continuum->bftable, continuum->Nlambda,
 								   continuum->lambda, continuum->alpha,
 								   PCHIP_LOGLOG);
 			}
@@ -102,7 +102,7 @@ void metalPrepare(void)
 
 /* ------- begin -------------------------- Metal_bf.c -------------- */
 
-bool_t Metal_bf(double lambda, int Nmetal, struct Atom *metals,
+bool_t Metal_bf(RHState *rh, double lambda, int Nmetal, struct Atom *metals,
 				double *chi, double *eta)
 {
 	const char   routineName[] = "Metal_bf";
@@ -162,8 +162,8 @@ bool_t Metal_bf(double lambda, int Nmetal, struct Atom *metals,
 								   Gaunt_bf(lambda, n_eff, Z) / gbf_0;
 					} else {
 						if (continuum->bftable.x == NULL) {
-							Error(ERROR_LEVEL_2, routineName, "Cross-section table not set up "
-															  "(call metalPrepare first)");
+							Error(rh, ERROR_LEVEL_2, routineName, "Cross-section table not set up "
+																  "(call metalPrepare first)");
 						}
 						pchipTableEval(&continuum->bftable, 1, &lambda, &alpha_la);
 					}
@@ -206,7 +206,7 @@ void passiveBBCacheFree(PassiveBBCache *cache)
 	free(cache);
 }
 
-flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
+flags passive_bb(RHState *rh, PassiveBBCache *cache, double lambda, int nspect, int mu,
 				 bool_t to_obs, double *chi, double *eta, double *chip)
 {
 	const char   routineName[] = "passive_bb";
@@ -291,7 +291,7 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 					}
 					if (add_to_list) {
 						if (*Nlist == N_MAX_METAL_OVERLAP) {
-							Error(ERROR_LEVEL_2, routineName, "Too many overlapping transitions");
+							Error(rh, ERROR_LEVEL_2, routineName, "Too many overlapping transitions");
 						}
 						/* --- Create a new entry in the list -- -------------- */
 
@@ -312,7 +312,7 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 						if (line->Voigt) {
 							linelist[entry]->adamp =
 								(double *) malloc(rh->atmos.Nspace * sizeof(double));
-							Damping(line, linelist[entry]->adamp);
+							Damping(rh, line, linelist[entry]->adamp);
 						} else
 							linelist[entry]->adamp = NULL;
 					}
@@ -329,9 +329,9 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 								CLIGHT / (line->lambda0 * atom->vbroad[k]);
 							if (rh->atmos.moving) {
 								if (to_obs)
-									v += vproject(k, mu) / atom->vbroad[k];
+									v += vproject(rh, k, mu) / atom->vbroad[k];
 								else
-									v -= vproject(k, mu) / atom->vbroad[k];
+									v -= vproject(rh, k, mu) / atom->vbroad[k];
 							}
 							if (line->Voigt)
 								phi = Voigt(linelist[entry]->adamp[k], v, NULL) *

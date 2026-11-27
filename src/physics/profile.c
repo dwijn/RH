@@ -79,7 +79,7 @@ typedef struct {
 	bool_t      polarized;
 } ProfileJob;
 
-static void profileWorker(int kbeg, int kend, int nt, void *arg)
+static void profileWorker(RHState *rh, int kbeg, int kend, int nt, void *arg)
 {
 	ProfileJob *job   = (ProfileJob *) arg;
 	AtomicLine *line  = job->line;
@@ -224,7 +224,7 @@ static void profileWorker(int kbeg, int kend, int nt, void *arg)
 							line->wphi[k] += phi[k] * wlamu;
 						}
 					}
-					if (rh->input.limit_memory) writeProfile(line, lamu, phi);
+					if (rh->input.limit_memory) writeProfile(rh, line, lamu, phi);
 				}
 			}
 		}
@@ -248,7 +248,7 @@ static void profileWorker(int kbeg, int kend, int nt, void *arg)
 				phi[k] = (float) p;
 				line->wphi[k] += phi[k] * wlamu;
 			}
-			if (rh->input.limit_memory) writeProfile(line, la, phi);
+			if (rh->input.limit_memory) writeProfile(rh, line, la, phi);
 		}
 	}
 }
@@ -256,7 +256,7 @@ static void profileWorker(int kbeg, int kend, int nt, void *arg)
 
 /* ------- begin -------------------------- Profile.c --------------- */
 
-void Profile(AtomicLine *line)
+void Profile(RHState *rh, AtomicLine *line)
 {
 	const char   routineName[] = "Profile";
 	register int la, k, mu;
@@ -273,7 +273,7 @@ void Profile(AtomicLine *line)
                         rh->input.StokesMode == FULL_STOKES);
 	ProfileJob job;
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	/* --- Initialize the ratio of PRD to CRD profiles to 1.0, and
 		   allocate memory for the elastic collisions in Qelast. This
@@ -289,7 +289,7 @@ void Profile(AtomicLine *line)
 		else
 			Nlamu = line->Nlambda;
 
-		line->rho_prd = matrix_double(Nlamu, rh->atmos.Nspace);
+		line->rho_prd = matrix_double(rh, Nlamu, rh->atmos.Nspace);
 		for (la = 0; la < Nlamu; la++) {
 			for (k = 0; k < rh->atmos.Nspace; k++)
 				line->rho_prd[la][k] = 1.0;
@@ -299,16 +299,16 @@ void Profile(AtomicLine *line)
 
 	vbroad = atom->vbroad;
 	adamp  = (double *) calloc(rh->atmos.Nspace, sizeof(double));
-	if (line->Voigt) Damping(line, adamp);
+	if (line->Voigt) Damping(rh, line, adamp);
 
 	line->wphi = (double *) calloc(rh->atmos.Nspace, sizeof(double));
 
 	if (line->polarizable && (rh->input.StokesMode > FIELD_FREE)) {
 		Larmor = (Q_ELECTRON / (4.0 * PI * M_ELECTRON)) * (line->lambda0 * NM_TO_M);
 
-		Zeeman(line);
-		Error(MESSAGE, routineName, " -- Atom %2s, line %3d -> %3d has %2d Zeeman components\n",
-			  atom->ID, line->j, line->i, line->zm->Ncomponent);
+		Zeeman(rh, line);
+		Message(rh, " -- Atom %2s, line %3d -> %3d has %2d Zeeman components\n",
+				atom->ID, line->j, line->i, line->zm->Ncomponent);
 	}
 
 	/* --- Initialize permanent storage for line profiles -- ---------- */
@@ -318,7 +318,7 @@ void Profile(AtomicLine *line)
 				line->j, line->i);
 		if ((line->fd_profile =
 				 open(filename, O_RDWR | O_CREAT, PERMISSIONS)) == -1) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to open profile file %s", filename);
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open profile file %s", filename);
 		}
 
 		if (line->polarizable && (rh->input.StokesMode == FULL_STOKES)) {
@@ -344,21 +344,21 @@ void Profile(AtomicLine *line)
 		if (rh->atmos.moving ||
 			(line->polarizable && (rh->input.StokesMode == FULL_STOKES))) {
 			Nlamu     = 2 * rh->atmos.Nrays * line->Nlambda;
-			line->phi = matrix_float(Nlamu, rh->atmos.Nspace);
+			line->phi = matrix_float(rh, Nlamu, rh->atmos.Nspace);
 
 			if (line->polarizable && (rh->input.StokesMode == FULL_STOKES)) {
-				line->phi_Q = matrix_float(Nlamu, rh->atmos.Nspace);
-				line->phi_U = matrix_float(Nlamu, rh->atmos.Nspace);
-				line->phi_V = matrix_float(Nlamu, rh->atmos.Nspace);
+				line->phi_Q = matrix_float(rh, Nlamu, rh->atmos.Nspace);
+				line->phi_U = matrix_float(rh, Nlamu, rh->atmos.Nspace);
+				line->phi_V = matrix_float(rh, Nlamu, rh->atmos.Nspace);
 
 				if (rh->input.magneto_optical) {
-					line->psi_Q = matrix_float(Nlamu, rh->atmos.Nspace);
-					line->psi_U = matrix_float(Nlamu, rh->atmos.Nspace);
-					line->psi_V = matrix_float(Nlamu, rh->atmos.Nspace);
+					line->psi_Q = matrix_float(rh, Nlamu, rh->atmos.Nspace);
+					line->psi_U = matrix_float(rh, Nlamu, rh->atmos.Nspace);
+					line->psi_V = matrix_float(rh, Nlamu, rh->atmos.Nspace);
 				}
 			}
 		} else
-			line->phi = matrix_float(line->Nlambda, rh->atmos.Nspace);
+			line->phi = matrix_float(rh, line->Nlambda, rh->atmos.Nspace);
 	}
 
 	if (line->polarizable && (rh->input.StokesMode == FULL_STOKES)) {
@@ -381,10 +381,10 @@ void Profile(AtomicLine *line)
 		   stays on one thread. --                       -------------- */
 
 	if (rh->atmos.moving) {
-		v_los = matrix_double(rh->atmos.Nrays, rh->atmos.Nspace);
+		v_los = matrix_double(rh, rh->atmos.Nrays, rh->atmos.Nspace);
 		for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 			for (k = 0; k < rh->atmos.Nspace; k++) {
-				v_los[mu][k] = vproject(k, mu) / vbroad[k];
+				v_los[mu][k] = vproject(rh, k, mu) / vbroad[k];
 			}
 		}
 	}
@@ -409,7 +409,7 @@ void Profile(AtomicLine *line)
 						: NULL;
 	job.polarized = polarized;
 
-	parallelFor(rh->atmos.Nspace, (rh->input.limit_memory) ? 1 : rh->input.Nthreads,
+	parallelFor(rh, rh->atmos.Nspace, (rh->input.limit_memory) ? 1 : rh->input.Nthreads,
 				profileWorker, &job);
 
 	/* --- Store the inverse of the profile normalization -- ---------- */
@@ -421,7 +421,7 @@ void Profile(AtomicLine *line)
 	free(adamp);
 	if (rh->input.limit_memory) free(phi);
 
-	if (rh->atmos.moving) freeMatrix((void **) v_los);
+	if (rh->atmos.moving) freeMatrix(rh, (void **) v_los);
 	if (line->polarizable && (rh->input.StokesMode == FULL_STOKES)) {
 		free(vB);
 		free(sv);
@@ -430,13 +430,13 @@ void Profile(AtomicLine *line)
 	} else
 		snprintf(label, sizeof(label), "Profile %7.1f", line->lambda0);
 
-	getCPU(3, TIME_POLL, label);
+	getCPU(rh, 3, TIME_POLL, label);
 }
 /* ------- end ---------------------------- Profile.c --------------- */
 
 /* ------- begin -------------------------- MolecularProfile.c ------ */
 
-void MolecularProfile(MolecularLine *mrt)
+void MolecularProfile(RHState *rh, MolecularLine *mrt)
 {
 	register int la, k, mu;
 
@@ -445,11 +445,11 @@ void MolecularProfile(MolecularLine *mrt)
 	float    *phi_down, *phi_up;
 	Molecule *molecule = mrt->molecule;
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	mrt->wphi = (double *) calloc(rh->atmos.Nspace, sizeof(double));
 	adamp     = (double *) calloc(rh->atmos.Nspace, sizeof(double));
-	if (mrt->Voigt) MolecularDamping(mrt, adamp);
+	if (mrt->Voigt) MolecularDamping(rh, mrt, adamp);
 
 	if (rh->atmos.moving) {
 		v = (double *) malloc(rh->atmos.Nspace * sizeof(double));
@@ -457,16 +457,16 @@ void MolecularProfile(MolecularLine *mrt)
 		/* --- Store line-of-sight velocity in Doppler units to avoid
 			   having to recompute it for every wavelength -- ----------- */
 
-		v_los = matrix_double(rh->atmos.Nrays, rh->atmos.Nspace);
+		v_los = matrix_double(rh, rh->atmos.Nrays, rh->atmos.Nspace);
 		for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 			for (k = 0; k < rh->atmos.Nspace; k++)
-				v_los[mu][k] = vproject(k, mu) / molecule->vbroad[k];
+				v_los[mu][k] = vproject(rh, k, mu) / molecule->vbroad[k];
 		}
 		/* --- Initialize permanent storage for line profiles -- -------- */
 
-		mrt->phi = matrix_float(2 * rh->atmos.Nrays * mrt->Nlambda, rh->atmos.Nspace);
+		mrt->phi = matrix_float(rh, 2 * rh->atmos.Nrays * mrt->Nlambda, rh->atmos.Nspace);
 	} else
-		mrt->phi = matrix_float(mrt->Nlambda, rh->atmos.Nspace);
+		mrt->phi = matrix_float(rh, mrt->Nlambda, rh->atmos.Nspace);
 
 	/* --- Temporary storage for Doppler width scaling -- ------------- */
 
@@ -522,19 +522,19 @@ void MolecularProfile(MolecularLine *mrt)
 
 	if (rh->atmos.moving) {
 		free(v);
-		freeMatrix((void **) v_los);
+		freeMatrix(rh, (void **) v_los);
 	}
 	free(adamp);
 	free(sv);
 
 	snprintf(label, sizeof(label), "Profile %7.1f", mrt->lambda0);
-	getCPU(3, TIME_POLL, label);
+	getCPU(rh, 3, TIME_POLL, label);
 }
 /* ------- end ---------------------------- MolecularProfile.c ------ */
 
 /* ------- begin -------------------------- getProfiles.c ----------- */
 
-void getProfiles(void)
+void getProfiles(RHState *rh)
 {
 	register int nact, kr;
 
@@ -546,13 +546,13 @@ void getProfiles(void)
 	/* --- Calculate profiles for Non-LTE after all necessary ingredients
 		   like Hydrogen poulation fro broadening are available -- ---- */
 
-	getCPU(2, TIME_START, NULL);
+	getCPU(rh, 2, TIME_START, NULL);
 
 	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		atom = rh->atmos.activeatoms[nact];
 		for (kr = 0; kr < atom->Nline; kr++) {
 			line = &atom->line[kr];
-			Profile(line);
+			Profile(rh, line);
 		}
 	}
 
@@ -560,10 +560,10 @@ void getProfiles(void)
 		molecule = rh->atmos.activemols[nact];
 		for (kr = 0; kr < molecule->Nrt; kr++) {
 			mrt = &molecule->mrt[kr];
-			MolecularProfile(mrt);
+			MolecularProfile(rh, mrt);
 		}
 	}
 
-	getCPU(2, TIME_POLL, "Profiles");
+	getCPU(rh, 2, TIME_POLL, "Profiles");
 }
 /* ------- end ---------------------------- getProfiles.c ----------- */

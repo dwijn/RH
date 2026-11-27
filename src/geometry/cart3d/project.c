@@ -26,7 +26,7 @@
 
 /* ------- begin -------------------------- vproject.c -------------- */
 
-double vproject(int k, int mu)
+double vproject(RHState *rh, int k, int mu)
 {
 	return rh->geometry->mux[mu] * rh->geometry->vx[k] +
 		   rh->geometry->muy[mu] * rh->geometry->vy[k] +
@@ -36,7 +36,7 @@ double vproject(int k, int mu)
 
 /* ------- begin -------------------------- Bproject.c -------------- */
 
-void Bproject()
+void Bproject(RHState *rh)
 {
 	/* --- Compute the cosine of gamma, the angle of B with the line of
 		   sight, and the sine and cosine of 2*chi, the angle of B
@@ -46,9 +46,9 @@ void Bproject()
 
 	double bx, by, bz, b1, b2, b3, csc_theta, sin_gamma;
 
-	rh->atmos.cos_gamma = matrix_double(rh->atmos.Nrays, rh->atmos.Nspace);
-	rh->atmos.cos_2chi  = matrix_double(rh->atmos.Nrays, rh->atmos.Nspace);
-	rh->atmos.sin_2chi  = matrix_double(rh->atmos.Nrays, rh->atmos.Nspace);
+	rh->atmos.cos_gamma = matrix_double(rh, rh->atmos.Nrays, rh->atmos.Nspace);
+	rh->atmos.cos_2chi  = matrix_double(rh, rh->atmos.Nrays, rh->atmos.Nspace);
+	rh->atmos.sin_2chi  = matrix_double(rh, rh->atmos.Nrays, rh->atmos.Nspace);
 
 	for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 		if (rh->geometry->muz[mu] == 1.0) {

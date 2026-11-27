@@ -155,7 +155,7 @@ int main(void)
 	rh->atmos.Nmolecule   = 0;
 	rh->atmos.Nactivemol  = 0;
 
-	Npair = mirrorQuadrature();
+	Npair = mirrorQuadrature(rh);
 	CHECK(Npair == 4, "%d (transition, line) pairs, want 4", Npair);
 	CHECK(lines[0].wquad == NULL, "the symmetric line itself has new weights");
 	CHECK(lines[1].wquad != NULL, "the line spanning A keeps the trapezoid");
@@ -216,7 +216,7 @@ int main(void)
 		double w0[NG];
 
 		memcpy(w0, conts[0].wquad, NG * sizeof(double));
-		CHECK(mirrorQuadrature() == Npair, "second call: different number of pairs");
+		CHECK(mirrorQuadrature(rh) == Npair, "second call: different number of pairs");
 		CHECK(memcmp(w0, conts[0].wquad, NG * sizeof(double)) == 0,
 			  "second call: different weights");
 	}

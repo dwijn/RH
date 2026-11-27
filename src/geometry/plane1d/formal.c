@@ -37,7 +37,7 @@
 /* --- Unpolarized formal solution along one ray with the method chosen
 	   by S_INTERPOLATION, or the linear one where lin is set (N-52) - */
 
-static void Piecewise_1D(int nspect, int mu, bool_t to_obs, double *chi,
+static void Piecewise_1D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 						 double *S, double *I, double *Psi, double *Tri,
 						 bool_t lin)
 {
@@ -46,11 +46,11 @@ static void Piecewise_1D(int nspect, int mu, bool_t to_obs, double *chi,
 	/* --- Tri: NULL, or the row of the operator of the ray (N-51) -- */
 
 	if (lin || rh->input.S_interpolation == S_LINEAR) {
-		Piecewise_Linear_1D_tri(nspect, mu, to_obs, chi, S, I, Psi, Tri);
+		Piecewise_Linear_1D_tri(rh, nspect, mu, to_obs, chi, S, I, Psi, Tri);
 	} else if (rh->input.S_interpolation == S_BEZIER3) {
-		Piecewise_Bezier3_1D_tri(nspect, mu, to_obs, chi, S, I, Psi, Tri);
+		Piecewise_Bezier3_1D_tri(rh, nspect, mu, to_obs, chi, S, I, Psi, Tri);
 	} else {
-		Error(ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
 			  rh->input.S_interpolation);
 	}
 }
@@ -58,7 +58,7 @@ static void Piecewise_1D(int nspect, int mu, bool_t to_obs, double *chi,
 
 /* ------- begin -------------------------- bgSupported.c ----------- */
 
-static const char *bgSupported(void)
+static const char *bgSupported(RHState *rh)
 {
 	/* --- The background scattering iteration (N-51) needs a positive
 		   operator: the cubic Bezier solver's is not (N-52), so with
@@ -75,7 +75,7 @@ static const char *bgSupported(void)
 
 /* ------- begin -------------------------- bgLinearFallback.c ------ */
 
-static bool_t bgLinearFallback(void)
+static bool_t bgLinearFallback(RHState *rh)
 {
 	return rh->input.S_interpolation != S_LINEAR;
 }
@@ -83,7 +83,7 @@ static bool_t bgLinearFallback(void)
 
 /* ------- begin -------------------------- maxAlbedo.c ------------- */
 
-static double maxAlbedo(const ActiveSet *as)
+static double maxAlbedo(RHState *rh, const ActiveSet *as)
 {
 	register int k;
 	double       a = 0.0, tau = 0.0, c, cprev = 0.0;
@@ -131,15 +131,15 @@ static void addTri(int Nspace, bool_t to_obs, double wmu, const double *Tri,
 
 /* ------- begin -------------------------- solveStokes_1D.c -------- */
 
-static void solveStokes_1D(int nspect, int mu, bool_t to_obs, double *chi,
+static void solveStokes_1D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 						   double **S, double **I, double *Psi)
 {
 	const char routineName[] = "solveStokes_1D";
 
 	if (rh->input.S_interpolation_stokes == DELO_BEZIER3) {
-		Piece_Stokes_Bezier3_1D(nspect, mu, to_obs, chi, S, I, Psi);
+		Piece_Stokes_Bezier3_1D(rh, nspect, mu, to_obs, chi, S, I, Psi);
 	} else {
-		Error(ERROR_LEVEL_1, routineName, "Unknown polarization solver: %d",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unknown polarization solver: %d",
 			  rh->input.S_interpolation_stokes);
 	}
 }
@@ -147,17 +147,17 @@ static void solveStokes_1D(int nspect, int mu, bool_t to_obs, double *chi,
 
 /* ------- begin -------------------------- checkTau_1D.c ----------- */
 
-static bool_t checkTau_1D(int nspect, int mu, int to_obs, const double *chi,
+static bool_t checkTau_1D(RHState *rh, int nspect, int mu, int to_obs, const double *chi,
 						  enum negtau_quadrature quad)
 {
-	return negTauColumns(nspect, mu, to_obs, rh->atmos.Nspace, 1, chi,
+	return negTauColumns(rh, nspect, mu, to_obs, rh->atmos.Nspace, 1, chi,
 						 rh->geometry->height, rh->geometry->muz[mu], quad);
 }
 /* ------- end ---------------------------- checkTau_1D.c ----------- */
 
 /* ------- begin -------------------------- emergent_1D.c ----------- */
 
-static void emergent_1D(int nspect, int mu, const double *I, double **Ipol)
+static void emergent_1D(RHState *rh, int nspect, int mu, const double *I, double **Ipol)
 {
 	rh->spectrum.I[nspect][mu] = I[0];
 	if (Ipol) {
@@ -168,11 +168,11 @@ static void emergent_1D(int nspect, int mu, const double *I, double **Ipol)
 }
 /* ------- end ---------------------------- emergent_1D.c ----------- */
 
-static double muz_1D(int mu)
+static double muz_1D(RHState *rh, int mu)
 {
 	return rh->geometry->muz[mu];
 }
-static double wmu_1D(int mu)
+static double wmu_1D(RHState *rh, int mu)
 {
 	return rh->geometry->wmu[mu];
 }

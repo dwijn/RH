@@ -23,7 +23,7 @@
 
 /* ------- begin -------------------------- initScatter.c ----------- */
 
-void initScatter()
+void initScatter(RHState *rh)
 {
 	const char   routineName[] = "initScatter";
 	register int n, kr, niter;
@@ -39,14 +39,14 @@ void initScatter()
 		for (n = 0; n < rh->atmos.Natom; n++) {
 			atom = &rh->atmos.atoms[n];
 			if (atom->active) {
-				readRadRate(atom);
+				readRadRate(rh, atom);
 				for (kr = 0; kr < atom->Nline; kr++) {
 					line = atom->line + kr;
 					if (line->PRD) {
 						if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
-							PRDAngleScatter(line);
+							PRDAngleScatter(rh, line);
 						else
-							PRDScatter(line);
+							PRDScatter(rh, line);
 					}
 				}
 			}
@@ -55,22 +55,22 @@ void initScatter()
 	/* --- Whether the background scattering is iterated at each
 		   wavelength (N-51) --                         -------------- */
 
-	bgScatterSetup();
+	bgScatterSetup(rh);
 
 	/* --- Iterate the scattering in the background. Only iterate
 		   when we are also planning to do main iterations -- --------- */
 
 	if (rh->spectrum.updateJ) {
-		Error(MESSAGE, routineName, " %s: Lambda iterating background scattering...\n\n",
-			  routineName);
+		Message(rh, " %s: Lambda iterating background scattering...\n\n",
+				routineName);
 
 		niter = 0;
 		while (rh->input.NmaxIter && niter < rh->input.NmaxScatter) {
-			dJmax = solveSpectrum(FALSE, FALSE);
+			dJmax = solveSpectrum(rh, FALSE, FALSE);
 			if (dJmax < rh->input.iterLimit) break;
 			niter++;
 		}
 	}
-	getCPU(2, TIME_POLL, "Initial solution");
+	getCPU(rh, 2, TIME_POLL, "Initial solution");
 }
 /* ------- end ---------------------------- initScatter.c ----------- */

@@ -18,7 +18,7 @@
 
 /* ------- begin -------------------------- PRDRhoSize.c ----------- */
 
-long PRDRhoSize(const AtomicLine *line)
+long PRDRhoSize(RHState *rh, const AtomicLine *line)
 {
 	/* --- The number of values of rho_prd[0][.] of a PRD line: a row
 		   per wavelength, or per wavelength, ray and direction with
@@ -34,7 +34,7 @@ long PRDRhoSize(const AtomicLine *line)
 
 /* ------- begin -------------------------- PRDRhoCheck.c ----------- */
 
-bool_t PRDRhoCheck(const Atom *atom, int kr)
+bool_t PRDRhoCheck(RHState *rh, const Atom *atom, int kr)
 {
 	const char        routineName[] = "PRDRhoCheck";
 	const AtomicLine *line          = atom->line + kr;
@@ -51,7 +51,7 @@ bool_t PRDRhoCheck(const Atom *atom, int kr)
 		   returned; outside a trial the run stops. Nothing is
 		   clipped --                                   -------------- */
 
-	N = PRDRhoSize(line);
+	N = PRDRhoSize(rh, line);
 	for (n = 0; n < N; n++) {
 		double rho = line->rho_prd[0][n];
 
@@ -78,11 +78,11 @@ bool_t PRDRhoCheck(const Atom *atom, int kr)
 			 kr, atom->ID, line->j, line->i, line->rho_prd[0][nbad], where, nbad % Ns,
 			 Nbad, N);
 
-	if (negTauInTrial()) {
-		negTauInvalid(what);
+	if (negTauInTrial(rh)) {
+		negTauInvalid(rh, what);
 		return FALSE;
 	}
-	Error(ERROR_LEVEL_2, routineName, "\n  %s", what);
+	Error(rh, ERROR_LEVEL_2, routineName, "\n  %s", what);
 	return FALSE;
 }
 /* ------- end ---------------------------- PRDRhoCheck.c ----------- */

@@ -81,11 +81,11 @@ typedef struct {
 
 /* --- Associated function prototypes --               -------------- */
 
-void   freeAtmos(Atmosphere *atmos);
-void   readAbundance(Atmosphere *atmos);
-void   writeAtmos(Atmosphere *atmos);
-void   Solve_ne(double *ne, bool_t fromscratch);
-double Solve_ne_OfState(double *ne, int Niter);
+void   freeAtmos(RHState *rh, Atmosphere *atmos);
+void   readAbundance(RHState *rh, Atmosphere *atmos);
+void   writeAtmos(RHState *rh, Atmosphere *atmos);
+void   Solve_ne(RHState *rh, double *ne, bool_t fromscratch);
+double Solve_ne_OfState(RHState *rh, double *ne, int Niter);
 void   initAngleSet(AngleSet *angleSet);
 
 /* --- Background opacities due to various lines --    -------------- */
@@ -95,21 +95,21 @@ typedef struct PassiveBBCache PassiveBBCache;
 PassiveBBCache *passiveBBCacheCreate(void);
 void            passiveBBCacheFree(PassiveBBCache *cache);
 
-flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
+flags passive_bb(RHState *rh, PassiveBBCache *cache, double lambda, int nspect, int mu,
 				 bool_t to_obs, double *chi, double *eta, double *chip);
 
-flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
+flags rlk_opacity(RHState *rh, double lambda, int nspect, int mu, bool_t to_obs,
 				  double *chi, double *eta, double *scatt, double *chip);
 
-void molecularPrepare(void);
+void molecularPrepare(RHState *rh);
 
-flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
+flags MolecularOpacity(RHState *rh, double lambda, int nspect, int mu, bool_t to_obs,
 					   double *chi, double *eta, double *chip);
 
 /* --- Moleculear concentrations --                    -------------- */
 
-void writeMolecules(char *fileName);
-void readMolecules(char *fileName);
+void writeMolecules(RHState *rh, char *fileName);
+void readMolecules(RHState *rh, char *fileName);
 
 #endif /* !__ATMOS_H__ */
 

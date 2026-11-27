@@ -69,7 +69,7 @@ typedef struct {
 
 /* ------- begin -------------------------- solveRates.c ------------ */
 
-static void solveRates(int N, double **Gamma, int k, int isum,
+static void solveRates(RHState *rh, int N, double **Gamma, int k, int isum,
 					   double ntotal, double *n, double **R,
 					   double **A, SEFallback *fb)
 {
@@ -124,7 +124,7 @@ static void solveRates(int N, double **Gamma, int k, int isum,
 	n[root] = ntotal;
 	for (j = 0; j < N; j++) A[root][j] = 1.0;
 
-	SolveLinearEq(N, A, n, TRUE);
+	SolveLinearEq(rh, N, A, n, TRUE);
 
 	for (i = 0; i < N; i++) {
 		if (isfinite(n[i]) && n[i] >= -SE_NEG_TOL * ntotal) continue;
@@ -140,7 +140,7 @@ static void solveRates(int N, double **Gamma, int k, int isum,
 
 /* ------- begin -------------------------- reportFallback.c -------- */
 
-static void reportFallback(const char *ID, const SEFallback *fb,
+static void reportFallback(RHState *rh, const char *ID, const SEFallback *fb,
 						   double **C, int N)
 {
 	char why[160];
@@ -163,15 +163,15 @@ static void reportFallback(const char *ID, const SEFallback *fb,
 	default:
 		why[0] = '\0';
 	}
-	Error(MESSAGE, NULL, " %s: rate equations solved with LU at %d of %d"
-						 " locations (first: %s)\n",
-		  ID, fb->Nlu, rh->atmos.Nspace, why);
+	Message(rh, " %s: rate equations solved with LU at %d of %d"
+				" locations (first: %s)\n",
+			ID, fb->Nlu, rh->atmos.Nspace, why);
 }
 /* ------- end ---------------------------- reportFallback.c -------- */
 
 /* ------- begin -------------------------- badPopulations.c ------- */
 
-static void badPopulations(const char *ID, const char *level, long Nsolved,
+static void badPopulations(RHState *rh, const char *ID, const char *level, long Nsolved,
 						   const SEFallback *fb)
 {
 	const char routineName[] = "badPopulations";
@@ -199,17 +199,17 @@ static void badPopulations(const char *ID, const char *level, long Nsolved,
 				 : "a non-finite population comes from a non-finite rate (bad"
 				   " atomic data, overflow)");
 
-	if (negTauInTrial()) {
-		negTauInvalid(what);
+	if (negTauInTrial(rh)) {
+		negTauInvalid(rh, what);
 		return;
 	}
-	Error(ERROR_LEVEL_2, routineName, "\n  %s", what);
+	Error(rh, ERROR_LEVEL_2, routineName, "\n  %s", what);
 }
 /* ------- end ---------------------------- badPopulations.c ------- */
 
 /* ------- begin -------------------------- statEquil.c ------------- */
 
-void statEquil(Atom *atom, int isum)
+void statEquil(RHState *rh, Atom *atom, int isum)
 {
 	register int i, k;
 
@@ -217,7 +217,7 @@ void statEquil(Atom *atom, int isum)
 	double    *n_k, **R, **A;
 	SEFallback fb = SE_FALLBACK_INIT;
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	Nlevel = atom->Nlevel;
 
@@ -226,36 +226,36 @@ void statEquil(Atom *atom, int isum)
 		   running index --                              -------------- */
 
 	n_k = (double *) malloc(Nlevel * sizeof(double));
-	R   = matrix_double(Nlevel, Nlevel);
-	A   = matrix_double(Nlevel, Nlevel);
+	R   = matrix_double(rh, Nlevel, Nlevel);
+	A   = matrix_double(rh, Nlevel, Nlevel);
 
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		for (i = 0; i < Nlevel; i++) n_k[i] = atom->n[i][k];
 
-		solveRates(Nlevel, atom->Gamma, k, isum, atom->ntotal[k], n_k, R, A,
+		solveRates(rh, Nlevel, atom->Gamma, k, isum, atom->ntotal[k], n_k, R, A,
 				   &fb);
 		for (i = 0; i < Nlevel; i++) atom->n[i][k] = n_k[i];
 	}
-	workRates(rh->atmos.Nspace, fb.Nlu);
-	if (fb.Nlu) reportFallback(atom->ID, &fb, atom->C, Nlevel);
+	workRates(rh, rh->atmos.Nspace, fb.Nlu);
+	if (fb.Nlu) reportFallback(rh, atom->ID, &fb, atom->C, Nlevel);
 	if (fb.Nbad) {
 		char level[ATOM_LABEL_WIDTH + 8];
 
 		sprintf(level, " (%s)", atom->label[fb.ibad]);
-		badPopulations(atom->ID, level, rh->atmos.Nspace, &fb);
+		badPopulations(rh, atom->ID, level, rh->atmos.Nspace, &fb);
 	}
 
 	free(n_k);
-	freeMatrix((void **) R);
-	freeMatrix((void **) A);
+	freeMatrix(rh, (void **) R);
+	freeMatrix(rh, (void **) A);
 
-	getCPU(3, TIME_POLL, "Stat Equil");
+	getCPU(rh, 3, TIME_POLL, "Stat Equil");
 }
 /* ------- end ---------------------------- statEquil.c ------------- */
 
 /* ------- begin -------------------------- statEquilMolecule.c ----- */
 
-void statEquilMolecule(struct Molecule *molecule, int isum)
+void statEquilMolecule(RHState *rh, struct Molecule *molecule, int isum)
 {
 	register int vi, k;
 
@@ -263,40 +263,40 @@ void statEquilMolecule(struct Molecule *molecule, int isum)
 	double    *n_k, **R, **A;
 	SEFallback fb = SE_FALLBACK_INIT;
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	Nlevel = molecule->Nv;
 
 	n_k = (double *) malloc(Nlevel * sizeof(double));
-	R   = matrix_double(Nlevel, Nlevel);
-	A   = matrix_double(Nlevel, Nlevel);
+	R   = matrix_double(rh, Nlevel, Nlevel);
+	A   = matrix_double(rh, Nlevel, Nlevel);
 
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		if (molecule->n[k] > 0.0) {
 			for (vi = 0; vi < Nlevel; vi++) n_k[vi] = molecule->nv[vi][k];
 
-			solveRates(Nlevel, molecule->Gamma, k, isum, molecule->n[k], n_k,
+			solveRates(rh, Nlevel, molecule->Gamma, k, isum, molecule->n[k], n_k,
 					   R, A, &fb);
 			for (vi = 0; vi < Nlevel; vi++) molecule->nv[vi][k] = n_k[vi];
 			Nsolved++;
 		} else
 			for (vi = 0; vi < Nlevel; vi++) molecule->nv[vi][k] = 0.0;
 	}
-	workRates(Nsolved, fb.Nlu);
-	if (fb.Nlu) reportFallback(molecule->ID, &fb, NULL, Nlevel);
-	if (fb.Nbad) badPopulations(molecule->ID, "", Nsolved, &fb);
+	workRates(rh, Nsolved, fb.Nlu);
+	if (fb.Nlu) reportFallback(rh, molecule->ID, &fb, NULL, Nlevel);
+	if (fb.Nbad) badPopulations(rh, molecule->ID, "", Nsolved, &fb);
 
 	free(n_k);
-	freeMatrix((void **) R);
-	freeMatrix((void **) A);
+	freeMatrix(rh, (void **) R);
+	freeMatrix(rh, (void **) A);
 
-	getCPU(3, TIME_POLL, "Stat Equil");
+	getCPU(rh, 3, TIME_POLL, "Stat Equil");
 }
 /* ------- end ---------------------------- statEquilMolecule.c ----- */
 
 /* ------- begin -------------------------- updatePopulations.c ----- */
 
-double updatePopulations(int niter)
+double updatePopulations(RHState *rh, int niter)
 {
 	register int nact;
 
@@ -313,12 +313,12 @@ double updatePopulations(int niter)
 	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		atom = rh->atmos.activeatoms[nact];
 
-		statEquil(atom, rh->input.isum);
-		accel = Accelerate(atom->Ng_n, atom->n[0]);
+		statEquil(rh, atom, rh->input.isum);
+		accel = Accelerate(rh, atom->Ng_n, atom->n[0]);
 
 		snprintf(label, sizeof(label), " %s,", atom->ID);
-		dpops = MaxChange(atom->Ng_n, label, quiet = FALSE);
-		Error(MESSAGE, NULL, "%s", NgStatus(atom->Ng_n, accel));
+		dpops = MaxChange(rh, atom->Ng_n, label, quiet = FALSE);
+		Message(rh, "%s", NgStatus(atom->Ng_n, accel));
 
 		dpopsmax = MAX(dpops, dpopsmax);
 	}
@@ -327,12 +327,12 @@ double updatePopulations(int niter)
 	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 		molecule = rh->atmos.activemols[nact];
 
-		statEquilMolecule(molecule, 0);
-		accel = Accelerate(molecule->Ng_nv, molecule->nv[0]);
+		statEquilMolecule(rh, molecule, 0);
+		accel = Accelerate(rh, molecule->Ng_nv, molecule->nv[0]);
 
 		snprintf(label, sizeof(label), " %s ,", molecule->ID);
-		dpops = MaxChange(molecule->Ng_nv, label, quiet = FALSE);
-		Error(MESSAGE, NULL, "%s", NgStatus(molecule->Ng_nv, accel));
+		dpops = MaxChange(rh, molecule->Ng_nv, label, quiet = FALSE);
+		Message(rh, "%s", NgStatus(molecule->Ng_nv, accel));
 
 		dpopsmax = MAX(dpops, dpopsmax);
 	}

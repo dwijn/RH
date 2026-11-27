@@ -35,8 +35,8 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double E1(double x);
-double E2(double x);
+double E1(RHState *rh, double x);
+double E2(RHState *rh, double x);
 double f(double x);
 double g0(int n);
 double g1(int n);
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
 	H.g     = (double *) malloc(H.Nlevel * sizeof(double));
 	H.E     = (double *) malloc(H.Nlevel * sizeof(double));
 	H.stage = (int *) malloc(H.Nlevel * sizeof(int));
-	H.label = (char **) matrix_char(H.Nlevel, ATOM_LABEL_WIDTH + 1);
+	H.label = (char **) matrix_char(rh, H.Nlevel, ATOM_LABEL_WIDTH + 1);
 
 	H.line      = (AtomicLine *) malloc(H.Nline * sizeof(AtomicLine));
 	H.continuum = (AtomicContinuum *) malloc(H.Ncont * sizeof(AtomicContinuum));
@@ -275,7 +275,7 @@ void Johnson_CI(int Ntemp, double *temp, int Nlevel)
 			y    = E_Rydberg / (n * n * KBOLTZMANN * temp[k]);
 			z    = rn + y;
 
-			CI = 2.0 * PIa0sq * SQ(n) * kT_m * SQ(y) * (Gn * (E1(y) / y - E1(z) / z) + (Bn - Gn * log(2.0 * SQ(n))) * (f(y) - f(z)));
+			CI = 2.0 * PIa0sq * SQ(n) * kT_m * SQ(y) * (Gn * (E1(rh, y) / y - E1(rh, z) / z) + (Bn - Gn * log(2.0 * SQ(n))) * (f(y) - f(z)));
 			CI *= exp(y) / sqrt(temp[k]);
 
 			fprintf(stdout, "%9.3e%2s", CI,
@@ -341,8 +341,8 @@ void Johnson_CE(int Ntemp, double *temp, int Nlevel)
 				z    = rnnp + y;
 
 				CE = 2 * PIa0sq * SQ(n) / x * kT_m * SQ(y) *
-					 (Annp * (E1(y) * (1.0 / y + 0.5) - E1(z) * (1.0 / z + 0.5)) +
-					  (Bnnp - Annp * log(2.0 * SQ(n) / x)) * (E2(y) / y - E2(z) / z));
+					 (Annp * (E1(rh, y) * (1.0 / y + 0.5) - E1(rh, z) * (1.0 / z + 0.5)) +
+					  (Bnnp - Annp * log(2.0 * SQ(n) / x)) * (E2(rh, y) / y - E2(rh, z) / z));
 				CE *= exp(y) / sqrt(temp[k]);
 
 				fprintf(stdout, "%9.3e%2s", CE,
@@ -357,7 +357,7 @@ void Johnson_CE(int Ntemp, double *temp, int Nlevel)
 
 double f(double x)
 {
-	return exp(-x) / x - 2 * E1(x) + E2(x);
+	return exp(-x) / x - 2 * E1(rh, x) + E2(rh, x);
 }
 /* ------- end ---------------------------- f.c --------------------- */
 

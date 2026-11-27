@@ -23,7 +23,7 @@
 
 /* ------- begin -------------------------- getLine.c --------------- */
 
-int getLine(FILE *inputFile, char *commentChar, char *line,
+int getLine(RHState *rh, FILE *inputFile, char *commentChar, char *line,
 			bool_t exit_on_EOF)
 {
 	const char routineName[] = "getLine";
@@ -41,7 +41,7 @@ int getLine(FILE *inputFile, char *commentChar, char *line,
 	}
 	if (linePtr == NULL) {
 		if (exit_on_EOF) {
-			Error(ERROR_LEVEL_2, routineName, "Reached end of input file before all data was read");
+			Error(rh, ERROR_LEVEL_2, routineName, "Reached end of input file before all data was read");
 		} else
 			return EOF;
 	} else
@@ -52,15 +52,15 @@ int getLine(FILE *inputFile, char *commentChar, char *line,
 
 /* ------- begin -------------------------- checkNread.c ------------ */
 
-void checkNread(int Nread, int Nrequired, const char *routineName,
+void checkNread(RHState *rh, int Nread, int Nrequired, const char *routineName,
 				int checkPoint)
 {
 	/* --- Check whether Nread igreater or equal to Nrequired and issue
 		   error otherwise --                           --------------- */
 
 	if (Nread < Nrequired) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to read input file\n"
-										  " At checkpoint %d. Needed at least %d, read %d item%s",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read input file\n"
+											  " At checkpoint %d. Needed at least %d, read %d item%s",
 			  checkPoint, Nrequired, Nread, (Nread > 1) ? "s" : "");
 	}
 }

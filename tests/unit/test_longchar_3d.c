@@ -125,10 +125,10 @@ static Mesh *mesh_new(int N, double chi0)
 		geo->muz[mu] = ray_mu[mu][2];
 		geo->wmu[mu] = 1.0 / NRAYS;
 	}
-	geo->Itop    = matrix_double(1, Nplane);
-	geo->Ibottom = matrix_double(1, Nplane);
+	geo->Itop    = matrix_double(rh, 1, Nplane);
+	geo->Ibottom = matrix_double(rh, 1, Nplane);
 
-	fillMesh(geo);
+	fillMesh(rh, geo);
 	return ms;
 }
 
@@ -156,8 +156,8 @@ static void mesh_free(Mesh *ms)
 	}
 	free(geo->stencil_uw);
 	free(geo->stencil_dw);
-	freeMatrix((void **) geo->Itop);
-	freeMatrix((void **) geo->Ibottom);
+	freeMatrix(rh, (void **) geo->Itop);
+	freeMatrix(rh, (void **) geo->Ibottom);
 	free(geo->z);
 	free(geo->mux);
 	free(geo->muy);
@@ -209,7 +209,7 @@ static Errors mesh_errors(Mesh *ms, double *Isave)
 				ms->geo.Ibottom[0][n] = I_exact(s_lin, ms->tau[Nz - 1], 0.0, muz, TRUE) +
 										I_horizontal(phi, kappa, INFINITY);
 			}
-			ShortChar(&ms->geo, 0, mu, to_obs, ms->chi, ms->S, ms->I, NULL);
+			ShortChar(rh, &ms->geo, 0, mu, to_obs, ms->chi, ms->S, ms->I, NULL);
 			if (Isave)
 				memcpy(Isave + (2 * mu + to_obs) * (size_t) (Nz * Nplane), ms->I,
 					   Nz * Nplane * sizeof(double));

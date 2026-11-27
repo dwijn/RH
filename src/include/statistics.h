@@ -29,8 +29,8 @@ typedef struct {
 
 /* --- Associated function prototypes --               -------------- */
 
-void getCPU(int level, enum CPUaction action, char *label);
-void printTotalCPU(void);
+void getCPU(RHState *rh, int level, enum CPUaction action, char *label);
+void printTotalCPU(RHState *rh);
 
 /* --- Start of each timer level of getCPU, its part of RHState
 	   (rh->getcpu, Q-46) --                           -------------- */
@@ -67,12 +67,12 @@ typedef struct {
 } WorkCounters;
 
 double wallClock(void);
-void   workPhase(enum WorkPhase phase);
-void   workSweep(bool_t eval_operator, bool_t redistribute, int Nsolved);
-void   workAdd(enum WorkTimer timer, double seconds);
-void   workRates(long Nsolved, long Nlu);
-void   workBgScatter(long Nsolved);
-void   printWork(void);
+void   workPhase(RHState *rh, enum WorkPhase phase);
+void   workSweep(RHState *rh, bool_t eval_operator, bool_t redistribute, int Nsolved);
+void   workAdd(RHState *rh, enum WorkTimer timer, double seconds);
+void   workRates(RHState *rh, long Nsolved, long Nlu);
+void   workBgScatter(RHState *rh, long Nsolved);
+void   printWork(RHState *rh);
 
 #endif /* !__STATISTICS_H__ */
 

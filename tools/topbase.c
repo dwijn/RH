@@ -70,16 +70,16 @@ int main(int argc, char *argv[])
 	/* --- Open the data files --                        -------------- */
 
 	if ((fp_energy = fopen(argv[1], "r")) == NULL) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open input file %s", argv[1]);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open input file %s", argv[1]);
 	}
 	if (readphoto) {
 		if ((fp_photo = fopen(argv[3], "r")) == NULL) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to open input file %s", argv[3]);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open input file %s", argv[3]);
 		}
 	}
 	if (lines) {
 		if ((fp_lines = fopen(argv[4], "r")) == NULL) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to open input file %s", argv[4]);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open input file %s", argv[4]);
 		}
 	}
 	/* --- Read atom ID, spectral designation, abundance,
@@ -88,39 +88,39 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "Give atom ID (char[2]) > ");
 	Nread = scanf("%2s", atom.ID);
 	if (Nread != 1) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to read atom.ID from standard input");
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to read atom.ID from standard input");
 	}
 	strupcase(atom.ID);
 	fprintf(stderr, "Give ionization stage (int) > ");
 	Nread = scanf("%d", &stage);
 	if (Nread != 1) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to read stage from standard input");
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to read stage from standard input");
 	}
 	fprintf(stderr, "Give abundance relative to Hydrogen > ");
 	Nread = scanf("%lf", &abundance);
 	if (Nread != 1) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to read abundance from standard input");
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to read abundance from standard input");
 	}
 	fprintf(stderr, "Give atomic weight [amu] > ");
 	Nread = scanf("%lf", &weight);
 	if (Nread != 1) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to read weight from standard input");
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to read weight from standard input");
 	}
 	fprintf(stderr, "Give energy of the continuum [E_RYDBERG] > ");
 	Nread = scanf("%lf", &Econt);
 	if (Nread != 1) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to read Econt from standard input");
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to read Econt from standard input");
 	}
 	fprintf(stderr, "Give energy of the lowest level [E_RYDBERG] > ");
 	Nread = scanf("%lf", &E0);
 	if (Nread != 1) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to read E0 from standard input");
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to read E0 from standard input");
 	}
 
 	/* --- Count the actual number of levels in the energy table -- --- */
 
 	Nl = 0;
-	while (getLine(fp_energy, "=", input, exit_on_EOF = FALSE) != EOF) Nl++;
+	while (getLine(rh, fp_energy, "=", input, exit_on_EOF = FALSE) != EOF) Nl++;
 	atom.Nlevel = MIN(Nlevel + 1, Nl);
 	islp        = (int *) malloc(atom.Nlevel * sizeof(int));
 	ilv         = (int *) malloc(atom.Nlevel * sizeof(int));
@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
 	te = (double *) malloc((atom.Nlevel - 1) * sizeof(double));
 
 	for (i = 0; i < atom.Nlevel - 1; i++) {
-		getLine(fp_energy, "=", input, exit_on_EOF = TRUE);
+		getLine(rh, fp_energy, "=", input, exit_on_EOF = TRUE);
 		ntoken = countTokens(input, " ");
 		switch (ntoken) {
 		case 10:
@@ -243,11 +243,11 @@ int main(int argc, char *argv[])
 	if (lines) {
 		C = 2 * PI * (Q_ELECTRON / EPSILON_0) * (Q_ELECTRON / M_ELECTRON) / CLIGHT;
 
-		while (getLine(fp_lines, "=", input, exit_on_EOF = FALSE) != EOF) {
+		while (getLine(rh, fp_lines, "=", input, exit_on_EOF = FALSE) != EOF) {
 			Nread = sscanf(input, "%d %d %d %d %d %lf %lf",
 						   &i_l, &islp_l, &ilv_l, &jslp_l, &jlv_l, &gf, &fdum);
 			if (Nread != 7) {
-				Error(ERROR_LEVEL_2, argv[0], "Malformed input line:\n %.200s", input);
+				Error(rh, ERROR_LEVEL_2, argv[0], "Malformed input line:\n %.200s", input);
 			}
 
 			for (i = 0; i < atom.Nlevel; i++) {
@@ -295,19 +295,19 @@ int main(int argc, char *argv[])
 		(AtomicContinuum *) malloc((Nrad - atom.Nline) * sizeof(AtomicContinuum));
 	continuum = atom.continuum;
 	if (readphoto) {
-		while (getLine(fp_photo, "=", input, exit_on_EOF = FALSE) != EOF) {
+		while (getLine(rh, fp_photo, "=", input, exit_on_EOF = FALSE) != EOF) {
 
 			Nread = sscanf(input, "%d %d %d %d %d %lf %d",
 						   &i_p, &nz, &ne, &islp_p, &ilv_p, &Eion, &Nlamb);
 			if (Nread != 7) {
-				Error(ERROR_LEVEL_2, argv[0], "Malformed input line:\n %.200s", input);
+				Error(rh, ERROR_LEVEL_2, argv[0], "Malformed input line:\n %.200s", input);
 			}
 			E     = (double *) malloc(Nlamb * sizeof(double));
 			alpha = (double *) malloc(Nlamb * sizeof(double));
 			for (la = 0; la < Nlamb; la++) {
 				Nread = fscanf(fp_photo, "%lf %lf", E + la, alpha + la);
 				if (Nread != 2) {
-					Error(ERROR_LEVEL_2, argv[0], "Unable to read photoionization table from file %s",
+					Error(rh, ERROR_LEVEL_2, argv[0], "Unable to read photoionization table from file %s",
 						  argv[3]);
 				}
 			}

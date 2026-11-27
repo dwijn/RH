@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 	/* --- Open the data file for model atom --          -------------- */
 
 	if ((fp_NIST = fopen(argv[1], "r")) == NULL) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open input file %s", argv[1]);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open input file %s", argv[1]);
 	}
 
 	Nlevel = 0;

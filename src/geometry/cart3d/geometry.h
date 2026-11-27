@@ -64,44 +64,44 @@ typedef struct {
 
 /* --- Associated function prototypes --               -------------- */
 
-void readAtmos(Atmosphere *atmos, Geometry *geometry);
+void readAtmos(RHState *rh, Atmosphere *atmos, Geometry *geometry);
 
-void   getAngleQuadr(Geometry *geometry);
-void   fillMesh(Geometry *geometry);
-void   getBoundary(Atmosphere *atmos, Geometry *geometry);
-bool_t writeFlux(char *fileName);
-void   writeGeometry(Geometry *geometry);
-double Interpolate_3D(double *f, Geometry *geometry, Stencil *st,
+void   getAngleQuadr(RHState *rh, Geometry *geometry);
+void   fillMesh(RHState *rh, Geometry *geometry);
+void   getBoundary(RHState *rh, Atmosphere *atmos, Geometry *geometry);
+bool_t writeFlux(RHState *rh, char *fileName);
+void   writeGeometry(RHState *rh, Geometry *geometry);
+double Interpolate_3D(RHState *rh, double *f, Geometry *geometry, Stencil *st,
 					  int l, int m);
-double Interpolate_3D_linear(double *f, Geometry *geometry, Stencil *st,
+double Interpolate_3D_linear(RHState *rh, double *f, Geometry *geometry, Stencil *st,
 							 int l, int m);
 
-void ShortChar(Geometry *geometry, int nspect, int mu,
+void ShortChar(RHState *rh, Geometry *geometry, int nspect, int mu,
 			   bool_t to_observer, double *chi, double *S, double *I,
 			   double *Psi);
-void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
+void ShortChar_Stokes(RHState *rh, Geometry *geometry, int nspect, int mu,
 					  bool_t to_observer, double *chi,
 					  double **S, double **I, double *Psi);
-void Piecewise_Linear_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
+void Piecewise_Linear_3D(RHState *rh, Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 						 int k, int kend, int l, int m, double I_uw,
 						 double *chi, double *S, double *I, double *Psi);
-void Piecewise_Bezier3_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
+void Piecewise_Bezier3_3D(RHState *rh, Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 						  int k, int kend, int l, int m, double I_uw,
 						  double *chi, double *S, double *I, double *Psi);
 
-void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
+void Piece_Stokes_Bezier3_3D(RHState *rh, Geometry *geometry, Stencil *st_uw,
 							 Stencil *st_dw, StokesGrid *sg,
 							 int k, int kend, int l, int m,
 							 double *I_uw, double *Psi);
 
-double SolveLong(Geometry *geometry, Longchar *lc, int k, int l, int m,
+double SolveLong(RHState *rh, Geometry *geometry, Longchar *lc, int k, int l, int m,
 				 double *chi, double *S, double *I);
-void   SolveLongStokes(Geometry *geometry, Longchar *lc, StokesGrid *sg,
+void   SolveLongStokes(RHState *rh, Geometry *geometry, Longchar *lc, StokesGrid *sg,
 					   int k, int l, int m, double *I_uw);
 
-void StokesK_3D(StokesGrid *sg, Geometry *geometry, Stencil *st,
+void StokesK_3D(RHState *rh, StokesGrid *sg, Geometry *geometry, Stencil *st,
 				int l, int m, double chi_I, double K[4][4]);
-void Interpolate_Stokes_3D(StokesGrid *sg, enum stokes_vector v,
+void Interpolate_Stokes_3D(RHState *rh, StokesGrid *sg, enum stokes_vector v,
 						   Geometry *geometry, Stencil *st, int l, int m,
 						   double out[4]);
 

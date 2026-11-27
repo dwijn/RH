@@ -57,9 +57,9 @@
 #include "stokes_exact.h"
 #include "state.h"
 
-void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs, double *chi,
+void Piecewise_Bezier3_1D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 						  double *S, double *I, double *Psi);
-void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs, double *chi,
+void Piece_Stokes_Bezier3_1D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 							 double **S, double **I, double *Psi);
 
 #define NMU 3
@@ -89,8 +89,8 @@ static void slab_init(Slab *slab, int Ndep, bool_t vary, double kscale)
 	slab->tau  = malloc(Ndep * sizeof(double));
 	slab->chi  = malloc(Ndep * sizeof(double));
 	slab->Is   = malloc(Ndep * sizeof(double));
-	slab->S    = matrix_double(4, Ndep);
-	slab->I    = matrix_double(4, Ndep);
+	slab->S    = matrix_double(rh, 4, Ndep);
+	slab->I    = matrix_double(rh, 4, Ndep);
 
 	rh->geometry->Ndep   = Ndep;
 	rh->atmos.Nspace     = Ndep;
@@ -127,8 +127,8 @@ static void slab_free(Slab *slab)
 	free(slab->tau);
 	free(slab->chi);
 	free(slab->Is);
-	freeMatrix((void **) slab->S);
-	freeMatrix((void **) slab->I);
+	freeMatrix(rh, (void **) slab->S);
+	freeMatrix(rh, (void **) slab->I);
 }
 
 /* --- Emission vector over chi_I, K S for S = (S(tau), 0, 0, 0) -- */
@@ -165,7 +165,7 @@ static void errors_exact(Errors *e, Slab *slab, const double s[NPOLY],
 {
 	Mat K;
 	full_K(K_ELEMENTS, kscale, K);
-	Piece_Stokes_Bezier3_1D(0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
+	Piece_Stokes_Bezier3_1D(rh, 0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
 	for (int k = 0; k < slab->Ndep && slab->tau[k] <= TAU_CHECK; k++) {
 		Vec    Ie;
 		double err = 0.0;
@@ -195,8 +195,8 @@ static void check_unpolarized(bool_t verbose)
 	set_source(&slab, s_cubic, 0.0);
 	for (int mu = 0; mu < NMU; mu++)
 		for (int to_obs = 0; to_obs <= 1; to_obs++) {
-			Piece_Stokes_Bezier3_1D(0, mu, to_obs, slab.chi, slab.S, slab.I, NULL);
-			Piecewise_Bezier3_1D(0, mu, to_obs, slab.chi, slab.S[0], slab.Is, NULL);
+			Piece_Stokes_Bezier3_1D(rh, 0, mu, to_obs, slab.chi, slab.S, slab.I, NULL);
+			Piecewise_Bezier3_1D(rh, 0, mu, to_obs, slab.chi, slab.S[0], slab.Is, NULL);
 			for (int k = 0; k < slab.Ndep; k++) {
 				dI = MAX(dI, fabs(slab.I[0][k] - slab.Is[k]) / MAX(fabs(slab.Is[k]), 1e-300));
 				for (int n = 1; n < 4; n++) dQUV = MAX(dQUV, fabs(slab.I[n][k]));
@@ -289,7 +289,7 @@ static void check_varying_K(bool_t verbose, double min_order)
 		slab_init(&slab, 40 * (1 << r) + 1, TRUE, 1.0);
 		set_source(&slab, s_cubic, 1.0);
 		for (int mu = 0; mu < NMU; mu++) {
-			Piece_Stokes_Bezier3_1D(0, mu, TRUE, slab.chi, slab.S, slab.I, NULL);
+			Piece_Stokes_Bezier3_1D(rh, 0, mu, TRUE, slab.chi, slab.S, slab.I, NULL);
 			for (int n = 0; n < 4; n++) Iem[r][mu][n] = slab.I[n][0];
 		}
 		slab_free(&slab);
@@ -489,7 +489,7 @@ static void check_psi_bound(bool_t verbose)
 			set_profile(&slab, p, e);
 			for (int mu = 0; mu < NMU; mu++)
 				for (int to_obs = 0; to_obs <= 1; to_obs++) {
-					Piece_Stokes_Bezier3_1D(0, mu, to_obs, slab.chi, slab.S, slab.I, Psi);
+					Piece_Stokes_Bezier3_1D(rh, 0, mu, to_obs, slab.chi, slab.S, slab.I, Psi);
 					for (int k = 0; k < N; k++) {
 						double d = Psi[k] * slab.S[0][k] - slab.I[0][k];
 						if (d > 0.0) w = MAX(w, d / fabs(slab.I[0][k]));
@@ -510,8 +510,8 @@ int main(int argc, char *argv[])
 
 	rh->geometry->Nrays             = NMU;
 	rh->geometry->muz               = mus;
-	rh->geometry->Itop              = matrix_double(1, NMU);
-	rh->geometry->Ibottom           = matrix_double(1, NMU);
+	rh->geometry->Itop              = matrix_double(rh, 1, NMU);
+	rh->geometry->Ibottom           = matrix_double(rh, 1, NMU);
 	rh->geometry->vboundary[TOP]    = ZERO;
 	rh->geometry->vboundary[BOTTOM] = IRRADIATED;
 

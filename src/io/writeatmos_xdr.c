@@ -50,7 +50,7 @@ bool_t xdr_counted_string(XDR *xdrs, char **p)
 
 /* ------- begin -------------------------- writeAtmos.c ------------ */
 
-void writeAtmos(Atmosphere *atmos)
+void writeAtmos(RHState *rh, Atmosphere *atmos)
 {
 	const char   routineName[] = "writeAtmos";
 	register int n;
@@ -64,7 +64,7 @@ void writeAtmos(Atmosphere *atmos)
 	if (!strcmp(rh->input.atmos_output, "none")) return;
 
 	if ((fp_out = fopen(rh->input.atmos_output, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", rh->input.atmos_output);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", rh->input.atmos_output);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
@@ -106,7 +106,7 @@ void writeAtmos(Atmosphere *atmos)
 	}
 
 	if (!result) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to write proper amount to output file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to write proper amount to output file %s",
 			  rh->input.atmos_output);
 	}
 	xdr_destroy(&xdrs);
@@ -116,7 +116,7 @@ void writeAtmos(Atmosphere *atmos)
 
 /* ------- begin -------------------------- freeAtmos.c ------------- */
 
-void freeAtmos(Atmosphere *atmos)
+void freeAtmos(RHState *rh, Atmosphere *atmos)
 {
 	register int n;
 
@@ -134,16 +134,16 @@ void freeAtmos(Atmosphere *atmos)
 		free(atmos->gamma_B);
 		free(atmos->chi_B);
 
-		freeMatrix((void **) atmos->cos_gamma);
-		freeMatrix((void **) atmos->cos_2chi);
-		freeMatrix((void **) atmos->sin_2chi);
+		freeMatrix(rh, (void **) atmos->cos_gamma);
+		freeMatrix(rh, (void **) atmos->cos_2chi);
+		freeMatrix(rh, (void **) atmos->sin_2chi);
 	}
 
 	for (n = 0; n < atmos->Natom; n++) {
 		if (atmos->atoms[n].active ||
 			atmos->hydrostatic ||
 			rh->input.solve_ne == ITERATION)
-			freeAtom(&atmos->atoms[n]);
+			freeAtom(rh, &atmos->atoms[n]);
 	}
 	free(atmos->activeatoms);
 
@@ -151,7 +151,7 @@ void freeAtmos(Atmosphere *atmos)
 		if (atmos->molecules[n].active ||
 			atmos->hydrostatic ||
 			rh->input.solve_ne == ITERATION)
-			freeMolecule(&atmos->molecules[n]);
+			freeMolecule(rh, &atmos->molecules[n]);
 	}
 	free(atmos->activemols);
 

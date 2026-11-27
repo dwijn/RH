@@ -23,13 +23,13 @@
 
 /* --- Function prototypes --                          -------------- */
 
-bool_t xdr_damping(XDR *xdrs, Atom *atom);
+bool_t xdr_damping(RHState *rh, XDR *xdrs, Atom *atom);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- writeDamping.c ---------- */
 
-bool_t writeDamping(Atom *atom)
+bool_t writeDamping(RHState *rh, Atom *atom)
 {
 	const char routineName[] = "writeDamping";
 
@@ -44,13 +44,13 @@ bool_t writeDamping(Atom *atom)
 	sprintf(dampfile, (atom->ID[1] == ' ') ? "damping.%.1s.out" : "damping.%.2s.out", atom->ID);
 
 	if ((fp_damp = fopen(dampfile, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", dampfile);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", dampfile);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp_damp, XDR_ENCODE);
 
-	if (!xdr_damping(&xdrs, atom)) {
-		Error(WARNING, routineName, "Unable to write to output file %s", dampfile);
+	if (!xdr_damping(rh, &xdrs, atom)) {
+		Warning(rh, routineName, "Unable to write to output file %s", dampfile);
 	}
 
 	xdr_destroy(&xdrs);
@@ -61,7 +61,7 @@ bool_t writeDamping(Atom *atom)
 
 /* ------- begin -------------------------- readDamping.c --------- */
 
-bool_t readDamping(Atom *atom)
+bool_t readDamping(RHState *rh, Atom *atom)
 {
 	const char routineName[] = "readDamping";
 
@@ -76,13 +76,13 @@ bool_t readDamping(Atom *atom)
 	/* --- Read collision rates --                       -------------- */
 
 	if ((fp_damp = fopen(dampfile, "r")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open input file %s", dampfile);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open input file %s", dampfile);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp_damp, XDR_DECODE);
 
-	if (!xdr_damping(&xdrs, atom)) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to read from input file %s", dampfile);
+	if (!xdr_damping(rh, &xdrs, atom)) {
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s", dampfile);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp_damp);
@@ -92,7 +92,7 @@ bool_t readDamping(Atom *atom)
 
 /* ------- begin -------------------------- xdr_damping.c ----------- */
 
-bool_t xdr_damping(XDR *xdrs, Atom *atom)
+bool_t xdr_damping(RHState *rh, XDR *xdrs, Atom *atom)
 {
 	register int kr, k;
 
@@ -110,7 +110,7 @@ bool_t xdr_damping(XDR *xdrs, Atom *atom)
 
 		for (kr = 0; kr < atom->Nline; kr++) {
 			if (atom->line[kr].Voigt)
-				Damping(&atom->line[kr], adamp);
+				Damping(rh, &atom->line[kr], adamp);
 			else
 				for (k = 0; k < rh->atmos.Nspace; k++) adamp[k] = 0.0;
 

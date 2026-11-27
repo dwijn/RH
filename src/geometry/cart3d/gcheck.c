@@ -28,9 +28,9 @@
 
 /* --- Global variables --                             -------------- */
 
-static Geometry geometry_data;
-static RHState  rh_state = RH_STATE_INIT(THREE_D_PLANE, &geometry_data);
-RHState *const  rh       = &rh_state;
+static Geometry       geometry_data;
+static RHState        rh_state = RH_STATE_INIT(THREE_D_PLANE, &geometry_data);
+static RHState *const rh       = &rh_state;
 
 /* ------- begin -------------------------- gcheck.c ---------------- */
 
@@ -40,42 +40,42 @@ int main(int argc, char *argv[])
 	GCheckOptions opt;
 
 	gcheckParse(&argc, argv, &opt);
-	setOptions(argc, argv);
-	getCPU(0, TIME_START, NULL);
-	SetFPEtraps();
+	setOptions(rh, argc, argv);
+	getCPU(rh, 0, TIME_START, NULL);
+	SetFPEtraps(rh);
 
 	/* --- Read input data and initialize --             -------------- */
 
-	readInput();
+	readInput(rh);
 	if (rh->input.solver != SOLVER_FIXED_POINT) {
-		Error(ERROR_LEVEL_2, "gcheck",
+		Error(rh, ERROR_LEVEL_2, "gcheck",
 			  "gcheck checks the map G of SOLVER = FIXED_POINT: set"
 			  " SOLVER = FIXED_POINT\n in keyword.input, with the"
 			  " keyword settings it requires");
 	}
 	rh->spectrum.updateJ = TRUE;
 
-	getCPU(1, TIME_START, NULL);
-	readAtmos(&rh->atmos, rh->geometry);
-	if (rh->atmos.Stokes) Bproject();
-	fillMesh(rh->geometry);
+	getCPU(rh, 1, TIME_START, NULL);
+	readAtmos(rh, &rh->atmos, rh->geometry);
+	if (rh->atmos.Stokes) Bproject(rh);
+	fillMesh(rh, rh->geometry);
 
-	readAtomicModels();
-	readMolecularModels();
-	SortLambda();
+	readAtomicModels(rh);
+	readMolecularModels(rh);
+	SortLambda(rh);
 
-	getBoundary(&rh->atmos, rh->geometry);
+	getBoundary(rh, &rh->atmos, rh->geometry);
 
-	Background(analyze_output = FALSE, equilibria_only = FALSE);
+	Background(rh, analyze_output = FALSE, equilibria_only = FALSE);
 
-	getProfiles();
-	initSolution();
-	initScatter();
+	getProfiles(rh);
+	initSolution(rh);
+	initScatter(rh);
 
-	getCPU(1, TIME_POLL, "Total initialize");
+	getCPU(rh, 1, TIME_POLL, "Total initialize");
 
-	gcheckRun(&opt);
+	gcheckRun(rh, &opt);
 
-	return ExitStatus();
+	return ExitStatus(rh);
 }
 /* ------- end ---------------------------- gcheck.c ---------------- */

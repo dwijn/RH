@@ -97,9 +97,11 @@ static void fpeHandler(int sig, siginfo_t *info, void *context)
 }
 /* ------- end ---------------------------- fpeHandler.c ------------ */
 
-void SetFPEtraps(void)
+void SetFPEtraps(RHState *rh)
 {
 	struct sigaction action;
+
+	(void) rh;
 
 	/* --- Enable some exceptions.
 		   At startup all exceptions are masked. --      -------------- */
@@ -127,11 +129,10 @@ void SetFPEtraps(void)
 
 /* --- No way to enable traps --                      -------------- */
 
-void SetFPEtraps(void)
+void SetFPEtraps(RHState *rh)
 {
-	Error(MESSAGE, "SetFPEtraps",
-		  "\nFloating-point exception traps are not available on this"
-		  " platform\n");
+	Message(rh, "\nFloating-point exception traps are not available on this"
+				" platform\n");
 }
 
 #endif

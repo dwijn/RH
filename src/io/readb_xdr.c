@@ -37,7 +37,7 @@
 
 /* ------- begin -------------------------- readB.c ----------------- */
 
-bool_t readB(Atmosphere *atmos)
+bool_t readB(RHState *rh, Atmosphere *atmos)
 {
 	const char routineName[] = "readB";
 
@@ -49,7 +49,7 @@ bool_t readB(Atmosphere *atmos)
 	if (!strcmp(rh->input.Stokes_input, "none")) return FALSE;
 
 	if ((fp_stokes = fopen(rh->input.Stokes_input, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to open inputfile %s", rh->input.Stokes_input);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open inputfile %s", rh->input.Stokes_input);
 	}
 
 	atmos->B       = (double *) malloc(atmos->Nspace * sizeof(double));
@@ -78,7 +78,7 @@ bool_t readB(Atmosphere *atmos)
 	}
 
 	if (!result) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to read from input file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to read from input file %s",
 			  rh->input.Stokes_input);
 	}
 

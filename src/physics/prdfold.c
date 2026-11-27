@@ -141,7 +141,7 @@ int prdFoldRange(int N, double *qtab, double q0, int Np, bool_t symmetric, int *
 
 /* ------- begin -------------------------- prdFold.c --------------- */
 
-void prdFold(int N, double *qtab, int Np, double *qp, double *gw, int m0, int len,
+void prdFold(RHState *rh, int N, double *qtab, int Np, double *qp, double *gw, int m0, int len,
 			 double *W)
 {
 	/* --- W[m - m0] += sum over the fine grid of gw times the
@@ -155,8 +155,8 @@ void prdFold(int N, double *qtab, int Np, double *qp, double *gw, int m0, int le
 	for (lap = 0; lap < Np; lap++) {
 		prdFoldIndex(N, qtab, qp[lap], &j, &fx);
 		if (j < m0 || ((fx < 1.0) ? j + 1 : j) >= m0 + len) {
-			Error(ERROR_LEVEL_2, "prdFold", "Fine-grid point %g outside the range [%d, %d) of"
-											" the redistribution weights",
+			Error(rh, ERROR_LEVEL_2, "prdFold", "Fine-grid point %g outside the range [%d, %d) of"
+												" the redistribution weights",
 				  qp[lap], m0, m0 + len);
 		}
 		W[j - m0] += gw[lap] * fx;

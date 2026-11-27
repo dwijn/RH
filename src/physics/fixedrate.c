@@ -49,15 +49,15 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double E1(double x);
-double sumE1(double xrad);
-double sumE1_xe(double xe, double xrad);
+double E1(RHState *rh, double x);
+double sumE1(RHState *rh, double xrad);
+double sumE1_xe(RHState *rh, double xe, double xrad);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- FixedRate.c ------------- */
 
-void FixedRate(Atom *atom)
+void FixedRate(RHState *rh, Atom *atom)
 {
 	register int kf, k;
 
@@ -66,7 +66,7 @@ void FixedRate(Atom *atom)
 							 exp_hckTla;
 	FixedTransition *ft = atom->ft;
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	e_mc = (Q_ELECTRON / EPSILON_0) * (Q_ELECTRON / (CLIGHT * M_ELECTRON));
 	if (rh->topology == TWO_D_PLANE) {
@@ -133,20 +133,20 @@ void FixedRate(Atom *atom)
 				break;
 			case FIXED_CONTINUUM:
 				xe = hc_kla / Te;
-				atom->C[ji][k] += C0 * sumE1(xrad);
+				atom->C[ji][k] += C0 * sumE1(rh, xrad);
 				atom->C[ij][k] += atom->nstar[i][k] / atom->nstar[j][k] * C0 *
-								  sumE1_xe(xe, xrad);
+								  sumE1_xe(rh, xe, xrad);
 				break;
 			}
 		}
 	}
-	getCPU(3, TIME_POLL, "Fixed Rates");
+	getCPU(rh, 3, TIME_POLL, "Fixed Rates");
 }
 /* ------- end ---------------------------- FixedRate.c ------------- */
 
 /* ------- begin -------------------------- sumE1.c ----------------- */
 
-double sumE1(double xrad)
+double sumE1(RHState *rh, double xrad)
 {
 	register int n;
 
@@ -157,10 +157,10 @@ double sumE1(double xrad)
 	 *                    n=1
 	 */
 
-	if ((sum = E1(xrad)) == 0.0) return sum;
+	if ((sum = E1(rh, xrad)) == 0.0) return sum;
 
 	for (n = 2; n < N_MAX_INTEGRAL; n++) {
-		dsum = E1(n * xrad);
+		dsum = E1(rh, n * xrad);
 		sum += dsum;
 		if (dsum / sum <= DELTA_MIN) break;
 	}
@@ -170,7 +170,7 @@ double sumE1(double xrad)
 
 /* ------- begin -------------------------- sumE1_xe.c -------------- */
 
-double sumE1_xe(double xe, double xrad)
+double sumE1_xe(RHState *rh, double xe, double xrad)
 {
 	register int n;
 
@@ -181,10 +181,10 @@ double sumE1_xe(double xe, double xrad)
 	 *                    n=0
 	 */
 
-	if ((sum = E1(xe) + E1(xe + xrad)) == 0.0) return sum;
+	if ((sum = E1(rh, xe) + E1(rh, xe + xrad)) == 0.0) return sum;
 
 	for (n = 2; n < N_MAX_INTEGRAL; n++) {
-		dsum = E1(xe + n * xrad);
+		dsum = E1(rh, xe + n * xrad);
 		sum += dsum;
 		if (dsum / sum <= DELTA_MIN) break;
 	}

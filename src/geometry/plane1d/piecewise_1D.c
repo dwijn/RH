@@ -33,16 +33,16 @@
 
 /* ------- begin -------------------------- Piecewise_Linear_1D.c --- */
 
-void Piecewise_Linear_1D(int nspect, int mu, bool_t to_obs,
+void Piecewise_Linear_1D(RHState *rh, int nspect, int mu, bool_t to_obs,
 						 double *chi, double *S, double *I, double *Psi)
 {
-	Piecewise_Linear_1D_tri(nspect, mu, to_obs, chi, S, I, Psi, NULL);
+	Piecewise_Linear_1D_tri(rh, nspect, mu, to_obs, chi, S, I, Psi, NULL);
 }
 /* ------- end ---------------------------- Piecewise_Linear_1D.c --- */
 
 /* ------- begin -------------------------- Piecewise_Linear_1D_tri.c */
 
-void Piecewise_Linear_1D_tri(int nspect, int mu, bool_t to_obs,
+void Piecewise_Linear_1D_tri(RHState *rh, int nspect, int mu, bool_t to_obs,
 							 double *chi, double *S, double *I, double *Psi,
 							 double *Tri)
 {
@@ -89,7 +89,7 @@ void Piecewise_Linear_1D_tri(int nspect, int mu, bool_t to_obs,
 			I_uw = rh->geometry->Ibottom[nspect][mu];
 			break;
 		case REFLECTIVE:
-			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+			Error(rh, ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
 				  rh->geometry->vboundary[BOTTOM]);
 		}
 	} else {
@@ -105,7 +105,7 @@ void Piecewise_Linear_1D_tri(int nspect, int mu, bool_t to_obs,
 			I_uw = rh->geometry->Itop[nspect][mu];
 			break;
 		case REFLECTIVE:
-			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+			Error(rh, ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
 				  rh->geometry->vboundary[BOTTOM]);
 		}
 	}

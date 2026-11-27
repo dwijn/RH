@@ -21,13 +21,13 @@
 
 /* --- Function prototypes --                          -------------- */
 
-bool_t xdr_radrate(XDR *xdrs, Atom *atom);
+bool_t xdr_radrate(RHState *rh, XDR *xdrs, Atom *atom);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- writeRadRate.c - -------- */
 
-bool_t writeRadRate(Atom *atom)
+bool_t writeRadRate(RHState *rh, Atom *atom)
 {
 	const char routineName[] = "writeRadRate";
 
@@ -43,13 +43,13 @@ bool_t writeRadRate(Atom *atom)
 	sprintf(ratesfile, (atom->ID[1] == ' ') ? "radrate.%.1s.out" : "radrate.%.2s.out", atom->ID);
 
 	if ((fp = fopen(ratesfile, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", ratesfile);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", ratesfile);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp, XDR_ENCODE);
 
-	if (!xdr_radrate(&xdrs, atom)) {
-		Error(WARNING, routineName, "Unable to write to output file %s", ratesfile);
+	if (!xdr_radrate(rh, &xdrs, atom)) {
+		Warning(rh, routineName, "Unable to write to output file %s", ratesfile);
 	}
 
 	xdr_destroy(&xdrs);
@@ -60,7 +60,7 @@ bool_t writeRadRate(Atom *atom)
 
 /* ------- begin -------------------------- readRadRate.c ----------- */
 
-bool_t readRadRate(Atom *atom)
+bool_t readRadRate(RHState *rh, Atom *atom)
 {
 	const char routineName[] = "readRadRate";
 
@@ -76,13 +76,13 @@ bool_t readRadRate(Atom *atom)
 	/* --- Read radiative rates for transitions treated in detail. -- - */
 
 	if ((fp = fopen(ratesfile, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s", ratesfile);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s", ratesfile);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp, XDR_DECODE);
 
-	if (!xdr_radrate(&xdrs, atom)) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to read from input file %s", ratesfile);
+	if (!xdr_radrate(rh, &xdrs, atom)) {
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s", ratesfile);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp);
@@ -92,7 +92,7 @@ bool_t readRadRate(Atom *atom)
 
 /* ------- begin -------------------------- xdr_radrate.c ----------- */
 
-bool_t xdr_radrate(XDR *xdrs, Atom *atom)
+bool_t xdr_radrate(RHState *rh, XDR *xdrs, Atom *atom)
 {
 	register int kr;
 

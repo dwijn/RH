@@ -44,17 +44,17 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double getKuruczpf(Element *element, int stage, int k);
+double getKuruczpf(RHState *rh, Element *element, int stage, int k);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- Solve_ne.c -------------- */
 
-static double solveNe(double *ne, bool_t fromscratch, int Nfixed);
+static double solveNe(RHState *rh, double *ne, bool_t fromscratch, int Nfixed);
 
-void Solve_ne(double *ne, bool_t fromscratch)
+void Solve_ne(RHState *rh, double *ne, bool_t fromscratch)
 {
-	solveNe(ne, fromscratch, 0);
+	solveNe(rh, ne, fromscratch, 0);
 }
 
 /* --- For the map G with ne in the state (S-2b, docs/SOLVER.md): the
@@ -63,12 +63,12 @@ void Solve_ne(double *ne, bool_t fromscratch)
 	   the state). Returns the largest relative change of the last
 	   step --                                         -------------- */
 
-double Solve_ne_OfState(double *ne, int Niter)
+double Solve_ne_OfState(RHState *rh, double *ne, int Niter)
 {
-	return solveNe(ne, FALSE, Niter);
+	return solveNe(rh, ne, FALSE, Niter);
 }
 
-static double solveNe(double *ne, bool_t fromscratch, int Nfixed)
+static double solveNe(RHState *rh, double *ne, bool_t fromscratch, int Nfixed)
 {
 	const char   routineName[] = "Solvene";
 	register int k, n, j;
@@ -77,7 +77,7 @@ static double solveNe(double *ne, bool_t fromscratch, int Nfixed)
 	double *fjk, *dfjk, error, ne_old, akj, sum, PhiH, C1, Uk,
 		dne = 0.0, *np, PhiHmin, dnemax = 0.0;
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	C1 = (HPLANCK / (2.0 * PI * M_ELECTRON)) * (HPLANCK / KBOLTZMANN);
 
@@ -97,7 +97,7 @@ static double solveNe(double *ne, bool_t fromscratch, int Nfixed)
 			/* --- Get the initial solution from ionization of H only -- -- */
 
 			if (rh->atmos.H_LTE) {
-				Uk   = getKuruczpf(&rh->atmos.elements[0], 0, k);
+				Uk   = getKuruczpf(rh, &rh->atmos.elements[0], 0, k);
 				PhiH = 0.5 * pow(C1 / rh->atmos.T[k], 1.5) *
 					   exp(Uk + rh->atmos.elements[0].ionpot[0] / (KBOLTZMANN * rh->atmos.T[k]));
 				ne_old = (sqrt(1.0 + 4.0 * rh->atmos.nHtot[k] * PhiH) - 1.0) / (2.0 * PhiH);
@@ -119,7 +119,7 @@ static double solveNe(double *ne, bool_t fromscratch, int Nfixed)
 			sum   = 0.0;
 
 			for (n = 0; n < rh->atmos.Nelem; n++) {
-				getfjk(&rh->atmos.elements[n], ne_old, k, fjk, dfjk);
+				getfjk(rh, &rh->atmos.elements[n], ne_old, k, fjk, dfjk);
 
 				/* --- Contribution from Hminus --             -------------- */
 
@@ -148,17 +148,17 @@ static double solveNe(double *ne, bool_t fromscratch, int Nfixed)
 		dnemax = MAX(dnemax, dne);
 
 		if (dne > MAX_ELECTRON_ERROR && Nfixed == 0) {
-			Error(WARNING, routineName, "Electron density iteration not converged:\n"
-										" spatial location: %d, temperature: %6.1f [K], \n"
-										" density: %9.3E [m^-3],\n dnemax: %9.3E\n",
-				  k, rh->atmos.T[k], rh->atmos.nHtot[k], dne);
+			Warning(rh, routineName, "Electron density iteration not converged:\n"
+									 " spatial location: %d, temperature: %6.1f [K], \n"
+									 " density: %9.3E [m^-3],\n dnemax: %9.3E\n",
+					k, rh->atmos.T[k], rh->atmos.nHtot[k], dne);
 		}
 	}
 
 	free(fjk);
 	free(dfjk);
 
-	getCPU(3, TIME_POLL, "Electron density");
+	getCPU(rh, 3, TIME_POLL, "Electron density");
 
 	return dnemax;
 }
@@ -166,7 +166,7 @@ static double solveNe(double *ne, bool_t fromscratch, int Nfixed)
 
 /* ------- begin -------------------------- getfjk.c ---------------- */
 
-void getfjk(Element *element, double ne, int k, double *fjk, double *dfjk)
+void getfjk(RHState *rh, Element *element, double ne, int k, double *fjk, double *dfjk)
 {
 	register int i, j;
 
@@ -208,9 +208,9 @@ void getfjk(Element *element, double ne, int k, double *fjk, double *dfjk)
 		fjk[0]  = 1.0;
 		dfjk[0] = 0.0;
 
-		Uk = getKuruczpf(element, 0, k);
+		Uk = getKuruczpf(rh, element, 0, k);
 		for (j = 1; j < element->Nstage; j++) {
-			Ukp1 = getKuruczpf(element, j, k);
+			Ukp1 = getKuruczpf(rh, element, j, k);
 
 			fjk[j] = fjk[j - 1] * CT_ne *
 					 exp(Ukp1 - Uk - element->ionpot[j - 1] / (KBOLTZMANN * rh->atmos.T[k]));
@@ -230,7 +230,7 @@ void getfjk(Element *element, double ne, int k, double *fjk, double *dfjk)
 
 /* ------- begin -------------------------- getKuruczpf.c ----------- */
 
-double getKuruczpf(Element *element, int stage, int k)
+double getKuruczpf(RHState *rh, Element *element, int stage, int k)
 {
 	bool_t hunt = TRUE;
 	double Uk;

@@ -52,7 +52,7 @@ typedef struct {
 	int    minlength;
 	bool_t value_required;
 	char   value[MAX_VALUE_LENGTH];
-	void  *pointer, (*setValue)(char *value, void *pointer);
+	void  *pointer, (*setValue)(RHState *rh, char *value, void *pointer);
 	char   message[MAX_VALUE_LENGTH];
 } Option;
 
@@ -66,7 +66,7 @@ typedef struct {
 	char             keyword[MAX_KEYWORD_LENGTH], value[MAX_VALUE_LENGTH];
 	bool_t           set;
 	enum keywordtype type;
-	void            *pointer, (*setValue)(char *value, void *pointer);
+	void            *pointer, (*setValue)(RHState *rh, char *value, void *pointer);
 } Keyword;
 
 typedef struct {
@@ -149,40 +149,40 @@ typedef struct {
 
 /* --- Associated function prototypes --               -------------- */
 
-int  getLine(FILE *inputFile, char *commentChar, char *line,
+int  getLine(RHState *rh, FILE *inputFile, char *commentChar, char *line,
 			 bool_t exit_on_EOF);
-void parse(int argc, char *argv[], int Noption, Option *theOptions);
-void readInput();
-void readValues(FILE *fp_keyword, int Nkeyword, Keyword *theKeywords);
+void parse(RHState *rh, int argc, char *argv[], int Noption, Option *theOptions);
+void readInput(RHState *rh);
+void readValues(RHState *rh, FILE *fp_keyword, int Nkeyword, Keyword *theKeywords);
 
-void setAngleSet(char *value, void *pointer);
-void setcharValue(char *value, void *pointer);
-void setboolValue(char *value, void *pointer);
-void setintValue(char *value, void *pointer);
-void setdoubleValue(char *value, void *pointer);
-void setstartValue(char *value, void *pointer);
-void setnesolution(char *value, void *pointer);
-void setsolver(char *value, void *pointer);
-void setStokesMode(char *value, void *pointer);
-void setPRDangle(char *value, void *pointer);
-void setThreadValue(char *value, void *pointer);
+void setAngleSet(RHState *rh, char *value, void *pointer);
+void setcharValue(RHState *rh, char *value, void *pointer);
+void setboolValue(RHState *rh, char *value, void *pointer);
+void setintValue(RHState *rh, char *value, void *pointer);
+void setdoubleValue(RHState *rh, char *value, void *pointer);
+void setstartValue(RHState *rh, char *value, void *pointer);
+void setnesolution(RHState *rh, char *value, void *pointer);
+void setsolver(RHState *rh, char *value, void *pointer);
+void setStokesMode(RHState *rh, char *value, void *pointer);
+void setPRDangle(RHState *rh, char *value, void *pointer);
+void setThreadValue(RHState *rh, char *value, void *pointer);
 
-void        setSolverVariables(char *value, void *pointer);
-void        setAndersonCoefficients(char *value, void *pointer);
-void        setBgOperator(char *value, void *pointer);
-void        setAndersonExtrapolate(char *value, void *pointer);
+void        setSolverVariables(RHState *rh, char *value, void *pointer);
+void        setAndersonCoefficients(RHState *rh, char *value, void *pointer);
+void        setBgOperator(RHState *rh, char *value, void *pointer);
+void        setAndersonExtrapolate(RHState *rh, char *value, void *pointer);
 const char *solverName(enum solver_type solver);
 
-void setInterpolate_2D(char *value, void *pointer);
-void setInterpolate_3D(char *value, void *pointer);
-void set_S_Interpolation(char *value, void *pointer);
-void set_S_interpolation_longchar(char *value, void *pointer);
-void set_S_interpolation_stokes(char *value, void *pointer);
+void setInterpolate_2D(RHState *rh, char *value, void *pointer);
+void setInterpolate_3D(RHState *rh, char *value, void *pointer);
+void set_S_Interpolation(RHState *rh, char *value, void *pointer);
+void set_S_interpolation_longchar(RHState *rh, char *value, void *pointer);
+void set_S_interpolation_stokes(RHState *rh, char *value, void *pointer);
 
 void showValues(int Nkeyword, Keyword *theKeywords);
 void UpperCase(char *string);
 
-void writeInput();
+void writeInput(RHState *rh);
 
 #endif /* !__INPUTS_H__ */
 

@@ -28,7 +28,7 @@
 
 /* ------- begin -------------------------- determinate.c ----------- */
 
-bool_t determinate(char *label, double g, int *n, double *S, int *L,
+bool_t determinate(RHState *rh, char *label, double g, int *n, double *S, int *L,
 				   double *J)
 {
 	const char routineName[] = "determinate";
@@ -45,7 +45,7 @@ bool_t determinate(char *label, double g, int *n, double *S, int *L,
 	if (ptr > multiplet)
 		*(ptr + 1) = '\0';
 	else {
-		Error(WARNING, routineName, "Cannot determine parity of atomic level %s", label);
+		Warning(rh, routineName, "Cannot determine parity of atomic level %s", label);
 		return FALSE;
 	}
 
@@ -61,7 +61,7 @@ bool_t determinate(char *label, double g, int *n, double *S, int *L,
 
 	/* --- Orbital quantum number --                     -------------- */
 
-	*L = getOrbital(orbit[0]);
+	*L = getOrbital(rh, orbit[0]);
 
 	/* --- Total angular momentum --                     -------------- */
 
@@ -101,7 +101,7 @@ char **getWords(char *label, char *separator, int *count)
 
 /* ------- begin -------------------------- effectiveLande.c -------- */
 
-double effectiveLande(AtomicLine *line)
+double effectiveLande(RHState *rh, AtomicLine *line)
 {
 	bool_t result = TRUE;
 	int    L_l, L_u, n;
@@ -115,9 +115,9 @@ double effectiveLande(AtomicLine *line)
 
 	if (line->g_Lande_eff != 0.0) return line->g_Lande_eff;
 
-	result &= determinate(atom->label[line->i], atom->g[line->i],
+	result &= determinate(rh, atom->label[line->i], atom->g[line->i],
 						  &n, &S_l, &L_l, &J_l);
-	result &= determinate(atom->label[line->j], atom->g[line->j],
+	result &= determinate(rh, atom->label[line->j], atom->g[line->j],
 						  &n, &S_u, &L_u, &J_u);
 
 	if (result) {
@@ -139,15 +139,15 @@ double effectiveLande(AtomicLine *line)
 	   J = 0 -> 0, which has no Zeeman components with a non-zero
 	   strength (B-27) --                              -------------- */
 
-bool_t zeemanPolarizable(Atom *atom, int i, int j, double g_Lande_eff)
+bool_t zeemanPolarizable(RHState *rh, Atom *atom, int i, int j, double g_Lande_eff)
 {
 	int    n, L;
 	double S, Jl, Ju;
 
 	if (g_Lande_eff != 0.0) return TRUE;
 
-	return determinate(atom->label[i], atom->g[i], &n, &S, &L, &Jl) &&
-		   determinate(atom->label[j], atom->g[j], &n, &S, &L, &Ju) &&
+	return determinate(rh, atom->label[i], atom->g[i], &n, &S, &L, &Jl) &&
+		   determinate(rh, atom->label[j], atom->g[j], &n, &S, &L, &Ju) &&
 		   fabs(Ju - Jl) <= 1.0 && !(Ju == 0.0 && Jl == 0.0);
 }
 /* ------- end ---------------------------- zeemanPolarizable.c ----- */
@@ -162,7 +162,7 @@ double Lande(double S, int L, double J)
 
 /* ------- begin -------------------------- ZeemanStrength.c -------- */
 
-double ZeemanStrength(double Ju, double Mu, double Jl, double Ml)
+double ZeemanStrength(RHState *rh, double Ju, double Mu, double Jl, double Ml)
 {
 	const char routineName[] = "ZeemanStrength";
 
@@ -209,7 +209,7 @@ double ZeemanStrength(double Ju, double Mu, double Jl, double Ml)
 		break;
 
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
+		Error(rh, ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
 	}
 	return s;
 }
@@ -217,7 +217,7 @@ double ZeemanStrength(double Ju, double Mu, double Jl, double Ml)
 
 /* ------- begin -------------------------- Zeeman.c ---------------- */
 
-void Zeeman(AtomicLine *line)
+void Zeeman(RHState *rh, AtomicLine *line)
 {
 	register int n;
 
@@ -271,16 +271,16 @@ void Zeeman(AtomicLine *line)
 		/* --- Anomalous Zeeman splitting. First get the quantum numbers
 			   from the labels of lower and upper level -- -------------- */
 
-		result &= determinate(atom->label[line->i], atom->g[line->i],
+		result &= determinate(rh, atom->label[line->i], atom->g[line->i],
 							  &nq, &Sl, &Ll, &Jl);
-		result &= determinate(atom->label[line->j], atom->g[line->j],
+		result &= determinate(rh, atom->label[line->j], atom->g[line->j],
 							  &nq, &Su, &Lu, &Ju);
 		if (!result) {
 
 			/* --- readAtom only marks a line polarizable when both
 				   labels can be parsed, so this cannot happen -- ------- */
 
-			Error(ERROR_LEVEL_2, "Zeeman", "Atom %s: no quantum numbers for line %d -> %d",
+			Error(rh, ERROR_LEVEL_2, "Zeeman", "Atom %s: no quantum numbers for line %d -> %d",
 				  atom->ID, line->j, line->i);
 		}
 
@@ -308,7 +308,7 @@ void Zeeman(AtomicLine *line)
 				if (fabs(Mu - Ml) <= 1.0) {
 					zm->q[n]        = (int) (Ml - Mu);
 					zm->shift[n]    = gLl * Ml - gLu * Mu;
-					zm->strength[n] = ZeemanStrength(Ju, Mu, Jl, Ml);
+					zm->strength[n] = ZeemanStrength(rh, Ju, Mu, Jl, Ml);
 
 					norm[zm->q[n] + 1] += zm->strength[n];
 					n++;
@@ -318,7 +318,7 @@ void Zeeman(AtomicLine *line)
 		for (n = 0; n < zm->Ncomponent; n++)
 			if (norm[zm->q[n] + 1] > 0.0) zm->strength[n] /= norm[zm->q[n] + 1];
 	}
-	zm->g_eff = effectiveLande(line);
+	zm->g_eff = effectiveLande(rh, line);
 }
 /* ------- end ---------------------------- Zeeman.c ---------------- */
 
@@ -337,7 +337,7 @@ double zm_gamma(double J, double S, double L)
 
 /* ------- begin -------------------------- adjustStokesMode.c ------ */
 
-void adjustStokesMode()
+void adjustStokesMode(RHState *rh)
 {
 	register int kr, nact;
 
@@ -358,7 +358,7 @@ void adjustStokesMode()
 		rh->input.StokesMode = FULL_STOKES;
 
 	if (oldMode == FIELD_FREE) {
-		getCPU(2, TIME_START, NULL);
+		getCPU(rh, 2, TIME_START, NULL);
 
 		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 			atom = rh->atmos.activeatoms[nact];
@@ -372,14 +372,14 @@ void adjustStokesMode()
 					/* --- First free up the space used in field-free
 							   calculation --                        -------------- */
 
-					if (!rh->input.limit_memory) freeMatrix((void **) line->phi);
+					if (!rh->input.limit_memory) freeMatrix(rh, (void **) line->phi);
 					free(line->wphi);
 
-					Profile(line);
+					Profile(rh, line);
 				}
 			}
 		}
-		getCPU(2, TIME_POLL, "adjustStokesMode");
+		getCPU(rh, 2, TIME_POLL, "adjustStokesMode");
 	}
 }
 /* ------- end ---------------------------- adjustStokesMode.c ------ */
@@ -411,7 +411,7 @@ void freeZeeman(ZeemanMultiplet *zm)
 
 /* ------- begin -------------------------- getOrbital.c ------------ */
 
-int getOrbital(char orbit)
+int getOrbital(RHState *rh, char orbit)
 {
 	const char routineName[] = "getOrbital";
 
@@ -439,7 +439,7 @@ int getOrbital(char orbit)
 	case 'W': L = 18; break;
 	case 'X': L = 19; break;
 	default:
-		Error(WARNING, routineName, "Invalid orbital: %c", orbit);
+		Warning(rh, routineName, "Invalid orbital: %c", orbit);
 	}
 	return L;
 }

@@ -69,7 +69,7 @@
 
 /* ------- begin -------------------------- readAbundance.c --------- */
 
-void readAbundance(Atmosphere *atmos)
+void readAbundance(RHState *rh, Atmosphere *atmos)
 {
 	const char   routineName[] = "readAbundance";
 	register int n, k, i;
@@ -99,13 +99,13 @@ void readAbundance(Atmosphere *atmos)
 	}
 
 	if ((fp_abund = fopen(rh->input.abund_input, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s", rh->input.abund_input);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s", rh->input.abund_input);
 	}
 	/* --- Read abundances from file --                  -------------- */
 
-	while (getLine(fp_abund, COMMENT_CHAR, line, exit_on_EOF = FALSE) != EOF) {
+	while (getLine(rh, fp_abund, COMMENT_CHAR, line, exit_on_EOF = FALSE) != EOF) {
 		if ((Nread = sscanf(line, "%s %lf", ID, &abund)) != 2) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to read input file %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read input file %s",
 				  rh->input.abund_input);
 		}
 		UpperCase(ID);
@@ -121,7 +121,7 @@ void readAbundance(Atmosphere *atmos)
 			}
 		}
 		if (!match) {
-			Error(WARNING, routineName, "Abundance for element %s not used", ID);
+			Warning(rh, routineName, "Abundance for element %s not used", ID);
 		}
 	}
 	fclose(fp_abund);
@@ -130,14 +130,14 @@ void readAbundance(Atmosphere *atmos)
 
 	metallicity = POW10(rh->input.metallicity);
 	if (rh->input.metallicity != 0.0) {
-		Error(MESSAGE, routineName, "\nMultiplying metal abundances by metallicity of %5.3f\n\n",
-			  metallicity);
+		Message(rh, "\nMultiplying metal abundances by metallicity of %5.3f\n\n",
+				metallicity);
 	}
 	/* --- Open the data file with partition functions and first read the
 		   temperature interpolation grid --             -------------- */
 
 	if ((fp_pf = fopen(rh->input.pfData, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s for partition function data",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s for partition function data",
 			  rh->input.pfData);
 	}
 	xdrstdio_create(&xdrs, fp_pf, XDR_DECODE);
@@ -152,8 +152,8 @@ void readAbundance(Atmosphere *atmos)
 		element = atmos->elements + n;
 
 		if (!element->abundance_set) {
-			Error(WARNING, routineName, "Found no abundance for element %s",
-				  element->ID);
+			Warning(rh, routineName, "Found no abundance for element %s",
+					element->ID);
 		} else {
 
 			/* --- Convert if abundances were given on logarithmic scale -- */
@@ -173,7 +173,7 @@ void readAbundance(Atmosphere *atmos)
 
 		result &= xdr_int(&xdrs, &pti);
 		result &= xdr_int(&xdrs, &element->Nstage);
-		element->pf = matrix_double(element->Nstage, atmos->Npf);
+		element->pf = matrix_double(rh, element->Nstage, atmos->Npf);
 		element->ionpot =
 			(double *) malloc(element->Nstage * sizeof(double));
 
@@ -202,7 +202,7 @@ void readAbundance(Atmosphere *atmos)
 	atmos->avgMolWght = avgWeight / totalAbund;
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to read partition function data from %s",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read partition function data from %s",
 			  rh->input.pfData);
 	}
 	xdr_destroy(&xdrs);

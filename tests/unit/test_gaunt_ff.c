@@ -39,7 +39,7 @@ static double at(double lg2, double lu, int Z)
 	double T      = SQ(Z) * E_RYDBERG / (KBOLTZMANN * pow(10.0, lg2));
 	double lambda = HPLANCK * CLIGHT / (pow(10.0, lu) * KBOLTZMANN * T) / NM_TO_M;
 
-	return Gaunt_ff(lambda, Z, T);
+	return Gaunt_ff(rh, lambda, Z, T);
 }
 /* ------- end ---------------------------- at.c -------------------- */
 
@@ -142,11 +142,11 @@ int main(void)
 
 	/* --- The mm (the expansion RH used gave 1 there) -- ---------- */
 
-	CHECK_CLOSE(Gaunt_ff(1.0E6, 1, 3000.0), 2.177, 2.0E-3, 0.0, "%s",
+	CHECK_CLOSE(Gaunt_ff(rh, 1.0E6, 1, 3000.0), 2.177, 2.0E-3, 0.0, "%s",
 				"1 mm, 3000 K");
-	CHECK_CLOSE(Gaunt_ff(1.0E6, 1, 1.0E4), 2.958, 2.0E-3, 0.0, "%s",
+	CHECK_CLOSE(Gaunt_ff(rh, 1.0E6, 1, 1.0E4), 2.958, 2.0E-3, 0.0, "%s",
 				"1 mm, 10^4 K");
-	CHECK_CLOSE(Gaunt_ff(3.0E6, 1, 1.0E4), 3.497, 2.0E-3, 0.0, "%s",
+	CHECK_CLOSE(Gaunt_ff(rh, 3.0E6, 1, 1.0E4), 3.497, 2.0E-3, 0.0, "%s",
 				"3 mm, 10^4 K");
 
 	/* --- Synthetic table: bicubic in ln g is exact -- ------------ */

@@ -1,12 +1,15 @@
 /* ------- file: -------------------------- test_error.c ------------
 
-	   Messages, warnings and terminating errors (error.c, Q-48).
-	   Error(level, routine, format, ...) formats its message as printf
-	   does, without a global buffer, and writes it with one call:
+	   Messages, warnings and terminating errors (error.c, Q-48, Q-49).
+	   Message(rh, format, ...), Warning(rh, routine, format, ...) and
+	   Error(rh, level, routine, format, ...) format their message as
+	   printf does, without a global buffer, and write it with one call:
 
 	   -- a MESSAGE is the formatted text, exactly, and nothing when the
 		  command line asks for quiet;
 	   -- a WARNING is "\n-WARNING in routine R\n TEXT\n";
+	   -- Log() at an error level is "\n-ERROR in routine R\n TEXT\n",
+		  and returns;
 	   -- a message far longer than the old 512-byte buffers comes out
 		  whole (B-14, B-41);
 	   -- warnings from several threads at once each come out whole and
@@ -80,7 +83,7 @@ static int fatalChild(enum errorlevel level, char **logOut, char **errOut)
 		close(perr[0]);
 		dup2(perr[1], STDERR_FILENO);
 		rh->commandline.logfile = fdopen(plog[1], "w");
-		Error(level, "testRoutine", "value %d out of range [%g, %g] in %s",
+		Error(rh, level, "testRoutine", "value %d out of range [%g, %g] in %s",
 			  12, 0.5, 2.0, "test");
 		_exit(0); /* not reached */
 	}
@@ -104,8 +107,8 @@ static void *warnMany(void *arg)
 	int t = *(int *) arg;
 
 	for (int n = 0; n < NWARN; n++)
-		Error(WARNING, "warnMany", "thread %d warning %d: %s", t, n,
-			  "the same long tail on every line, so that a shared buffer would show");
+		Warning(rh, "warnMany", "thread %d warning %d: %s", t, n,
+				"the same long tail on every line, so that a shared buffer would show");
 	return NULL;
 }
 
@@ -117,15 +120,15 @@ int main(void)
 	/* --- MESSAGE: the formatted text as it is --      -------------- */
 
 	logOpen();
-	Error(MESSAGE, NULL, "%d %s %.3f%%\n", 7, "x", 1.5);
-	Error(MESSAGE, "ignored", "no arguments\n");
+	Message(rh, "%d %s %.3f%%\n", 7, "x", 1.5);
+	Message(rh, "no arguments\n");
 	text = logClose();
 	CHECK(strcmp(text, "7 x 1.500%\nno arguments\n") == 0, "message %s", text);
 	free(text);
 
 	rh->commandline.quiet = TRUE;
 	logOpen();
-	Error(MESSAGE, NULL, "%s\n", "quiet");
+	Message(rh, "%s\n", "quiet");
 	text = logClose();
 	CHECK(strlen(text) == 0, "quiet message %s", text);
 	free(text);
@@ -134,10 +137,19 @@ int main(void)
 	/* --- WARNING --                                    -------------- */
 
 	logOpen();
-	Error(WARNING, "testRoutine", "%d of %d", 3, 4);
+	Warning(rh, "testRoutine", "%d of %d", 3, 4);
 	text = logClose();
 	CHECK(strcmp(text, "\n-WARNING in routine testRoutine\n 3 of 4\n") == 0,
 		  "warning %s", text);
+	free(text);
+
+	/* --- Log at an error level: reported, and the run goes on -- -- */
+
+	logOpen();
+	Log(rh, ERROR_LEVEL_1, "testRoutine", "%d of %d", 5, 6);
+	text = logClose();
+	CHECK(strcmp(text, "\n-ERROR in routine testRoutine\n 5 of 6\n") == 0,
+		  "error report %s", text);
 	free(text);
 
 	/* --- A message of 5000 characters (the buffers were 512) -- -- */
@@ -146,7 +158,7 @@ int main(void)
 	for (int k = 0; k < 5000; k++) longText[k] = 'a' + k % 26;
 	longText[5000] = '\0';
 	logOpen();
-	Error(WARNING, "testRoutine", "%s|%d", longText, 42);
+	Warning(rh, "testRoutine", "%s|%d", longText, 42);
 	text   = logClose();
 	expect = malloc(5100);
 	sprintf(expect, "\n-WARNING in routine testRoutine\n %s|42\n", longText);

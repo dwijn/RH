@@ -34,7 +34,7 @@
 
 /* ------- begin -------------------------- SortLambda.c ------------ */
 
-void SortLambda()
+void SortLambda(RHState *rh)
 {
 	const char   routineName[] = "SortLambda";
 	register int kr, n, m, nspect, la, nact;
@@ -52,7 +52,7 @@ void SortLambda()
 	FILE            *fp_wavetable;
 	XDR              xdrs;
 
-	getCPU(2, TIME_START, NULL);
+	getCPU(rh, 2, TIME_START, NULL);
 
 	/* --- First read the wavelength table if specified -- ------------ */
 
@@ -60,7 +60,7 @@ void SortLambda()
 
 	if (strcmp(rh->input.wavetable_input, "none")) {
 		if ((fp_wavetable = fopen(rh->input.wavetable_input, "r")) == NULL) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s",
 				  rh->input.wavetable_input);
 		}
 		xdrstdio_create(&xdrs, fp_wavetable, XDR_DECODE);
@@ -70,7 +70,7 @@ void SortLambda()
 		result &= xdr_vector(&xdrs, (char *) wavetable, Nwave,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to read from input file %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s",
 				  rh->input.wavetable_input);
 		}
 		xdr_destroy(&xdrs);
@@ -91,7 +91,7 @@ void SortLambda()
 
 		for (kr = 0; kr < Nwave; kr++) extra[kr] = wavetable[kr];
 		if (rh->atmos.lambda_ref > 0.0) extra[Nwave] = rh->atmos.lambda_ref;
-		asymmetricBlends(extra, Nspectrum);
+		asymmetricBlends(rh, extra, Nspectrum);
 		free(extra);
 	}
 
@@ -223,11 +223,11 @@ void SortLambda()
 			rh->spectrum.Nspect++;
 		}
 	}
-	Error(MESSAGE, routineName, "\n %s: Found %d unique wavelengths\n",
-		  routineName, rh->spectrum.Nspect);
+	Message(rh, "\n %s: Found %d unique wavelengths\n",
+			routineName, rh->spectrum.Nspect);
 	if (rh->spectrum.Nspect < Nspectrum) {
-		Error(MESSAGE, routineName, " %s: Eliminated %d duplicate wavelengths\n\n",
-			  routineName, Nspectrum - rh->spectrum.Nspect);
+		Message(rh, " %s: Eliminated %d duplicate wavelengths\n\n",
+				routineName, Nspectrum - rh->spectrum.Nspect);
 	}
 	/* --- Allocate space for wavelength array and active sets -- ----- */
 
@@ -318,8 +318,8 @@ void SortLambda()
 				as->Nactiveatomrt[nact]++;
 
 				if (as->Nactiveatomrt[nact] == N_MAX_OVERLAP) {
-					Error(ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
-													  "for atom %s and nspect = %d\n",
+					Error(rh, ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
+														  "for atom %s and nspect = %d\n",
 						  as->Nactiveatomrt[nact], atom->ID, nspect);
 				}
 			}
@@ -351,7 +351,7 @@ void SortLambda()
 					   went negative around resonances --  -------------- */
 
 				alpha_original = continuum->alpha;
-				pchipTableInit(&bftable, Nlambda_original, continuum->lambda,
+				pchipTableInit(rh, &bftable, Nlambda_original, continuum->lambda,
 							   alpha_original, PCHIP_LOGLOG);
 
 				continuum->alpha =
@@ -396,8 +396,8 @@ void SortLambda()
 				as->Nactiveatomrt[nact]++;
 
 				if (as->Nactiveatomrt[nact] == N_MAX_OVERLAP) {
-					Error(ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
-													  "for atom %s and nspect = %d\n",
+					Error(rh, ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
+														  "for atom %s and nspect = %d\n",
 						  as->Nactiveatomrt[nact], atom->ID, nspect);
 				}
 			}
@@ -443,8 +443,8 @@ void SortLambda()
 				as->Nactivemolrt[nact]++;
 
 				if (as->Nactivemolrt[nact] == N_MAX_OVERLAP) {
-					Error(ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
-													  "for molecule %s and nspect = %d\n",
+					Error(rh, ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
+														  "for molecule %s and nspect = %d\n",
 						  as->Nactivemolrt[nact], molecule->ID, nspect);
 				}
 			}
@@ -555,8 +555,8 @@ void SortLambda()
 	/* --- Transitions that span the blue half of a symmetric line
 		   integrate across it with the red half mirrored (N-62) -- */
 
-	mirrorQuadrature();
+	mirrorQuadrature(rh);
 
-	getCPU(2, TIME_POLL, "SortLambda");
+	getCPU(rh, 2, TIME_POLL, "SortLambda");
 }
 /* ------- end ---------------------------- SortLambda.c ------------ */

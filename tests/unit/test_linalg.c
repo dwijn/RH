@@ -27,7 +27,7 @@
 #include "rh.h"
 #include "check.h"
 
-void LUdecomp(int N, double **A, int *index, double *d);
+void LUdecomp(RHState *rh, int N, double **A, int *index, double *d);
 void LUbacksubst(int N, double **A, int *index, double *b);
 
 static bool_t table;
@@ -63,7 +63,7 @@ static void test_random(void)
 
 	for (size_t s = 0; s < sizeof(sizes) / sizeof(sizes[0]); s++) {
 		int      N = sizes[s];
-		double **A = matrix_double(N, N), **A0 = matrix_double(N, N);
+		double **A = matrix_double(rh, N, N), **A0 = matrix_double(rh, N, N);
 		double  *x = malloc(N * sizeof(double)), *b = malloc(N * sizeof(double));
 		double   err[2];
 
@@ -78,7 +78,7 @@ static void test_random(void)
 				for (int j = 0; j < N; j++) b[i] += A0[i][j] * x[j];
 			}
 			memcpy(A[0], A0[0], N * N * sizeof(double));
-			SolveLinearEq(N, A, b, improve);
+			SolveLinearEq(rh, N, A, b, improve);
 			err[improve] = max_abs_diff(N, b, x);
 			CHECK(err[improve] < 2e-15, "N = %d, improve = %d: max |dx| = %.3g",
 				  N, improve, err[improve]);
@@ -87,8 +87,8 @@ static void test_random(void)
 			printf("random N = %2d: error %.2e (improve %.2e)\n", N, err[0], err[1]);
 		free(x);
 		free(b);
-		freeMatrix((void **) A);
-		freeMatrix((void **) A0);
+		freeMatrix(rh, (void **) A);
+		freeMatrix(rh, (void **) A0);
 	}
 }
 
@@ -102,7 +102,7 @@ static void test_pivot(void)
 	double              b[3]        = {1, 1, 1}; /* A xk, below */
 	double              d, det = 1.0, err;
 	int                 index[3];
-	double            **A = matrix_double(3, 3);
+	double            **A = matrix_double(rh, 3, 3);
 
 	for (int i = 0; i < 3; i++) {
 		b[i] = 0.0;
@@ -114,7 +114,7 @@ static void test_pivot(void)
 		double bb[3] = {b[0], b[1], b[2]};
 
 		memcpy(A[0], Ainit, sizeof(Ainit));
-		SolveLinearEq(3, A, bb, improve);
+		SolveLinearEq(rh, 3, A, bb, improve);
 		err = max_abs_diff(3, bb, xk);
 		CHECK(err < 1e-14, "improve = %d: max |dx| = %.3g", improve, err);
 	}
@@ -122,7 +122,7 @@ static void test_pivot(void)
 	/* --- The determinant from the decomposition -- ------------- */
 
 	memcpy(A[0], Ainit, sizeof(Ainit));
-	LUdecomp(3, A, index, &d);
+	LUdecomp(rh, 3, A, index, &d);
 	for (int i = 0; i < 3; i++) det *= A[i][i];
 	CHECK_CLOSE(d * det, -8.0, 1e-14, 0.0, "determinant, sign d = %g", d);
 
@@ -133,7 +133,7 @@ static void test_pivot(void)
 		double              bb[3]   = {7, 8, 9}; /* x = (8, 9, 7) */
 
 		memcpy(A[0], P, sizeof(P));
-		SolveLinearEq(3, A, bb, FALSE);
+		SolveLinearEq(rh, 3, A, bb, FALSE);
 		CHECK(bb[0] == 8.0 && bb[1] == 9.0 && bb[2] == 7.0,
 			  "permutation matrix: x = %g %g %g", bb[0], bb[1], bb[2]);
 	}
@@ -144,16 +144,16 @@ static void test_pivot(void)
 	{
 		static const double S[2][2] = {{1e12, 1e12}, {1.0, 2.0}};
 		double              bb[2]   = {3e12, 5.0};
-		double            **A2      = matrix_double(2, 2);
+		double            **A2      = matrix_double(rh, 2, 2);
 
 		/* 1e12 (x + y) = 3e12 -> x + y = 3; x + 2y = 5 -> y = 2, x = 1 */
 		memcpy(A2[0], S, sizeof(S));
-		SolveLinearEq(2, A2, bb, FALSE);
+		SolveLinearEq(rh, 2, A2, bb, FALSE);
 		CHECK_CLOSE(bb[0], 1.0, 1e-13, 0.0, "scaled rows: n = %d", 0);
 		CHECK_CLOSE(bb[1], 2.0, 1e-13, 0.0, "scaled rows: n = %d", 1);
-		freeMatrix((void **) A2);
+		freeMatrix(rh, (void **) A2);
 	}
-	freeMatrix((void **) A);
+	freeMatrix(rh, (void **) A);
 }
 
 /* --- Scaled Hilbert matrix and the `improve' flag -- -------------- */
@@ -172,7 +172,7 @@ static void test_hilbert(void)
 	enum { N = 8 };
 	const double lcm = 360360.0; /* lcm(1, ..., 2N-1) */
 	double       x[N], b[N], bb[N], err[2];
-	double     **A = matrix_double(N, N);
+	double     **A = matrix_double(rh, N, N);
 
 	for (int i = 0; i < N; i++) x[i] = (i % 2) ? -(i + 1) : (i + 1);
 
@@ -188,14 +188,14 @@ static void test_hilbert(void)
 		for (int i = 0; i < N; i++)
 			for (int j = 0; j < N; j++)
 				CHECK(A[i][j] == floor(A[i][j]), "A[%d][%d] = %g is not an integer", i, j, A[i][j]);
-		SolveLinearEq(N, A, bb, improve);
+		SolveLinearEq(rh, N, A, bb, improve);
 		err[improve] = max_abs_diff(N, bb, x);
 	}
 	CHECK(err[0] < 1e-5, "without refinement: max |dx| = %.3g", err[0]);
 	CHECK(err[1] < 1e-5, "with refinement: max |dx| = %.3g", err[1]);
 	if (table)
 		printf("Hilbert N = %d: error %.2e, improved %.2e\n", N, err[0], err[1]);
-	freeMatrix((void **) A);
+	freeMatrix(rh, (void **) A);
 }
 
 /* --- Inverse by repeated back substitution -- --------------------- */
@@ -205,8 +205,8 @@ static void test_hilbert(void)
 static void test_inverse(void)
 {
 	enum { N = 12 };
-	double **A = matrix_double(N, N), **A0 = matrix_double(N, N),
-		   **Ainv = matrix_double(N, N);
+	double **A = matrix_double(rh, N, N), **A0 = matrix_double(rh, N, N),
+		   **Ainv = matrix_double(rh, N, N);
 	double d, maxdev = 0.0, col[N];
 	int    index[N];
 
@@ -215,7 +215,7 @@ static void test_inverse(void)
 		A0[i][i] += (i % 2) ? N : -N;
 	}
 	memcpy(A[0], A0[0], N * N * sizeof(double));
-	LUdecomp(N, A, index, &d);
+	LUdecomp(rh, N, A, index, &d);
 	for (int j = 0; j < N; j++) {
 		for (int i = 0; i < N; i++) col[i] = (i == j) ? 1.0 : 0.0;
 		LUbacksubst(N, A, index, col);
@@ -229,9 +229,9 @@ static void test_inverse(void)
 		}
 	CHECK(maxdev < 1e-15, "max |A A^-1 - 1| = %.3g", maxdev);
 	if (table) printf("inverse N = %d: max |A A^-1 - 1| = %.2e\n", N, maxdev);
-	freeMatrix((void **) A);
-	freeMatrix((void **) A0);
-	freeMatrix((void **) Ainv);
+	freeMatrix(rh, (void **) A);
+	freeMatrix(rh, (void **) A0);
+	freeMatrix(rh, (void **) Ainv);
 }
 
 int main(int argc, char *argv[])

@@ -28,7 +28,7 @@
 
 /* ------- begin -------------------------- NgInit.c ---------------- */
 
-struct Ng *NgInit(int N, int Ndelay, int Norder, int Nperiod,
+struct Ng *NgInit(RHState *rh, int N, int Ndelay, int Norder, int Nperiod,
 				  double *solution)
 {
 	/* --- Initialize data structure and allocate space for previous
@@ -44,7 +44,7 @@ struct Ng *NgInit(int N, int Ndelay, int Norder, int Nperiod,
 		   allocation or divides by zero (B-45). readInput checks the
 		   keywords; this covers callers that do not read them -- -- */
 	if (Norder < 0 || (Norder > 0 && Nperiod < 1))
-		Error(ERROR_LEVEL_2, "NgInit",
+		Error(rh, ERROR_LEVEL_2, "NgInit",
 			  "Ng order must be at least 0, and the period at least 1"
 			  " when the order is positive");
 
@@ -56,10 +56,10 @@ struct Ng *NgInit(int N, int Ndelay, int Norder, int Nperiod,
 	Ngs->Ndelay  = MAX(Ndelay, Norder + 2);
 
 	if (Norder > 0) {
-		Ngs->A = matrix_double(Norder, Norder);
+		Ngs->A = matrix_double(rh, Norder, Norder);
 		Ngs->b = (double *) malloc(Norder * sizeof(double));
 	}
-	Ngs->previous   = matrix_double(Norder + 2, N);
+	Ngs->previous   = matrix_double(rh, Norder + 2, N);
 	Ngs->theStorage = Ngs->previous[0];
 	for (k = 0; k < N; k++)
 		Ngs->previous[0][k] = solution[k];
@@ -72,7 +72,7 @@ struct Ng *NgInit(int N, int Ndelay, int Norder, int Nperiod,
 
 /* ------- begin -------------------------- Accelerate.c ------------ */
 
-bool_t Accelerate(struct Ng *Ngs, double *solution)
+bool_t Accelerate(RHState *rh, struct Ng *Ngs, double *solution)
 {
 	register int i, j, k;
 
@@ -93,9 +93,9 @@ bool_t Accelerate(struct Ng *Ngs, double *solution)
 
 	if ((Norder > 0) && (Ngs->count >= Ngs->Ndelay) &&
 		!((Ngs->count - Ngs->Ndelay) % Ngs->Nperiod)) {
-		getCPU(4, TIME_START, NULL);
+		getCPU(rh, 4, TIME_START, NULL);
 
-		Delta  = matrix_double(Norder + 1, Ngs->N);
+		Delta  = matrix_double(rh, Norder + 1, Ngs->N);
 		weight = (double *) malloc(Ngs->N * sizeof(double));
 
 		for (i = 0; i <= Norder; i++) {
@@ -126,7 +126,7 @@ bool_t Accelerate(struct Ng *Ngs, double *solution)
 				}
 			}
 		}
-		SolveLinearEq(Norder, Ngs->A, Ngs->b, TRUE);
+		SolveLinearEq(rh, Norder, Ngs->A, Ngs->b, TRUE);
 
 		/* --- Construct the linear combination for the accelerated
 		   solution, and restore the accelerated solution --  ----- */
@@ -165,9 +165,9 @@ bool_t Accelerate(struct Ng *Ngs, double *solution)
 		/* --- Clean up the temporary variables --        --------------- */
 
 		free(weight);
-		freeMatrix((void **) Delta);
+		freeMatrix(rh, (void **) Delta);
 
-		getCPU(4, TIME_POLL, "Accelerate");
+		getCPU(rh, 4, TIME_POLL, "Accelerate");
 		return (Ngs->rejected == 0);
 	} else {
 		Ngs->rejected = 0;
@@ -201,13 +201,13 @@ const char *NgStatus(struct Ng *Ngs, bool_t accel)
 
 /* ------- begin -------------------------- NgFree.c ---------------- */
 
-void NgFree(struct Ng *Ngs)
+void NgFree(RHState *rh, struct Ng *Ngs)
 {
-	freeMatrix((void **) Ngs->previous);
+	freeMatrix(rh, (void **) Ngs->previous);
 
 	if (Ngs->Norder > 0) {
 		free(Ngs->b);
-		freeMatrix((void **) Ngs->A);
+		freeMatrix(rh, (void **) Ngs->A);
 	}
 
 	free(Ngs);

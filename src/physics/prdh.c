@@ -28,7 +28,7 @@
 
 /* ------- begin -------------------------- prdhShift.c ------------- */
 
-double prdhShift(int mu, int to_obs, int k)
+double prdhShift(RHState *rh, int mu, int to_obs, int k)
 {
 	/* --- Factor that takes an observer's-frame wavelength of ray
 		   (mu, to_obs) to the gas frame at location k --  ---------- */
@@ -62,7 +62,7 @@ static long firstIndex(const double *lambda, long N, double x, bool_t above)
 
 /* ------- begin -------------------------- prdhBracket.c ----------- */
 
-void prdhBracket(int nspect, double fac, PRDhBracket *b)
+void prdhBracket(RHState *rh, int nspect, double fac, PRDhBracket *b)
 {
 	/* --- The grid (spectrum.lambda) is sorted and has no duplicates
 		   (SortLambda), so the points between two wavelengths are a
@@ -106,7 +106,7 @@ void prdhBracket(int nspect, double fac, PRDhBracket *b)
 
 /* ------- begin -------------------------- prdhWeight.c ------------ */
 
-double prdhWeight(const PRDhBracket *b, long idx)
+double prdhWeight(RHState *rh, const PRDhBracket *b, long idx)
 {
 	/* --- Weight of grid point idx, b->r[0] <= idx < b->r[2]: linear
 		   interpolation between the shifted neighbours, 1 beyond the
@@ -149,7 +149,7 @@ void prdhRhoWeights(const AtomicLine *line, double lag, int *id0, int *id1, doub
 
 /* ------- begin -------------------------- initPRDhTables.c -------- */
 
-void initPRDhTables(void)
+void initPRDhTables(RHState *rh)
 {
 	/* --- Tabulate the weights of prdhRhoWeights for every PRD line,
 		   wavelength, ray, direction and location, and those of
@@ -177,16 +177,16 @@ void initPRDhTables(void)
 			if (!line->PRD) continue;
 
 			Nlamu      = 2 * rh->atmos.Nrays * line->Nlambda;
-			line->frac = matrix_double(Nlamu, rh->atmos.Nspace);
-			line->id0  = matrix_int(Nlamu, rh->atmos.Nspace);
-			line->id1  = matrix_int(Nlamu, rh->atmos.Nspace);
+			line->frac = matrix_double(rh, Nlamu, rh->atmos.Nspace);
+			line->id0  = matrix_int(rh, Nlamu, rh->atmos.Nspace);
+			line->id1  = matrix_int(rh, Nlamu, rh->atmos.Nspace);
 
 			for (la = 0; la < line->Nlambda; la++) {
 				for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 					for (to_obs = 0; to_obs <= 1; to_obs++) {
 						lamu = 2 * (rh->atmos.Nrays * la + mu) + to_obs;
 						for (k = 0; k < rh->atmos.Nspace; k++)
-							prdhRhoWeights(line, line->lambda[la] * prdhShift(mu, to_obs, k),
+							prdhRhoWeights(line, line->lambda[la] * prdhShift(rh, mu, to_obs, k),
 										   &line->id0[lamu][k], &line->id1[lamu][k],
 										   &line->frac[lamu][k]);
 					}
@@ -202,16 +202,16 @@ void initPRDhTables(void)
 	Nlamuk          = 2L * rh->atmos.Nrays * rh->spectrum.Nspect * rh->atmos.Nspace;
 	rh->spectrum.nc = (long *) malloc(Nlamuk * sizeof(long));
 	if (rh->spectrum.nc == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to allocate the hybrid PRD interpolation table (%ld points)", Nlamuk);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to allocate the hybrid PRD interpolation table (%ld points)", Nlamuk);
 	}
 	Ncoef = 0;
 	for (la = 0; la < rh->spectrum.Nspect; la++) {
 		for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 			for (to_obs = 0; to_obs <= 1; to_obs++) {
 				for (k = 0; k < rh->atmos.Nspace; k++) {
-					prdhBracket(la, prdhShift(mu, to_obs, k), &b);
+					prdhBracket(rh, la, prdhShift(rh, mu, to_obs, k), &b);
 					Ncoef += b.r[2] - b.r[0];
-					rh->spectrum.nc[prdhIndex(la, mu, to_obs, k)] = Ncoef;
+					rh->spectrum.nc[prdhIndex(rh, la, mu, to_obs, k)] = Ncoef;
 				}
 			}
 		}
@@ -219,21 +219,21 @@ void initPRDhTables(void)
 	rh->spectrum.iprdh = (int *) malloc(MAX(Ncoef, 1) * sizeof(int));
 	rh->spectrum.cprdh = (double *) malloc(MAX(Ncoef, 1) * sizeof(double));
 	if (rh->spectrum.iprdh == NULL || rh->spectrum.cprdh == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to allocate the hybrid PRD interpolation table"
-										  " (%ld points, %ld coefficients)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to allocate the hybrid PRD interpolation table"
+											  " (%ld points, %ld coefficients)",
 			  Nlamuk, Ncoef);
 	}
 	for (la = 0; la < rh->spectrum.Nspect; la++) {
 		for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 			for (to_obs = 0; to_obs <= 1; to_obs++) {
 				for (k = 0; k < rh->atmos.Nspace; k++) {
-					fac   = prdhShift(mu, to_obs, k);
-					lamuk = prdhIndex(la, mu, to_obs, k);
+					fac   = prdhShift(rh, mu, to_obs, k);
+					lamuk = prdhIndex(rh, la, mu, to_obs, k);
 					lc    = (lamuk == 0) ? 0 : rh->spectrum.nc[lamuk - 1];
-					prdhBracket(la, fac, &b);
+					prdhBracket(rh, la, fac, &b);
 					for (idx = b.r[0]; idx < b.r[2]; idx++, lc++) {
 						rh->spectrum.iprdh[lc] = (int) idx;
-						rh->spectrum.cprdh[lc] = prdhWeight(&b, idx);
+						rh->spectrum.cprdh[lc] = prdhWeight(rh, &b, idx);
 					}
 				}
 			}

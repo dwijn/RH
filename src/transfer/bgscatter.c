@@ -129,7 +129,7 @@
 
 /* ------- begin -------------------------- bgScatterActive.c ------- */
 
-int bgScatterActive(void)
+int bgScatterActive(RHState *rh)
 {
 	return rh->input.bg_NmaxIter > 0;
 }
@@ -137,7 +137,7 @@ int bgScatterActive(void)
 
 /* ------- begin -------------------------- bgScatterSetup.c -------- */
 
-void bgScatterSetup(void)
+void bgScatterSetup(RHState *rh)
 {
 	const char  routineName[] = "bgScatterSetup";
 	const char *why;
@@ -148,21 +148,21 @@ void bgScatterSetup(void)
 		   warning if BACKGROUND_N_MAX_ITER was set -- -------------- */
 
 	if (rh->input.bg_NmaxIter == 0) return;
-	if ((why = geometryOps.bg_supported()) != NULL) {
+	if ((why = geometryOps.bg_supported(rh)) != NULL) {
 		if (rh->input.bg_NmaxIter_set) {
-			Error(WARNING, routineName, "BACKGROUND_N_MAX_ITER = %d is ignored: %s.\n"
-										" The background scattering is lambda iterated.",
-				  rh->input.bg_NmaxIter, why);
+			Warning(rh, routineName, "BACKGROUND_N_MAX_ITER = %d is ignored: %s.\n"
+									 " The background scattering is lambda iterated.",
+					rh->input.bg_NmaxIter, why);
 		}
 		rh->input.bg_NmaxIter = 0;
 		return;
 	}
-	Error(MESSAGE, routineName, " Background scattering iterated at each wavelength (N-51):"
-								" BACKGROUND_OPERATOR = %s,\n  BACKGROUND_ANDERSON_DEPTH = %d,"
-								" BACKGROUND_ITER_LIMIT = %.2E, BACKGROUND_N_MAX_ITER = %d\n",
-		  (rh->input.bg_operator == BG_OPERATOR_TRIDIAGONAL) ? "TRIDIAGONAL"
-															 : "DIAGONAL",
-		  rh->input.bg_depth, rh->input.bg_iterLimit, rh->input.bg_NmaxIter);
+	Message(rh, " Background scattering iterated at each wavelength (N-51):"
+				" BACKGROUND_OPERATOR = %s,\n  BACKGROUND_ANDERSON_DEPTH = %d,"
+				" BACKGROUND_ITER_LIMIT = %.2E, BACKGROUND_N_MAX_ITER = %d\n",
+			(rh->input.bg_operator == BG_OPERATOR_TRIDIAGONAL) ? "TRIDIAGONAL"
+															   : "DIAGONAL",
+			rh->input.bg_depth, rh->input.bg_iterLimit, rh->input.bg_NmaxIter);
 
 	/* --- The first sweep iterates every wavelength first -- ------ */
 
@@ -172,13 +172,13 @@ void bgScatterSetup(void)
 		rh->bgscatter.kappa = (float *) calloc(rh->spectrum.Nspect, sizeof(float));
 	}
 
-	if (geometryOps.bg_linear_fallback() && rh->bgscatter.linear == NULL) {
+	if (geometryOps.bg_linear_fallback(rh) && rh->bgscatter.linear == NULL) {
 		rh->bgscatter.linear = (unsigned char *) calloc(rh->spectrum.Nspect, 1);
-		Error(MESSAGE, routineName, "  with S_INTERPOLATION = S_BEZIER3: wavelengths whose albedo"
-									" exceeds BACKGROUND_LINEAR_ALBEDO = %.2f\n  below vertical"
-									" optical depth BACKGROUND_LINEAR_TAU = %.2f use S_LINEAR"
-									" (N-52)\n",
-			  rh->input.bg_linearAlbedo, rh->input.bg_linearTau);
+		Message(rh, "  with S_INTERPOLATION = S_BEZIER3: wavelengths whose albedo"
+					" exceeds BACKGROUND_LINEAR_ALBEDO = %.2f\n  below vertical"
+					" optical depth BACKGROUND_LINEAR_TAU = %.2f use S_LINEAR"
+					" (N-52)\n",
+				rh->input.bg_linearAlbedo, rh->input.bg_linearTau);
 	}
 }
 /* ------- end ---------------------------- bgScatterSetup.c -------- */
@@ -239,7 +239,7 @@ static int tridiagSolve(int N, double *lo, double *d, double *up, double *x)
 
 /* ------- begin -------------------------- precondStep.c ----------- */
 
-static void precondStep(int N, const double *u, const double *Jfs,
+static void precondStep(RHState *rh, int N, const double *u, const double *Jfs,
 						const double *A, double *g, double *work)
 {
 	register int k;
@@ -442,7 +442,7 @@ static void pushPair(int N, int *Npairs, int *inew, const double *u,
 
 /* ------- begin -------------------------- bgScatterIterate.c ------ */
 
-int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
+int bgScatterIterate(RHState *rh, int Nspace, const double *Jdag, const double *Jfs,
 					 const double *A, const double *albedo, double *J,
 					 double *kap, BgSweep sweep, void *ctx)
 {
@@ -468,7 +468,7 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 	g    = u + Nspace;
 	work = g + Nspace;
 	memcpy(u, Jdag, Nspace * sizeof(double));
-	precondStep(Nspace, u, Jfs, A, g, work);
+	precondStep(rh, Nspace, u, Jfs, A, g, work);
 	amax = maxAlbedo(Nspace, albedo);
 	r    = relChange(Nspace, u, g);
 
@@ -533,8 +533,8 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 			memcpy(un, g, Nspace * sizeof(double));
 		memcpy(u, un, Nspace * sizeof(double));
 
-		sweep(ctx, u, Jn, An, NULL);
-		precondStep(Nspace, u, Jn, An, g, work);
+		sweep(rh, ctx, u, Jn, An, NULL);
+		precondStep(rh, Nspace, u, Jn, An, g, work);
 		niter++;
 		r = relChange(Nspace, u, g);
 		pushPair(Nspace, &Npairs, &inew, u, g, hu, hf);
@@ -567,7 +567,7 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 
 /* ------- begin -------------------------- bgScatterPending.c ------ */
 
-bool_t bgScatterPending(int nspect)
+bool_t bgScatterPending(RHState *rh, int nspect)
 {
 	return rh->bgscatter.pending != NULL && rh->bgscatter.pending[nspect];
 }
@@ -575,7 +575,7 @@ bool_t bgScatterPending(int nspect)
 
 /* ------- begin -------------------------- bgScatterBefore.c ------- */
 
-void bgScatterBefore(int nspect, int Nspace, const double *Jdag,
+void bgScatterBefore(RHState *rh, int nspect, int Nspace, const double *Jdag,
 					 double *Jstar, BgSweep sweep, void *ctx)
 {
 	register int k;
@@ -593,8 +593,8 @@ void bgScatterBefore(int nspect, int Nspace, const double *Jdag,
 	Jfs    = (double *) malloc(5 * Nspace * sizeof(double));
 	A      = Jfs + Nspace;
 	albedo = A + 3 * Nspace;
-	sweep(ctx, Jdag, Jfs, A, albedo);
-	niter                       = bgScatterIterate(Nspace, Jdag, Jfs, A, albedo, Jstar, &kap,
+	sweep(rh, ctx, Jdag, Jfs, A, albedo);
+	niter                       = bgScatterIterate(rh, Nspace, Jdag, Jfs, A, albedo, Jstar, &kap,
 												   sweep, ctx);
 	rh->bgscatter.kappa[nspect] = (float) kap;
 	if (niter == 0) rh->bgscatter.pending[nspect] = 0;
@@ -617,14 +617,14 @@ void bgScatterBefore(int nspect, int Nspace, const double *Jdag,
 
 /* ------- begin -------------------------- bgScatterAfter.c -------- */
 
-void bgScatterAfter(int nspect, int Nspace, const double *u,
+void bgScatterAfter(RHState *rh, int nspect, int Nspace, const double *u,
 					const double *Jfs, const double *A, const double *albedo)
 {
 	double *g;
 
 	if (rh->bgscatter.pending == NULL) return;
 	g = (double *) malloc(5 * Nspace * sizeof(double)); /* g, work */
-	precondStep(Nspace, u, Jfs, A, g, g + Nspace);
+	precondStep(rh, Nspace, u, Jfs, A, g, g + Nspace);
 	if (errFactor(rh->bgscatter.kappa[nspect], maxAlbedo(Nspace, albedo)) *
 			relChange(Nspace, u, g) >
 		rh->input.bg_iterLimit)
@@ -635,7 +635,7 @@ void bgScatterAfter(int nspect, int Nspace, const double *u,
 
 /* ------- begin -------------------------- bgScatterStats.c -------- */
 
-void bgScatterStats(BgScatterStats *s, int reset)
+void bgScatterStats(RHState *rh, BgScatterStats *s, int reset)
 {
 	pthread_mutex_lock(&rh->bgscatter.lock);
 	*s         = rh->bgscatter.stats;
@@ -647,7 +647,7 @@ void bgScatterStats(BgScatterStats *s, int reset)
 
 /* ------- begin -------------------------- bgScatterLinear.c ------- */
 
-bool_t bgScatterLinear(int nspect, double albedo)
+bool_t bgScatterLinear(RHState *rh, int nspect, double albedo)
 {
 	bool_t lin;
 
