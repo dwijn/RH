@@ -60,7 +60,6 @@ typedef struct MolTransition    MolTransition;
 typedef struct AtomicLine       AtomicLine;
 typedef struct ZeemanMultiplet  ZeemanMultiplet;
 typedef struct rhthread         rhthread;
-typedef struct Paschenstruct    Paschenstruct;
 
 /* --- Structure defines radiative transition --       -------------- */
 
@@ -225,12 +224,6 @@ typedef struct {
 	double *neff1, *neff2, **cross, **alpha;
 } Barklemstruct;
 
-struct Paschenstruct {
-	int      Nj;
-	double  *eigenval;
-	double **C;
-};
-
 /* --- Associated function prototypes --               -------------- */
 
 void initSolution(RHState *rh);
@@ -352,7 +345,6 @@ double Lande(double S, int L, double J);
 void   StokesProfile(AtomicLine *line);
 void   Zeeman(RHState *rh, AtomicLine *line);
 void   MolZeeman(RHState *rh, MolecularLine *mrt);
-double MolLande_eff(RHState *rh, MolecularLine *mrt);
 int    getOrbital(RHState *rh, char orbit);
 double ZeemanStrength(RHState *rh, double Ju, double Mu, double Jl, double Ml);
 

@@ -148,61 +148,6 @@ double MolLande_b(double Lambda, double S, double N, double J)
 }
 /* ------- end ---------------------------- MolLande_b.c ------------ */
 
-/* ------- begin -------------------------- MolLande_eff.c ---------- */
-
-double MolLande_eff(RHState *rh, MolecularLine *mrt)
-{
-	const char      routineName[] = "MolLande_eff";
-	register double Ml, Mu;
-
-	double g_eff, Ju, Jl, norm, Nl, Nu, shift, strength, gLu, gLl;
-
-	norm  = 0.0;
-	g_eff = 0.0;
-
-	Jl = (mrt->gi - 1.0) / 2.0;
-	Ju = (mrt->gj - 1.0) / 2.0;
-
-	switch (mrt->Hundi) {
-	case CASE_A:
-		gLl = MolLande_a(mrt->Lambdai, mrt->Si, mrt->Omegai, Jl);
-		break;
-	case CASE_B:
-		Nl  = Jl - mrt->Si + (mrt->subi - 1);
-		gLl = MolLande_b(mrt->Lambdai, mrt->Si, Nl, Jl);
-		break;
-	default:
-		Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
-	}
-	switch (mrt->Hundj) {
-	case CASE_A:
-		gLu = MolLande_a(mrt->Lambdaj, mrt->Sj, mrt->Omegaj, Ju);
-		break;
-	case CASE_B:
-		Nu  = Ju - mrt->Sj + (mrt->subj - 1);
-		gLu = MolLande_b(mrt->Lambdaj, mrt->Sj, Nu, Ju);
-		break;
-	default:
-		Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
-	}
-
-	for (Ml = -Jl; Ml <= Jl; Ml++) {
-		for (Mu = -Ju; Mu <= Ju; Mu++) {
-			if ((Ml - Mu) == 1.0) {
-				shift    = gLl * Ml - gLu * Mu;
-				strength = MolZeemanStr(rh, Ju, Mu, Jl, Ml);
-
-				g_eff += shift * strength;
-				norm += strength;
-			}
-		}
-	}
-
-	return g_eff / norm;
-}
-
-/* ------- end ---------------------------- MolLande_eff.c ---------- */
-
 /* ------- begin -------------------------- MolZeeman.c ------------- */
 
 void MolZeeman(RHState *rh, MolecularLine *mrt)

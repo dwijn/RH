@@ -167,7 +167,7 @@ set(rh_numerics accelerate anderson cubeconvol expint gammafunc gaussleg gth
   hunt linear ludcmp maxchange mpe newton order pchip w3)
 set(rh_physics background barklem broad chemequil cocollisions collision
   fixedrate giigen hydrogen kurucz ltepops metal molzeeman nemetals ohchbf
-  paschen planck prdfold prdh prdrho profile rayleigh scatter solvene thomson
+  planck prdfold prdh prdrho profile rayleigh scatter solvene thomson
   vacuumtoair voigt wigner zeeman)
 set(rh_transfer bezier_aux bgscatter formal negtau opacity stokesgrid stokesopac)
 set(rh_nlte fillgamma gchecks initial_xdr initscatter iterate redistribute
