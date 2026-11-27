@@ -104,5 +104,6 @@ rh_unit_test(test_ltepops test_ltepops.c)
 rh_unit_test(test_ohchbf_range test_ohchbf_range.c)
 rh_unit_test(test_molecule_range test_molecule_range.c)
 rh_unit_test(test_error test_error.c)
+rh_unit_test(test_status test_status.c)
 rh_unit_test(test_readatom test_readatom.c
   ${PROJECT_SOURCE_DIR}/src/geometry/plane1d/project.c)

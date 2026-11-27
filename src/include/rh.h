@@ -26,6 +26,21 @@
 
 typedef struct RHState RHState;
 
+/* --- The status of a function that can fail (Q-51; the codes and how
+	   to use them: error.h) --                        -------------- */
+
+typedef enum {
+	RH_OK = 0,
+	RH_E_INPUT,
+	RH_E_DATA,
+	RH_E_NUMERIC,
+	RH_E_TRIAL,
+	RH_E_NOMEM,
+	RH_E_STOPPED,
+	RH_E_STATE,
+	RH_E_INTERNAL
+} rh_status;
+
 /* --- SPHERICAL_SYMMETRIC is no longer a geometry (rhsphere was
 	   retired in Q-43); it keeps its value because geometry.out
 	   stores the topology as a number (python/rhanalyze, idl) -- */

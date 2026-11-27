@@ -7,8 +7,8 @@
 	   --------------------------                      ----------RH-- */
 
 /* --- Messages and warnings (Log, through the macros Message and
-	   Warning of error.h), and errors that end the run (Error) --
-													   -------------- */
+	   Warning of error.h), errors that end the run (Error), and errors
+	   that return (Fail and its companions, Q-51) --  -------------- */
 
 #include <stdarg.h>
 #include <stdlib.h>
@@ -85,9 +85,24 @@ void Log(RHState *rh, enum errorlevel level, const char *routineName,
 
 /* ------- begin -------------------------- Error.c ----------------- */
 
-/* --- A fatal error: the message to the log file and to stderr, and
-	   exit with status RH_EXIT_FATAL. ERROR_LEVEL_1 and _2 end the run
-	   alike (Q-16) --                                 -------------- */
+/* --- The end of a run on an error: the message to the log file and
+	   to stderr, and exit with status RH_EXIT_FATAL -- -------------- */
+
+static _Noreturn void terminate(RHState *rh, const char *routineName,
+								const char *text)
+{
+	fprintf(rh->commandline.logfile,
+			"\a\n\n-TERMINATING_ERROR in routine %s\n %s \n Exiting.....\n",
+			routineName, text);
+	if (rh->commandline.logfile != stderr)
+		fprintf(stderr,
+				"\a\n\n-TERMINATING_ERROR in routine %s\n %s \n Exiting.....\n",
+				routineName, text);
+	exit(RH_EXIT_FATAL);
+}
+
+/* --- A fatal error where the code does not return errors yet.
+	   ERROR_LEVEL_1 and _2 end the run alike (Q-16) -- ------------- */
 
 void Error(RHState *rh, enum errorlevel level, const char *routineName,
 		   const char *format, ...)
@@ -99,18 +114,111 @@ void Error(RHState *rh, enum errorlevel level, const char *routineName,
 	text = formatMessage(buf, sizeof(buf), format, ap);
 	va_end(ap);
 
-	fprintf(rh->commandline.logfile,
-			"\a\n\n-TERMINATING_ERROR in routine %s\n %s \n Exiting.....\n",
-			routineName, text);
-	if (rh->commandline.logfile != stderr)
-		fprintf(stderr,
-				"\a\n\n-TERMINATING_ERROR in routine %s\n %s \n Exiting.....\n",
-				routineName, text);
-
 	(void) level;
-	exit(RH_EXIT_FATAL);
+	terminate(rh, routineName, text);
 }
 /* ------- end ---------------------------- Error.c ----------------- */
+
+/* ------- begin -------------------------- Fail.c ------------------ */
+
+/* --- Records an error and returns its code (error.h). The first
+	   caller to move failState from 0 to 1 writes the record and then
+	   sets it to 2; any other caller, also in another thread at the
+	   same moment, only returns its code --          -------------- */
+
+rh_status Fail(RHState *rh, rh_status code, const char *routineName,
+			   const char *format, ...)
+{
+	char    buf[MAX_MESSAGE_LENGTH], *text;
+	int     none = 0;
+	va_list ap;
+
+	if (!atomic_compare_exchange_strong(&rh->error.failState, &none, 1))
+		return code;
+
+	va_start(ap, format);
+	text = formatMessage(buf, sizeof(buf), format, ap);
+	va_end(ap);
+
+	rh->error.code = code;
+	snprintf(rh->error.routine, sizeof(rh->error.routine), "%s",
+			 routineName ? routineName : "");
+	rh->error.message = strdup(text);
+	freeMessage(text, buf);
+
+	atomic_store(&rh->error.failState, 2);
+	return code;
+}
+
+bool_t Failed(RHState *rh)
+{
+	return atomic_load(&rh->error.failState) != 0;
+}
+
+void ClearError(RHState *rh)
+{
+	free(rh->error.message);
+	rh->error.message    = NULL;
+	rh->error.code       = RH_OK;
+	rh->error.routine[0] = '\0';
+	atomic_store(&rh->error.failState, 0);
+}
+/* ------- end ---------------------------- Fail.c ------------------ */
+
+/* ------- begin -------------------------- ExitOnError.c ----------- */
+
+/* --- For the callers not yet converted: a status other than RH_OK
+	   ends the run with the recorded error, printed as Error() prints
+	   it --                                           -------------- */
+
+void ExitOnError(RHState *rh, rh_status status)
+{
+	if (status == RH_OK) return;
+
+	if (atomic_load(&rh->error.failState) == 2)
+		terminate(rh, rh->error.routine,
+				  rh->error.message ? rh->error.message : "(no memory for the message)");
+	else {
+		char text[MAX_MESSAGE_LENGTH];
+
+		snprintf(text, sizeof(text),
+				 "Status %d without a recorded error (a bug in RH)", (int) status);
+		terminate(rh, "ExitOnError", text);
+	}
+}
+/* ------- end ---------------------------- ExitOnError.c ----------- */
+
+/* ------- begin -------------------------- AssertFailed.c ---------- */
+
+/* --- A broken invariant (RH_ASSERT): a bug in RH. The message, the
+	   condition and where it is go to the log file and to stderr, and
+	   the process aborts --                           -------------- */
+
+void AssertFailed(RHState *rh, const char *condition, const char *file, int line,
+				  const char *routineName, const char *format, ...)
+{
+	char        buf[MAX_MESSAGE_LENGTH], *text;
+	const char *src = strstr(file, "src/");
+	va_list     ap;
+
+	va_start(ap, format);
+	text = formatMessage(buf, sizeof(buf), format, ap);
+	va_end(ap);
+
+	if (src) file = src;
+	if (rh && rh->commandline.logfile && rh->commandline.logfile != stderr)
+		fprintf(rh->commandline.logfile,
+				"\a\n\n-INTERNAL_ERROR in routine %s\n %s \n"
+				" A bug in RH: %s is false (%s:%d)\n Aborting.....\n",
+				routineName, text, condition, file, line);
+	fprintf(stderr,
+			"\a\n\n-INTERNAL_ERROR in routine %s\n %s \n"
+			" A bug in RH: %s is false (%s:%d)\n Aborting.....\n",
+			routineName, text, condition, file, line);
+	fflush(NULL);
+	abort();
+}
+/* ------- end ---------------------------- AssertFailed.c ---------- */
 
 /* ------- begin -------------------------- ExitStatus.c ------------ */
 

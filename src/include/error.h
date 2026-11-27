@@ -9,6 +9,8 @@
 #ifndef __ERROR_H__
 #define __ERROR_H__
 
+#include <stdatomic.h>
+
 /* --- Defines error numbers, messages and associated actions -- ---- */
 
 /* ------- begin -------------------------- error.h ----------------- */
@@ -46,8 +48,9 @@ enum errorlevel { MESSAGE,
 	   Error(rh, level, routine, format, ...)  a fatal error, level
 												   ERROR_LEVEL_1 or _2: prints
 												   the message and exits with
-												   status RH_EXIT_FATAL (until
-												   errors return, Q-51)
+												   status RH_EXIT_FATAL (in the
+												   code not yet converted to
+												   errors that return, below)
 
 	   The format is a printf format, which the compiler checks against
 	   the arguments. Message and Warning are macros over Log(), the one
@@ -71,11 +74,77 @@ _Noreturn void Error(RHState *rh, enum errorlevel level,
 void SetExitFlag(RHState *rh, int flag);
 int  ExitStatus(RHState *rh);
 
-/* --- Problems of the run so far (SetExitFlag), its part of RHState
-	   (rh->error, Q-46) --                            -------------- */
+/* --- Errors that return (Q-51, docs/LIBRARY.md 3.6). A function that
+	   can fail returns an rh_status; one that computes a value returns
+	   the status, and the value through an out-parameter. The codes are
+	   those of the API (LIBRARY.md 4), rh_status in rh.h:
+
+		 RH_E_INPUT     the configuration is invalid
+		 RH_E_DATA      a data file is missing, unreadable or invalid
+		 RH_E_NUMERIC   a numerical procedure failed
+		 RH_E_TRIAL     the outer solver's trial point is invalid
+		 RH_E_NOMEM     an allocation failed
+		 RH_E_STOPPED   the caller asked the solver to stop
+		 RH_E_STATE     a call in the wrong state (the API)
+		 RH_E_INTERNAL  reserved for the API
+
+	   Fail(rh, code, routine, format, ...)
+		   records the error in rh->error and returns code, as in
+		   return Fail(rh, RH_E_DATA, routineName, "...", ...);
+		   The first error is kept, also when worker threads fail at
+		   the same time; later ones only return their code.
+	   RH_TRY(call)
+		   passes a failure of call on: returns its status from the
+		   function that contains it unless it is RH_OK.
+	   ExitOnError(rh, status)
+		   for a caller not yet converted: when status is not RH_OK,
+		   prints the recorded error as Error() does and exits with
+		   RH_EXIT_FATAL, so the run behaves as before.
+	   RH_ASSERT(rh, condition, routine, format, ...)
+		   an invariant: false only through a bug in RH. Prints the
+		   message, the condition and where it is, and aborts, also in
+		   Release builds. Not for anything that input or data can
+		   cause.
+	   Failed(rh)      whether an error is recorded (workers poll it to
+					   stop early)
+	   ClearError(rh)  forgets the recorded error (not while threads run)
+	   --                                              -------------- */
+
+rh_status Fail(RHState *rh, rh_status code, const char *routineName,
+			   const char *format, ...) __attribute__((format(printf, 4, 5)));
+void      ExitOnError(RHState *rh, rh_status status);
+bool_t    Failed(RHState *rh);
+void      ClearError(RHState *rh);
+
+_Noreturn void AssertFailed(RHState *rh, const char *condition, const char *file,
+							int line, const char *routineName, const char *format, ...)
+	__attribute__((format(printf, 6, 7)));
+
+#define RH_TRY(call)                       \
+	do {                                   \
+		rh_status rh_try_status_ = (call); \
+		if (rh_try_status_ != RH_OK)       \
+			return rh_try_status_;         \
+	} while (0)
+
+#define RH_ASSERT(rh, condition, routineName, ...)             \
+	do {                                                       \
+		if (!(condition))                                      \
+			AssertFailed((rh), #condition, __FILE__, __LINE__, \
+						 (routineName), __VA_ARGS__);          \
+	} while (0)
+
+/* --- Problems of the run so far (SetExitFlag), and the recorded
+	   error (Fail): its part of RHState (rh->error, Q-46). failState is
+	   0 with no error, 1 while Fail records one, 2 once it is recorded
+	   --                                              -------------- */
 
 typedef struct {
-	int exitFlags;
+	int        exitFlags;
+	atomic_int failState;
+	rh_status  code;
+	char       routine[64];
+	char      *message; /* allocated by Fail, freed by ClearError */
 } ErrorState;
 
 #endif /* !__ERROR_H__ */
