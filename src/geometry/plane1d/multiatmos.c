@@ -307,8 +307,8 @@ void convertScales(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 	free_as(rh, ref_index, FALSE);
 
 	if ((geometry->scale == COLUMN_MASS) || (geometry->scale == TAU500)) {
-		h_zero = zeroPointAtUnityTau(rh, "convertScales", atmos->ID, Ndep, tau_ref,
-									 height);
+		ExitOnError(rh, zeroPointAtUnityTau(rh, "convertScales", atmos->ID, Ndep, tau_ref,
+											height, &h_zero));
 		for (k = 0; k < Ndep; k++) height[k] = height[k] - h_zero;
 	}
 

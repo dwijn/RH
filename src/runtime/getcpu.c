@@ -52,9 +52,8 @@ void getCPU(RHState *rh, int level, enum CPUaction action, char *label)
 	if (!rh->stats.printCPU || !rh->stats.fp_CPU)
 		return;
 	else {
-		if ((CPUtime = clock()) == ((clock_t) -1)) {
-			Error(rh, ERROR_LEVEL_1, "getCPU", "Cannot poll resources");
-		}
+		CPUtime = clock();
+		RH_ASSERT(rh, CPUtime != (clock_t) -1, "getCPU", "Cannot poll resources");
 
 		switch (action) {
 		case TIME_START:

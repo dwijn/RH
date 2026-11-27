@@ -25,10 +25,10 @@
 #include <string.h>
 
 #include "rh.h"
+#include "error.h"
+#include "inputs.h"
+#include "state.h"
 #include "check.h"
-
-void LUdecomp(RHState *rh, int N, double **A, int *index, double *d);
-void LUbacksubst(int N, double **A, int *index, double *b);
 
 static bool_t table;
 
@@ -78,7 +78,7 @@ static void test_random(void)
 				for (int j = 0; j < N; j++) b[i] += A0[i][j] * x[j];
 			}
 			memcpy(A[0], A0[0], N * N * sizeof(double));
-			SolveLinearEq(rh, N, A, b, improve);
+			CHECK_OK(SolveLinearEq(rh, N, A, b, improve));
 			err[improve] = max_abs_diff(N, b, x);
 			CHECK(err[improve] < 2e-15, "N = %d, improve = %d: max |dx| = %.3g",
 				  N, improve, err[improve]);
@@ -114,7 +114,7 @@ static void test_pivot(void)
 		double bb[3] = {b[0], b[1], b[2]};
 
 		memcpy(A[0], Ainit, sizeof(Ainit));
-		SolveLinearEq(rh, 3, A, bb, improve);
+		CHECK_OK(SolveLinearEq(rh, 3, A, bb, improve));
 		err = max_abs_diff(3, bb, xk);
 		CHECK(err < 1e-14, "improve = %d: max |dx| = %.3g", improve, err);
 	}
@@ -122,7 +122,7 @@ static void test_pivot(void)
 	/* --- The determinant from the decomposition -- ------------- */
 
 	memcpy(A[0], Ainit, sizeof(Ainit));
-	LUdecomp(rh, 3, A, index, &d);
+	CHECK_OK(LUdecomp(rh, 3, A, index, &d));
 	for (int i = 0; i < 3; i++) det *= A[i][i];
 	CHECK_CLOSE(d * det, -8.0, 1e-14, 0.0, "determinant, sign d = %g", d);
 
@@ -133,7 +133,7 @@ static void test_pivot(void)
 		double              bb[3]   = {7, 8, 9}; /* x = (8, 9, 7) */
 
 		memcpy(A[0], P, sizeof(P));
-		SolveLinearEq(rh, 3, A, bb, FALSE);
+		CHECK_OK(SolveLinearEq(rh, 3, A, bb, FALSE));
 		CHECK(bb[0] == 8.0 && bb[1] == 9.0 && bb[2] == 7.0,
 			  "permutation matrix: x = %g %g %g", bb[0], bb[1], bb[2]);
 	}
@@ -148,7 +148,7 @@ static void test_pivot(void)
 
 		/* 1e12 (x + y) = 3e12 -> x + y = 3; x + 2y = 5 -> y = 2, x = 1 */
 		memcpy(A2[0], S, sizeof(S));
-		SolveLinearEq(rh, 2, A2, bb, FALSE);
+		CHECK_OK(SolveLinearEq(rh, 2, A2, bb, FALSE));
 		CHECK_CLOSE(bb[0], 1.0, 1e-13, 0.0, "scaled rows: n = %d", 0);
 		CHECK_CLOSE(bb[1], 2.0, 1e-13, 0.0, "scaled rows: n = %d", 1);
 		freeMatrix(rh, (void **) A2);
@@ -188,7 +188,7 @@ static void test_hilbert(void)
 		for (int i = 0; i < N; i++)
 			for (int j = 0; j < N; j++)
 				CHECK(A[i][j] == floor(A[i][j]), "A[%d][%d] = %g is not an integer", i, j, A[i][j]);
-		SolveLinearEq(rh, N, A, bb, improve);
+		CHECK_OK(SolveLinearEq(rh, N, A, bb, improve));
 		err[improve] = max_abs_diff(N, bb, x);
 	}
 	CHECK(err[0] < 1e-5, "without refinement: max |dx| = %.3g", err[0]);
@@ -215,7 +215,7 @@ static void test_inverse(void)
 		A0[i][i] += (i % 2) ? N : -N;
 	}
 	memcpy(A[0], A0[0], N * N * sizeof(double));
-	LUdecomp(rh, N, A, index, &d);
+	CHECK_OK(LUdecomp(rh, N, A, index, &d));
 	for (int j = 0; j < N; j++) {
 		for (int i = 0; i < N; i++) col[i] = (i == j) ? 1.0 : 0.0;
 		LUbacksubst(N, A, index, col);
@@ -234,6 +234,30 @@ static void test_inverse(void)
 	freeMatrix(rh, (void **) Ainv);
 }
 
+/* --- A singular matrix (a row of zeros) is reported, and the process
+	   goes on (Q-7, Q-51) --                          -------------- */
+
+static void test_singular(void)
+{
+	double  **A = matrix_double(rh, 3, 3), b[3] = {1.0, 2.0, 3.0};
+	rh_status s;
+
+	A[0][0] = 2.0;
+	A[0][1] = 1.0;
+	A[2][2] = 4.0; /* row 1 stays zero */
+	for (int improve = 0; improve <= 1; improve++) {
+		s = SolveLinearEq(rh, 3, A, b, improve);
+		CHECK(s == RH_E_NUMERIC, "singular, improve %d: status %d", improve, s);
+		CHECK(Failed(rh) && rh->error.code == RH_E_NUMERIC &&
+				  strcmp(rh->error.routine, "LUdecomp") == 0 &&
+				  strcmp(rh->error.message, "Singular matrix") == 0,
+			  "recorded: %d %s %s", rh->error.code, rh->error.routine,
+			  rh->error.message ? rh->error.message : "NULL");
+		ClearError(rh);
+	}
+	freeMatrix(rh, (void **) A);
+}
+
 int main(int argc, char *argv[])
 {
 	table = (argc > 1 && strcmp(argv[1], "--table") == 0);
@@ -242,6 +266,7 @@ int main(int argc, char *argv[])
 	test_pivot();
 	test_hilbert();
 	test_inverse();
+	test_singular();
 
 	return check_summary("test_linalg");
 }

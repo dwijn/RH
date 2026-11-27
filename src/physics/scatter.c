@@ -540,12 +540,12 @@ void PRDScatter(RHState *rh, AtomicLine *PRDline)
 
 		/* --- Where each location's block of weights sits in the file -- */
 
-		if (job.initialize) parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdBlockSizes, &job);
+		if (job.initialize) ExitOnError(rh, parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdBlockSizes, &job));
 		offset = prdOffsets(rh, job.blocksize, job.kstart, offset);
 
 		/* --- Loop over all spatial locations --          -------------- */
 
-		parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdIntegrate, &job);
+		ExitOnError(rh, parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdIntegrate, &job));
 	}
 	for (la = 0; la < PRDline->Nlambda; la++) {
 		for (k = 0; k < rh->atmos.Nspace; k++) PRDline->rho_prd[la][k] /= denom[k];
@@ -824,9 +824,9 @@ void PRDAngleScatter(RHState *rh, AtomicLine *PRDline)
 
 	if (job.initialize) (void) RII(rh, 0.0, 0.0, job.adamp[0], 0, 0);
 
-	if (job.initialize) parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdAngleBlockSizes, &job);
+	if (job.initialize) ExitOnError(rh, parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdAngleBlockSizes, &job));
 	prdOffsets(rh, job.blocksize, job.kstart, 0);
-	parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdAngleIntegrate, &job);
+	ExitOnError(rh, parallelFor(rh, rh->atmos.Nspace, rh->input.Nthreads, prdAngleIntegrate, &job));
 
 	free(job.Iall);
 	free(job.g);

@@ -39,7 +39,7 @@ static void solveHydrostatic(RHState *rh, int NmaxIter, double iterLimit)
 	register int k, n, m, i;
 
 	char    label[MAX_MESSAGE_LENGTH];
-	bool_t  Debeye, quiet;
+	bool_t  Debeye, quiet, accelerated;
 	int     niter, Ngdelay, Ngperiod, Ngorder, Nhse;
 	double *n_k, **dfdn, C1, C2, C3, beta, Phi_H, Phi_H2, *F, *dFdne, *f,
 		dnmax = 0.0, nHtot_old, *np, *nH2, fH;
@@ -165,12 +165,12 @@ static void solveHydrostatic(RHState *rh, int NmaxIter, double iterLimit)
 
 			/* --- Solve linearized set --                   -------------- */
 
-			SolveLinearEq(rh, Nhse, dfdn, f, TRUE);
+			ExitOnError(rh, SolveLinearEq(rh, Nhse, dfdn, f, TRUE));
 			for (n = 0; n < Nhse; n++) n_k[n] -= f[n];
 
 			/* --- Check convergence and accelerate if appropriate -- ----- */
 
-			Accelerate(rh, Nghse, n_k);
+			ExitOnError(rh, Accelerate(rh, Nghse, n_k, &accelerated));
 			snprintf(label, sizeof(label),
 					 "\n%s-- Hydrostatic equilibrium: depth %3.3d, iteration %d",
 					 (niter == 1) ? "\n" : "", k, niter);

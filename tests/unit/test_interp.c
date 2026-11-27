@@ -34,6 +34,9 @@
 #include <string.h>
 
 #include "rh.h"
+#include "error.h"
+#include "inputs.h"
+#include "state.h"
 #include "check.h"
 #include "kernels_reference.h"
 
@@ -230,6 +233,25 @@ static void test_unity_tau(void)
 		CHECK(st == TAU_UNITY_OK && fabs(z1 - 4.0) < 1e-13, "zero at top: status %d, z1 = %g", st, z1);
 	}
 
+	/* zeroPointAtUnityTau: the same height, or an error of the data
+	   (Q-51) */
+
+	{
+		double ta[3] = {0.1, 1.0, 4.0}, tn[3] = {0.1, 4.0, 2.0}, tb[3] = {2.0, 3.0, 4.0},
+			   zz[3] = {2, 1, 0}, z0 = -1.0;
+
+		CHECK(zeroPointAtUnityTau(rh, "test", "A", 3, ta, zz, &z0) == RH_OK && z0 == 1.0,
+			  "zero point: %g", z0);
+		CHECK(zeroPointAtUnityTau(rh, "test", "A", 3, tn, zz, &z0) == RH_E_DATA &&
+				  strstr(rh->error.message, "not strictly increasing") != NULL,
+			  "not increasing: %s", rh->error.message ? rh->error.message : "NULL");
+		ClearError(rh);
+		CHECK(zeroPointAtUnityTau(rh, "test", "A", 3, tb, zz, &z0) == RH_E_DATA &&
+				  strstr(rh->error.message, "lies outside the atmosphere") != NULL,
+			  "not bracketed: %s", rh->error.message ? rh->error.message : "NULL");
+		ClearError(rh);
+	}
+
 	/* not bracketed: 1 below or above the table, and between a zero and
 	   the first positive point */
 
@@ -387,13 +409,13 @@ static void test_pchip_reference(void)
 	PchipTable pt;
 	double     ye[6];
 
-	pchipTableInit(rh, &pt, 7, x, y, PCHIP_LINEAR);
+	CHECK_OK(pchipTableInit(rh, &pt, 7, x, y, PCHIP_LINEAR));
 	pchipTableEval(&pt, 6, xe, ye);
 	for (int n = 0; n < 6; n++)
 		CHECK_CLOSE(ye[n], ref_lin[n], 1e-14, 0.0, "pchip vs SciPy at x = %g", xe[n]);
 	pchipTableFree(&pt);
 
-	pchipTableInit(rh, &pt, 7, x, y, PCHIP_LOGLOG);
+	CHECK_OK(pchipTableInit(rh, &pt, 7, x, y, PCHIP_LOGLOG));
 	pchipTableEval(&pt, 6, xe, ye);
 	for (int n = 0; n < 6; n++)
 		CHECK_CLOSE(ye[n], ref_log[n], 1e-14, 0.0, "log-log pchip vs SciPy at x = %g",
@@ -415,7 +437,7 @@ static void test_pchip_exact(void)
 	}
 	for (int n = 0; n < 200; n++) xe[n] = x[0] + (x[8] - x[0]) * n / 199.0;
 
-	pchipTableInit(rh, &pt, 9, x, y, PCHIP_LOGLOG);
+	CHECK_OK(pchipTableInit(rh, &pt, 9, x, y, PCHIP_LOGLOG));
 	pchipTableEval(&pt, 9, x, ye);
 	for (int k = 0; k < 9; k++)
 		CHECK_CLOSE(ye[k], y[k], 5e-15, 0.0, "log-log node %d", k); /* exp(log y) */
@@ -427,7 +449,7 @@ static void test_pchip_exact(void)
 	pchipTableFree(&pt);
 
 	err = 0.0;
-	pchipTableInit(rh, &pt, 9, x, yl, PCHIP_LINEAR);
+	CHECK_OK(pchipTableInit(rh, &pt, 9, x, yl, PCHIP_LINEAR));
 	pchipTableEval(&pt, 200, xe, ye);
 	for (int n = 0; n < 200; n++) err = MAX(err, fabs(ye[n] - (1.5 - 0.25 * xe[n] / 1000.0)));
 	CHECK(err < 1e-14, "linear data: max error %.2e", err);
@@ -465,7 +487,7 @@ static void test_pchip_bounded(void)
 			y[k] = pow(10.0, 4.0 * pchip_uniform() - 2.0);
 			if (pchip_uniform() < 0.15) y[k] *= 1.0e4; /* spikes */
 		}
-		pchipTableInit(rh, &pt, N, x, y, scale);
+		CHECK_OK(pchipTableInit(rh, &pt, N, x, y, scale));
 		for (int k = 0; k < N - 1; k++) {
 			double lo = MIN(y[k], y[k + 1]), hi = MAX(y[k], y[k + 1]);
 
@@ -479,7 +501,7 @@ static void test_pchip_bounded(void)
 
 		memcpy(y2, y, sizeof(y));
 		y2[10] *= 50.0;
-		pchipTableInit(rh, &pt2, N, x, y2, scale);
+		CHECK_OK(pchipTableInit(rh, &pt2, N, x, y2, scale));
 		for (int n = 0; n < M; n++) {
 			xe[n] = x[0] + (x[N - 1] - x[0]) * n / (M - 1.0);
 		}
@@ -510,7 +532,7 @@ static void test_pchip_zero_end(void)
 		x[k] = 100.0 + 20.0 * k;
 		y[k] = (k == 0) ? 0.0 : 1.0e-21 * pow(x[k] / 120.0, -3.0);
 	}
-	pchipTableInit(rh, &pt, 7, x, y, PCHIP_LOGLOG);
+	CHECK_OK(pchipTableInit(rh, &pt, 7, x, y, PCHIP_LOGLOG));
 	for (int n = 0; n < 301; n++) xe[n] = 100.0 + 0.4 * n;
 	pchipTableEval(&pt, 301, xe, ye);
 	for (int n = 0; n < 301; n++) {
@@ -538,7 +560,7 @@ static void test_pchip_special(void)
 	int        nneg = 0, ndiff = 0;
 	PchipTable pt, ptd;
 
-	pchipTableInit(rh, &pt, 6, x, y, PCHIP_LOGLOG);
+	CHECK_OK(pchipTableInit(rh, &pt, 6, x, y, PCHIP_LOGLOG));
 	CHECK(pt.logy && pt.ylin != NULL, "a table with zeros keeps log y (logy = %d)", pt.logy);
 	for (int n = 0; n < 51; n++) xe[n] = 10.0 + n;
 	pchipTableEval(&pt, 51, xe, ye);
@@ -558,7 +580,7 @@ static void test_pchip_special(void)
 		xd[k] = x[5 - k];
 		yd[k] = y[5 - k];
 	}
-	pchipTableInit(rh, &ptd, 6, xd, yd, PCHIP_LOGLOG);
+	CHECK_OK(pchipTableInit(rh, &ptd, 6, xd, yd, PCHIP_LOGLOG));
 	pchipTableEval(&ptd, 51, xe, yed);
 	for (int n = 0; n < 51; n++)
 		if (ye[n] != yed[n]) ndiff++;
@@ -571,7 +593,7 @@ static void test_pchip_special(void)
 	pchipTableFree(&pt);
 	pchipTableFree(&ptd);
 
-	pchipTableInit(rh, &pt, 1, x, y, PCHIP_LOGLOG);
+	CHECK_OK(pchipTableInit(rh, &pt, 1, x, y, PCHIP_LOGLOG));
 	pchipTableEval(&pt, 1, &x[3], &v);
 	CHECK(v == 4.0, "one point: %g", v);
 	pchipTableFree(&pt);
@@ -579,10 +601,33 @@ static void test_pchip_special(void)
 	/* --- Two points in log-log: the power law through them -- ----- */
 
 	v = 2.0;
-	pchipTableInit(rh, &pt, 2, x2, y2, PCHIP_LOGLOG);
+	CHECK_OK(pchipTableInit(rh, &pt, 2, x2, y2, PCHIP_LOGLOG));
 	pchipTableEval(&pt, 1, &v, &v);
 	CHECK_CLOSE(v, 8.0, 1e-15, 0.0, "two points, log-log (y = 2 x^2): %g", v);
 	pchipTableFree(&pt);
+
+	/* --- Tables from bad data: a status, an empty table, and the
+		   process goes on (Q-51) --                       -------------- */
+
+	{
+		const double xm[3] = {1.0, 3.0, 2.0}, xz[3] = {0.0, 1.0, 2.0}, yy[3] = {1.0, 2.0, 3.0};
+		struct {
+			const char   *what;
+			int           N, scale;
+			const double *x;
+		} bad[] = {{"no points", 0, PCHIP_LINEAR, xm},
+				   {"not monotonic", 3, PCHIP_LINEAR, xm},
+				   {"log x of 0", 3, PCHIP_LOGX, xz}};
+
+		for (size_t b = 0; b < sizeof(bad) / sizeof(bad[0]); b++) {
+			rh_status s = pchipTableInit(rh, &pt, bad[b].N, bad[b].x, yy, bad[b].scale);
+
+			CHECK(s == RH_E_DATA && Failed(rh) && pt.x == NULL && pt.N == 0,
+				  "%s: status %d, table %p", bad[b].what, s, (void *) pt.x);
+			ClearError(rh);
+			pchipTableFree(&pt);
+		}
+	}
 }
 
 int main(int argc, char *argv[])

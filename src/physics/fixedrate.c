@@ -49,7 +49,6 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double E1(RHState *rh, double x);
 double sumE1(RHState *rh, double xrad);
 double sumE1_xe(RHState *rh, double xe, double xrad);
 
@@ -157,10 +156,11 @@ double sumE1(RHState *rh, double xrad)
 	 *                    n=1
 	 */
 
-	if ((sum = E1(rh, xrad)) == 0.0) return sum;
+	ExitOnError(rh, E1(rh, xrad, &sum));
+	if (sum == 0.0) return sum;
 
 	for (n = 2; n < N_MAX_INTEGRAL; n++) {
-		dsum = E1(rh, n * xrad);
+		ExitOnError(rh, E1(rh, n * xrad, &dsum));
 		sum += dsum;
 		if (dsum / sum <= DELTA_MIN) break;
 	}
@@ -181,10 +181,12 @@ double sumE1_xe(RHState *rh, double xe, double xrad)
 	 *                    n=0
 	 */
 
-	if ((sum = E1(rh, xe) + E1(rh, xe + xrad)) == 0.0) return sum;
+	ExitOnError(rh, E1(rh, xe, &sum));
+	ExitOnError(rh, E1(rh, xe + xrad, &dsum));
+	if ((sum += dsum) == 0.0) return sum;
 
 	for (n = 2; n < N_MAX_INTEGRAL; n++) {
-		dsum = E1(rh, xe + n * xrad);
+		ExitOnError(rh, E1(rh, xe + n * xrad, &dsum));
 		sum += dsum;
 		if (dsum / sum <= DELTA_MIN) break;
 	}

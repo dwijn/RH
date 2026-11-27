@@ -41,6 +41,12 @@ typedef enum {
 	RH_E_INTERNAL
 } rh_status;
 
+/* --- A function that returns an rh_status is declared RH_NODISCARD:
+	   the compiler warns when a caller drops the status (and -Werror
+	   makes that an error) --                         -------------- */
+
+#define RH_NODISCARD __attribute__((warn_unused_result))
+
 /* --- SPHERICAL_SYMMETRIC is no longer a geometry (rhsphere was
 	   retired in Q-43); it keeps its value because geometry.out
 	   stores the topology as a number (python/rhanalyze, idl) -- */
@@ -119,12 +125,15 @@ char **getWords(char *label, char *separator, int *count);
 
 /* --- Matrix manipulation --                          -------------- */
 
-char   **matrix_char(RHState *rh, int Nrow, int Ncol);
-int    **matrix_int(RHState *rh, int Nrow, int Ncol);
-double **matrix_double(RHState *rh, int Nrow, int Ncol);
-float  **matrix_float(RHState *rh, int Nrow, int Ncol);
-void     freeMatrix(RHState *rh, void **Matrix);
-void     SolveLinearEq(RHState *rh, int N, double **A, double *b, bool_t improve);
+char                 **matrix_char(RHState *rh, int Nrow, int Ncol);
+int                  **matrix_int(RHState *rh, int Nrow, int Ncol);
+double               **matrix_double(RHState *rh, int Nrow, int Ncol);
+float                **matrix_float(RHState *rh, int Nrow, int Ncol);
+void                   freeMatrix(RHState *rh, void **Matrix);
+RH_NODISCARD rh_status SolveLinearEq(RHState *rh, int N, double **A, double *b,
+									 bool_t improve);
+RH_NODISCARD rh_status LUdecomp(RHState *rh, int N, double **A, int *index, double *d);
+void                   LUbacksubst(int N, double **A, int *index, double *b);
 
 /* --- Rate equations by GTH elimination (gth.c, N-31) -- ---------- */
 
@@ -152,9 +161,10 @@ enum tau_unity_status { TAU_UNITY_OK,
 						TAU_NOT_INCREASING,
 						TAU_NOT_BRACKETED };
 
-int    heightAtUnityTau(int N, const double *tau_ref, const double *z, double *z1);
-double zeroPointAtUnityTau(RHState *rh, const char *routineName, const char *atmosID,
-						   int N, const double *tau_ref, const double *z);
+int                    heightAtUnityTau(int N, const double *tau_ref, const double *z, double *z1);
+RH_NODISCARD rh_status zeroPointAtUnityTau(RHState *rh, const char *routineName,
+										   const char *atmosID, int N, const double *tau_ref,
+										   const double *z, double *z0);
 
 /* --- Monotone piecewise cubic Hermite interpolation (pchip.c, N-32),
 	   optionally in log x and log y. The table is copied; evaluation
@@ -172,15 +182,18 @@ typedef struct {
 	double *ylin, *dlin; /* logy with a node <= 0 (N-49), else NULL */
 } PchipTable;
 
-void pchipTableInit(RHState *rh, PchipTable *pt, int N, const double *x, const double *y,
-					int scale);
-void pchipTableEval(const PchipTable *pt, int N, const double *x, double *y);
-void pchipTableFree(PchipTable *pt);
+RH_NODISCARD rh_status pchipTableInit(RHState *rh, PchipTable *pt, int N, const double *x,
+									  const double *y, int scale);
+void                   pchipTableEval(const PchipTable *pt, int N, const double *x, double *y);
+void                   pchipTableFree(PchipTable *pt);
 
 void   cc_kernel(double s, double *u);
 double cubeconvol(int Nx, int Ny, double *f, double x, double y);
 
 /* --- Special functions --                            -------------- */
+
+RH_NODISCARD rh_status E1(RHState *rh, double x, double *e1);
+RH_NODISCARD rh_status E2(RHState *rh, double x, double *e2);
 
 void   GaussLeg(double x1, double x2, double *x, double *w, int n);
 double Voigt(double a, double v, double *F);

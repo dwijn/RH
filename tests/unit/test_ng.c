@@ -45,14 +45,15 @@ static bool_t run(const double x0[N], const double xstar[N], double x[N],
 	*Ngs = NgInit(rh, N, 0, 1, 1, x);
 
 	for (k = 0; k < N; k++) x[k] = lambda * x[k] + (1.0 - lambda) * xstar[k];
-	accel = Accelerate(rh, *Ngs, x);
+	CHECK_OK(Accelerate(rh, *Ngs, x, &accel));
 	CHECK(!accel && (*Ngs)->rejected == 0, "no step before the delay");
 
 	for (k = 0; k < N; k++) {
 		x[k] = lambda * x[k] + (1.0 - lambda) * xstar[k];
 		g[k] = x[k];
 	}
-	return Accelerate(rh, *Ngs, x);
+	CHECK_OK(Accelerate(rh, *Ngs, x, &accel));
+	return accel;
 }
 
 /* --- The last solution in the history (what MaxChange compares) -- */
@@ -128,8 +129,8 @@ int main(void)
 		const double x0[N] = {3.0, 5.0};
 
 		for (k = 0; k < N; k++) x[k] = x0[k];
-		Ngs   = NgInit(rh, N, 10, 1, 1, x);
-		accel = Accelerate(rh, Ngs, x);
+		Ngs = NgInit(rh, N, 10, 1, 1, x);
+		CHECK_OK(Accelerate(rh, Ngs, x, &accel));
 		CHECK(!accel && strcmp(NgStatus(Ngs, accel, buf, sizeof(buf)), "\n") == 0,
 			  "status before the delay \"%s\"", NgStatus(Ngs, accel, buf, sizeof(buf)));
 		NgFree(rh, Ngs);

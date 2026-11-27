@@ -21,19 +21,17 @@
 
 /* --- Function prototypes --                          -------------- */
 
-void LUdecomp(RHState *rh, int N, double **A, int *index, double *d);
-void LUbacksubst(int N, double **A, int *index, double *b);
-
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- SolveLinearEq.c --------- */
 
-void SolveLinearEq(RHState *rh, int N, double **A, double *b, bool_t improve)
+rh_status SolveLinearEq(RHState *rh, int N, double **A, double *b, bool_t improve)
 {
 	register int i, j;
 
-	int   *index;
-	double d, **A_copy, *b_copy, *residual;
+	int      *index;
+	double    d, **A_copy = NULL, *b_copy = NULL, *residual = NULL;
+	rh_status status;
 
 	/* --- If improve == TRUE improve the solution of the set of
 		   linear equations by evaluating the residual and correcting
@@ -59,7 +57,15 @@ void SolveLinearEq(RHState *rh, int N, double **A, double *b, bool_t improve)
 	}
 	/* --- Initial solution --                           ------------- */
 
-	LUdecomp(rh, N, A, index, &d);
+	if ((status = LUdecomp(rh, N, A, index, &d)) != RH_OK) {
+		if (improve) {
+			free(residual);
+			free(b_copy);
+			freeMatrix(rh, (void **) A_copy);
+		}
+		free(index);
+		return status;
+	}
 	LUbacksubst(N, A, index, b);
 
 	if (improve) {
@@ -78,6 +84,7 @@ void SolveLinearEq(RHState *rh, int N, double **A, double *b, bool_t improve)
 		freeMatrix(rh, (void **) A_copy);
 	}
 	free(index);
+	return RH_OK;
 }
 
 /* ------- end ---------------------------- SolveLinearEq.c --------- */
@@ -86,7 +93,7 @@ void SolveLinearEq(RHState *rh, int N, double **A, double *b, bool_t improve)
 
 #define TINY 1.0e-20;
 
-void LUdecomp(RHState *rh, int N, double **A, int *index, double *d)
+rh_status LUdecomp(RHState *rh, int N, double **A, int *index, double *d)
 {
 	register int i, j, k;
 
@@ -101,7 +108,8 @@ void LUdecomp(RHState *rh, int N, double **A, int *index, double *d)
 		for (j = 0; j < N; j++)
 			if ((temp = fabs(A[i][j])) > big) big = temp;
 		if (big == 0.0) {
-			Error(rh, ERROR_LEVEL_2, "LUdecomp", "Singular matrix");
+			free(vv);
+			return Fail(rh, RH_E_NUMERIC, "LUdecomp", "Singular matrix");
 		}
 		vv[i] = 1.0 / big;
 	}
@@ -140,6 +148,7 @@ void LUdecomp(RHState *rh, int N, double **A, int *index, double *d)
 		}
 	}
 	free(vv);
+	return RH_OK;
 }
 
 /* ------- end ---------------------------- LUdecomp.c -------------- */

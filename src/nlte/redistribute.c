@@ -128,7 +128,7 @@ void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 						   the residual; the log and the PRD_ITER_LIMIT
 						   test use the residual (N-38) --  -------------- */
 
-					accel = Accelerate(rh, line->Ng_prd, line->rho_prd[0]);
+					ExitOnError(rh, Accelerate(rh, line->Ng_prd, line->rho_prd[0], &accel));
 
 					/* --- Stops the run if rho <= 0 or not finite (N-4).
 						   SOLVER = NG has no trial evaluations, so a

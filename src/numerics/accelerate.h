@@ -21,12 +21,13 @@ struct Ng {
 
 /* --- Associated function prototypes --               -------------- */
 
-bool_t      Accelerate(RHState *rh, struct Ng *Ngs, double *solution);
-void        NgFree(RHState *rh, struct Ng *Ngs);
-struct Ng  *NgInit(RHState *rh, int N, int Ndelay, int Norder, int Nperiod,
-				   double *solution);
-double      MaxChange(RHState *rh, struct Ng *Ngs, char *text, bool_t quiet);
-const char *NgStatus(const struct Ng *Ngs, bool_t accel, char *buf, size_t size);
+RH_NODISCARD rh_status Accelerate(RHState *rh, struct Ng *Ngs, double *solution,
+								  bool_t *accelerated);
+void                   NgFree(RHState *rh, struct Ng *Ngs);
+struct Ng             *NgInit(RHState *rh, int N, int Ndelay, int Norder, int Nperiod,
+							  double *solution);
+double                 MaxChange(RHState *rh, struct Ng *Ngs, char *text, bool_t quiet);
+const char            *NgStatus(const struct Ng *Ngs, bool_t accel, char *buf, size_t size);
 
 #endif /* !__ACCELERATE_H__ */
 

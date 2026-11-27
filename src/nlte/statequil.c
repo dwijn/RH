@@ -124,7 +124,7 @@ static void solveRates(RHState *rh, int N, double **Gamma, int k, int isum,
 	n[root] = ntotal;
 	for (j = 0; j < N; j++) A[root][j] = 1.0;
 
-	SolveLinearEq(rh, N, A, n, TRUE);
+	ExitOnError(rh, SolveLinearEq(rh, N, A, n, TRUE));
 
 	for (i = 0; i < N; i++) {
 		if (isfinite(n[i]) && n[i] >= -SE_NEG_TOL * ntotal) continue;
@@ -314,7 +314,7 @@ double updatePopulations(RHState *rh, int niter)
 		atom = rh->atmos.activeatoms[nact];
 
 		statEquil(rh, atom, rh->input.isum);
-		accel = Accelerate(rh, atom->Ng_n, atom->n[0]);
+		ExitOnError(rh, Accelerate(rh, atom->Ng_n, atom->n[0], &accel));
 
 		snprintf(label, sizeof(label), " %s,", atom->ID);
 		dpops = MaxChange(rh, atom->Ng_n, label, quiet = FALSE);
@@ -328,7 +328,7 @@ double updatePopulations(RHState *rh, int niter)
 		molecule = rh->atmos.activemols[nact];
 
 		statEquilMolecule(rh, molecule, 0);
-		accel = Accelerate(rh, molecule->Ng_nv, molecule->nv[0]);
+		ExitOnError(rh, Accelerate(rh, molecule->Ng_nv, molecule->nv[0], &accel));
 
 		snprintf(label, sizeof(label), " %s ,", molecule->ID);
 		dpops = MaxChange(rh, molecule->Ng_nv, label, quiet = FALSE);

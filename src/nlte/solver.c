@@ -570,8 +570,8 @@ void iterateFixedPoint(RHState *rh, int NmaxIter, double iterLimit)
 		Message(rh, "\n -- Iteration %3d\n", niter);
 		dpopsmax = 0.0;
 		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
-			atom  = rh->atmos.activeatoms[nact];
-			accel = Accelerate(rh, atom->Ng_n, atom->n[0]);
+			atom = rh->atmos.activeatoms[nact];
+			ExitOnError(rh, Accelerate(rh, atom->Ng_n, atom->n[0], &accel));
 			snprintf(label, sizeof(label), " %s,", atom->ID);
 			dpops = MaxChange(rh, atom->Ng_n, label, quiet = FALSE);
 			Message(rh, "%s", NgStatus(atom->Ng_n, accel, status, sizeof(status)));
@@ -579,7 +579,7 @@ void iterateFixedPoint(RHState *rh, int NmaxIter, double iterLimit)
 		}
 		for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 			molecule = rh->atmos.activemols[nact];
-			accel    = Accelerate(rh, molecule->Ng_nv, molecule->nv[0]);
+			ExitOnError(rh, Accelerate(rh, molecule->Ng_nv, molecule->nv[0], &accel));
 			snprintf(label, sizeof(label), " %s ,", molecule->ID);
 			dpops = MaxChange(rh, molecule->Ng_nv, label, quiet = FALSE);
 			Message(rh, "%s", NgStatus(molecule->Ng_nv, accel, status, sizeof(status)));

@@ -16,6 +16,11 @@
 	   therefore calls work() many times; per-worker scratch space
 	   should be indexed by nt, not by range. With nthreads <= 1 it
 	   calls work(0, N, 0, arg) once, i.e. in item order.
+
+	   A work function that fails records the error (Fail) and returns.
+	   Then no chunk starts that has not started yet, and parallelFor
+	   returns the recorded status (Q-51), as it does when an error was
+	   recorded before the call. Chunks already running finish.
 	   --                                              -------------- */
 
 #include <stdlib.h>
@@ -39,11 +44,18 @@ static void *runChunk(void *argument)
 {
 	Chunk *c = (Chunk *) argument;
 
-	c->work(c->rh, c->begin, c->end, c->nt, c->arg);
+	if (!Failed(c->rh)) c->work(c->rh, c->begin, c->end, c->nt, c->arg);
 	return NULL;
 }
 
-void parallelFor(RHState *rh, int N, int nthreads, ParallelRange work, void *arg)
+/* --- What a loop returns: the recorded error, if any -- --------- */
+
+static rh_status loopStatus(RHState *rh)
+{
+	return Failed(rh) ? rh->error.code : RH_OK;
+}
+
+rh_status parallelFor(RHState *rh, int N, int nthreads, ParallelRange work, void *arg)
 {
 	int        nt, size, Nchunk;
 	Chunk     *chunk;
@@ -52,8 +64,8 @@ void parallelFor(RHState *rh, int N, int nthreads, ParallelRange work, void *arg
 
 	if (nthreads > N) nthreads = N;
 	if (nthreads <= 1) {
-		work(rh, 0, N, 0, arg);
-		return;
+		if (!Failed(rh)) work(rh, 0, N, 0, arg);
+		return loopStatus(rh);
 	}
 
 	size    = (N + nthreads - 1) / nthreads;
@@ -88,6 +100,7 @@ void parallelFor(RHState *rh, int N, int nthreads, ParallelRange work, void *arg
 	free(started);
 	free(id);
 	free(chunk);
+	return loopStatus(rh);
 }
 
 /* ------- begin -------------------------- parallelForDynamic.c ---- */
@@ -114,7 +127,7 @@ static void *runDynamic(void *argument)
 	/* --- Take the next chunk until none are left. The counter is
 		   64-bit so that it cannot overflow when N is close to INT_MAX */
 
-	while ((begin = atomic_fetch_add(&job->next, job->chunk)) < job->N) {
+	while (!Failed(job->rh) && (begin = atomic_fetch_add(&job->next, job->chunk)) < job->N) {
 		long long end = begin + job->chunk;
 
 		if (end > job->N) end = job->N;
@@ -123,8 +136,8 @@ static void *runDynamic(void *argument)
 	return NULL;
 }
 
-void parallelForDynamic(RHState *rh, int N, int chunk, int nthreads,
-						ParallelRange work, void *arg)
+rh_status parallelForDynamic(RHState *rh, int N, int chunk, int nthreads,
+							 ParallelRange work, void *arg)
 {
 	int            nt, Nchunk;
 	DynamicJob     job;
@@ -136,8 +149,8 @@ void parallelForDynamic(RHState *rh, int N, int chunk, int nthreads,
 	Nchunk = (int) (((long long) N + chunk - 1) / chunk);
 	if (nthreads > Nchunk) nthreads = Nchunk;
 	if (nthreads <= 1) {
-		work(rh, 0, N, 0, arg);
-		return;
+		if (!Failed(rh)) work(rh, 0, N, 0, arg);
+		return loopStatus(rh);
 	}
 
 	job.rh    = rh;
@@ -173,5 +186,6 @@ void parallelForDynamic(RHState *rh, int N, int chunk, int nthreads,
 	free(started);
 	free(id);
 	free(worker);
+	return loopStatus(rh);
 }
 /* ------- end ---------------------------- parallelForDynamic.c ---- */

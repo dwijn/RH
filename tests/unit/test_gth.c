@@ -97,7 +97,7 @@ static void solve_lu(int N, double **R, int root, double ntotal, double *n)
 	}
 	n[root] = ntotal;
 	for (int j = 0; j < N; j++) A[root][j] = 1.0;
-	SolveLinearEq(rh, N, A, n, TRUE);
+	CHECK_OK(SolveLinearEq(rh, N, A, n, TRUE));
 	freeMatrix(rh, (void **) A);
 }
 
