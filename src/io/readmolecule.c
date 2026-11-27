@@ -46,10 +46,10 @@
 
 /* --- Function prototypes --                          -------------- */
 
-int   countTokens(char *line, char *separator);
-int   mrt_ascend(const void *v1, const void *v2);
-int   stringcompare(const void *s1, const void *s2);
-char *getMoleculeID(RHState *rh, char *molecule_file);
+int  countTokens(char *line, char *separator);
+int  mrt_ascend(const void *v1, const void *v2);
+int  stringcompare(const void *s1, const void *s2);
+void getMoleculeID(RHState *rh, char *molecule_file, char moleculeID[MOLECULE_ID_WIDTH + 1]);
 
 /* --- Global variables --                             -------------- */
 
@@ -938,7 +938,7 @@ void readMolecularModels(RHState *rh)
 
 	char filename[MAX_LINE_SIZE], inputLine[MAX_LINE_SIZE],
 		actionKey[MAX_KEYWORD_SIZE], popsKey[MAX_KEYWORD_SIZE],
-		popsFile[MAX_LINE_SIZE], *moleculeID;
+		popsFile[MAX_LINE_SIZE], moleculeID[MOLECULE_ID_WIDTH + 1];
 	bool_t    active, exit_on_EOF;
 	int       Nread, Nrequired, checkPoint;
 	FILE     *fp_molecules;
@@ -984,7 +984,7 @@ void readMolecularModels(RHState *rh)
 					   filename, actionKey, popsKey, popsFile);
 		checkNread(rh, Nread, Nrequired = 3, routineName, checkPoint = 2);
 
-		moleculeID = getMoleculeID(rh, filename);
+		getMoleculeID(rh, filename, moleculeID);
 
 		/* --- The first molecule must be H2, exactly (B-62: a substring
 			   test let H2+ or H2O through). Checked on the ID line before
@@ -1093,11 +1093,13 @@ void readMolecularModels(RHState *rh)
 
 /* ------- begin -------------------------- getMoleculeID.c --------- */
 
-char *getMoleculeID(RHState *rh, char *molecule_file)
+void getMoleculeID(RHState *rh, char *molecule_file, char moleculeID[MOLECULE_ID_WIDTH + 1])
 {
+	/* --- The ID of the molecule in molecule_file, upper case, into
+		   the caller's moleculeID --                  -------------- */
+
 	const char   routineName[] = "getMoleculeID";
 	register int n;
-	static char  moleculeID[MOLECULE_ID_WIDTH + 1];
 
 	char   inputLine[MAX_LINE_SIZE];
 	bool_t exit_on_EOF;
@@ -1115,7 +1117,6 @@ char *getMoleculeID(RHState *rh, char *molecule_file)
 		moleculeID[n] = toupper(moleculeID[n]);
 
 	fclose(fp_molecule);
-	return moleculeID;
 }
 /* ------- end ---------------------------- getMoleculeID.c --------- */
 

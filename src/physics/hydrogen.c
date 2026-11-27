@@ -897,8 +897,6 @@ bool_t Hminus_ff(RHState *rh, double lambda, double *chi)
 #define NFF_H2    19
 #define NTHETA_H2 8
 
-static atomic_flag H2mff_beyond_told = ATOMIC_FLAG_INIT;
-
 static const double thetaFF_H2m[NTHETA_H2] = {
 	0.5, 0.8, 1.0, 1.2, 1.6, 2.0, 2.8, 3.6};
 
@@ -909,7 +907,7 @@ static void H2minus_ff_prepare(RHState *rh)
 	int    index = 0;
 	double theta;
 
-	atomic_flag_clear(&H2mff_beyond_told);
+	atomic_flag_clear(&rh->hydrogen.H2mff_beyond_told);
 	rh->hydrogen.H2mff_theta_index = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		theta = THETA0 / rh->atmos.T[k];
@@ -1024,7 +1022,7 @@ bool_t H2minus_ff(RHState *rh, double lambda, double *chi)
 	if (lambda >= lambdaFF[NFF_H2 - 1]) {
 		lambda_index = NFF_H2 - 1;
 		scale        = SQ(lambda / lambdaFF[NFF_H2 - 1]);
-		if (lambda > lambdaFF[NFF_H2 - 1] && !atomic_flag_test_and_set(&H2mff_beyond_told)) {
+		if (lambda > lambdaFF[NFF_H2 - 1] && !atomic_flag_test_and_set(&rh->hydrogen.H2mff_beyond_told)) {
 			Warning(rh, routineName, "H2- free-free table ends at %.1f nm: kappa extended as lambda^2 "
 									 "beyond it (first at %.1f nm; message once per run)",
 					lambdaFF[NFF_H2 - 1], lambda);
@@ -1054,8 +1052,6 @@ bool_t H2minus_ff(RHState *rh, double lambda, double *chi)
 #define NFF_H2P   15
 #define NTEMP_H2P 10
 
-static atomic_flag H2pff_beyond_told = ATOMIC_FLAG_INIT;
-
 static const double tempFF_H2p[NTEMP_H2P] = {
 	2.5E+03, 3.0E+03, 3.5E+03, 4.0E+03, 5.0E+03,
 	6.0E+03, 7.0E+03, 8.0E+03, 1.0E+04, 1.2E+04};
@@ -1067,7 +1063,7 @@ static void H2plus_ff_prepare(RHState *rh)
 	int    index = 0;
 	double T;
 
-	atomic_flag_clear(&H2pff_beyond_told);
+	atomic_flag_clear(&rh->hydrogen.H2pff_beyond_told);
 	rh->hydrogen.H2pff_temp_index = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		T = rh->atmos.T[k];
@@ -1155,7 +1151,7 @@ bool_t H2plus_ff(RHState *rh, double lambda, double *chi)
 
 	if (lambda >= lambdaFF[NFF_H2P - 1]) {
 		lambda_index = NFF_H2P - 1;
-		if (lambda > lambdaFF[NFF_H2P - 1] && !atomic_flag_test_and_set(&H2pff_beyond_told)) {
+		if (lambda > lambdaFF[NFF_H2P - 1] && !atomic_flag_test_and_set(&rh->hydrogen.H2pff_beyond_told)) {
 			Warning(rh, routineName, "H2+ free-free table ends at %.1f nm: last column held beyond it "
 									 "(first at %.1f nm; message once per run)",
 					lambdaFF[NFF_H2P - 1], lambda);

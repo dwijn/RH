@@ -57,7 +57,7 @@ typedef struct {
 } Option;
 
 typedef struct {
-	char   keyword_input[MAX_VALUE_LENGTH], *wavetable, *molecule;
+	char   keyword_input[MAX_VALUE_LENGTH];
 	bool_t quiet, showkeywords;
 	FILE  *logfile;
 } CommandLine;

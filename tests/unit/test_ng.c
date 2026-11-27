@@ -15,7 +15,8 @@
 		  NgStatus says so;
 	   -- a component where G's value is itself negative: not counted,
 		  so the step is accepted;
-	   -- the step before the delay and the messages of NgStatus.
+	   -- the step before the delay and the messages of NgStatus,
+		  the one with a count in the caller's buffer (Q-50).
 	   --                                              -------------- */
 
 #include <math.h>
@@ -64,6 +65,7 @@ static double *last(struct Ng *Ngs)
 int main(void)
 {
 	struct Ng *Ngs;
+	char       buf[MAX_MESSAGE_LENGTH];
 	double     x[N], g[N];
 	bool_t     accel;
 	int        k;
@@ -79,8 +81,8 @@ int main(void)
 			CHECK_CLOSE(x[k], xstar[k], 1e-14, 0.0, "x[%d] = x*", k);
 			CHECK(last(Ngs)[k] == x[k], "history[%d] holds the step", k);
 		}
-		CHECK(strcmp(NgStatus(Ngs, accel), " (accelerated)\n") == 0,
-			  "status \"%s\"", NgStatus(Ngs, accel));
+		CHECK(strcmp(NgStatus(Ngs, accel, buf, sizeof(buf)), " (accelerated)\n") == 0,
+			  "status \"%s\"", NgStatus(Ngs, accel, buf, sizeof(buf)));
 		NgFree(rh, Ngs);
 	}
 	/* --- x*[1] negative, G's value positive: rejected -- ---------- */
@@ -94,8 +96,9 @@ int main(void)
 			CHECK(x[k] == g[k], "x[%d] = %g, G's value %g kept", k, x[k], g[k]);
 			CHECK(last(Ngs)[k] == g[k], "history[%d] holds G's value", k);
 		}
-		CHECK(strstr(NgStatus(Ngs, accel), "rejected: 1 value not positive") != NULL,
-			  "status \"%s\"", NgStatus(Ngs, accel));
+		CHECK(strstr(NgStatus(Ngs, accel, buf, sizeof(buf)), "rejected: 1 value not positive") != NULL,
+			  "status \"%s\"", NgStatus(Ngs, accel, buf, sizeof(buf)));
+		CHECK(NgStatus(Ngs, accel, buf, sizeof(buf)) == buf, "the message is in the caller's buffer");
 
 		NgFree(rh, Ngs);
 	}
@@ -105,8 +108,8 @@ int main(void)
 
 		accel = run(x0, xstar, x, g, &Ngs);
 		CHECK(!accel && Ngs->rejected == 2, "rejected = %ld, want 2", Ngs->rejected);
-		CHECK(strstr(NgStatus(Ngs, accel), "rejected: 2 values not positive") != NULL,
-			  "status \"%s\"", NgStatus(Ngs, accel));
+		CHECK(strstr(NgStatus(Ngs, accel, buf, sizeof(buf)), "rejected: 2 values not positive") != NULL,
+			  "status \"%s\"", NgStatus(Ngs, accel, buf, sizeof(buf)));
 		NgFree(rh, Ngs);
 	}
 	/* --- G's value itself negative: not counted, accepted -- ------- */
@@ -127,8 +130,8 @@ int main(void)
 		for (k = 0; k < N; k++) x[k] = x0[k];
 		Ngs   = NgInit(rh, N, 10, 1, 1, x);
 		accel = Accelerate(rh, Ngs, x);
-		CHECK(!accel && strcmp(NgStatus(Ngs, accel), "\n") == 0,
-			  "status before the delay \"%s\"", NgStatus(Ngs, accel));
+		CHECK(!accel && strcmp(NgStatus(Ngs, accel, buf, sizeof(buf)), "\n") == 0,
+			  "status before the delay \"%s\"", NgStatus(Ngs, accel, buf, sizeof(buf)));
 		NgFree(rh, Ngs);
 	}
 	return check_summary("test_ng");

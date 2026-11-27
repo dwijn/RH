@@ -44,8 +44,8 @@
 
 /* --- Function prototypes --                          -------------- */
 
-void  distribute_nH(RHState *rh);
-char *getAtomID(RHState *rh, char *atom_file);
+void distribute_nH(RHState *rh);
+void getAtomID(RHState *rh, char *atom_file, char atomID[ATOM_ID_WIDTH + 1]);
 
 /* --- Global variables --                             -------------- */
 
@@ -811,7 +811,7 @@ void readAtomicModels(RHState *rh)
 
 	char filename[MAX_LINE_SIZE],
 		actionKey[MAX_KEYWORD_SIZE], popsKey[MAX_KEYWORD_SIZE],
-		popsFile[MAX_LINE_SIZE], inputLine[MAX_LINE_SIZE], *atomID;
+		popsFile[MAX_LINE_SIZE], inputLine[MAX_LINE_SIZE], atomID[ATOM_ID_WIDTH + 1];
 	bool_t exit_on_EOF;
 	int    Nread, Nrequired, checkPoint;
 	FILE  *fp_atoms;
@@ -842,7 +842,7 @@ void readAtomicModels(RHState *rh)
 					   filename, actionKey, popsKey, popsFile);
 		checkNread(rh, Nread, Nrequired = 3, routineName, checkPoint = 2);
 
-		atomID = getAtomID(rh, filename);
+		getAtomID(rh, filename, atomID);
 		if (n == 0 && !strstr(atomID, "H ")) {
 			Error(rh, ERROR_LEVEL_2, routineName, "First atomic model is not hydrogen: %s",
 				  atomID);
@@ -945,11 +945,13 @@ void readAtomicModels(RHState *rh)
 
 /* ------- begin -------------------------- getAtomID.c ------------- */
 
-char *getAtomID(RHState *rh, char *atom_file)
+void getAtomID(RHState *rh, char *atom_file, char atomID[ATOM_ID_WIDTH + 1])
 {
+	/* --- The ID of the model atom in atom_file, upper case and two
+		   characters wide, into the caller's atomID -- -------------- */
+
 	const char   routineName[] = "getAtomID";
 	register int n;
-	static char  atomID[ATOM_ID_WIDTH + 1];
 
 	char   inputLine[MAX_LINE_SIZE];
 	bool_t exit_on_EOF;
@@ -968,6 +970,5 @@ char *getAtomID(RHState *rh, char *atom_file)
 	if (strlen(atomID) == 1) strcat(atomID, " ");
 
 	fclose(fp_atom);
-	return atomID;
 }
 /* ------- end ---------------------------- getAtomID.c ------------- */

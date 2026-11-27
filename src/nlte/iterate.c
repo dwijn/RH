@@ -282,13 +282,11 @@ static void iterateNg(RHState *rh, int NmaxIter, double iterLimit)
 /* --- The note on the wavelengths solved linear (N-52), for the
 	   background scattering line of the sweep (main thread) -- ---- */
 
-static const char *linearNote(const BgScatterStats *bs)
+static const char *linearNote(const BgScatterStats *bs, char *note, size_t size)
 {
-	static char note[64];
-
 	note[0] = '\0';
 	if (bs->Nlinear > 0)
-		snprintf(note, sizeof(note), " (%ld solved linear; +%ld -%ld)",
+		snprintf(note, size, " (%ld solved linear; +%ld -%ld)",
 				 bs->Nlinear, bs->Nto, bs->Nback);
 	return note;
 }
@@ -446,12 +444,13 @@ double solveSpectrum(RHState *rh, bool_t eval_operator, bool_t redistribute)
 
 	if (bgScatterActive(rh)) {
 		BgScatterStats bs;
+		char           note[64];
 
 		bgScatterStats(rh, &bs, TRUE);
 		if (bs.Niterated > 0) {
 			Message(rh, "  Background scattering: %ld wavelengths iterated,"
 						" %ld solves%s%s",
-					bs.Niterated, bs.Nsweeps, linearNote(&bs),
+					bs.Niterated, bs.Nsweeps, linearNote(&bs, note, sizeof(note)),
 					(bs.Nunconverged > 0) ? "" : "\n");
 			if (bs.Nunconverged > 0) {
 				Message(rh, "; %ld not converged at BACKGROUND_N_MAX_ITER"

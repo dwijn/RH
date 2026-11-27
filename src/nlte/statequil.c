@@ -300,7 +300,7 @@ double updatePopulations(RHState *rh, int niter)
 {
 	register int nact;
 
-	char      label[MAX_MESSAGE_LENGTH];
+	char      label[MAX_MESSAGE_LENGTH], status[MAX_MESSAGE_LENGTH];
 	bool_t    accel, quiet;
 	double    dpops, dpopsmax = 0.0;
 	Atom     *atom;
@@ -318,7 +318,7 @@ double updatePopulations(RHState *rh, int niter)
 
 		snprintf(label, sizeof(label), " %s,", atom->ID);
 		dpops = MaxChange(rh, atom->Ng_n, label, quiet = FALSE);
-		Message(rh, "%s", NgStatus(atom->Ng_n, accel));
+		Message(rh, "%s", NgStatus(atom->Ng_n, accel, status, sizeof(status)));
 
 		dpopsmax = MAX(dpops, dpopsmax);
 	}
@@ -332,7 +332,7 @@ double updatePopulations(RHState *rh, int niter)
 
 		snprintf(label, sizeof(label), " %s ,", molecule->ID);
 		dpops = MaxChange(rh, molecule->Ng_nv, label, quiet = FALSE);
-		Message(rh, "%s", NgStatus(molecule->Ng_nv, accel));
+		Message(rh, "%s", NgStatus(molecule->Ng_nv, accel, status, sizeof(status)));
 
 		dpopsmax = MAX(dpops, dpopsmax);
 	}

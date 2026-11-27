@@ -9,6 +9,8 @@
 #ifndef __BACKGROUND_H__
 #define __BACKGROUND_H__
 
+#include <stdatomic.h>
+
 /* --- Include file for background opacities and emissivities. -- --- */
 
 /* --- Chemical equilibrium (N-61): the largest number of Newton steps,
@@ -98,11 +100,14 @@ typedef struct {
 /* --- rh->hydrogen (hydrogen.c): per depth point, the fractional
 	   index into the theta table of H2- free-free and into the
 	   temperature table of H2+ free-free, made by hydrogenPrepare from
-	   atmos.T --                                      -------------- */
+	   atmos.T; and whether the note that a table ends has been
+	   written, once per run, from the threads of the background
+	   opacities (cleared by hydrogenPrepare) --       -------------- */
 
 typedef struct {
-	double *H2mff_theta_index;
-	double *H2pff_temp_index;
+	double     *H2mff_theta_index;
+	double     *H2pff_temp_index;
+	atomic_flag H2mff_beyond_told, H2pff_beyond_told;
 } HydrogenState;
 
 /* --- rh->chemequil (chemequil.c): the largest change of a log

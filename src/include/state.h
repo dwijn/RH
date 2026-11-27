@@ -23,9 +23,10 @@
 	   a run (Q-46): one part per module, of a type declared in the
 	   module's header, as rh->solver.Nstate. Their initial values are
 	   in the module's <MODULE>_STATE_INIT; the others start at zero.
-	   Still static: the tables loaded once (phase 4), the scratch and
-	   return buffers and the warn-once flags (phase 3), and the file
-	   handles (phase 5).
+	   Still static: the tables loaded once (phase 4), and the file
+	   handles and the thread-local Jgas buffers of readj.c (phase 5).
+	   Return buffers are the caller's, and the warn-once flags are
+	   here (Q-50).
 	   --                                              -------------- */
 
 #include "rh.h"
@@ -53,17 +54,18 @@ typedef struct RHState {
 
 	/* --- Kept by the modules (Q-46) --               -------------- */
 
-	SolverState     solver;     /* nlte/solver.c */
-	BgScatterState  bgscatter;  /* transfer/bgscatter.c */
-	NegTauState     negtau;     /* transfer/negtau.c */
-	OpacityState    opacity;    /* transfer/opacity.c */
-	BackgroundState background; /* physics/background.c */
-	KuruczState     kurucz;     /* physics/kurucz.c */
-	HydrogenState   hydrogen;   /* physics/hydrogen.c */
-	ChemEquilState  chemequil;  /* physics/chemequil.c */
-	ErrorState      error;      /* runtime/error.c */
-	GetCPUState     getcpu;     /* runtime/getcpu.c */
-	WorkCounters    work;       /* runtime/work.c */
+	SolverState       solver;       /* nlte/solver.c */
+	BgScatterState    bgscatter;    /* transfer/bgscatter.c */
+	NegTauState       negtau;       /* transfer/negtau.c */
+	OpacityState      opacity;      /* transfer/opacity.c */
+	BackgroundState   background;   /* physics/background.c */
+	KuruczState       kurucz;       /* physics/kurucz.c */
+	HydrogenState     hydrogen;     /* physics/hydrogen.c */
+	RedistributeState redistribute; /* nlte/redistribute.c */
+	ChemEquilState    chemequil;    /* physics/chemequil.c */
+	ErrorState        error;        /* runtime/error.c */
+	GetCPUState       getcpu;       /* runtime/getcpu.c */
+	WorkCounters      work;         /* runtime/work.c */
 } RHState;
 
 /* --- Static initializer of the instance: the topology of the program,

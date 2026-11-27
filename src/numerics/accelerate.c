@@ -178,22 +178,21 @@ bool_t Accelerate(RHState *rh, struct Ng *Ngs, double *solution)
 
 /* ------- begin -------------------------- NgStatus.c -------------- */
 
-const char *NgStatus(struct Ng *Ngs, bool_t accel)
+const char *NgStatus(const struct Ng *Ngs, bool_t accel, char *buf, size_t size)
 {
 	/* --- End of a caller's log line after Accelerate(): whether the
 		   step was extrapolated, or the extrapolation rejected (N-33).
-		   Returns a static buffer --                  -------------- */
-
-	static char str[MAX_MESSAGE_LENGTH];
+		   Returns a string constant, or buf (of size bytes, the
+		   caller's) with the number of values rejected -- -------- */
 
 	if (accel)
 		return " (accelerated)\n";
 	if (Ngs->rejected) {
-		snprintf(str, sizeof(str),
+		snprintf(buf, size,
 				 " (Ng step rejected: %ld value%s not positive or not finite;"
 				 " plain step kept)\n",
 				 Ngs->rejected, (Ngs->rejected == 1) ? "" : "s");
-		return str;
+		return buf;
 	}
 	return "\n";
 }

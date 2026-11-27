@@ -23,8 +23,8 @@
 
 void setOptions(RHState *rh, int argc, char *argv[])
 {
-	const char  routineName[] = "setOptions";
-	static char logfileName[MAX_LINE_SIZE], wavetable[MAX_LINE_SIZE];
+	const char routineName[]              = "setOptions";
+	char       logfileName[MAX_LINE_SIZE] = "";
 
 	int Noption;
 
@@ -52,7 +52,5 @@ void setOptions(RHState *rh, int argc, char *argv[])
 		setvbuf(rh->commandline.logfile, NULL, _IOLBF, BUFSIZ);
 	} else
 		rh->commandline.logfile = stderr;
-
-	rh->commandline.wavetable = (strlen(wavetable) > 0) ? wavetable : NULL;
 }
 /* ------- end ---------------------------- setOptions.c ------------ */

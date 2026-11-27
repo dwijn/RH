@@ -516,7 +516,7 @@ void iterateFixedPoint(RHState *rh, int NmaxIter, double iterLimit)
 	const char   routineName[] = "iterateFixedPoint";
 	register int niter, nact;
 
-	char      label[MAX_MESSAGE_LENGTH];
+	char      label[MAX_MESSAGE_LENGTH], status[MAX_MESSAGE_LENGTH];
 	bool_t    accel, quiet, converged = FALSE, stopped = FALSE;
 	int       Ngorder;
 	double   *x, *saved, dpops, dpopsmax = 0.0;
@@ -574,7 +574,7 @@ void iterateFixedPoint(RHState *rh, int NmaxIter, double iterLimit)
 			accel = Accelerate(rh, atom->Ng_n, atom->n[0]);
 			snprintf(label, sizeof(label), " %s,", atom->ID);
 			dpops = MaxChange(rh, atom->Ng_n, label, quiet = FALSE);
-			Message(rh, "%s", NgStatus(atom->Ng_n, accel));
+			Message(rh, "%s", NgStatus(atom->Ng_n, accel, status, sizeof(status)));
 			dpopsmax = MAX(dpops, dpopsmax);
 		}
 		for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
@@ -582,7 +582,7 @@ void iterateFixedPoint(RHState *rh, int NmaxIter, double iterLimit)
 			accel    = Accelerate(rh, molecule->Ng_nv, molecule->nv[0]);
 			snprintf(label, sizeof(label), " %s ,", molecule->ID);
 			dpops = MaxChange(rh, molecule->Ng_nv, label, quiet = FALSE);
-			Message(rh, "%s", NgStatus(molecule->Ng_nv, accel));
+			Message(rh, "%s", NgStatus(molecule->Ng_nv, accel, status, sizeof(status)));
 			dpopsmax = MAX(dpops, dpopsmax);
 		}
 		if (rh->input.solve_ne == ITERATION) {
