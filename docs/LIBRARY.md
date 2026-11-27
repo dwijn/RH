@@ -836,6 +836,8 @@ flowchart TB
    `RH_E_NOMEM` everywhere comes with phase 4; until then the large setup
    arrays return it as their modules convert, and the other allocations
    abort with a message.*
+   *Q-53 done 2026-11-27 (#637): 492 allocation calls through checked
+   helpers that abort with the routine, the size and the expression.*
 4. **Split lifetimes and free everything.** Model, atmosphere and solver
    become separate objects (§3.2): atom data without `Nspace` arrays,
    collision data parsed into memory, `Background()` no longer frees model
