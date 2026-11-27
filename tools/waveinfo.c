@@ -51,8 +51,9 @@ int main(int argc, char *argv[])
 	register int i;
 
 	char    format[] = "%9.3f   %9.3f   %9.3f   %9.3f   %9.3f\n";
-	bool_t  showfull = FALSE, to_air = FALSE, result = TRUE;
+	bool_t  showfull = FALSE, to_air = FALSE;
 	int     Nlambda;
+	char   *fileName;
 	double *lambda;
 	FILE   *fp_wave;
 	XDR     xdrs;
@@ -80,32 +81,54 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if ((fp_wave = fopen(argv[argc - 1], "r")) == NULL) {
-		fprintf(stderr, " Error opening file: %s\n", argv[argc - 1]);
-		exit(0);
+	fileName = argv[argc - 1];
+	if ((fp_wave = fopen(fileName, "r")) == NULL) {
+		fprintf(stderr, " Error opening file: %s\n", fileName);
+		exit(EXIT_FAILURE);
 	}
 	xdrstdio_create(&xdrs, fp_wave, XDR_DECODE);
 
-	result &= xdr_int(&xdrs, &Nlambda);
+	/* --- The number of wavelengths, then the wavelengths: a file that
+		   ends before either, or gives a negative number, is not a
+		   wavelength file (B-75) --                       -------------- */
 
-	lambda = (double *) malloc(Nlambda * sizeof(double));
-	result &= xdr_vector(&xdrs, (char *) lambda, Nlambda,
-						 sizeof(double), (xdrproc_t) rh_xdr_double);
-
-	/* --- A failed read goes unreported, as before: the message was
-		   formatted into messageStr but never printed (Q-48) -- ---- */
-
-	(void) result;
-
+	if (!xdr_int(&xdrs, &Nlambda)) {
+		fprintf(stderr, " Error reading file: %s: no number of wavelengths\n",
+				fileName);
+		exit(EXIT_FAILURE);
+	}
+	if (Nlambda < 0) {
+		fprintf(stderr, " Error reading file: %s: a negative number of "
+						"wavelengths (%d)\n",
+				fileName, Nlambda);
+		exit(EXIT_FAILURE);
+	}
+	lambda = (double *) malloc(MAX(Nlambda, 1) * sizeof(double));
+	if (lambda == NULL) {
+		fprintf(stderr, " Error reading file: %s: no memory for %d wavelengths\n",
+				fileName, Nlambda);
+		exit(EXIT_FAILURE);
+	}
+	if (!xdr_vector(&xdrs, (char *) lambda, Nlambda, sizeof(double),
+					(xdrproc_t) rh_xdr_double)) {
+		fprintf(stderr, " Error reading file: %s: it ends before its %d "
+						"wavelengths\n",
+				fileName, Nlambda);
+		exit(EXIT_FAILURE);
+	}
 	xdr_destroy(&xdrs);
 	fclose(fp_wave);
 
 	if (to_air) vacuum_to_air(Nlambda, lambda, lambda);
 
-	fprintf(stderr,
-			"\n Found %d wavelengths, ranging from %9.3f to %9.3f [nm]%s\n\n",
-			Nlambda, lambda[0], lambda[Nlambda - 1],
-			(to_air) ? " (in air)" : " (in vaccuum)");
+	if (Nlambda == 0) {
+		fprintf(stderr, "\n Found no wavelengths\n\n");
+	} else {
+		fprintf(stderr,
+				"\n Found %d wavelengths, ranging from %9.3f to %9.3f [nm]%s\n\n",
+				Nlambda, lambda[0], lambda[Nlambda - 1],
+				(to_air) ? " (in air)" : " (in vaccuum)");
+	}
 	if (showfull) {
 		for (i = 0; i < Nlambda - 5; i += 5) {
 			printf(format, lambda[i], lambda[i + 1], lambda[i + 2],
@@ -115,6 +138,6 @@ int main(int argc, char *argv[])
 			printf("%9.3f%s", lambda[i], (i == Nlambda - 1) ? "\n\n" : "   ");
 	}
 	free(lambda);
-	exit(1);
+	exit(EXIT_SUCCESS);
 }
 /* ------- end ---------------------------- waveinfo.c -------------- */

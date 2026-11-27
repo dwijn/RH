@@ -304,6 +304,11 @@ if(Python3_Interpreter_FOUND)
       --solveray2d $<TARGET_FILE:rhsc2d_solveray>
       --rhsc3d $<TARGET_FILE:rhsc3d>)
 
+  if(RH_BUILD_TOOLS)
+    rh_add_e2e(waveinfo waveinfo
+        --waveinfo $<TARGET_FILE:waveinfo>)
+  endif()
+
   # The readers and comparisons of tests/rhtest, on synthetic files
   add_test(NAME unit_rhtest
            COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/unit/test_rhtest.py)
