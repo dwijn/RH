@@ -817,6 +817,18 @@ flowchart TB
    tools and unit tests are clients and keep their own instance. The
    level of `Error` stays until Q-51, as a marker of the sites written
    to continue (Q-16).*
+   *Q-50 done 2026-11-27 (#622). Q-51 done 2026-11-27 (#623, #624): the
+   389 fatal sites classified (59 input, 217 data, 14 numeric, 5 trial,
+   13 out of memory, 77 invariants for `RH_ASSERT`, 4 that belong to the
+   programs), the mechanism, and the runtime and numerics converted. As
+   built: the bridge for callers not yet converted is a function,
+   `ExitOnError`, not a macro; every function that returns a status is
+   `RH_NODISCARD`. The call graph of the functions that can fail has a
+   cycle (geometry, io, nlte, physics, transfer), so the order of the
+   later modules is free. Allocation failures (decided 2026-11-27, Q-53):
+   `RH_E_NOMEM` everywhere comes with phase 4; until then the large setup
+   arrays return it as their modules convert, and the other allocations
+   abort with a message.*
 4. **Split lifetimes and free everything.** Model, atmosphere and solver
    become separate objects (§3.2): atom data without `Nspace` arrays,
    collision data parsed into memory, `Background()` no longer frees model
