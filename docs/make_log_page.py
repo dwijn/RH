@@ -32,7 +32,9 @@ closed yet; the row stays open and a warning names it.
 At a glance: the sentence "N issues are logged; N are fixed and N closed
 without a fix. Of the N open, N are on the wishlist." is recounted from the
 issue tables of section 3 (3.1 to 3.8; 3.9 repeats IDs), the wishlist being
-the open IDs whose plan step in make_issues.py is Wishlist. A status cell
+the open IDs whose plan step in make_issues.py is Wishlist; so is "N of the
+problems found also exist upstream (§3.9), and N of them are fixed here",
+from the IDs of 3.9 and their status. A status cell
 other than open, fixed or wontfix ("superseded by B-64") counts as the state
 of its issue. --sync-md also sets the date of "*Status on YYYY-MM-DD.*" when
 it changes anything. The rest of At a glance is prose, updated by hand.
@@ -222,10 +224,13 @@ def wishlist_ids():
 
 def tally(text, states):
     """Counts for "At a glance" from the issue tables of section 3 (3.1 to
-    3.8; 3.9 repeats IDs): {logged, fixed, wontfix, open, wishlist}, or None
-    when a status cannot be classified. A status cell is fixed ("fixed",
-    "fixed (#n)"), wontfix, or open ("open", "open — ...", "in progress");
-    any other cell ("superseded by B-64") takes the state of its issue."""
+    3.8; 3.9 repeats IDs): {logged, fixed, wontfix, open, wishlist,
+    upstream, upstream_fixed}, or None when a status cannot be classified.
+    A status cell is fixed ("fixed", "fixed (#n)"), wontfix, or open ("open",
+    "open — ...", "in progress"); any other cell ("superseded by B-64") takes
+    the state of its issue. upstream counts the IDs of 3.9, upstream_fixed
+    those of them that are fixed (by the same classification); both None
+    when 3.9 names an ID that 3.1 to 3.8 do not."""
     m = re.search(r"^## 3\. Issues$(.*?)^### 3\.9 ", text, flags=re.M | re.S)
     wish = wishlist_ids()
     if not m or wish is None:
@@ -259,6 +264,22 @@ def tally(text, states):
     n = {k: sum(1 for v in kind.values() if v == k) for k in ("fixed", "wontfix", "open")}
     n["logged"] = len(kind)
     n["wishlist"] = sum(1 for i, v in kind.items() if v == "open" and i in wish)
+    up = []
+    m9 = re.search(r"^### 3\.9 .*?(?=^## |\Z)", text, flags=re.M | re.S)
+    for line in (m9.group(0) if m9 else "").split("\n"):
+        if line.startswith("| "):
+            mm = re.match(r"\[?([A-Z]+-[0-9]+)\]?", cells(line)[1].strip())
+            if mm and mm.group(1) not in up:
+                up.append(mm.group(1))
+    missing = [i for i in up if i not in kind]
+    if missing or not up:
+        print("warning: upstream counts not computed: " +
+              ("3.9 not found" if not up else "not in 3.1 to 3.8: " + ", ".join(missing)),
+              file=sys.stderr)
+        n["upstream"] = n["upstream_fixed"] = None
+    else:
+        n["upstream"] = len(up)
+        n["upstream_fixed"] = sum(1 for i in up if kind[i] == "fixed")
     return n
 
 
@@ -266,24 +287,32 @@ GLANCE = re.compile(r"(\d+)( issues are logged;\s+)(\d+)( are fixed and\s+)(\d+)
                     r"(\s+closed without a fix\.\s+Of the\s+)(\d+)( open,\s+)(\d+)"
                     r"( are on the wishlist\.)")
 GLANCE_KEYS = ("logged", "fixed", "wontfix", "open", "wishlist")
+UPSTREAM = re.compile(r"(\d+)( of the problems found also exist upstream \(§3\.9\), and\s+)"
+                      r"(\d+)( of them\s+are fixed here\.)")
+UPSTREAM_KEYS = ("upstream", "upstream_fixed")
 
 
 def apply_counts(text, n):
-    """Write the counts into the "At a glance" sentence; list what changed."""
-    m = GLANCE.search(text)
-    if n is None or not m:
-        if n is not None:
-            print("warning: the At a glance sentence with the counts was not found",
-                  file=sys.stderr)
+    """Write the counts into the two "At a glance" sentences that have them;
+    list what changed."""
+    if n is None:
         return text
-    old = dict(zip(GLANCE_KEYS, (int(m.group(g)) for g in (1, 3, 5, 7, 9))))
-    for k in GLANCE_KEYS:
-        if old[k] != n[k]:
-            print(f"at a glance {k}: {old[k]} -> {n[k]}", file=sys.stderr)
-    g = list(m.groups())
-    for k, i in zip(GLANCE_KEYS, (0, 2, 4, 6, 8)):
-        g[i] = str(n[k])
-    return text[:m.start()] + "".join(g) + text[m.end():]
+    for regex, keys, what in ((GLANCE, GLANCE_KEYS, "the issue counts"),
+                              (UPSTREAM, UPSTREAM_KEYS, "the upstream counts")):
+        m = regex.search(text)
+        if n[keys[0]] is None:
+            continue
+        if not m:
+            print(f"warning: the At a glance sentence with {what} was not found",
+                  file=sys.stderr)
+            continue
+        g = list(m.groups())
+        for k, i in zip(keys, range(0, 2 * len(keys), 2)):
+            if int(g[i]) != n[k]:
+                print(f"at a glance {k}: {g[i]} -> {n[k]}", file=sys.stderr)
+            g[i] = str(n[k])
+        text = text[:m.start()] + "".join(g) + text[m.end():]
+    return text
 
 
 frags = read_fragments()
