@@ -76,7 +76,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 	/* --- Open the data file for current model atom --  -------------- */
 
 	if ((atom->fp_input = fopen(atom_file, "r")) == NULL) {
-		Error(rh, ERROR_LEVEL_2, routineName, "%s", atom_file);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s", atom_file);
 	} else {
 		Message(rh, " -- reading input file: %s %s",
 				atom_file, (atom->active) ? "(active)\n\n" : "(passive)\n");
