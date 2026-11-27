@@ -812,6 +812,11 @@ flowchart TB
    first, and broken invariants become `RH_ASSERT` instead of statuses
    (§3.6). Internal functions keep internal names; `rh_` is for the API
    of phase 6. `ERROR_LEVEL_1` stays fatal; Q-16 follows phase 3.
+   *Q-48 and Q-49 done 2026-11-26 (#605, #609). As built: 451 functions
+   take `rh` (364 of the library, 87 of the geometry code); the programs,
+   tools and unit tests are clients and keep their own instance. The
+   level of `Error` stays until Q-51, as a marker of the sites written
+   to continue (Q-16).*
 4. **Split lifetimes and free everything.** Model, atmosphere and solver
    become separate objects (§3.2): atom data without `Nspace` arrays,
    collision data parsed into memory, `Background()` no longer frees model
