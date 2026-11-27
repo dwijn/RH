@@ -377,6 +377,13 @@ flowchart LR
   trust what the boundary has checked; only the status codes are
   shared. A broken invariant inside is a bug, not a status:
   `RH_ASSERT` prints the message and aborts, also in Release builds.
+  *Agreed 2026-11-27 (after the Q-51 classification):* options and
+  data that clients pass in memory are validated at the API, as the
+  readers validate files now, so inside the library an impossible value
+  is a bug. A fatal site becomes `RH_ASSERT` only where the
+  classification is confident that only a bug reaches it; where it is
+  not, the site returns a status. Dead code found on the way is deleted,
+  not asserted.
 - Allocation failure is `RH_E_NOMEM`, not an exit.
 - Floating-point traps move to the stand-alone program, which may set
   them around its calls (CI relies on them).
