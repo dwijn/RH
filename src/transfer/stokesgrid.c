@@ -67,7 +67,7 @@ void Stokes_from_rapidity(double I, const double w[3], double v[4])
 
 /* ------- begin -------------------------- StokesGrid_init.c ------- */
 
-void StokesGrid_init(StokesGrid *sg, int nspect, int Nspace, double *chi,
+void StokesGrid_init(RHState *rh, StokesGrid *sg, int nspect, int Nspace, double *chi,
 					 double **S, double **I)
 {
 	/* --- The grid arrays of one formal solution: the rapidities of S
@@ -84,7 +84,7 @@ void StokesGrid_init(StokesGrid *sg, int nspect, int Nspace, double *chi,
 	sg->S      = S;
 	sg->I      = I;
 
-	sg->polarizedK      = containsPolarized(as) || rh->atmos.backgrflags[nspect].ispolarized;
+	sg->polarizedK      = containsPolarized(rh, as) || rh->atmos.backgrflags[nspect].ispolarized;
 	sg->magneto_optical = sg->polarizedK && rh->input.magneto_optical;
 
 	sg->buffer = (double *) malloc(12 * (size_t) Nspace * sizeof(double));
@@ -100,7 +100,7 @@ void StokesGrid_init(StokesGrid *sg, int nspect, int Nspace, double *chi,
 		StokesGrid_update_I(sg, k);
 
 		if (sg->polarizedK) {
-			StokesK(nspect, k, chi[k], K);
+			StokesK(rh, nspect, k, chi[k], K);
 			Stokes_to_rapidity(1.0, K[0][1], K[0][2], K[0][3], w);
 			for (int n = 0; n < 3; n++) sg->wK[n][k] = w[n];
 

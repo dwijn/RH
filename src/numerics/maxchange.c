@@ -23,7 +23,7 @@
 
 /* ------- begin -------------------------- MaxChange.c ------------- */
 
-double MaxChange(struct Ng *Ngs, char *text, bool_t quiet)
+double MaxChange(RHState *rh, struct Ng *Ngs, char *text, bool_t quiet)
 {
 	register int k;
 

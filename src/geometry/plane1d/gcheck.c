@@ -42,11 +42,11 @@ int main(int argc, char *argv[])
 	GCheckOptions opt;
 
 	gcheckParse(&argc, argv, &opt);
-	setOptions(argc, argv);
-	getCPU(0, TIME_START, NULL);
+	setOptions(rh, argc, argv);
+	getCPU(rh, 0, TIME_START, NULL);
 	SetFPEtraps();
 
-	readInput();
+	readInput(rh);
 	if (rh->input.solver != SOLVER_FIXED_POINT) {
 		Error(rh, ERROR_LEVEL_2, "gcheck",
 			  "gcheck checks the map G of SOLVER = FIXED_POINT: set"
@@ -55,27 +55,27 @@ int main(int argc, char *argv[])
 	}
 	rh->spectrum.updateJ = TRUE;
 
-	getCPU(1, TIME_START, NULL);
-	MULTIatmos(&rh->atmos, rh->geometry);
-	if (rh->atmos.Stokes) Bproject();
+	getCPU(rh, 1, TIME_START, NULL);
+	MULTIatmos(rh, &rh->atmos, rh->geometry);
+	if (rh->atmos.Stokes) Bproject(rh);
 
-	readAtomicModels();
-	readMolecularModels();
-	SortLambda();
+	readAtomicModels(rh);
+	readMolecularModels(rh);
+	SortLambda(rh);
 
-	getBoundary(rh->geometry);
+	getBoundary(rh, rh->geometry);
 
-	Background(write_analyze_output = FALSE, equilibria_only = FALSE);
-	convertScales(&rh->atmos, rh->geometry);
+	Background(rh, write_analyze_output = FALSE, equilibria_only = FALSE);
+	convertScales(rh, &rh->atmos, rh->geometry);
 
-	getProfiles();
-	initSolution();
-	initScatter();
+	getProfiles(rh);
+	initSolution(rh);
+	initScatter(rh);
 
-	getCPU(1, TIME_POLL, "Total initialize");
+	getCPU(rh, 1, TIME_POLL, "Total initialize");
 
-	gcheckRun(&opt);
+	gcheckRun(rh, &opt);
 
-	return ExitStatus();
+	return ExitStatus(rh);
 }
 /* ------- end ---------------------------- gcheck.c ---------------- */

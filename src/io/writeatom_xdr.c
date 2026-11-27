@@ -24,13 +24,13 @@
 
 /* --- Function prototypes --                          -------------- */
 
-bool_t xdr_adamp(XDR *xdrs, struct Atom *atom);
+bool_t xdr_adamp(RHState *rh, XDR *xdrs, struct Atom *atom);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- writeAtom.c ------------- */
 
-void writeAtom(struct Atom *atom)
+void writeAtom(RHState *rh, struct Atom *atom)
 {
 	const char routineName[] = "writeAtom";
 
@@ -47,7 +47,7 @@ void writeAtom(struct Atom *atom)
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
-	if (!xdr_atom(&xdrs, atom)) {
+	if (!xdr_atom(rh, &xdrs, atom)) {
 		Error(rh, ERROR_LEVEL_1, routineName, "Unable to write to output file %s",
 			  atomoutfile);
 	}
@@ -58,7 +58,7 @@ void writeAtom(struct Atom *atom)
 
 /* ------- begin -------------------------- xdr_atom.c -------------- */
 
-bool_t xdr_atom(XDR *xdrs, struct Atom *atom)
+bool_t xdr_atom(RHState *rh, XDR *xdrs, struct Atom *atom)
 {
 	register int i, kr, kf;
 
@@ -184,7 +184,7 @@ bool_t xdr_atom(XDR *xdrs, struct Atom *atom)
 
 /* ------- begin -------------------------- xdr_adamp.c ------------- */
 
-bool_t xdr_adamp(XDR *xdrs, Atom *atom)
+bool_t xdr_adamp(RHState *rh, XDR *xdrs, Atom *atom)
 {
 	register int kr, k;
 
@@ -197,7 +197,7 @@ bool_t xdr_adamp(XDR *xdrs, Atom *atom)
 	for (kr = 0; kr < atom->Nline; kr++) {
 		line = atom->line + kr;
 		if (line->Voigt)
-			Damping(line, adamp);
+			Damping(rh, line, adamp);
 		else
 			for (k = 0; k < rh->atmos.Nspace; k++) adamp[k] = 0.0;
 

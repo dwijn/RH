@@ -29,8 +29,8 @@
 /* --- Function prototypes --                          -------------- */
 
 double Pythag(double a, double b);
-void   tqli(double *d, double *e, int N, double **z);
-void   Paschen(double L, double S, double *E0, double B,
+void   tqli(RHState *rh, double *d, double *e, int N, double **z);
+void   Paschen(RHState *rh, double L, double S, double *E0, double B,
 			   Paschenstruct *ps);
 
 /* --- Global variables --                             -------------- */
@@ -44,7 +44,7 @@ void Paschen_Back()
 
 /* ------- begin -------------------------- Paschen.c --------------- */
 
-void Paschen(double L, double S, double *E0, double B, Paschenstruct *ps)
+void Paschen(RHState *rh, double L, double S, double *E0, double B, Paschenstruct *ps)
 {
 	register int j, jp;
 
@@ -71,7 +71,7 @@ void Paschen(double L, double S, double *E0, double B, Paschenstruct *ps)
 		ps[Mindex].Nj = (int) (Jb - Ja) + 1;
 
 		ps[Mindex].eigenval = (double *) malloc(ps[Mindex].Nj * sizeof(double));
-		ps[Mindex].C        = matrix_double(ps[Mindex].Nj, ps[Mindex].Nj);
+		ps[Mindex].C        = matrix_double(rh, ps[Mindex].Nj, ps[Mindex].Nj);
 
 		ud = (double *) malloc(ps[Mindex].Nj * sizeof(double));
 
@@ -81,7 +81,7 @@ void Paschen(double L, double S, double *E0, double B, Paschenstruct *ps)
 			ps[Mindex].eigenval[j] += E0[j] +
 									  Larmor * (M + (((int) (2 * J + L + S + M)) % 2 ? -1.0 : 1.0) *
 														(2.0 * J + 1.0) * sqrt(S * (S + 1.0) * (2.0 * S + 1.0)) *
-														w3js(J, J, 1.0, -M, M, 0.0) * w6js(J, J, 1.0, S, S, L));
+														w3js(rh, J, J, 1.0, -M, M, 0.0) * w6js(rh, J, J, 1.0, S, S, L));
 		}
 
 		if (ps[Mindex].Nj > 1) {
@@ -91,12 +91,12 @@ void Paschen(double L, double S, double *E0, double B, Paschenstruct *ps)
 
 				ud[jp] = Larmor * (((int) (J + Jp + L + S + M)) % 2 ? -1.0 : 1.0) *
 						 sqrt((2.0 * J + 1.0) * (2.0 * Jp + 1.0) * S * (S + 1.0) * (2.0 * S + 1.0)) *
-						 w3js(J, Jp, 2.0, -M, M, 0.0) * w6js(J, Jp, 1.0, S, S, L);
+						 w3js(rh, J, Jp, 2.0, -M, M, 0.0) * w6js(rh, J, Jp, 1.0, S, S, L);
 			}
 		}
 
 		for (j = 0; j < ps[Mindex].Nj; j++) ps[Mindex].C[j][j] = 1.0;
-		tqli(ps[Mindex].eigenval, ud, ps[Mindex].Nj, ps[Mindex].C);
+		tqli(rh, ps[Mindex].eigenval, ud, ps[Mindex].Nj, ps[Mindex].C);
 
 		free(ud);
 		Mindex++;
@@ -130,7 +130,7 @@ double Pythag(double a, double b)
 
 /* ------- begin -------------------------- tqli.c ------------------ */
 
-void tqli(double *d, double *e, int N, double **z)
+void tqli(RHState *rh, double *d, double *e, int N, double **z)
 {
 	const char   routineName[] = "tqli";
 	register int m, l, iter, i, k;

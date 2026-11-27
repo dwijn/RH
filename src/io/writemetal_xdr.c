@@ -24,7 +24,7 @@
 
 /* ------- begin -------------------------- writeMetals.c ----------- */
 
-bool_t writeMetals(char *fileName)
+bool_t writeMetals(RHState *rh, char *fileName)
 {
 	const char   routineName[] = "writeMetals";
 	register int n;
@@ -42,7 +42,7 @@ bool_t writeMetals(char *fileName)
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
-	xdr_atom(&xdrs, rh->atmos.H);
+	xdr_atom(rh, &xdrs, rh->atmos.H);
 
 	/* --- Only write active atoms, write Hydrogen seperately -- ------ */
 
@@ -51,7 +51,7 @@ bool_t writeMetals(char *fileName)
 	for (n = 1; n < rh->atmos.Natom; n++) {
 		atom = &rh->atmos.atoms[n];
 		if (!atom->active)
-			result &= xdr_atom(&xdrs, atom);
+			result &= xdr_atom(rh, &xdrs, atom);
 	}
 
 	xdr_destroy(&xdrs);

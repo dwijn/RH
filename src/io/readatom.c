@@ -44,14 +44,14 @@
 
 /* --- Function prototypes --                          -------------- */
 
-void  distribute_nH(void);
-char *getAtomID(char *atom_file);
+void  distribute_nH(RHState *rh);
+char *getAtomID(RHState *rh, char *atom_file);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- readAtom.c -------------- */
 
-void readAtom(Atom *atom, char *atom_file)
+void readAtom(RHState *rh, Atom *atom, char *atom_file)
 {
 	const char   routineName[] = "readAtom";
 	register int kr, krp, kf, la, k, n;
@@ -69,7 +69,7 @@ void readAtom(Atom *atom, char *atom_file)
 	AtomicContinuum *continuum;
 	FixedTransition *fixed;
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	C = 2 * PI * (Q_ELECTRON / EPSILON_0) * (Q_ELECTRON / M_ELECTRON) / CLIGHT;
 
@@ -84,9 +84,9 @@ void readAtom(Atom *atom, char *atom_file)
 
 	/* --- Read atom ID and convert to uppercase --     -------------- */
 
-	getLine(atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%2s", atom->ID);
-	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 1);
+	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 1);
 	for (n = 0; n < (int) strlen(atom->ID); n++)
 		atom->ID[n] = toupper(atom->ID[n]);
 	if (strlen(atom->ID) == 1) strcat(atom->ID, " ");
@@ -118,10 +118,10 @@ void readAtom(Atom *atom, char *atom_file)
 
 	/* --- Get Number of levels, lines fixed transitions, and continua  */
 
-	getLine(atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%d %d %d %d",
 				   &atom->Nlevel, &atom->Nline, &atom->Ncont, &atom->Nfixed);
-	checkNread(Nread, Nrequired = 4, routineName, checkPoint = 2);
+	checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 2);
 	Nlevel = atom->Nlevel;
 	Nline  = atom->Nline;
 	Ncont  = atom->Ncont;
@@ -137,10 +137,10 @@ void readAtom(Atom *atom, char *atom_file)
 
 	for (i = 0; i < Nlevel; i++) {
 		atom->label[i] = (char *) calloc((ATOM_LABEL_WIDTH + 1), sizeof(char));
-		getLine(atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%lf %lf '%20c' %d",
 					   &atom->E[i], &atom->g[i], atom->label[i], &atom->stage[i]);
-		checkNread(Nread, Nrequired = 4, routineName, checkPoint = 3);
+		checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 3);
 
 		atom->E[i] *= (HPLANCK * CLIGHT) / CM_TO_M;
 	}
@@ -149,7 +149,7 @@ void readAtom(Atom *atom, char *atom_file)
 			  atom->ID, atom_file);
 	}
 
-	atom->nstar  = matrix_double(Nlevel, Nspace);
+	atom->nstar  = matrix_double(rh, Nlevel, Nspace);
 	atom->ntotal = (double *) malloc(Nspace * sizeof(double));
 
 	for (k = 0; k < Nspace; k++)
@@ -183,7 +183,7 @@ void readAtom(Atom *atom, char *atom_file)
 		line->atom         = atom;
 		line->isotope_frac = 1.0;
 
-		getLine(atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine,
 					   "%d %d %lf %s %d %s %lf %lf %s %lf %lf %lf %lf %lf %lf %lf",
 					   &j, &i, &f, shapeStr, &line->Nlambda, symmStr,
@@ -191,7 +191,7 @@ void readAtom(Atom *atom, char *atom_file)
 					   &line->cvdWaals[0], &line->cvdWaals[1],
 					   &line->cvdWaals[2], &line->cvdWaals[3],
 					   &line->Grad, &line->cStark, &line->g_Lande_eff);
-		checkNread(Nread, Nrequired = 15, routineName, checkPoint = 4);
+		checkNread(rh, Nread, Nrequired = 15, routineName, checkPoint = 4);
 		if (Nread == 15) line->g_Lande_eff = 0.0;
 
 		line->j = MAX(i, j);
@@ -226,7 +226,7 @@ void readAtom(Atom *atom, char *atom_file)
 		if (strstr(shapeStr, "GAUSS")) line->Voigt = FALSE;
 
 		if (strstr(shapeStr, "COMPOSIT")) {
-			getLine(atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 			Nread         = sscanf(inputLine, "%d", &line->Ncomponent);
 			line->c_shift = (double *) malloc(line->Ncomponent * sizeof(double));
 			line->c_fraction =
@@ -234,7 +234,7 @@ void readAtom(Atom *atom, char *atom_file)
 
 			c_sum = 0.0;
 			for (n = 0; n < line->Ncomponent; n++) {
-				getLine(atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+				getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 				Nread = sscanf(inputLine, "%lf %lf",
 							   &line->c_shift[n], &line->c_fraction[n]);
 				c_sum += line->c_fraction[n];
@@ -266,7 +266,7 @@ void readAtom(Atom *atom, char *atom_file)
 			line->cvdWaals[3] = line->cvdWaals[1] = 0.0;
 		} else if (strstr(vdWstr, "BARKLEM")) {
 			line->vdWaals = BARKLEM;
-			if (!getBarklemactivecross(line)) {
+			if (!getBarklemactivecross(rh, line)) {
 				Warning(rh, routineName, "Line %3d -> %3d: cannot treat line "
 										 "with Barklem type broadening. Using UNSOLD.",
 						j, i);
@@ -275,7 +275,7 @@ void readAtom(Atom *atom, char *atom_file)
 			}
 		} else if (strstr(vdWstr, "ABO_EXPL")) {
 			line->vdWaals = BARKLEM;
-			if (getBarklemExplicit(line)) {
+			if (getBarklemExplicit(rh, line)) {
 				Warning(rh, routineName, "Line %3d -> %3d: Using explicit ABO coefficients",
 						j, i);
 			}
@@ -297,12 +297,12 @@ void readAtom(Atom *atom, char *atom_file)
 				   (no lock) --                   -------------- */
 
 			if (rh->input.Nthreads > 1) {
-				line->Rij_thread = matrix_double(rh->input.Nthreads, Nspace);
-				line->Rji_thread = matrix_double(rh->input.Nthreads, Nspace);
+				line->Rij_thread = matrix_double(rh, rh->input.Nthreads, Nspace);
+				line->Rji_thread = matrix_double(rh, rh->input.Nthreads, Nspace);
 			}
 
 			if (rh->atmos.Stokes) {
-				if (zeemanPolarizable(atom, i, j, line->g_Lande_eff)) {
+				if (zeemanPolarizable(rh, atom, i, j, line->g_Lande_eff)) {
 
 					line->polarizable = TRUE;
 				} else {
@@ -323,11 +323,11 @@ void readAtom(Atom *atom, char *atom_file)
 		continuum->atom         = atom;
 		continuum->isotope_frac = 1.0;
 
-		getLine(atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%d %d %lf %d %s %lf",
 					   &j, &i, &continuum->alpha0, &continuum->Nlambda,
 					   nuDepStr, &lambdamin);
-		checkNread(Nread, Nrequired = 6, routineName, checkPoint = 5);
+		checkNread(rh, Nread, Nrequired = 6, routineName, checkPoint = 5);
 
 		continuum->j = MAX(i, j);
 		continuum->i = MIN(i, j);
@@ -344,10 +344,10 @@ void readAtom(Atom *atom, char *atom_file)
 		if (strstr(nuDepStr, "EXPLICIT")) {
 			continuum->hydrogenic = FALSE;
 			for (la = continuum->Nlambda - 1; la >= 0; la--) {
-				getLine(atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+				getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 				Nread = sscanf(inputLine, "%lf %lf",
 							   &continuum->lambda[la], &continuum->alpha[la]);
-				checkNread(Nread, Nrequired = 2, routineName, checkPoint = 6);
+				checkNread(rh, Nread, Nrequired = 2, routineName, checkPoint = 6);
 			}
 			/* --- The table is interpolated in SortLambda and metalPrepare
 				   (pchip.c), which need strictly increasing wavelengths. Drop repeated entries (a duplicated
@@ -404,8 +404,8 @@ void readAtom(Atom *atom, char *atom_file)
 				   (no lock) --                   -------------- */
 
 			if (rh->input.Nthreads > 1) {
-				continuum->Rij_thread = matrix_double(rh->input.Nthreads, Nspace);
-				continuum->Rji_thread = matrix_double(rh->input.Nthreads, Nspace);
+				continuum->Rij_thread = matrix_double(rh, rh->input.Nthreads, Nspace);
+				continuum->Rji_thread = matrix_double(rh, rh->input.Nthreads, Nspace);
 			}
 		}
 	}
@@ -419,11 +419,11 @@ void readAtom(Atom *atom, char *atom_file)
 			fixed       = atom->ft + kf;
 			fixed->atom = atom;
 
-			getLine(atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 			Nread = sscanf(inputLine, "%d %d %lf %lf %s",
 						   &j, &i, &fixed->strength,
 						   &fixed->Trad, optionStr);
-			checkNread(Nread, Nrequired = 5, routineName, checkPoint = 6);
+			checkNread(rh, Nread, Nrequired = 5, routineName, checkPoint = 6);
 
 			fixed->j = MAX(i, j);
 			fixed->i = MIN(i, j);
@@ -522,8 +522,8 @@ void readAtom(Atom *atom, char *atom_file)
 		/* --- Get wavelength quadratures and allocate space
 			   for populations --                          -------------- */
 
-		for (kr = 0; kr < Nline; kr++) getLambda(atom->line + kr);
-		atom->n = matrix_double(Nlevel, Nspace);
+		for (kr = 0; kr < Nline; kr++) getLambda(rh, atom->line + kr);
+		atom->n = matrix_double(rh, Nlevel, Nspace);
 
 		/* --- Allocate space for thread dependent quantities -- -------- */
 
@@ -534,7 +534,7 @@ void readAtom(Atom *atom, char *atom_file)
 			   space for rate coefficients --               ------------- */
 
 		atom->offset_coll = ftell(atom->fp_input);
-		atom->C           = matrix_double(SQ(Nlevel), Nspace);
+		atom->C           = matrix_double(rh, SQ(Nlevel), Nspace);
 
 	} else {
 
@@ -545,8 +545,8 @@ void readAtom(Atom *atom, char *atom_file)
 
 			/* --- Allocate memory for Non-LTE populations -- ------------- */
 
-			atom->n = matrix_double(atom->Nlevel, rh->atmos.Nspace);
-			readPopulations(atom);
+			atom->n = matrix_double(rh, atom->Nlevel, rh->atmos.Nspace);
+			readPopulations(rh, atom);
 
 			Message(rh, " --- Read input file: %s with NLTE populations for atom %s\n",
 					atom->popsinFile, atom->ID);
@@ -568,7 +568,7 @@ void readAtom(Atom *atom, char *atom_file)
 
 	sprintf(labelStr, "Read %s %2s",
 			(atom->active) ? "Active" : "Atom", atom->ID);
-	getCPU(3, TIME_POLL, labelStr);
+	getCPU(rh, 3, TIME_POLL, labelStr);
 }
 /* ------- end ---------------------------- readAtom.c -------------- */
 
@@ -664,7 +664,7 @@ void initAtomicContinuum(AtomicContinuum *continuum)
 
 /* ------- begin -------------------------- freeAtom.c -------------- */
 
-void freeAtom(Atom *atom)
+void freeAtom(RHState *rh, Atom *atom)
 {
 	register int kr, i, nt;
 
@@ -677,7 +677,7 @@ void freeAtom(Atom *atom)
 	free(atom->label);
 
 	if (atom->active) {
-		freeMatrix((void **) atom->C);
+		freeMatrix(rh, (void **) atom->C);
 
 		/* --- The per-thread work arrays are allocated lazily, in
 			   alloc_as(), and are kept for the whole run --  ---------- */
@@ -687,11 +687,11 @@ void freeAtom(Atom *atom)
 
 			free(th->eta);
 			if (th->Nrt_alloc > 0) {
-				freeMatrix((void **) th->Vij);
-				freeMatrix((void **) th->gij);
-				freeMatrix((void **) th->wla);
+				freeMatrix(rh, (void **) th->Vij);
+				freeMatrix(rh, (void **) th->gij);
+				freeMatrix(rh, (void **) th->wla);
 			}
-			if (th->Gamma != NULL) freeMatrix((void **) th->Gamma);
+			if (th->Gamma != NULL) freeMatrix(rh, (void **) th->Gamma);
 			if (th->Uji_down != NULL) {
 				for (i = 0; i < atom->Nlevel; i++) free(th->Uji_down[i]);
 				free(th->Uji_down);
@@ -703,20 +703,20 @@ void freeAtom(Atom *atom)
 		   the case of LTE populations (see readAtom.c) -- ------------ */
 
 	free(atom->ntotal);
-	if (atom->n != atom->nstar) freeMatrix((void **) atom->n);
-	freeMatrix((void **) atom->nstar);
+	if (atom->n != atom->nstar) freeMatrix(rh, (void **) atom->n);
+	freeMatrix(rh, (void **) atom->nstar);
 
 	free(atom->vbroad);
 
 	if (atom->Nline > 0) {
 		for (kr = 0; kr < atom->Nline; kr++)
-			freeAtomicLine(&atom->line[kr]);
+			freeAtomicLine(rh, &atom->line[kr]);
 		free(atom->line);
 	}
 
 	if (atom->Ncont > 0) {
 		for (kr = 0; kr < atom->Ncont; kr++)
-			freeAtomicContinuum(&atom->continuum[kr]);
+			freeAtomicContinuum(rh, &atom->continuum[kr]);
 		free(atom->continuum);
 	}
 
@@ -727,7 +727,7 @@ void freeAtom(Atom *atom)
 
 /* ------- begin -------------------------- freeAtomicLine.c -------- */
 
-void freeAtomicLine(AtomicLine *line)
+void freeAtomicLine(RHState *rh, AtomicLine *line)
 {
 	/* --- Free allocated memory for active transition structure line - */
 
@@ -737,26 +737,26 @@ void freeAtomicLine(AtomicLine *line)
 		free(line->Rij);
 		free(line->Rji);
 		if (line->Rij_thread != NULL) {
-			freeMatrix((void **) line->Rij_thread);
-			freeMatrix((void **) line->Rji_thread);
+			freeMatrix(rh, (void **) line->Rij_thread);
+			freeMatrix(rh, (void **) line->Rji_thread);
 		}
 
-		freeMatrix((void **) line->phi);
+		freeMatrix(rh, (void **) line->phi);
 		free(line->wphi);
 		free(line->wquad);
 		if (line->polarizable) {
-			freeMatrix((void **) line->phi_Q);
-			freeMatrix((void **) line->phi_U);
-			freeMatrix((void **) line->phi_V);
+			freeMatrix(rh, (void **) line->phi_Q);
+			freeMatrix(rh, (void **) line->phi_U);
+			freeMatrix(rh, (void **) line->phi_V);
 			if (rh->input.magneto_optical) {
-				freeMatrix((void **) line->psi_Q);
-				freeMatrix((void **) line->psi_U);
-				freeMatrix((void **) line->psi_V);
+				freeMatrix(rh, (void **) line->psi_Q);
+				freeMatrix(rh, (void **) line->psi_U);
+				freeMatrix(rh, (void **) line->psi_V);
 			}
 		}
 		if (line->PRD) {
 			free(line->Qelast);
-			freeMatrix((void **) line->rho_prd);
+			freeMatrix(rh, (void **) line->rho_prd);
 			fclose(line->fp_GII);
 			free(line->prd_block);
 			if (rh->input.XRD) free(line->xrd);
@@ -777,7 +777,7 @@ void freeAtomicLine(AtomicLine *line)
 
 /* ------- begin -------------------------- freeAtomicContinuum.c --- */
 
-void freeAtomicContinuum(AtomicContinuum *continuum)
+void freeAtomicContinuum(RHState *rh, AtomicContinuum *continuum)
 {
 	/* --- Free allocated memory for AtomicContinuum structure -- ----- */
 
@@ -788,8 +788,8 @@ void freeAtomicContinuum(AtomicContinuum *continuum)
 		free(continuum->Rji);
 		free(continuum->wquad);
 		if (continuum->Rij_thread != NULL) {
-			freeMatrix((void **) continuum->Rij_thread);
-			freeMatrix((void **) continuum->Rji_thread);
+			freeMatrix(rh, (void **) continuum->Rij_thread);
+			freeMatrix(rh, (void **) continuum->Rji_thread);
 		}
 	}
 	/* --- alpha is the continuum's own array, hydrogenic or not;
@@ -804,7 +804,7 @@ void freeAtomicContinuum(AtomicContinuum *continuum)
 
 /* ------- begin -------------------------- readAtomicModels.c ------ */
 
-void readAtomicModels(void)
+void readAtomicModels(RHState *rh)
 {
 	const char   routineName[] = "readAtomicModels";
 	register int n, m;
@@ -817,7 +817,7 @@ void readAtomicModels(void)
 	FILE  *fp_atoms;
 	Atom  *atom;
 
-	getCPU(2, TIME_START, NULL);
+	getCPU(rh, 2, TIME_START, NULL);
 
 	/* --- Open input file for atomic models --          -------------- */
 
@@ -827,9 +827,9 @@ void readAtomicModels(void)
 	}
 	/* --- Get the number of atomic models to be read -- -------------- */
 
-	getLine(fp_atoms, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_atoms, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%d", &rh->atmos.Natom);
-	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 1);
+	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 1);
 
 	rh->atmos.atoms = (Atom *) malloc(rh->atmos.Natom * sizeof(Atom));
 
@@ -837,12 +837,12 @@ void readAtomicModels(void)
 
 	for (n = 0; n < rh->atmos.Natom; n++) {
 
-		getLine(fp_atoms, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, fp_atoms, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%s %s %s %s ",
 					   filename, actionKey, popsKey, popsFile);
-		checkNread(Nread, Nrequired = 3, routineName, checkPoint = 2);
+		checkNread(rh, Nread, Nrequired = 3, routineName, checkPoint = 2);
 
-		atomID = getAtomID(filename);
+		atomID = getAtomID(rh, filename);
 		if (n == 0 && !strstr(atomID, "H ")) {
 			Error(rh, ERROR_LEVEL_2, routineName, "First atomic model is not hydrogen: %s",
 				  atomID);
@@ -921,7 +921,7 @@ void readAtomicModels(void)
 				(char *) malloc((strlen(popsFile) + 1) * sizeof(char));
 			strcpy(atom->popsinFile, popsFile);
 		}
-		readAtom(atom, filename);
+		readAtom(rh, atom, filename);
 	}
 	fclose(fp_atoms);
 
@@ -937,15 +937,15 @@ void readAtomicModels(void)
 	/* --- Redistribute the hydrogen populations read in with the
 		   atmosphere over the atmospheric Hydrogen model -- ---------- */
 
-	distribute_nH();
-	getCPU(2, TIME_POLL, "Read atomic input");
+	distribute_nH(rh);
+	getCPU(rh, 2, TIME_POLL, "Read atomic input");
 }
 
 /* ------- end ---------------------------- readAtomicModels.c ------ */
 
 /* ------- begin -------------------------- getAtomID.c ------------- */
 
-char *getAtomID(char *atom_file)
+char *getAtomID(RHState *rh, char *atom_file)
 {
 	const char   routineName[] = "getAtomID";
 	register int n;
@@ -960,7 +960,7 @@ char *getAtomID(char *atom_file)
 	}
 	/* --- Read atom ID and convert to uppercase --     -------------- */
 
-	getLine(fp_atom, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_atom, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	sscanf(inputLine, "%2s", atomID);
 
 	for (n = 0; n < (int) strlen(atomID); n++)

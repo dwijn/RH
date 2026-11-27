@@ -34,7 +34,7 @@
 
 /* ------- begin -------------------------- SortLambda.c ------------ */
 
-void SortLambda()
+void SortLambda(RHState *rh)
 {
 	const char   routineName[] = "SortLambda";
 	register int kr, n, m, nspect, la, nact;
@@ -52,7 +52,7 @@ void SortLambda()
 	FILE            *fp_wavetable;
 	XDR              xdrs;
 
-	getCPU(2, TIME_START, NULL);
+	getCPU(rh, 2, TIME_START, NULL);
 
 	/* --- First read the wavelength table if specified -- ------------ */
 
@@ -91,7 +91,7 @@ void SortLambda()
 
 		for (kr = 0; kr < Nwave; kr++) extra[kr] = wavetable[kr];
 		if (rh->atmos.lambda_ref > 0.0) extra[Nwave] = rh->atmos.lambda_ref;
-		asymmetricBlends(extra, Nspectrum);
+		asymmetricBlends(rh, extra, Nspectrum);
 		free(extra);
 	}
 
@@ -351,7 +351,7 @@ void SortLambda()
 					   went negative around resonances --  -------------- */
 
 				alpha_original = continuum->alpha;
-				pchipTableInit(&bftable, Nlambda_original, continuum->lambda,
+				pchipTableInit(rh, &bftable, Nlambda_original, continuum->lambda,
 							   alpha_original, PCHIP_LOGLOG);
 
 				continuum->alpha =
@@ -555,8 +555,8 @@ void SortLambda()
 	/* --- Transitions that span the blue half of a symmetric line
 		   integrate across it with the red half mirrored (N-62) -- */
 
-	mirrorQuadrature();
+	mirrorQuadrature(rh);
 
-	getCPU(2, TIME_POLL, "SortLambda");
+	getCPU(rh, 2, TIME_POLL, "SortLambda");
 }
 /* ------- end ---------------------------- SortLambda.c ------------ */

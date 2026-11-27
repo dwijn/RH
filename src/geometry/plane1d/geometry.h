@@ -31,15 +31,15 @@ typedef struct Geometry {
 
 /* --- Associated function prototypes --               -------------- */
 
-void convertScales(Atmosphere *atmos, Geometry *geometry);
-void getAngleQuad(Geometry *geometry);
-void getBoundary(Geometry *geometry);
-void MULTIatmos(Atmosphere *atmos, Geometry *geometry);
-void writeGeometry(Geometry *geometry);
+void convertScales(RHState *rh, Atmosphere *atmos, Geometry *geometry);
+void getAngleQuad(RHState *rh, Geometry *geometry);
+void getBoundary(RHState *rh, Geometry *geometry);
+void MULTIatmos(RHState *rh, Atmosphere *atmos, Geometry *geometry);
+void writeGeometry(RHState *rh, Geometry *geometry);
 
 /* --- Formal solution related --                      -------------- */
 
-double Feautrier(int nspect, int mu, double *chi, double *S,
+double Feautrier(RHState *rh, int nspect, int mu, double *chi, double *S,
 				 enum FeautrierOrder order, double *P, double *Psi);
 
 void Piecewise_Linear_1D(RHState *rh, int nspect, int mu, bool_t to_obs,
@@ -55,7 +55,7 @@ void Piecewise_Bezier_1D(int nspect, int mu, bool_t to_obs,
 
 /* --- Prototypes for cubic Bezier solvers --          -------------- */
 
-void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
+void Piece_Stokes_Bezier3_1D(RHState *rh, int nspect, int mu, bool_t to_obs,
 							 double *chi, double **S, double **I,
 							 double *Psi);
 

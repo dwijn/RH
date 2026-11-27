@@ -22,7 +22,7 @@
 
 /* ------- begin -------------------------- neMetals.c -------------- */
 
-void FMetals(double *F)
+void FMetals(RHState *rh, double *F)
 {
 	/* --- Calculates the effective ionization fraction F_met for all
 		   background metals (i.e. excluding hydrogen) under the
@@ -63,7 +63,7 @@ void FMetals(double *F)
 
 /* ------- begin -------------------------- dFMetals.c -------------- */
 
-void dFMetals(double *dFdne)
+void dFMetals(RHState *rh, double *dFdne)
 {
 	register int n, k;
 
@@ -84,22 +84,22 @@ void dFMetals(double *dFdne)
 		rh->atmos.ne[k] = (1.0 - NEFRACTION) * neold[k];
 	}
 	for (n = 1; n < rh->atmos.Natom; n++)
-		LTEpops(&rh->atmos.atoms[n], Debeye = TRUE);
+		LTEpops(rh, &rh->atmos.atoms[n], Debeye = TRUE);
 
 	/* --- Get reduced ionization fraction F --          -------------- */
 
-	FMetals(Fmin);
+	FMetals(rh, Fmin);
 
 	/* --- evaluate LTE populations for enhanced electron density -- -- */
 
 	for (k = 0; k < rh->atmos.Nspace; k++)
 		rh->atmos.ne[k] = (1.0 + NEFRACTION) * neold[k];
 	for (n = 1; n < rh->atmos.Natom; n++)
-		LTEpops(&rh->atmos.atoms[n], Debeye = TRUE);
+		LTEpops(rh, &rh->atmos.atoms[n], Debeye = TRUE);
 
 	/* --- Get enhanced ionization fraction F --         -------------- */
 
-	FMetals(Fplus);
+	FMetals(rh, Fplus);
 
 	/* --- get the numerical derivative, restore electron densities - - */
 
@@ -110,7 +110,7 @@ void dFMetals(double *dFdne)
 	/* --- Restore the LTE populations --                 ------------- */
 
 	for (n = 1; n < rh->atmos.Natom; n++)
-		LTEpops(&rh->atmos.atoms[n], Debeye = TRUE);
+		LTEpops(rh, &rh->atmos.atoms[n], Debeye = TRUE);
 
 	free(neold);
 	free(Fmin);

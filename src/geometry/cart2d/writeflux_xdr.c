@@ -24,7 +24,7 @@
 
 /* ------- begin -------------------------- writeFlux.c ------------- */
 
-bool_t writeFlux(char *fileName)
+bool_t writeFlux(RHState *rh, char *fileName)
 {
 	const char   routineName[] = "writeFlux";
 	register int k, mu, nspect;

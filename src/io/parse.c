@@ -21,7 +21,7 @@ void ShowUsage(char *programName, int Noption, Option *theOptions);
 
 /* ------- begin -------------------------- parse.c ----------------- */
 
-void parse(int argc, char *argv[], int Noption, Option *theOptions)
+void parse(RHState *rh, int argc, char *argv[], int Noption, Option *theOptions)
 {
 	const char   routineName[] = "parse";
 	register int n, nopt;

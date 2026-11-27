@@ -64,42 +64,42 @@ int main(int argc, char *argv[])
 	XDR        xdrs;
 	ActiveSet *as;
 
-	setOptions(argc, argv);
-	getCPU(0, TIME_START, NULL);
+	setOptions(rh, argc, argv);
+	getCPU(rh, 0, TIME_START, NULL);
 	SetFPEtraps();
 
 	/* --- Read input data and initialize --             -------------- */
 
-	readInput();
+	readInput(rh);
 	rh->spectrum.updateJ = FALSE;
 
-	getCPU(1, TIME_START, NULL);
-	readAtmos(&rh->atmos, rh->geometry);
-	if (rh->atmos.Stokes) Bproject();
-	fillMesh(rh->geometry);
+	getCPU(rh, 1, TIME_START, NULL);
+	readAtmos(rh, &rh->atmos, rh->geometry);
+	if (rh->atmos.Stokes) Bproject(rh);
+	fillMesh(rh, rh->geometry);
 
 	rh->input.startJ = OLD_J;
 
-	readAtomicModels();
-	readMolecularModels();
-	SortLambda();
+	readAtomicModels(rh);
+	readMolecularModels(rh);
+	SortLambda(rh);
 
-	getBoundary(&rh->atmos, rh->geometry);
+	getBoundary(rh, &rh->atmos, rh->geometry);
 
 	/* --- Solve chemical equilibrium and open background opacity file- */
 
-	Background(analyze_output = FALSE, equilibria_only = TRUE);
+	Background(rh, analyze_output = FALSE, equilibria_only = TRUE);
 
 	if ((rh->atmos.fd_background =
 			 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
 		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s",
 			  rh->input.background_File);
 	}
-	readBRS();
+	readBRS(rh);
 
-	getProfiles();
-	initSolution();
-	initScatter();
+	getProfiles(rh);
+	initSolution(rh);
+	initScatter(rh);
 
 	/* --- Get wavelength indices for flow field --      -------------- */
 
@@ -107,12 +107,12 @@ int main(int argc, char *argv[])
 		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", FLOW_DOT_INPUT);
 	}
 
-	getLine(fp_flow, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_flow, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread      = sscanf(strtok(inputLine, " "), "%d", &Nspect);
 	wave_index = (int *) malloc(Nspect * sizeof(int));
 	for (n = 0; n < Nspect; n++)
 		Nread += sscanf(strtok(NULL, " "), "%d", wave_index + n);
-	checkNread(Nread, Nspect + 1, argv[0], checkPoint = 2);
+	checkNread(rh, Nread, Nspect + 1, argv[0], checkPoint = 2);
 	fclose(fp_flow);
 
 	I   = (double *) malloc(rh->atmos.Nspace * sizeof(double));
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
 
 	/* --- Solve radiative transfer equation at specified wavelengths - */
 
-	getCPU(1, TIME_POLL, "Total initialize");
+	getCPU(rh, 1, TIME_POLL, "Total initialize");
 
 	for (n = 0; n < Nspect; n++) {
 		if (wave_index[n] < 0 || wave_index[n] >= rh->spectrum.Nspect) {
@@ -141,11 +141,11 @@ int main(int argc, char *argv[])
 			   mean intensities at wavelength nspect. --   -------------- */
 
 		as = &rh->spectrum.as[wave_index[n]];
-		alloc_as(wave_index[n], crosscoupling = FALSE);
+		alloc_as(rh, wave_index[n], crosscoupling = FALSE);
 
 		if (rh->input.limit_memory) {
 			J = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-			readJlambda(wave_index[n], J);
+			readJlambda(rh, wave_index[n], J);
 		} else {
 			J = rh->spectrum.J[wave_index[n]];
 		}
@@ -155,9 +155,9 @@ int main(int argc, char *argv[])
 			   transition. Otherwise, only angle-independent opacity and
 			   source functions are needed --              -------------- */
 
-		boundbound    = containsBoundBound(as);
-		PRD_angle_dep = (containsPRDline(as) && rh->input.PRD_angle_dep);
-		polarized_as  = containsPolarized(as);
+		boundbound    = containsBoundBound(rh, as);
+		PRD_angle_dep = (containsPRDline(rh, as) && rh->input.PRD_angle_dep);
+		polarized_as  = containsPolarized(rh, as);
 		polarized_c   = rh->atmos.backgrflags[wave_index[n]].ispolarized;
 		angle_dep     = (polarized_as || polarized_c || PRD_angle_dep ||
                      (rh->atmos.moving &&
@@ -171,10 +171,10 @@ int main(int argc, char *argv[])
 					initialize = (mu == 0 && to_obs == 0);
 
 					if (initialize || rh->atmos.backgrflags[wave_index[n]].hasline)
-						readBackground(wave_index[n], mu, to_obs);
+						readBackground(rh, wave_index[n], mu, to_obs);
 
 					if (initialize || boundbound)
-						Opacity(wave_index[n], mu, to_obs, initialize);
+						Opacity(rh, wave_index[n], mu, to_obs, initialize);
 
 					for (k = 0; k < rh->atmos.Nspace; k++) {
 						chi[k] = as->chi[k] + as->chi_c[k];
@@ -199,8 +199,8 @@ int main(int argc, char *argv[])
 				}
 			}
 		} else {
-			Opacity(wave_index[n], 0, 0, initialize = TRUE);
-			readBackground(wave_index[n], 0, 0);
+			Opacity(rh, wave_index[n], 0, 0, initialize = TRUE);
+			readBackground(rh, wave_index[n], 0, 0);
 
 			/* --- The active opacity and emissivity are in as->chi and
 				   as->eta, as in the angle-dependent case above. This
@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
 				}
 			}
 		}
-		free_as(wave_index[n], crosscoupling = FALSE);
+		free_as(rh, wave_index[n], crosscoupling = FALSE);
 
 		/* --- Write the radiation flow to output file --  -------------- */
 
@@ -257,6 +257,6 @@ int main(int argc, char *argv[])
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp_out);
-	printTotalCPU();
+	printTotalCPU(rh);
 }
 /* ------- end ---------------------------- chartflow.c ------------- */

@@ -67,19 +67,19 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double E1(double x);
-double fone(double x);
+double E1(RHState *rh, double x);
+double fone(RHState *rh, double x);
 double ftwo(double x);
-void   atomnm(int anr, char *cseq);
-int    atomnr(char *ID);
-double ar85cea(int i, int j, int k, struct Atom *atom);
-void   rowcol(int i, int *row, int *col);
+void   atomnm(RHState *rh, int anr, char *cseq);
+int    atomnr(RHState *rh, char *ID);
+double ar85cea(RHState *rh, int i, int j, int k, struct Atom *atom);
+void   rowcol(RHState *rh, int i, int *row, int *col);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin ---------------------------rowcol.c ---------------- */
 
-void rowcol(int anr, int *row, int *col)
+void rowcol(RHState *rh, int anr, int *row, int *col)
 {
 	/* --- Row (1 to 6) and column in the periodic table of an
 		   iso-electronic sequence with anr electrons, 1 <= anr <= 86.
@@ -106,7 +106,7 @@ void rowcol(int anr, int *row, int *col)
 
 /* ------- begin -------------------------- fone.c ------------------ */
 
-double fone(double x)
+double fone(RHState *rh, double x)
 {
 
 	/* --- Function f_1(x) = e^x E1(x)
@@ -123,7 +123,7 @@ double fone(double x)
 	  terms; below 50, E1 (A&S 5.1.56, 2e-8) leaves that bracket within
 	  3e-4, and the two sides meet to 5e-5 at x = 50 --  ----------- */
 
-	if (x <= 50.0) return exp(x) * E1(x);
+	if (x <= 50.0) return exp(x) * E1(rh, x);
 
 	double term = 1.0 / x, sum = term;
 
@@ -207,7 +207,7 @@ double ftwo(double x)
 
 /* ------- begin --------------------------- atomnr.c --------------- */
 
-void atomnm(int anr, char *cseq)
+void atomnm(RHState *rh, int anr, char *cseq)
 {
 	/* --- Returns element ID --                         -------------- */
 
@@ -221,7 +221,7 @@ void atomnm(int anr, char *cseq)
 
 /* ------- begin --------------------------- ar85cea.c -------------- */
 
-double ar85cea(int i, int j, int k, struct Atom *atom)
+double ar85cea(RHState *rh, int i, int j, int k, struct Atom *atom)
 {
 
 	/* --- Routine for computing collisional autoionization rates using
@@ -246,7 +246,7 @@ double ar85cea(int i, int j, int k, struct Atom *atom)
 
 	/* --- Find element --                               -------------- */
 
-	iz = atomnr(atom->ID) + 1;
+	iz = atomnr(rh, atom->ID) + 1;
 	zz = iz;
 
 	if (iz < 1 || iz > 92) {
@@ -257,7 +257,7 @@ double ar85cea(int i, int j, int k, struct Atom *atom)
 
 	ichrge = atom->stage[i];
 	isoseq = iz - ichrge;
-	atomnm(isoseq - 1, &cseq[0]);
+	atomnm(rh, isoseq - 1, &cseq[0]);
 
 	/* --- Temperature in eV --                          -------------- */
 
@@ -271,7 +271,7 @@ double ar85cea(int i, int j, int k, struct Atom *atom)
 		b    = 1.0 / (1.0 + 2.0E-4 * pow(zz, 3));
 		zeff = zz - 0.43;
 		y    = iea / bkt;
-		f1y  = fone(y);
+		f1y  = fone(rh, y);
 		g    = 2.22 * f1y + 0.67 * (1.0 - y * f1y) + 0.49 * y * f1y +
 			1.2 * y * (1.0 - y * f1y);
 
@@ -305,7 +305,7 @@ double ar85cea(int i, int j, int k, struct Atom *atom)
 			a   = 2.8E-17 * pow(zz - 11.0, -0.7);
 			y   = iea / bkt;
 
-			f1y = fone(y);
+			f1y = fone(rh, y);
 			cup = 6.69E+7 * a * iea / sqrt(bkt) * exp(-y) * (1.0 - y * f1y);
 
 		} else if (iz >= 18 && iz <= 28) {
@@ -313,7 +313,7 @@ double ar85cea(int i, int j, int k, struct Atom *atom)
 			iea = 11.0 * (zz - 10.0) * sqrt(zz - 10.0);
 			a   = 1.3E-14 * pow(zz - 10.0, -3.73);
 			y   = iea / bkt;
-			f1y = fone(y);
+			f1y = fone(rh, y);
 			cup = 6.69E+7 * a * iea / sqrt(bkt) * exp(-y) *
 				  (1.0 - 0.5 * (y - SQ(y) + SQ(y) * y * f1y));
 
@@ -336,7 +336,7 @@ double ar85cea(int i, int j, int k, struct Atom *atom)
 
 		a   = 4.0E-13 / (SQ(zz) * iea);
 		y   = iea / bkt;
-		f1y = fone(y);
+		f1y = fone(rh, y);
 		cup = 6.69E+7 * a * iea / sqrt(bkt) * exp(-y) *
 			  (1.0 - 0.5 * (y - SQ(y) + SQ(y) * y * f1y));
 	}
@@ -348,28 +348,28 @@ double ar85cea(int i, int j, int k, struct Atom *atom)
 		a   = 6.0e-17;
 		b   = 1.12;
 		y   = iea / bkt;
-		f1y = fone(y);
+		f1y = fone(rh, y);
 		cup = 6.69E+7 * a * iea / sqrt(bkt) * exp(-y) * (1.0 + b * f1y);
 	} else if (!strcmp(atom->ID, "CA") && ichrge == 1) {
 		a   = 9.8e-17;
 		iea = 25.0;
 		b   = 1.12;
 		y   = iea / bkt;
-		f1y = fone(y);
+		f1y = fone(rh, y);
 		cup = 6.69E+7 * a * iea / sqrt(bkt) * exp(-y) * (1.0 + b * f1y);
 	} else if (!strcmp(atom->ID, "FE") && ichrge == 3) {
 		a   = 1.8E-17;
 		iea = 60.0;
 		b   = 1.0;
 		y   = iea / bkt;
-		f1y = fone(y);
+		f1y = fone(rh, y);
 		cup = 6.69e+7 * a * iea / sqrt(bkt) * exp(-y) * (1.0 + b * f1y);
 	} else if (!strcmp(atom->ID, "FE") && ichrge == 4) {
 		a   = 5.0E-18;
 		iea = 73.0;
 		b   = 1.0;
 		y   = iea / bkt;
-		f1y = fone(y);
+		f1y = fone(rh, y);
 		cup = 6.69E+7 * a * iea / sqrt(bkt) * exp(-y) * (1.0 + b * f1y);
 	}
 
@@ -379,7 +379,7 @@ double ar85cea(int i, int j, int k, struct Atom *atom)
 
 /* ------- begin --------------------------- summers.c -------------- */
 
-double summers(int i, int j, double nne, struct Atom *atom)
+double summers(RHState *rh, int i, int j, double nne, struct Atom *atom)
 {
 
 	/* --- Density sensitive dielectronic recombination
@@ -423,7 +423,7 @@ double summers(int i, int j, double nne, struct Atom *atom)
 
 	/* --- Find atomic number of element --              -------------- */
 
-	iz = atomnr(atom->ID) + 1;
+	iz = atomnr(rh, atom->ID) + 1;
 	if (iz < 1 || iz > 92) {
 		/*ERROR CODE HERE*/
 	}
@@ -440,11 +440,11 @@ double summers(int i, int j, double nne, struct Atom *atom)
 											" electrons; the density factor covers 1 to 86",
 			  atom->ID, i, j, isoseq);
 	}
-	atomnm(isoseq - 1, &cseq[0]);
+	atomnm(rh, isoseq - 1, &cseq[0]);
 
 	/* --- Row and column in periodic table --           ------------- */
 
-	rowcol(isoseq, &row, &col);
+	rowcol(rh, isoseq, &row, &col);
 
 	rhoq = nne * CUBE(CM_TO_M) / pow(zz, 7);
 	x    = (0.5 * zz + (col - 1.0)) * row / 3.0;
@@ -459,7 +459,7 @@ double summers(int i, int j, double nne, struct Atom *atom)
 
 /* ------- begin --------------------------- atomnr.c --------------- */
 
-int atomnr(char *ID)
+int atomnr(RHState *rh, char *ID)
 {
 	/* --- Returns atomic number of element with name id -- ----------- */
 
@@ -545,7 +545,7 @@ static bool_t firstReport(Atom *atom, const char *keyword, int i1, int i2,
 	   (T is the grid of the values) or among the coefficients of a
 	   formula (T = NULL) -- --------------------------------------- */
 
-static void checkFiniteValues(const Atom *atom, const char *keyword, int i1,
+static void checkFiniteValues(RHState *rh, const Atom *atom, const char *keyword, int i1,
 							  int i2, const double *v, int n, const double *T)
 {
 	int  m;
@@ -569,7 +569,7 @@ static void checkFiniteValues(const Atom *atom, const char *keyword, int i1,
 	}
 }
 
-static void rateCheckCoeffError(const Atom *atom, const char *keyword, int i1,
+static void rateCheckCoeffError(RHState *rh, const Atom *atom, const char *keyword, int i1,
 								int i2, const char *what, double value)
 {
 	char msg[MAX_MESSAGE_LENGTH];
@@ -584,7 +584,7 @@ static void rateCheckCoeffError(const Atom *atom, const char *keyword, int i1,
 /* --- A contribution x (s^-1) to C at temperature T: stops when it is
 	   not finite, returns zero for a negative value and counts it -- */
 
-static double rateChecked(double x, RateCheck *rc, const Atom *atom,
+static double rateChecked(RHState *rh, double x, RateCheck *rc, const Atom *atom,
 						  const char *keyword, int i1, int i2, double T)
 {
 	char msg[MAX_MESSAGE_LENGTH];
@@ -614,7 +614,7 @@ static void rateCheckOutside(RateCheck *rc, double T)
 	rc->Nout++;
 }
 
-static void rateCheckReport(const RateCheck *rc, Atom *atom,
+static void rateCheckReport(RHState *rh, const RateCheck *rc, Atom *atom,
 							const char *keyword, int i1, int i2, long Nspace,
 							double T1, double T2)
 {
@@ -667,7 +667,7 @@ static int tableType(const char *keyword)
 /* --- Count the locations of the atmosphere outside the table grid
 	   T[0..N-1] (ascending) for one record -- --------------------- */
 
-static void tableRangeCount(TableRange *tr, const double *T, int N, long Nspace)
+static void tableRangeCount(RHState *rh, TableRange *tr, const double *T, int N, long Nspace)
 {
 	long   k, nlo = 0, nhi = 0;
 	double Tlo = HUGE_VAL, Thi = 0.0;
@@ -703,7 +703,7 @@ static void tableRangeCount(TableRange *tr, const double *T, int N, long Nspace)
 	tr->Npoints += nlo + nhi;
 }
 
-static void tableRangeReport(const TableRange *tr, Atom *atom, int type, long Nspace)
+static void tableRangeReport(RHState *rh, const TableRange *tr, Atom *atom, int type, long Nspace)
 {
 	char        msg[MAX_MESSAGE_LENGTH];
 	const char *rule;
@@ -734,7 +734,7 @@ static void tableRangeReport(const TableRange *tr, Atom *atom, int type, long Ns
 
 #define MSHELL 5
 
-void CollisionRate(struct Atom *atom, FILE *fp_atom)
+void CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 {
 	const char   routineName[] = "CollisionRate";
 	register int k, n, m, ii;
@@ -756,7 +756,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 	double   ar85t1, ar85t2, ar85a, ar85b, ar85c, ar85d, t4;
 	double   de, zz, betab, cbar, dekt, dekti, wlog, wb, sumscl;
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	memset(tabrange, 0, sizeof(tabrange));
 	C0 = ((E_RYDBERG / sqrt(M_ELECTRON)) * PI * SQ(RBOHR)) *
@@ -765,7 +765,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 	/* --- atom->C is allocated in readAtom; this routine is called
 		   again when the electron density changes, so reuse it -- --- */
 
-	if (atom->C == NULL) atom->C = matrix_double(SQ(Nlevel), Nspace);
+	if (atom->C == NULL) atom->C = matrix_double(rh, SQ(Nlevel), Nspace);
 	for (ij = 0; ij < SQ(Nlevel); ij++) {
 		for (k = 0; k < Nspace; k++) {
 			atom->C[ij][k] = 0.0;
@@ -780,7 +780,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 
 	sumscl = 1.0;
 
-	while ((status = getLine(fp_atom, COMMENT_CHAR,
+	while ((status = getLine(rh, fp_atom, COMMENT_CHAR,
 							 inputLine, exit_on_EOF = FALSE)) != EOF) {
 		strcpy(keyword, strtok(inputLine, " "));
 
@@ -894,10 +894,10 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			}
 			Nrow  = 2;
 			Nitem = Nrow * Ncoef;
-			badi  = matrix_double(Nrow, Ncoef);
+			badi  = matrix_double(rh, Nrow, Ncoef);
 
 			for (m = 0, nitem = 0; m < Nrow; m++) {
-				status = getLine(fp_atom, COMMENT_CHAR, inputLine,
+				status = getLine(rh, fp_atom, COMMENT_CHAR, inputLine,
 								 exit_on_EOF = FALSE);
 
 				badi[m][0] = atof(strtok(inputLine, " "));
@@ -954,10 +954,10 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			}
 
 			Nitem = Nrow * MSHELL;
-			cdi   = matrix_double(Nrow, MSHELL);
+			cdi   = matrix_double(rh, Nrow, MSHELL);
 
 			for (m = 0, nitem = 0; m < Nrow; m++) {
-				status = getLine(fp_atom, COMMENT_CHAR, inputLine, exit_on_EOF = FALSE);
+				status = getLine(rh, fp_atom, COMMENT_CHAR, inputLine, exit_on_EOF = FALSE);
 
 				cdi[m][0] = atof(strtok(inputLine, " "));
 				nitem++;
@@ -987,7 +987,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			   the result may also depend on T, see rateChecked -- ----- */
 
 		if (!strcmp(keyword, "SHULL82")) {
-			checkFiniteValues(atom, keyword, i1, i2, coeff, Nitem, NULL);
+			checkFiniteValues(rh, atom, keyword, i1, i2, coeff, Nitem, NULL);
 
 			/* --- Stop only where the formula is invalid: a negative A
 				   makes the collisional term negative at every T; the other
@@ -996,42 +996,42 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 				   sum) -- --------------------------------------- */
 
 			if (coeff[0] < 0.0)
-				rateCheckCoeffError(atom, keyword, i1, i2,
+				rateCheckCoeffError(rh, atom, keyword, i1, i2,
 									"the collisional ionization coefficient A must not be negative",
 									coeff[0]);
 			if (coeff[4] != 0.0 && coeff[6] < 0.0)
-				rateCheckCoeffError(atom, keyword, i1, i2,
+				rateCheckCoeffError(rh, atom, keyword, i1, i2,
 									"the temperature T0 of the dielectronic term must not be negative",
 									coeff[6]);
 			if (coeff[4] != 0.0 && coeff[5] != 0.0 && coeff[7] < 0.0)
-				rateCheckCoeffError(atom, keyword, i1, i2,
+				rateCheckCoeffError(rh, atom, keyword, i1, i2,
 									"the temperature T1 of the dielectronic term must not be negative",
 									coeff[7]);
 		} else if (!strcmp(keyword, "BADNELL")) {
-			checkFiniteValues(atom, keyword, i1, i2, badi[0], Ncoef, NULL);
-			checkFiniteValues(atom, keyword, i1, i2, badi[1], Ncoef, NULL);
+			checkFiniteValues(rh, atom, keyword, i1, i2, badi[0], Ncoef, NULL);
+			checkFiniteValues(rh, atom, keyword, i1, i2, badi[1], Ncoef, NULL);
 			for (n = 0; n < Ncoef; n++) {
 				if (badi[1][n] != 0.0 && badi[0][n] < 0.0)
-					rateCheckCoeffError(atom, keyword, i1, i2,
+					rateCheckCoeffError(rh, atom, keyword, i1, i2,
 										"an energy E_i (first row) with a coefficient must not be negative",
 										badi[0][n]);
 			}
 		} else if (!strcmp(keyword, "AR85-CDI")) {
 			for (m = 0; m < Nrow; m++) {
-				checkFiniteValues(atom, keyword, i1, i2, cdi[m], MSHELL, NULL);
+				checkFiniteValues(rh, atom, keyword, i1, i2, cdi[m], MSHELL, NULL);
 
 				/* --- A row of zeros (padding) is skipped in the
 					   evaluation -- ----------------------------- */
 
 				if (cdi[m][0] <= 0.0 && (cdi[m][1] != 0.0 || cdi[m][2] != 0.0 ||
 										 cdi[m][3] != 0.0 || cdi[m][4] != 0.0))
-					rateCheckCoeffError(atom, keyword, i1, i2,
+					rateCheckCoeffError(rh, atom, keyword, i1, i2,
 										"the ionization energy of a shell (first column) must be positive",
 										cdi[m][0]);
 			}
 		} else if (!strcmp(keyword, "AR85-CEA") || !strcmp(keyword, "BURGESS") ||
 				   !strcmp(keyword, "AR85-CHP") || !strcmp(keyword, "AR85-CHH")) {
-			checkFiniteValues(atom, keyword, i1, i2, coeff, Nitem, NULL);
+			checkFiniteValues(rh, atom, keyword, i1, i2, coeff, Nitem, NULL);
 		}
 
 		/* --- End of the reading section. Now filling the collision matrix
@@ -1053,11 +1053,11 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 				   made) would otherwise crash the spline with no hint of
 				   where the problem is --                   -------------- */
 
-			checkFiniteValues(atom, keyword, i1, i2, coeff, Nitem, T);
-			pchipTableInit(&ctable, Nitem, T, coeff, PCHIP_LOGLOG);
+			checkFiniteValues(rh, atom, keyword, i1, i2, coeff, Nitem, T);
+			pchipTableInit(rh, &ctable, Nitem, T, coeff, PCHIP_LOGLOG);
 			pchipTableEval(&ctable, Nspace, rh->atmos.T, C);
 			pchipTableFree(&ctable);
-			tableRangeCount(&tabrange[tableType(keyword)], T, Nitem, Nspace);
+			tableRangeCount(rh, &tabrange[tableType(keyword)], T, Nitem, Nspace);
 		}
 
 		if (!strcmp(keyword, "OMEGA")) {
@@ -1139,7 +1139,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			rateCheckInit(&rc);
 			for (k = 0; k < Nspace; k++) {
 
-				summrs = sumscl * summers(i, j, rh->atmos.ne[k], atom) +
+				summrs = sumscl * summers(rh, i, j, rh->atmos.ne[k], atom) +
 						 (1.0 - sumscl);
 				tg = rh->atmos.T[k];
 
@@ -1163,8 +1163,8 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 				/* --- The sum can be negative: the dielectronic term is,
 					   for B < -1, at high T (N-34) -- ------------------ */
 
-				cdn = rateChecked(cdn, &rc, atom, keyword, i1, i2, tg);
-				cup = rateChecked(cup, &rc, atom, keyword, i1, i2, tg);
+				cdn = rateChecked(rh, cdn, &rc, atom, keyword, i1, i2, tg);
+				cup = rateChecked(rh, cup, &rc, atom, keyword, i1, i2, tg);
 
 				/* --- 3-body recombination (high density limit) -- -------- */
 
@@ -1173,7 +1173,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 				atom->C[ij][k] += cdn;
 				atom->C[ji][k] += cup;
 			}
-			rateCheckReport(&rc, atom, keyword, i1, i2, Nspace, 0.0, 0.0);
+			rateCheckReport(rh, &rc, atom, keyword, i1, i2, Nspace, 0.0, 0.0);
 		} else if (!strcmp(keyword, "BADNELL")) {
 
 			/* --- Fit for dielectronic recombination from Badnell
@@ -1186,7 +1186,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 
 			rateCheckInit(&rc);
 			for (k = 0; k < Nspace; k++) {
-				summrs = sumscl * summers(i, j, rh->atmos.ne[k], atom) + (1.0 - sumscl);
+				summrs = sumscl * summers(rh, i, j, rh->atmos.ne[k], atom) + (1.0 - sumscl);
 				tg     = rh->atmos.T[k];
 
 				cdn = 0.0;
@@ -1198,7 +1198,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 				/* --- Convert coefficient from cm^3 s^-1 to m^3 s^-1 -- ---- */
 
 				cdn *= rh->atmos.ne[k] * summrs * CUBE(CM_TO_M);
-				cdn = rateChecked(cdn, &rc, atom, keyword, i1, i2, tg);
+				cdn = rateChecked(rh, cdn, &rc, atom, keyword, i1, i2, tg);
 				cup = cdn * atom->nstar[j][k] / atom->nstar[i][k];
 
 				/* --- 3-body recombination (high density limit) -- --------- */
@@ -1208,8 +1208,8 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 				atom->C[ij][k] += cdn;
 				atom->C[ji][k] += cup;
 			}
-			rateCheckReport(&rc, atom, keyword, i1, i2, Nspace, 0.0, 0.0);
-			freeMatrix((void **) badi);
+			rateCheckReport(rh, &rc, atom, keyword, i1, i2, Nspace, 0.0, 0.0);
+			freeMatrix(rh, (void **) badi);
 
 		} else if (!strcmp(keyword, "AR85-CDI")) {
 
@@ -1228,7 +1228,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 					fac = exp(-xj) * sqrt(xj);
 
 					fxj = cdi[m][1] + cdi[m][2] * (1.0 + xj) +
-						  (cdi[m][3] - xj * (cdi[m][1] + cdi[m][2] * (2.0 + xj))) * fone(xj) +
+						  (cdi[m][3] - xj * (cdi[m][1] + cdi[m][2] * (2.0 + xj))) * fone(rh, xj) +
 						  cdi[m][4] * xj * ftwo(xj);
 
 					fxj = fxj * fac;
@@ -1236,14 +1236,14 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 					cup += fac * fxj * CUBE(CM_TO_M);
 				}
 				cup *= rh->atmos.ne[k];
-				cup = rateChecked(cup, &rc, atom, keyword, i1, i2, tg);
+				cup = rateChecked(rh, cup, &rc, atom, keyword, i1, i2, tg);
 				cdn = cup * atom->nstar[i][k] / atom->nstar[j][k];
 
 				atom->C[ij][k] += cdn;
 				atom->C[ji][k] += cup;
 			}
-			rateCheckReport(&rc, atom, keyword, i1, i2, Nspace, 0.0, 0.0);
-			freeMatrix((void **) cdi);
+			rateCheckReport(rh, &rc, atom, keyword, i1, i2, Nspace, 0.0, 0.0);
+			freeMatrix(rh, (void **) cdi);
 
 		} else if (!strcmp(keyword, "AR85-CEA")) {
 
@@ -1251,12 +1251,12 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 
 			rateCheckInit(&rc);
 			for (k = 0; k < Nspace; k++) {
-				fac = ar85cea(i, j, k, atom);
+				fac = ar85cea(rh, i, j, k, atom);
 				cup = coeff[0] * fac * rh->atmos.ne[k];
-				cup = rateChecked(cup, &rc, atom, keyword, i1, i2, rh->atmos.T[k]);
+				cup = rateChecked(rh, cup, &rc, atom, keyword, i1, i2, rh->atmos.T[k]);
 				atom->C[ji][k] += cup;
 			}
-			rateCheckReport(&rc, atom, keyword, i1, i2, Nspace, 0.0, 0.0);
+			rateCheckReport(rh, &rc, atom, keyword, i1, i2, Nspace, 0.0, 0.0);
 
 		} else if (!strcmp(keyword, "AR85-CHP")) {
 
@@ -1284,13 +1284,13 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 					cup = ar85a * 1e-9 * pow(t4, ar85b) * exp(-ar85c * t4) *
 						  exp(-ar85d * EV / KBOLTZMANN / rh->atmos.T[k]) * np[k] *
 						  CUBE(CM_TO_M);
-					cup = rateChecked(cup, &rc, atom, keyword, i1, i2, rh->atmos.T[k]);
+					cup = rateChecked(rh, cup, &rc, atom, keyword, i1, i2, rh->atmos.T[k]);
 					atom->C[ji][k] += cup;
 				} else {
 					rateCheckOutside(&rc, rh->atmos.T[k]);
 				}
 			}
-			rateCheckReport(&rc, atom, keyword, i1, i2, Nspace, ar85t1, ar85t2);
+			rateCheckReport(rh, &rc, atom, keyword, i1, i2, Nspace, ar85t1, ar85t2);
 		} else if (!strcmp(keyword, "AR85-CHH")) {
 
 			/* --- Charge transfer with neutral hydrogen --  -------------- */
@@ -1310,14 +1310,14 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 					cdn = ar85a * 1E-9 * pow(t4, ar85b) *
 						  (1.0 + ar85c * exp(ar85d * t4)) *
 						  rh->atmos.H->n[0][k] * CUBE(CM_TO_M);
-					cdn = rateChecked(cdn, &rc, atom, keyword, i1, i2, rh->atmos.T[k]);
+					cdn = rateChecked(rh, cdn, &rc, atom, keyword, i1, i2, rh->atmos.T[k]);
 
 					atom->C[ij][k] += cdn;
 				} else {
 					rateCheckOutside(&rc, rh->atmos.T[k]);
 				}
 			}
-			rateCheckReport(&rc, atom, keyword, i1, i2, Nspace, ar85t1, ar85t2);
+			rateCheckReport(rh, &rc, atom, keyword, i1, i2, Nspace, ar85t1, ar85t2);
 		} else if (!strcmp(keyword, "BURGESS")) {
 
 			/* --- Electron impact ionzation following Burgess & Chidichimo 1982,
@@ -1337,18 +1337,18 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 				wlog  = log(1.0 + dekti);
 				wb    = pow(wlog, betab / (1.0 + dekti));
 				cup   = 2.1715E-8 * cbar * pow(13.6 / de, 1.5) * sqrt(dekt) *
-					  E1(dekt) * wb * rh->atmos.ne[k] * CUBE(CM_TO_M);
+					  E1(rh, dekt) * wb * rh->atmos.ne[k] * CUBE(CM_TO_M);
 
 				/* --- Add fudge factor --                     -------------- */
 
 				cup *= coeff[0];
-				cup = rateChecked(cup, &rc, atom, keyword, i1, i2, rh->atmos.T[k]);
+				cup = rateChecked(rh, cup, &rc, atom, keyword, i1, i2, rh->atmos.T[k]);
 				cdn = cup * atom->nstar[i][k] / atom->nstar[j][k];
 
 				atom->C[ji][k] += cup;
 				atom->C[ij][k] += cdn;
 			}
-			rateCheckReport(&rc, atom, keyword, i1, i2, Nspace, 0.0, 0.0);
+			rateCheckReport(rh, &rc, atom, keyword, i1, i2, Nspace, 0.0, 0.0);
 		}
 	}
 
@@ -1356,7 +1356,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 		Error(rh, ERROR_LEVEL_1, routineName, "Reached end of datafile before all data was read");
 	}
 	for (n = 0; n < NTABLE_TYPES; n++)
-		tableRangeReport(&tabrange[n], atom, n, Nspace);
+		tableRangeReport(rh, &tabrange[n], atom, n, Nspace);
 
 	/* --- Clean up --                                   -------------- */
 
@@ -1365,6 +1365,6 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 	free(coeff);
 
 	sprintf(labelStr, "Collision Rate %2s", atom->ID);
-	getCPU(3, TIME_POLL, labelStr);
+	getCPU(rh, 3, TIME_POLL, labelStr);
 }
 /* ------- end ---------------------------- CollisionRate.c --------- */

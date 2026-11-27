@@ -56,8 +56,8 @@
 #include "stokes_exact.h"
 #include "state.h"
 
-void Bproject(void);
-void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs, double *chi,
+void Bproject(RHState *rh);
+void Piece_Stokes_Bezier3_1D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 							 double **S, double **I, double *Psi);
 
 /* --- Line configurations: labels (parsed by determinate() for S
@@ -123,7 +123,7 @@ static void expected_pattern(const Config *c, Pattern *p)
 			int q             = (int) (Ml - Mu);
 			p->q[p->N]        = q;
 			p->shift[p->N]    = g_l * Ml - g_u * Mu;
-			p->strength[p->N] = 3.0 * SQ(w3js(c->J_u, c->J_l, 1.0, -Mu, Ml, -q));
+			p->strength[p->N] = 3.0 * SQ(w3js(rh, c->J_u, c->J_l, 1.0, -Mu, Ml, -q));
 			norm[q + 1] += p->strength[p->N];
 			p->N++;
 		}
@@ -179,13 +179,13 @@ static void free_line(void)
 		free(line.zm);
 	}
 	if (line.phi) {
-		freeMatrix((void **) line.phi);
-		freeMatrix((void **) line.phi_Q);
-		freeMatrix((void **) line.phi_U);
-		freeMatrix((void **) line.phi_V);
-		freeMatrix((void **) line.psi_Q);
-		freeMatrix((void **) line.psi_U);
-		freeMatrix((void **) line.psi_V);
+		freeMatrix(rh, (void **) line.phi);
+		freeMatrix(rh, (void **) line.phi_Q);
+		freeMatrix(rh, (void **) line.phi_U);
+		freeMatrix(rh, (void **) line.phi_V);
+		freeMatrix(rh, (void **) line.psi_Q);
+		freeMatrix(rh, (void **) line.psi_U);
+		freeMatrix(rh, (void **) line.psi_V);
 	}
 	free(line.wphi);
 	free(line.c_shift);
@@ -212,7 +212,7 @@ static void check_pattern(const Config *c, bool_t verbose)
 	double  err_s = 0.0, err_sh = 0.0;
 
 	make_line(c);
-	bool_t pol = zeemanPolarizable(&atom, 0, 1, c->g_eff_explicit);
+	bool_t pol = zeemanPolarizable(rh, &atom, 0, 1, c->g_eff_explicit);
 	CHECK(pol == expect_polarizable(c), "%s: zeemanPolarizable() %d, expected %d",
 		  c->name, pol, expect_polarizable(c));
 	if (!pol) {
@@ -221,7 +221,7 @@ static void check_pattern(const Config *c, bool_t verbose)
 		return;
 	}
 	expected_pattern(c, &p);
-	Zeeman(&line);
+	Zeeman(rh, &line);
 
 	CHECK(line.zm->Ncomponent == p.N, "%s: %d components, expected %d", c->name,
 		  line.zm->Ncomponent, p.N);
@@ -316,7 +316,7 @@ static void setup_atmosphere(void)
 		rh->atmos.chi_B[k]   = points[k].chi;
 		atom.vbroad[k]       = points[k].vbroad;
 	}
-	Bproject();
+	Bproject(rh);
 
 	rh->input.StokesMode      = FULL_STOKES;
 	rh->input.magneto_optical = TRUE;
@@ -421,7 +421,7 @@ static void check_profiles(const Config *c, bool_t verbose)
 
 	make_line(c);
 	expected_pattern(c, &p);
-	Profile(&line);
+	Profile(rh, &line);
 
 	for (int la = 0; la < NLAMBDA; la++)
 		for (int mu = 0; mu < NRAYS; mu++)
@@ -494,8 +494,8 @@ static double me_profile[NLAMBDA][7];
 static void solve_me_slab(int mu, double chi_l, double Iem[NLAMBDA][4])
 {
 	ActiveSet *as  = &rh->spectrum.as[0];
-	double    *chi = malloc(NDEP * sizeof(double)), **Sv = matrix_double(4, NDEP),
-		   **I = matrix_double(4, NDEP), *tau = malloc(NDEP * sizeof(double));
+	double    *chi = malloc(NDEP * sizeof(double)), **Sv = matrix_double(rh, 4, NDEP),
+		   **I = matrix_double(rh, 4, NDEP), *tau = malloc(NDEP * sizeof(double));
 
 	rh->atmos.Nspace   = NDEP;
 	rh->geometry->Ndep = NDEP;
@@ -525,13 +525,13 @@ static void solve_me_slab(int mu, double chi_l, double Iem[NLAMBDA][4])
 			for (int n = 1; n < 4; n++) Sv[n][k] = S * chi_l * f[n] / chi[k];
 		}
 		rh->geometry->Ibottom[0][mu] = S0 + S1 * tau[NDEP - 1] + ray_muz[mu] * S1;
-		Piece_Stokes_Bezier3_1D(0, mu, TRUE, chi, Sv, I, NULL);
+		Piece_Stokes_Bezier3_1D(rh, 0, mu, TRUE, chi, Sv, I, NULL);
 		for (int n = 0; n < 4; n++) Iem[la][n] = I[n][0];
 	}
 	free(chi);
 	free(tau);
-	freeMatrix((void **) Sv);
-	freeMatrix((void **) I);
+	freeMatrix(rh, (void **) Sv);
+	freeMatrix(rh, (void **) I);
 }
 
 static void check_milne_eddington(const MECase *mc, bool_t verbose)
@@ -549,7 +549,7 @@ static void check_milne_eddington(const MECase *mc, bool_t verbose)
 	rh->atmos.Nspace = NPOINT;
 	make_line(c);
 	expected_pattern(c, &p);
-	Profile(&line);
+	Profile(rh, &line);
 	for (int la = 0; la < NLAMBDA; la++) {
 		int lamu          = 2 * (NRAYS * la + mu) + 1;
 		me_profile[la][0] = line.phi[lamu][k];
@@ -644,8 +644,8 @@ int main(int argc, char *argv[])
 	rh->atmos.backgrflags[0].ispolarized = TRUE;
 	rh->geometry->vboundary[TOP]         = ZERO;
 	rh->geometry->vboundary[BOTTOM]      = IRRADIATED;
-	rh->geometry->Itop                   = matrix_double(1, NRAYS);
-	rh->geometry->Ibottom                = matrix_double(1, NRAYS);
+	rh->geometry->Itop                   = matrix_double(rh, 1, NRAYS);
+	rh->geometry->Ibottom                = matrix_double(rh, 1, NRAYS);
 	for (int n = 0; n < (int) (sizeof(me) / sizeof(me[0])); n++)
 		check_milne_eddington(&me[n], verbose);
 

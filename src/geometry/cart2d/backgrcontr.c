@@ -43,13 +43,13 @@ int main(int argc, char *argv[])
 
 	/* --- Read input data and initialize --             -------------- */
 
-	setOptions(argc, argv);
+	setOptions(rh, argc, argv);
 	SetFPEtraps();
 
-	readInput();
-	readAtmos(&rh->atmos, rh->geometry);
-	readAtomicModels();
-	readMolecularModels();
+	readInput(rh);
+	readAtmos(rh, &rh->atmos, rh->geometry);
+	readAtomicModels(rh);
+	readMolecularModels(rh);
 
 	if ((fp = fopen(CONTR_INPUT_FILE, "r")) == NULL) {
 		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", CONTR_INPUT_FILE);
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 	}
 	fclose(fp);
 
-	backgrOpac(Nlambda, lambda);
+	backgrOpac(rh, Nlambda, lambda);
 
 	free(lambda);
 }

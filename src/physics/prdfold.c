@@ -141,7 +141,7 @@ int prdFoldRange(int N, double *qtab, double q0, int Np, bool_t symmetric, int *
 
 /* ------- begin -------------------------- prdFold.c --------------- */
 
-void prdFold(int N, double *qtab, int Np, double *qp, double *gw, int m0, int len,
+void prdFold(RHState *rh, int N, double *qtab, int Np, double *qp, double *gw, int m0, int len,
 			 double *W)
 {
 	/* --- W[m - m0] += sum over the fine grid of gw times the

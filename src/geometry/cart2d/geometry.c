@@ -58,7 +58,7 @@
 
 /* --- Function prototypes --                          -------------- */
 
-void setStencil(Geometry *geometry, Stencil *stencil,
+void setStencil(RHState *rh, Geometry *geometry, Stencil *stencil,
 				enum direction direction, enum intersect intersect,
 				double ds, double fraction, int l, int k,
 				enum SC_order order, enum sweep sweep);
@@ -66,14 +66,14 @@ void setStencil(Geometry *geometry, Stencil *stencil,
 void setVertStencil(Geometry *geometry, Stencil *stencil,
 					enum direction direction, double ds, int l, int k);
 
-void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
+void fillLongChar(RHState *rh, Geometry *geometry, int mu, int k, enum SC_order order,
 				  enum sweep sweep);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- fillMesh.c -------------- */
 
-void fillMesh(Geometry *geometry)
+void fillMesh(RHState *rh, Geometry *geometry)
 {
 	register int mu, k, l;
 
@@ -85,7 +85,7 @@ void fillMesh(Geometry *geometry)
 	Stencil  *st;
 	LongChar *lc;
 
-	getCPU(2, TIME_START, NULL);
+	getCPU(rh, 2, TIME_START, NULL);
 
 	/* --- Allocate space for interpolation stencils --  -------------- */
 
@@ -143,10 +143,10 @@ void fillMesh(Geometry *geometry)
 
 					if (fraction <= 1.0) {
 						count++;
-						setStencil(geometry, st, UPWIND, HORIZONTAL, dz / muz,
+						setStencil(rh, geometry, st, UPWIND, HORIZONTAL, dz / muz,
 								   fraction, l, k - 1, order, DOWN);
 					} else {
-						setStencil(geometry, st, UPWIND, VERTICAL, dx / mux,
+						setStencil(rh, geometry, st, UPWIND, VERTICAL, dx / mux,
 								   1.0 - 1.0 / fraction, l + 1, k - 1, order, DOWN);
 					}
 				}
@@ -157,7 +157,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][DOWN * Nz + k];
 					if (count == 0) {
 						lc->lstart = Nx - 1;
-						fillLongChar(geometry, mu, k, order, DOWN);
+						fillLongChar(rh, geometry, mu, k, order, DOWN);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -192,10 +192,10 @@ void fillMesh(Geometry *geometry)
 
 					if (fraction <= 1.0) {
 						count++;
-						setStencil(geometry, st, DOWNWIND, HORIZONTAL, dz / muz,
+						setStencil(rh, geometry, st, DOWNWIND, HORIZONTAL, dz / muz,
 								   1.0 - fraction, l - 1, k + 1, order, UP);
 					} else {
-						setStencil(geometry, st, DOWNWIND, VERTICAL, dx / mux,
+						setStencil(rh, geometry, st, DOWNWIND, VERTICAL, dx / mux,
 								   1.0 / fraction, l - 1, k, order, UP);
 					}
 				}
@@ -206,7 +206,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][UP * Nz + k];
 					if (count == 0) {
 						lc->lstart = 0;
-						fillLongChar(geometry, mu, k, order, UP);
+						fillLongChar(rh, geometry, mu, k, order, UP);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -274,10 +274,10 @@ void fillMesh(Geometry *geometry)
 
 					if (fraction <= 1.0) {
 						count++;
-						setStencil(geometry, st, UPWIND, HORIZONTAL, dz / muz,
+						setStencil(rh, geometry, st, UPWIND, HORIZONTAL, dz / muz,
 								   1.0 - fraction, l - 1, k - 1, order, DOWN);
 					} else {
-						setStencil(geometry, st, UPWIND, VERTICAL, -dx / mux,
+						setStencil(rh, geometry, st, UPWIND, VERTICAL, -dx / mux,
 								   1.0 - 1.0 / fraction, l - 1, k - 1, order, DOWN);
 					}
 				}
@@ -288,7 +288,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][DOWN * Nz + k];
 					if (count == 0) {
 						lc->lstart = 0;
-						fillLongChar(geometry, mu, k, order, DOWN);
+						fillLongChar(rh, geometry, mu, k, order, DOWN);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -323,10 +323,10 @@ void fillMesh(Geometry *geometry)
 
 					if (fraction <= 1.0) {
 						count++;
-						setStencil(geometry, st, DOWNWIND, HORIZONTAL, dz / muz,
+						setStencil(rh, geometry, st, DOWNWIND, HORIZONTAL, dz / muz,
 								   fraction, l, k + 1, order, UP);
 					} else {
-						setStencil(geometry, st, DOWNWIND, VERTICAL, -dx / mux,
+						setStencil(rh, geometry, st, DOWNWIND, VERTICAL, -dx / mux,
 								   1.0 / fraction, l + 1, k, order, UP);
 					}
 				}
@@ -337,7 +337,7 @@ void fillMesh(Geometry *geometry)
 					lc = &geometry->longchar[mu][UP * Nz + k];
 					if (count == 0) {
 						lc->lstart = Nx - 1;
-						fillLongChar(geometry, mu, k, order, UP);
+						fillLongChar(rh, geometry, mu, k, order, UP);
 						Nlongchar++;
 					} else {
 						lc->Nlc    = 0;
@@ -354,7 +354,7 @@ void fillMesh(Geometry *geometry)
 	}
 
 	Message(rh, "\n-Used %d Long Characteristics\n\n", Nlongchar);
-	getCPU(2, TIME_POLL, "Geometry");
+	getCPU(rh, 2, TIME_POLL, "Geometry");
 }
 /* ------- end ---------------------------- fillMesh.c -------------- */
 
@@ -382,7 +382,7 @@ void setVertStencil(Geometry *geometry, Stencil *stencil,
 
 /* ------- begin -------------------------- setStencil.c ------------ */
 
-void setStencil(Geometry *geometry, Stencil *stencil,
+void setStencil(RHState *rh, Geometry *geometry, Stencil *stencil,
 				enum direction direction, enum intersect intersect,
 				double ds, double fraction, int l, int k,
 				enum SC_order order, enum sweep sweep)
@@ -478,7 +478,7 @@ void setStencilWeights(Stencil *stencil, enum direction direction,
 
 /* ------- begin -------------------------- fillLongChar.c ---------- */
 
-void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
+void fillLongChar(RHState *rh, Geometry *geometry, int mu, int k, enum SC_order order,
 				  enum sweep sweep)
 {
 	register int l, n;
@@ -558,7 +558,7 @@ void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
 		fraction = (dx_total - dx_intersect) / geometry->dx[l];
 		ds       = (1.0 - fraction) * geometry->dx[l] / fabs(mux);
 	}
-	setStencil(geometry, &lc->stencil[0], UPWIND, HORIZONTAL, ds,
+	setStencil(rh, geometry, &lc->stencil[0], UPWIND, HORIZONTAL, ds,
 			   fraction, l, k_upwind, order, sweep);
 
 	/* --- Then segment for segment the vertical crossings -- --------- */
@@ -576,11 +576,11 @@ void fillLongChar(Geometry *geometry, int mu, int k, enum SC_order order,
 		ds = geometry->dx[l] / fabs(mux);
 		if (sweep == DOWN) {
 			fraction = dz_total / dz;
-			setStencil(geometry, &lc->stencil[n], UPWIND, VERTICAL, ds,
+			setStencil(rh, geometry, &lc->stencil[n], UPWIND, VERTICAL, ds,
 					   fraction, l_intersect, k_upwind, order, sweep);
 		} else {
 			fraction = 1.0 - dz_total / dz;
-			setStencil(geometry, &lc->stencil[n], UPWIND, VERTICAL, ds,
+			setStencil(rh, geometry, &lc->stencil[n], UPWIND, VERTICAL, ds,
 					   fraction, l_intersect, k, order, sweep);
 		}
 	}

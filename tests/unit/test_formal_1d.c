@@ -39,7 +39,7 @@ void   Piecewise_Linear_1D(RHState *rh, int nspect, int mu, bool_t to_obs, doubl
 						   double *S, double *I, double *Psi);
 void   Piecewise_Bezier3_1D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 							double *S, double *I, double *Psi);
-double Feautrier(int nspect, int mu, double *chi, double *S,
+double Feautrier(RHState *rh, int nspect, int mu, double *chi, double *S,
 				 enum FeautrierOrder F_order, double *P, double *Psi);
 
 #define NMU 3
@@ -156,7 +156,7 @@ static void sc_errors(Errors *e, ShortChar solver, Slab *slab,
 static void feautrier_errors(Errors *e, Slab *slab, const double s[NPOLY],
 							 int mu, enum FeautrierOrder order)
 {
-	double Iplus = Feautrier(0, mu, slab->chi, slab->S, order, slab->P, NULL);
+	double Iplus = Feautrier(rh, 0, mu, slab->chi, slab->S, order, slab->P, NULL);
 
 	for (int k = 0; k < slab->Ndep; k++)
 		slab->dI[k] = 0.5 * (I_exact(s, slab->tau[k], 0.0, mus[mu], TRUE) +
@@ -313,7 +313,7 @@ static double psi_error(const Method *m, Slab *slab, int mu, bool_t to_obs)
 	if (m->solver)
 		m->solver(rh, 0, mu, to_obs, slab->chi, slab->S, slab->I, Psi);
 	else
-		Feautrier(0, mu, slab->chi, slab->S, m->order, slab->P, Psi);
+		Feautrier(rh, 0, mu, slab->chi, slab->S, m->order, slab->P, Psi);
 
 	for (int k = 0; k < slab->Ndep; k++) {
 		double dIdS;
@@ -337,7 +337,7 @@ static double psi_error(const Method *m, Slab *slab, int mu, bool_t to_obs)
 				m->solver(rh, 0, mu, to_obs, slab->chi, S1, slab->I, NULL);
 				dIdS = slab->I[k];
 			} else {
-				Feautrier(0, mu, slab->chi, S1, m->order, slab->P, NULL);
+				Feautrier(rh, 0, mu, slab->chi, S1, m->order, slab->P, NULL);
 				dIdS = slab->P[k];
 			}
 			rh->geometry->Itop[0][mu]    = Itop;
@@ -485,8 +485,8 @@ int main(int argc, char *argv[])
 
 	rh->geometry->Nrays             = NMU;
 	rh->geometry->muz               = mus;
-	rh->geometry->Itop              = matrix_double(1, NMU);
-	rh->geometry->Ibottom           = matrix_double(1, NMU);
+	rh->geometry->Itop              = matrix_double(rh, 1, NMU);
+	rh->geometry->Ibottom           = matrix_double(rh, 1, NMU);
 	rh->geometry->vboundary[TOP]    = ZERO;
 	rh->geometry->vboundary[BOTTOM] = IRRADIATED;
 

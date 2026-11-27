@@ -65,7 +65,7 @@ static XDR xdrs;
 
 /* ------- begin -------------------------- readAtmos.c ------------- */
 
-void readAtmos(Atmosphere *atmos, Geometry *geometry)
+void readAtmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 {
 	const char   routineName[] = "readAtmos";
 	register int n, k;
@@ -74,11 +74,11 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	int         result, Nx, Ny, Nplane, Nz, Nspace, bc[2];
 	struct stat statBuffer;
 
-	getCPU(2, TIME_START, NULL);
+	getCPU(rh, 2, TIME_START, NULL);
 
 	/* --- Get abundances of background elements --        ------------ */
 
-	readAbundance(atmos);
+	readAbundance(rh, atmos);
 
 	/* --- Open input file for atmospheric model --        ------------ */
 
@@ -227,7 +227,7 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	}
 	/* --- Finally, get the hydrogen density --          -------------- */
 
-	atmos->nH = matrix_double(atmos->NHydr, Nspace);
+	atmos->nH = matrix_double(rh, atmos->NHydr, Nspace);
 	result    = xdr_vector(&xdrs, (char *) atmos->nH[0], atmos->NHydr * Nspace,
 						   sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
@@ -242,21 +242,21 @@ void readAtmos(Atmosphere *atmos, Geometry *geometry)
 	/* --- Get angle-quadrature and copy geometry independent quantities
 		   Nrays and wmu to atmos structure. --          -------------- */
 
-	getAngleQuadr(geometry);
+	getAngleQuadr(rh, geometry);
 	atmos->Nrays = geometry->Nrays;
 	atmos->wmu   = geometry->wmu;
 
 	/* --- Magnetic field is read here --                -------------- */
 
-	atmos->Stokes = readB(atmos);
+	atmos->Stokes = readB(rh, atmos);
 
-	getCPU(2, TIME_POLL, "Read Atmosphere");
+	getCPU(rh, 2, TIME_POLL, "Read Atmosphere");
 }
 /* ------- end ---------------------------- readAtmos.c ------------- */
 
 /* ------- begin -------------------------- getBoundary.c ----------- */
 
-void getBoundary(Atmosphere *atmos, Geometry *geometry)
+void getBoundary(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 {
 	const char routineName[] = "getBoundary";
 	bool_t     result        = TRUE;
@@ -267,7 +267,7 @@ void getBoundary(Atmosphere *atmos, Geometry *geometry)
 
 	switch (geometry->z_boundary_value[TOP]) {
 	case IRRADIATED:
-		geometry->Itop = matrix_double(Nspect, Nplane);
+		geometry->Itop = matrix_double(rh, Nspect, Nplane);
 		result &= xdr_vector(&xdrs, (char *) geometry->Itop[0],
 							 Nspect * Nplane, sizeof(double),
 							 (xdrproc_t) rh_xdr_double);
@@ -278,7 +278,7 @@ void getBoundary(Atmosphere *atmos, Geometry *geometry)
 
 	switch (geometry->z_boundary_value[BOTTOM]) {
 	case IRRADIATED:
-		geometry->Ibottom = matrix_double(Nspect, Nplane);
+		geometry->Ibottom = matrix_double(rh, Nspect, Nplane);
 		result &= xdr_vector(&xdrs, (char *) geometry->Ibottom[0],
 							 Nspect * Nplane, sizeof(double),
 							 (xdrproc_t) rh_xdr_double);

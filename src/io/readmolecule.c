@@ -49,13 +49,13 @@
 int   countTokens(char *line, char *separator);
 int   mrt_ascend(const void *v1, const void *v2);
 int   stringcompare(const void *s1, const void *s2);
-char *getMoleculeID(char *molecule_file);
+char *getMoleculeID(RHState *rh, char *molecule_file);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- readMolecule.c ---------- */
 
-void readMolecule(Molecule *molecule, char *fileName, bool_t active)
+void readMolecule(RHState *rh, Molecule *molecule, char *fileName, bool_t active)
 {
 	const char   routineName[] = "readMolecule";
 	register int k, m, n, kr, la, i;
@@ -69,7 +69,7 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 	FILE          *fp_molecule;
 	MolecularLine *mrt;
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	/* --- Open the data file for current molecule --    -------------- */
 
@@ -82,13 +82,13 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 	}
 	/* --- Read molecule ID --                           -------------- */
 
-	getLine(fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%s", molecule->ID);
-	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 1);
+	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 1);
 
-	getLine(fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%d", &molecule->charge);
-	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 2);
+	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 2);
 
 	/* --- We only allow molecules with 0 or +1 charge -- ------------- */
 
@@ -100,7 +100,7 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 
 	/* --- Read list of constituent atoms --            -------------- */
 
-	getLine(fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	molecule->Nelement = countTokens(inputLine, " ,");
 	if (molecule->Nelement == 0) {
 		Error(rh, ERROR_LEVEL_2, routineName, "Could not identify constituents for molecule %s\n",
@@ -143,17 +143,17 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 
 	/* --- Read dissociation energy in eV, convert to Joule -- ------- */
 
-	getLine(fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%lf", &molecule->Ediss);
-	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 3);
+	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 3);
 	molecule->Ediss *= EV;
 
 	/* --- Read identification string for type of temperature fit for
 		   partition function and molecular equilibrium constant -- -- */
 
-	getLine(fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%s", fitStr);
-	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 4);
+	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 4);
 	if (strstr(fitStr, "KURUCZ_70"))
 		molecule->fit = KURUCZ_70;
 	else if (strstr(fitStr, "KURUCZ_85"))
@@ -179,31 +179,31 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 	}
 	/* --- Read minimum and maximum formation temperature -- ---------- */
 
-	getLine(fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%lf %lf", &molecule->Tmin, &molecule->Tmax);
-	checkNread(Nread, Nrequired = 2, routineName, checkPoint = 5);
+	checkNread(rh, Nread, Nrequired = 2, routineName, checkPoint = 5);
 
 	/* --- Get fit parameters for partition function --  -------------- */
 
-	getLine(fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(strtok(inputLine, " "), "%d", &molecule->Npf);
 	if (molecule->Npf > 0) {
 		molecule->pf_coef = (double *) malloc(molecule->Npf * sizeof(double));
 		for (n = molecule->Npf - 1; n >= 0; n--)
 			Nread += sscanf(strtok(NULL, " "), "%lf", molecule->pf_coef + n);
-		checkNread(Nread, molecule->Npf + 1, routineName, checkPoint = 6);
+		checkNread(rh, Nread, molecule->Npf + 1, routineName, checkPoint = 6);
 	}
 	molecule->pf = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
 	/* --- Get fit parameters for equilibrium constant -- ------------- */
 
-	getLine(fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(strtok(inputLine, " "), "%d", &molecule->Neqc);
 	if (molecule->Neqc > 0) {
 		molecule->eqc_coef = (double *) malloc(molecule->Neqc * sizeof(double));
 		for (n = molecule->Neqc - 1; n >= 0; n--)
 			Nread += sscanf(strtok(NULL, " "), "%lf", molecule->eqc_coef + n);
-		checkNread(Nread, molecule->Neqc + 1, routineName, checkPoint = 7);
+		checkNread(rh, Nread, molecule->Neqc + 1, routineName, checkPoint = 7);
 	}
 
 	/* --- Get molecular weight from composing atoms and calculate
@@ -226,10 +226,10 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 
 	/* --- Collect the line transitions from separate data files -- --- */
 
-	while (getLine(fp_molecule, COMMENT_CHAR, inputLine,
+	while (getLine(rh, fp_molecule, COMMENT_CHAR, inputLine,
 				   exit_on_EOF = FALSE) != EOF) {
 		Nread = sscanf(inputLine, "%s", line_data);
-		readMolecularLines(molecule, line_data);
+		readMolecularLines(rh, molecule, line_data);
 	}
 	/* --- Sort transitions within each molecule in wavelength -- ----- */
 
@@ -317,11 +317,11 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 			   state in each electronic configuration. Within each of these
 			   the rotational states will be assumed to be in LTE -- --- */
 
-		molecule->nv     = matrix_double(molecule->Nv * molecule->Nconfig,
+		molecule->nv     = matrix_double(rh, molecule->Nv * molecule->Nconfig,
 										 rh->atmos.Nspace);
-		molecule->nvstar = matrix_double(molecule->Nv * molecule->Nconfig,
+		molecule->nvstar = matrix_double(rh, molecule->Nv * molecule->Nconfig,
 										 rh->atmos.Nspace);
-		molecule->pfv    = matrix_double(molecule->Nv * molecule->Nconfig,
+		molecule->pfv    = matrix_double(rh, molecule->Nv * molecule->Nconfig,
 										 rh->atmos.Nspace);
 
 		sprintf(popsFile, "pops_mol.%s.out", molecule->ID);
@@ -333,7 +333,7 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 			   and each of its vibrational states are calculated in routine
 			   LTEmolecule --                              -------------- */
 
-		LTEmolecule(molecule);
+		LTEmolecule(rh, molecule);
 
 	} else {
 		if (molecule->Npf > 0) {
@@ -342,7 +342,7 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 			   from a polynomial in T --                 -------------- */
 
 			for (k = 0; k < rh->atmos.Nspace; k++)
-				molecule->pf[k] = partfunction(molecule, rh->atmos.T[k]);
+				molecule->pf[k] = partfunction(rh, molecule, rh->atmos.T[k]);
 		}
 	}
 	/* --- Report once per molecule when the atmosphere leaves the range
@@ -394,7 +394,7 @@ void readMolecule(Molecule *molecule, char *fileName, bool_t active)
 	fclose(fp_molecule);
 	sprintf(labelStr, "Read %s %3s",
 			(molecule->active) ? "Active" : "Molecule", molecule->ID);
-	getCPU(3, TIME_POLL, labelStr);
+	getCPU(rh, 3, TIME_POLL, labelStr);
 }
 /* ------- end ---------------------------- readMolecule.c ---------- */
 
@@ -427,7 +427,7 @@ void initMolecule(Molecule *molecule)
 
 /* ------- begin -------------------------- freeMolecule.c ---------- */
 
-void freeMolecule(Molecule *molecule)
+void freeMolecule(RHState *rh, Molecule *molecule)
 {
 	register int kr, nt;
 
@@ -443,9 +443,9 @@ void freeMolecule(Molecule *molecule)
 
 	if (molecule->active) {
 		free(molecule->configs);
-		freeMatrix((void **) molecule->nv);
-		freeMatrix((void **) molecule->nvstar);
-		freeMatrix((void **) molecule->pfv);
+		freeMatrix(rh, (void **) molecule->nv);
+		freeMatrix(rh, (void **) molecule->nvstar);
+		freeMatrix(rh, (void **) molecule->pfv);
 
 		free(molecule->popsFile);
 
@@ -456,18 +456,18 @@ void freeMolecule(Molecule *molecule)
 
 			free(th->eta);
 			if (th->Nrt_alloc > 0) {
-				freeMatrix((void **) th->Vij);
-				freeMatrix((void **) th->gij);
-				freeMatrix((void **) th->wla);
+				freeMatrix(rh, (void **) th->Vij);
+				freeMatrix(rh, (void **) th->gij);
+				freeMatrix(rh, (void **) th->wla);
 			}
-			if (th->Gamma != NULL) freeMatrix((void **) th->Gamma);
+			if (th->Gamma != NULL) freeMatrix(rh, (void **) th->Gamma);
 		}
 		free(molecule->rhth);
 	}
 
 	if (molecule->Nrt > 0) {
 		for (kr = 0; kr < molecule->Nrt; kr++)
-			freeMolLine(&molecule->mrt[kr]);
+			freeMolLine(rh, &molecule->mrt[kr]);
 		free(molecule->mrt);
 	}
 }
@@ -503,14 +503,14 @@ void initMolLine(MolecularLine *mrt, enum type line_type)
 
 /* ------- begin -------------------------- freeMolLine.c ----------- */
 
-void freeMolLine(MolecularLine *mrt)
+void freeMolLine(RHState *rh, MolecularLine *mrt)
 {
 	/* --- Free allocated memory for active transition structure line - */
 
 	Molecule *molecule = mrt->molecule;
 
 	if (molecule->active) {
-		freeMatrix((void **) mrt->phi);
+		freeMatrix(rh, (void **) mrt->phi);
 		free(mrt->phi);
 		free(mrt->wquad);
 	}
@@ -616,7 +616,7 @@ int stringcompare(const void *s1, const void *s2)
 		it confuses the Zeeman determination.
 	   --                                              -------------- */
 
-void readMolecularLines(struct Molecule *molecule, char *line_data)
+void readMolecularLines(RHState *rh, struct Molecule *molecule, char *line_data)
 {
 	const char   routineName[] = "readMolecularLines";
 	register int kr;
@@ -641,10 +641,10 @@ void readMolecularLines(struct Molecule *molecule, char *line_data)
 	}
 	/* --- Get count, type, and format of the lines in this file -- -- */
 
-	getLine(fp_lines, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_lines, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%d %s %s", &Nrt,
 				   type_string, format_string);
-	checkNread(Nread, Nrequired = 3, routineName, checkPoint = 1);
+	checkNread(rh, Nread, Nrequired = 3, routineName, checkPoint = 1);
 
 	if (strstr(type_string, "VIBRATION_ROTATION"))
 		line_type = VIBRATION_ROTATION;
@@ -656,9 +656,9 @@ void readMolecularLines(struct Molecule *molecule, char *line_data)
 	molecule->mrt = (MolecularLine *)
 		realloc(molecule->mrt, (molecule->Nrt + Nrt) * sizeof(MolecularLine));
 
-	getLine(fp_lines, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_lines, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%d %lf", &Nlambda, &qwing);
-	checkNread(Nread, Nrequired = 2, routineName, checkPoint = 2);
+	checkNread(rh, Nread, Nrequired = 2, routineName, checkPoint = 2);
 
 	/* --- Read line data line by line --                -------------- */
 
@@ -675,12 +675,12 @@ void readMolecularLines(struct Molecule *molecule, char *line_data)
 			mrt->Nlambda = Nlambda;
 			mrt->qwing   = qwing;
 
-			getLine(fp_lines, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			getLine(rh, fp_lines, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 			Nread = sscanf(inputLine, "%lf %lf %lf %lf %lf %lf %d %d %s %d %d",
 						   &mrt->lambda0, &dipole, &mrt->Aji, &mrt->Ei, &gf,
 						   &strength, &mrt->vj, &mrt->vi, branchStr, &Ji,
 						   &isotope);
-			checkNread(Nread, Nrequired = 11, routineName, checkPoint = 3);
+			checkNread(rh, Nread, Nrequired = 11, routineName, checkPoint = 3);
 
 			mrt->lambda0 = (CM_TO_M / NM_TO_M) / mrt->lambda0;
 			mrt->Ei *= (HPLANCK * CLIGHT) / CM_TO_M;
@@ -736,7 +736,7 @@ void readMolecularLines(struct Molecule *molecule, char *line_data)
 			mrt->qwing        = qwing;
 			mrt->isotope_frac = 1.0;
 
-			getLine(fp_lines, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			getLine(rh, fp_lines, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 
 			if (strstr(format_string, "KURUCZ_TIO")) {
 				Nread = sscanf(inputLine,
@@ -749,7 +749,7 @@ void readMolecularLines(struct Molecule *molecule, char *line_data)
 							   &lambda_air, &log_gf,
 							   &mrt->gi, &mrt->Ei, &mrt->gj, &mrt->Ej);
 			}
-			checkNread(Nread, Nrequired = 6, routineName, checkPoint = 3);
+			checkNread(rh, Nread, Nrequired = 6, routineName, checkPoint = 3);
 
 			mrt->Ei = (HPLANCK * CLIGHT) / CM_TO_M * fabs(mrt->Ei);
 			mrt->Ej = (HPLANCK * CLIGHT) / CM_TO_M * fabs(mrt->Ej);
@@ -931,7 +931,7 @@ void readMolecularLines(struct Molecule *molecule, char *line_data)
 
 /* ------- begin -------------------------- readMolecularModels.c --- */
 
-void readMolecularModels(void)
+void readMolecularModels(RHState *rh)
 {
 	const char   routineName[] = "readMolecularModels";
 	register int n, m, i;
@@ -945,7 +945,7 @@ void readMolecularModels(void)
 	Molecule *molecule;
 	Element  *element;
 
-	getCPU(2, TIME_START, NULL);
+	getCPU(rh, 2, TIME_START, NULL);
 
 	/* --- Open input file for molecular models --       -------------- */
 
@@ -955,9 +955,9 @@ void readMolecularModels(void)
 	}
 	/* --- Get the number of molecular models to be read -- ----------- */
 
-	getLine(fp_molecules, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_molecules, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%d", &rh->atmos.Nmolecule);
-	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 1);
+	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 1);
 
 	/* --- H2 is required: the background opacities (H2- free-free,
 		   Rayleigh scattering by H2), H2 collisions and hydrostatic
@@ -979,12 +979,12 @@ void readMolecularModels(void)
 
 	for (n = 0; n < rh->atmos.Nmolecule; n++) {
 
-		getLine(fp_molecules, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, fp_molecules, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%s %s %s %s",
 					   filename, actionKey, popsKey, popsFile);
-		checkNread(Nread, Nrequired = 3, routineName, checkPoint = 2);
+		checkNread(rh, Nread, Nrequired = 3, routineName, checkPoint = 2);
 
-		moleculeID = getMoleculeID(filename);
+		moleculeID = getMoleculeID(rh, filename);
 
 		/* --- The first molecule must be H2, exactly (B-62: a substring
 			   test let H2+ or H2O through). Checked on the ID line before
@@ -1005,7 +1005,7 @@ void readMolecularModels(void)
 		}
 
 		molecule = &rh->atmos.molecules[n];
-		readMolecule(molecule, filename,
+		readMolecule(rh, molecule, filename,
 					 active = (strstr(actionKey, "ACTIVE") ? TRUE : FALSE));
 
 		/* --- Create an alias to the hydrogen molecule  structure -- ----- */
@@ -1081,19 +1081,19 @@ void readMolecularModels(void)
 	/* --- Report when the atmosphere leaves the temperature range of the
 		   OH and CH bound-free tables (N-53) --       -------------- */
 
-	OHCH_bf_check();
+	OHCH_bf_check(rh);
 
 	/* --- Allocate memory for H^- --                    -------------- */
 
 	rh->atmos.nHmin = (double *) malloc(rh->atmos.Nspace * sizeof(double));
 
-	getCPU(2, TIME_POLL, "Read molecular input");
+	getCPU(rh, 2, TIME_POLL, "Read molecular input");
 }
 /* ------- end ---------------------------- readMolecularModels.c --- */
 
 /* ------- begin -------------------------- getMoleculeID.c --------- */
 
-char *getMoleculeID(char *molecule_file)
+char *getMoleculeID(RHState *rh, char *molecule_file)
 {
 	const char   routineName[] = "getMoleculeID";
 	register int n;
@@ -1109,7 +1109,7 @@ char *getMoleculeID(char *molecule_file)
 
 	/* --- Read molecule ID --                           -------------- */
 
-	getLine(fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	sscanf(inputLine, "%s", moleculeID);
 	for (n = 0; n < (int) strlen(moleculeID); n++)
 		moleculeID[n] = toupper(moleculeID[n]);

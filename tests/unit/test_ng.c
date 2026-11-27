@@ -41,17 +41,17 @@ static bool_t run(const double x0[N], const double xstar[N], double x[N],
 	int          k;
 
 	for (k = 0; k < N; k++) x[k] = x0[k];
-	*Ngs = NgInit(N, 0, 1, 1, x);
+	*Ngs = NgInit(rh, N, 0, 1, 1, x);
 
 	for (k = 0; k < N; k++) x[k] = lambda * x[k] + (1.0 - lambda) * xstar[k];
-	accel = Accelerate(*Ngs, x);
+	accel = Accelerate(rh, *Ngs, x);
 	CHECK(!accel && (*Ngs)->rejected == 0, "no step before the delay");
 
 	for (k = 0; k < N; k++) {
 		x[k] = lambda * x[k] + (1.0 - lambda) * xstar[k];
 		g[k] = x[k];
 	}
-	return Accelerate(*Ngs, x);
+	return Accelerate(rh, *Ngs, x);
 }
 
 /* --- The last solution in the history (what MaxChange compares) -- */
@@ -81,7 +81,7 @@ int main(void)
 		}
 		CHECK(strcmp(NgStatus(Ngs, accel), " (accelerated)\n") == 0,
 			  "status \"%s\"", NgStatus(Ngs, accel));
-		NgFree(Ngs);
+		NgFree(rh, Ngs);
 	}
 	/* --- x*[1] negative, G's value positive: rejected -- ---------- */
 	{
@@ -97,7 +97,7 @@ int main(void)
 		CHECK(strstr(NgStatus(Ngs, accel), "rejected: 1 value not positive") != NULL,
 			  "status \"%s\"", NgStatus(Ngs, accel));
 
-		NgFree(Ngs);
+		NgFree(rh, Ngs);
 	}
 	/* --- Two values going negative: counted, plural -- ------------ */
 	{
@@ -107,7 +107,7 @@ int main(void)
 		CHECK(!accel && Ngs->rejected == 2, "rejected = %ld, want 2", Ngs->rejected);
 		CHECK(strstr(NgStatus(Ngs, accel), "rejected: 2 values not positive") != NULL,
 			  "status \"%s\"", NgStatus(Ngs, accel));
-		NgFree(Ngs);
+		NgFree(rh, Ngs);
 	}
 	/* --- G's value itself negative: not counted, accepted -- ------- */
 	{
@@ -118,18 +118,18 @@ int main(void)
 		CHECK(g[1] < 0.0, "G's value %g is negative", g[1]);
 		for (k = 0; k < N; k++)
 			CHECK_CLOSE(x[k], xstar[k], 1e-14, 0.0, "x[%d] = x*", k);
-		NgFree(Ngs);
+		NgFree(rh, Ngs);
 	}
 	/* --- No step: empty status --                     -------------- */
 	{
 		const double x0[N] = {3.0, 5.0};
 
 		for (k = 0; k < N; k++) x[k] = x0[k];
-		Ngs   = NgInit(N, 10, 1, 1, x);
-		accel = Accelerate(Ngs, x);
+		Ngs   = NgInit(rh, N, 10, 1, 1, x);
+		accel = Accelerate(rh, Ngs, x);
 		CHECK(!accel && strcmp(NgStatus(Ngs, accel), "\n") == 0,
 			  "status before the delay \"%s\"", NgStatus(Ngs, accel));
-		NgFree(Ngs);
+		NgFree(rh, Ngs);
 	}
 	return check_summary("test_ng");
 }

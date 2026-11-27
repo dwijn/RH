@@ -36,7 +36,7 @@ bool_t write_contrib_xdr(XDR *xdrs, char *label, enum opac_type type,
 
 /* ------- begin -------------------------- backgrOpac.c ------------ */
 
-void backgrOpac(int Nlambda, double *lambda)
+void backgrOpac(RHState *rh, int Nlambda, double *lambda)
 {
 	const char   routineName[] = "backgrOpac";
 	register int nspect, n, k;
@@ -58,14 +58,14 @@ void backgrOpac(int Nlambda, double *lambda)
 	rh->atmos.moving = FALSE;
 	rh->atmos.Stokes = FALSE;
 
-	if (rh->input.solve_ne) Solve_ne(rh->atmos.ne, TRUE);
+	if (rh->input.solve_ne) Solve_ne(rh, rh->atmos.ne, TRUE);
 
-	SetLTEQuantities();
+	SetLTEQuantities(rh);
 
 	if (rh->input.NonICE)
-		readMolecules(MOLECULAR_CONCENTRATION_FILE);
+		readMolecules(rh, MOLECULAR_CONCENTRATION_FILE);
 	else
-		ChemicalEquilibrium(N_MAX_CHEM_ITER, CHEM_ITER_LIMIT);
+		ChemicalEquilibrium(rh, N_MAX_CHEM_ITER, CHEM_ITER_LIMIT);
 
 	if (strcmp(rh->input.fudgeData, "none")) {
 		do_fudge = TRUE;
@@ -79,12 +79,12 @@ void backgrOpac(int Nlambda, double *lambda)
 		Message(rh, "\n-Fudging background opacities with file\n  %s\n\n",
 				rh->input.fudgeData);
 
-		getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		sscanf(inputLine, "%d", &Nfudge);
 		lambda_fudge = (double *) malloc(Nfudge * sizeof(double));
-		fudge        = matrix_double(3, Nfudge);
+		fudge        = matrix_double(rh, 3, Nfudge);
 		for (n = 0; n < Nfudge; n++) {
-			getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			getLine(rh, fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 			sscanf(inputLine, "%lf %lf %lf %lf", &lambda_fudge[n],
 				   &fudge[0][n], &fudge[1][n], &fudge[2][n]);
 		}
@@ -104,7 +104,7 @@ void backgrOpac(int Nlambda, double *lambda)
 
 	He = (rh->atmos.elements[1].model) ? rh->atmos.elements[1].model : NULL;
 
-	backgroundPrepare();
+	backgroundPrepare(rh);
 
 	/* --- Go through wavelengths one-by-one --          -------------- */
 
@@ -129,7 +129,7 @@ void backgrOpac(int Nlambda, double *lambda)
 
 		/* --- Thomson scattering by free electrons --     -------------- */
 
-		Thomson(thomson);
+		Thomson(rh, thomson);
 		if (do_fudge) {
 			Linear(Nfudge, lambda_fudge, fudge[1],
 				   1, &lambda[nspect], &scatt_fudge, FALSE);
@@ -144,14 +144,14 @@ void backgrOpac(int Nlambda, double *lambda)
 			Linear(Nfudge, lambda_fudge, fudge[0],
 				   1, &lambda[nspect], &Hmin_fudge, FALSE);
 		}
-		if (Hminus_bf(lambda[nspect], chi, eta)) {
+		if (Hminus_bf(rh, lambda[nspect], chi, eta)) {
 			if (do_fudge) {
 				for (k = 0; k < rh->atmos.Nspace; k++) chi[k] *= Hmin_fudge;
 			}
 			write_contrib_xdr(&xdrs, "HMINUS_BF", type = ABSORPTION,
 							  rh->atmos.Nspace, chi);
 		}
-		if (Hminus_ff(lambda[nspect], chi)) {
+		if (Hminus_ff(rh, lambda[nspect], chi)) {
 			if (do_fudge) {
 				for (k = 0; k < rh->atmos.Nspace; k++) chi[k] *= Hmin_fudge;
 			}
@@ -172,17 +172,17 @@ void backgrOpac(int Nlambda, double *lambda)
 
 		/* --- Neutral Hydrogen Bound-Free and Free-Free --  ------------ */
 
-		if (Hydrogen_bf(lambda[nspect], chi, eta)) {
+		if (Hydrogen_bf(rh, lambda[nspect], chi, eta)) {
 			write_contrib_xdr(&xdrs, "HYDROGEN_BF", type = ABSORPTION,
 							  rh->atmos.Nspace, chi);
 		}
-		Hydrogen_ff(lambda[nspect], chi);
+		Hydrogen_ff(rh, lambda[nspect], chi);
 		write_contrib_xdr(&xdrs, "HYDROGEN_FF", type = ABSORPTION,
 						  rh->atmos.Nspace, chi);
 
 		/* --- Rayleigh scattering by neutral hydrogen --  -------------- */
 
-		if (Rayleigh(lambda[nspect], rh->atmos.H, scatt)) {
+		if (Rayleigh(rh, lambda[nspect], rh->atmos.H, scatt)) {
 			if (do_fudge) {
 				for (k = 0; k < rh->atmos.Nspace; k++) scatt[k] *= scatt_fudge;
 			}
@@ -191,7 +191,7 @@ void backgrOpac(int Nlambda, double *lambda)
 		}
 		/* --- Rayleigh scattering by neutral helium --    -------------- */
 
-		if (He && Rayleigh(lambda[nspect], He, scatt)) {
+		if (He && Rayleigh(rh, lambda[nspect], He, scatt)) {
 			if (do_fudge) {
 				for (k = 0; k < rh->atmos.Nspace; k++) scatt[k] *= scatt_fudge;
 			}
@@ -201,7 +201,7 @@ void backgrOpac(int Nlambda, double *lambda)
 		/* --- Rayleigh scattering and free-free absorption by
 			   molecular hydrogen --                       -------------- */
 
-		if (Rayleigh_H2(lambda[nspect], scatt)) {
+		if (Rayleigh_H2(rh, lambda[nspect], scatt)) {
 			if (do_fudge) {
 				for (k = 0; k < rh->atmos.Nspace; k++) scatt[k] *= scatt_fudge;
 			}
@@ -210,11 +210,11 @@ void backgrOpac(int Nlambda, double *lambda)
 		}
 		/* --- Absorption by H + H^+ (referred to as H2plus free-free) -- */
 
-		if (H2plus_ff(lambda[nspect], chi))
+		if (H2plus_ff(rh, lambda[nspect], chi))
 			write_contrib_xdr(&xdrs, "H2PLUS_FF", type = ABSORPTION,
 							  rh->atmos.Nspace, chi);
 
-		if (H2minus_ff(lambda[nspect], chi)) {
+		if (H2minus_ff(rh, lambda[nspect], chi)) {
 			write_contrib_xdr(&xdrs, "H2MINUS_FF", type = ABSORPTION,
 							  rh->atmos.Nspace, chi);
 		}
@@ -225,7 +225,7 @@ void backgrOpac(int Nlambda, double *lambda)
 				   1, &lambda[nspect], &metal_fudge, FALSE);
 		}
 		for (n = 1; n < rh->atmos.Natom; n++) {
-			Metal_bf(lambda[nspect], 1, &rh->atmos.atoms[n], chi, eta);
+			Metal_bf(rh, lambda[nspect], 1, &rh->atmos.atoms[n], chi, eta);
 			sprintf(metalID, "METAL_BF_%2s", rh->atmos.atoms[n].ID);
 			if (do_fudge) {
 				for (k = 0; k < rh->atmos.Nspace; k++) chi[k] *= metal_fudge;
@@ -239,16 +239,16 @@ void backgrOpac(int Nlambda, double *lambda)
 
 	/* --- Clean up --                                     ------------ */
 
-	for (n = 0; n < rh->atmos.Natom; n++) freeAtom(rh->atmos.atoms + n);
+	for (n = 0; n < rh->atmos.Natom; n++) freeAtom(rh, rh->atmos.atoms + n);
 	free(rh->atmos.atoms);
 
 	for (n = 0; n < rh->atmos.Nmolecule; n++)
-		freeMolecule(rh->atmos.molecules + n);
+		freeMolecule(rh, rh->atmos.molecules + n);
 	if (rh->atmos.Nmolecule > 0) free(rh->atmos.molecules);
 
 	/* --- Free the temporary space set up by backgroundPrepare -- --- */
 
-	backgroundCleanup();
+	backgroundCleanup(rh);
 
 	free(chi);
 	free(eta);
@@ -257,7 +257,7 @@ void backgrOpac(int Nlambda, double *lambda)
 
 	if (do_fudge) {
 		free(lambda_fudge);
-		freeMatrix((void **) fudge);
+		freeMatrix(rh, (void **) fudge);
 	}
 }
 /* ------- end ---------------------------- backgrOpac.c ------------ */

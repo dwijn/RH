@@ -80,26 +80,26 @@
 double         cubicconvol(double *f, int Nx, int *x_base, int *y_base,
 						   double *x_kernel, double *y_kernel, bool_t monotonic);
 int            sascend(const void *vis1, const void *vis2);
-double         calcDistance(double frac1, double frac2, enum intersect plane,
+double         calcDistance(RHState *rh, double frac1, double frac2, enum intersect plane,
 							double dx, double dy, double dz);
 void           calcFrac(double *frac1, double *frac2,
 						double rx, double ry, double rz, enum intersect plane,
 						enum direction wind);
 enum intersect getIntersect(double rx, double ry, double rz);
 int            getQuadrant(double mux, double muy, enum direction wind);
-void           setStencil(Geometry *geometry, int mu, int k,
+void           setStencil(RHState *rh, Geometry *geometry, int mu, int k,
 						  enum direction wind);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- fillMesh.c -------------- */
 
-void fillMesh(Geometry *geometry)
+void fillMesh(RHState *rh, Geometry *geometry)
 {
 	const char   routineName[] = "fillMesh";
 	register int mu, k;
 
-	getCPU(2, TIME_START, NULL);
+	getCPU(rh, 2, TIME_START, NULL);
 
 	if (geometry->x_boundary != PERIODIC ||
 		geometry->y_boundary != PERIODIC) {
@@ -135,17 +135,17 @@ void fillMesh(Geometry *geometry)
 			/* --- First, the UPWIND bases for the DOWN sweep. These will be
 				   the DOWNWIND bases for the final UP sweep. -- ---------- */
 
-			setStencil(geometry, mu, k, UPWIND);
+			setStencil(rh, geometry, mu, k, UPWIND);
 		}
 		for (k = 0; k < geometry->Nz - 1; k++) {
-			setStencil(geometry, mu, k, DOWNWIND);
+			setStencil(rh, geometry, mu, k, DOWNWIND);
 		}
 	}
 	if (geometry->Nlongchar) {
 		Message(rh, "\n-Used %d Long Characteristics\n\n",
 				geometry->Nlongchar);
 	}
-	getCPU(2, TIME_POLL, "Geometry");
+	getCPU(rh, 2, TIME_POLL, "Geometry");
 }
 /* ------- end ---------------------------- fillMesh.c -------------- */
 
@@ -237,7 +237,7 @@ void calcFrac(double *frac1, double *frac2,
 
 /* ------- begin -------------------------- calcDistance.c ---------- */
 
-double calcDistance(double frac1, double frac2, enum intersect plane,
+double calcDistance(RHState *rh, double frac1, double frac2, enum intersect plane,
 					double dx, double dy, double dz)
 {
 	/* --- Calculate distance between point where ray originates from and
@@ -259,7 +259,7 @@ double calcDistance(double frac1, double frac2, enum intersect plane,
 
 /* ------- begin -------------------------- setStencil.c ------------ */
 
-void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
+void setStencil(RHState *rh, Geometry *geometry, int mu, int k, enum direction wind)
 {
 	const char   routineName[] = "setStencil";
 	register int l, m, n;
@@ -302,7 +302,7 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 		   point where ray intersects nearest plane --   -------------- */
 
 	calcFrac(&frac1, &frac2, rx, ry, rz, st->plane, wind);
-	st->ds = calcDistance(frac1, frac2, st->plane,
+	st->ds = calcDistance(rh, frac1, frac2, st->plane,
 						  geometry->dx, geometry->dy, dz);
 
 	switch (st->plane) {
@@ -572,7 +572,7 @@ int sascend(const void *vis1, const void *vis2)
 
 /* ------- begin -------------------------- Interpolate_3D.c -------- */
 
-static double interpolate3D(double *f, Geometry *geometry, Stencil *st,
+static double interpolate3D(RHState *rh, double *f, Geometry *geometry, Stencil *st,
 							int l, int m, bool_t monotonic)
 {
 	register int i, j;
@@ -639,24 +639,24 @@ static double interpolate3D(double *f, Geometry *geometry, Stencil *st,
 	return value;
 }
 
-double Interpolate_3D(double *f, Geometry *geometry, Stencil *st,
+double Interpolate_3D(RHState *rh, double *f, Geometry *geometry, Stencil *st,
 					  int l, int m)
 {
 	/* --- Bicubic in the XY planes, clamped to the range of the four
 		   nodes of the cell (cubicconvol, monotonic), bilinear in the
 		   XZ and YZ planes: never outside the range of the nodes -- -- */
 
-	return interpolate3D(f, geometry, st, l, m, TRUE);
+	return interpolate3D(rh, f, geometry, st, l, m, TRUE);
 }
 
-double Interpolate_3D_linear(double *f, Geometry *geometry, Stencil *st,
+double Interpolate_3D_linear(RHState *rh, double *f, Geometry *geometry, Stencil *st,
 							 int l, int m)
 {
 	/* --- The same weights without the clamp: linear in f, with
 		   weights that do not depend on f, for quantities without a
 		   bound (the rapidities and rho' of stokesgrid.h) -- --------- */
 
-	return interpolate3D(f, geometry, st, l, m, FALSE);
+	return interpolate3D(rh, f, geometry, st, l, m, FALSE);
 }
 /* ------- end ---------------------------- Interpolate_3D.c -------- */
 

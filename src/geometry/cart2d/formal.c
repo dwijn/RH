@@ -83,7 +83,7 @@ static void solveStokes_2D(RHState *rh, int nspect, int mu, bool_t to_obs, doubl
 	const char routineName[] = "solveStokes_2D";
 
 	if (rh->input.S_interpolation_stokes == DELO_BEZIER3) {
-		Piece_Stokes_Bezier3_2D(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
+		Piece_Stokes_Bezier3_2D(rh, rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
 	} else {
 		Error(rh, ERROR_LEVEL_1, routineName, "Unknown polarization solver: %d",
 			  rh->input.S_interpolation_stokes);
@@ -96,7 +96,7 @@ static void solveStokes_2D(RHState *rh, int nspect, int mu, bool_t to_obs, doubl
 static bool_t checkTau_2D(RHState *rh, int nspect, int mu, int to_obs, const double *chi,
 						  enum negtau_quadrature quad)
 {
-	return negTauColumns(nspect, mu, to_obs, rh->geometry->Nz, rh->geometry->Nx, chi,
+	return negTauColumns(rh, nspect, mu, to_obs, rh->geometry->Nz, rh->geometry->Nx, chi,
 						 rh->geometry->z, rh->geometry->muz[mu], quad);
 }
 /* ------- end ---------------------------- checkTau_2D.c ----------- */
@@ -150,7 +150,7 @@ const GeometryOps geometryOps = {
 
 /* ------- begin -------------------------- Hydrostatic.c ----------- */
 
-void Hydrostatic(int NmaxIter, double iterLimit)
+void Hydrostatic(RHState *rh, int NmaxIter, double iterLimit)
 {
 	const char routineName[] = "Hydrostatic";
 

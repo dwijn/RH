@@ -28,7 +28,7 @@
 
 /* ------- begin -------------------------- Piece_Stokes_Bezier3_2D.c */
 
-void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
+void Piece_Stokes_Bezier3_2D(RHState *rh, Geometry *geometry, int nspect, int mu,
 							 bool_t to_observer, double *chi, double **S,
 							 double **I, double *Psi)
 {
@@ -148,7 +148,7 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 	/* --- Grid arrays of the cone-preserving interpolation (B-63),
 		   with the boundary values of I set -- ------------------------ */
 
-	StokesGrid_init(&sg, nspect, rh->atmos.Nspace, chi, S, I);
+	StokesGrid_init(rh, &sg, nspect, rh->atmos.Nspace, chi, S, I);
 
 	/* --- Finally, go through the grid to solve the non-local transfer
 		   equation --                                   -------------- */
@@ -162,15 +162,15 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 			st    = &geometry->stencil[mu][local];
 
 			if (l == lc->lstart && lc->Nlc > 0)
-				SolveLongStokes(&sg, lc, local, I_uw);
+				SolveLongStokes(rh, &sg, lc, local, I_uw);
 			else
 				Interp_Stokes_2D(&sg, STOKES_INTENSITY, st, upwind, I_uw);
 
 			chi_uw  = Interp_2D(chi, st, upwind);
 			dchi_uw = (chi[local] - chi_uw) / st->ds[upwind];
-			StokesK_2D(&sg, st, upwind, chi_uw, K_uw);
+			StokesK_2D(rh, &sg, st, upwind, chi_uw, K_uw);
 			Interp_Stokes_2D(&sg, STOKES_SOURCE, st, upwind, S_uw);
-			StokesK(nspect, local, chi[local], K_loc);
+			StokesK(rh, nspect, local, chi[local], K_loc);
 			for (n = 0; n < 4; n++) S_loc[n] = S[n][local];
 
 			if (k == kend) {
@@ -194,7 +194,7 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 
 				chi_dw  = Interp_2D(chi, st, downwind);
 				dchi_dw = (chi_dw - chi[local]) / st->ds[downwind];
-				StokesK_2D(&sg, st, downwind, chi_dw, K_dw);
+				StokesK_2D(rh, &sg, st, downwind, chi_dw, K_dw);
 
 				dchi_c = cent_deriv(st->ds[upwind], st->ds[downwind],
 									chi_uw, chi[local], chi_dw);
@@ -416,7 +416,7 @@ void Piecewise_Bezier3_2D(RHState *rh, Geometry *geometry, int nspect, int mu,
 
 			if (geometry->hboundary == PERIODIC &&
 				l == lc->lstart && lc->Nlc > 0)
-				I_uw = SolveLong(lc, local, chi, S, I);
+				I_uw = SolveLong(rh, lc, local, chi, S, I);
 			else
 				I_uw = Interp_2D(I, st, upwind);
 

@@ -72,8 +72,8 @@ static void setup(ChemSystem *cs, int c)
 
 	cs->Nn  = NN;
 	cs->Ns  = NS;
-	cs->nu  = matrix_double(NS, NN);
-	cs->H   = matrix_double(NN, NN);
+	cs->nu  = matrix_double(rh, NS, NN);
+	cs->H   = matrix_double(rh, NN, NN);
 	cs->lnc = (double *) malloc(NS * sizeof(double));
 	cs->n   = (double *) malloc(NS * sizeof(double));
 	cs->g   = (double *) malloc(NN * sizeof(double));
@@ -88,8 +88,8 @@ static void setup(ChemSystem *cs, int c)
 
 static void release(ChemSystem *cs)
 {
-	freeMatrix((void **) cs->nu);
-	freeMatrix((void **) cs->H);
+	freeMatrix(rh, (void **) cs->nu);
+	freeMatrix(rh, (void **) cs->H);
 	free(cs->lnc);
 	free(cs->n);
 	free(cs->g);

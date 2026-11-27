@@ -221,7 +221,7 @@ static void test_element(const char *what, int Nstage, const double *chi)
 	int           Nold  = 0;
 
 	for (int i = 0; i < Nstage; i++) ref[i] = (long double *) malloc(NSPACE * sizeof(long double));
-	LTEpops_elem(&el);
+	LTEpops_elem(rh, &el);
 	for (int k = 0; k < NSPACE; k++) {
 		saha_reference(&el, k, col);
 		for (int i = 0; i < Nstage; i++) {
@@ -300,7 +300,7 @@ static void test_atom(bool_t Debeye)
 		atom.ntotal[k] = (k == 3 * NNE + 2) ? 0.0 : 2.0e-5 * rh->atmos.nHtot[k];
 		total[k]       = atom.ntotal[k];
 	}
-	LTEpops(&atom, Debeye);
+	LTEpops(rh, &atom, Debeye);
 
 	if (!Debeye) {
 		for (int k = 0; k < NSPACE; k++) {

@@ -52,7 +52,7 @@
 
 /* ------- begin -------------------------- getAngleQuadr.c --------- */
 
-void getAngleQuadr(Geometry *geometry)
+void getAngleQuadr(RHState *rh, Geometry *geometry)
 {
 	const char   routineName[] = "getAngleQuadr";
 	register int mu, n, m;

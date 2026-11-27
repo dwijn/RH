@@ -27,7 +27,7 @@
 
 /* ------- begin -------------------------- VanderWaals.c ----------- */
 
-void VanderWaals(AtomicLine *line, double *GvdW)
+void VanderWaals(RHState *rh, AtomicLine *line, double *GvdW)
 {
 	/* --- Compute van der Waals broadening in Lindholm theory with
 		   Unsold's approximation for the interaction coefficient C_6.
@@ -147,7 +147,7 @@ void VanderWaals(AtomicLine *line, double *GvdW)
 
 #define AVERAGE_ATOMIC_WEIGHT 28.0
 
-void Stark(AtomicLine *line, double *GStark)
+void Stark(RHState *rh, AtomicLine *line, double *GStark)
 {
 	/* --- Quadratic Stark broadening by electrons and singly charged
 		   ions.
@@ -227,7 +227,7 @@ void Stark(AtomicLine *line, double *GStark)
 
 /* ------- begin -------------------------- StarkLinear.c ----------- */
 
-void StarkLinear(AtomicLine *line, double *GStark)
+void StarkLinear(RHState *rh, AtomicLine *line, double *GStark)
 {
 	/* --- Linear Stark broadening by electrons for hydrogen lines.
 
@@ -274,7 +274,7 @@ void StarkLinear(AtomicLine *line, double *GStark)
 
 /* ------- begin -------------------------- Damping.c --------------- */
 
-void Damping(AtomicLine *line, double *adamp)
+void Damping(RHState *rh, AtomicLine *line, double *adamp)
 {
 	register int k;
 
@@ -289,19 +289,19 @@ void Damping(AtomicLine *line, double *adamp)
 	/* --- Add van der Waals broadening --             -------------- */
 
 	if ((line->cvdWaals[0] > 0.0) || (line->cvdWaals[2] > 0.0)) {
-		VanderWaals(line, adamp);
+		VanderWaals(rh, line, adamp);
 		for (k = 0; k < rh->atmos.Nspace; k++) Qelast[k] += adamp[k];
 	}
 	/* --- Add Quadratic Stark broadening --           -------------- */
 
 	if (line->cStark != 0.0) {
-		Stark(line, adamp);
+		Stark(rh, line, adamp);
 		for (k = 0; k < rh->atmos.Nspace; k++) Qelast[k] += adamp[k];
 	}
 	/* --- Add Linear Stark broadening for hydrogen only -- --------- */
 
 	if (strstr(atom->ID, "H ")) {
-		StarkLinear(line, adamp);
+		StarkLinear(rh, line, adamp);
 		for (k = 0; k < rh->atmos.Nspace; k++) Qelast[k] += adamp[k];
 	}
 	/* --- Store the total rate of elastic collisions in case of PRD  */
@@ -319,7 +319,7 @@ void Damping(AtomicLine *line, double *adamp)
 
 /* ------- begin -------------------------- MolecularDamping.c ------ */
 
-void MolecularDamping(MolecularLine *mrt, double *adamp)
+void MolecularDamping(RHState *rh, MolecularLine *mrt, double *adamp)
 {
 	register int k;
 

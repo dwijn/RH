@@ -149,11 +149,11 @@ typedef struct {
 
 /* --- Associated function prototypes --               -------------- */
 
-int  getLine(FILE *inputFile, char *commentChar, char *line,
+int  getLine(RHState *rh, FILE *inputFile, char *commentChar, char *line,
 			 bool_t exit_on_EOF);
-void parse(int argc, char *argv[], int Noption, Option *theOptions);
-void readInput();
-void readValues(FILE *fp_keyword, int Nkeyword, Keyword *theKeywords);
+void parse(RHState *rh, int argc, char *argv[], int Noption, Option *theOptions);
+void readInput(RHState *rh);
+void readValues(RHState *rh, FILE *fp_keyword, int Nkeyword, Keyword *theKeywords);
 
 void setAngleSet(RHState *rh, char *value, void *pointer);
 void setcharValue(RHState *rh, char *value, void *pointer);
@@ -182,7 +182,7 @@ void set_S_interpolation_stokes(RHState *rh, char *value, void *pointer);
 void showValues(int Nkeyword, Keyword *theKeywords);
 void UpperCase(char *string);
 
-void writeInput();
+void writeInput(RHState *rh);
 
 #endif /* !__INPUTS_H__ */
 

@@ -112,7 +112,7 @@ static void pchipSlopes(int N, const double *x, const double *y, double *d)
 
 /* ------- begin -------------------------- pchipTableInit.c -------- */
 
-void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
+void pchipTableInit(RHState *rh, PchipTable *pt, int N, const double *x, const double *y,
 					int scale)
 {
 	const char   routineName[] = "pchipTableInit";

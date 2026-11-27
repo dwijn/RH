@@ -291,11 +291,11 @@ static void check_iterate(double eps, enum bg_operator op, int depth,
 	rh->input.bg_NmaxIter  = 1000;
 	for (int k = 0; k < N; k++) alb[k] = 1.0 - eps;
 
-	bgScatterStats(&st, TRUE);
+	bgScatterStats(rh, &st, TRUE);
 	sweep(rh, &s, Jdag, Jfs, A, NULL);
 	kap = 0.0;
-	bgScatterIterate(N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
-	bgScatterStats(&st, TRUE);
+	bgScatterIterate(rh, N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
+	bgScatterStats(rh, &st, TRUE);
 	for (int k = 0; k < N; k++) err = fmax(err, fabs(J[k] / Jx[k] - 1.0));
 
 	CHECK(st.Nunconverged == 0 && err < 1.0e-8,
@@ -314,8 +314,8 @@ static void check_iterate(double eps, enum bg_operator op, int depth,
 
 	rh->input.bg_NmaxIter = 3;
 	kap                   = 0.0;
-	bgScatterIterate(N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
-	bgScatterStats(&st, TRUE);
+	bgScatterIterate(rh, N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
+	bgScatterStats(rh, &st, TRUE);
 	CHECK(st.Nsweeps == 3 && st.Nunconverged == 1, "N_MAX_ITER = 3: %ld solves",
 		  st.Nsweeps);
 	for (int k = 0; k < N; k++) CHECK(J[k] > 0.0, "J[%d] = %g", k, J[k]);
@@ -355,10 +355,10 @@ static void check_error_bound(double eps, enum bg_operator op, int depth)
 	for (double tol = 1.0e-3; tol > 1.0e-8; tol *= 0.01) {
 		rh->input.bg_iterLimit = tol;
 		kap                    = 0.0;
-		bgScatterStats(&st, TRUE);
+		bgScatterStats(rh, &st, TRUE);
 		sweep(rh, &s, Jdag, Jfs, A, NULL);
-		bgScatterIterate(N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
-		bgScatterStats(&st, TRUE);
+		bgScatterIterate(rh, N, Jdag, Jfs, A, alb, J, &kap, sweep, &s);
+		bgScatterStats(rh, &st, TRUE);
 		err = 0.0;
 		for (int k = 0; k < N; k++) err = fmax(err, fabs(J[k] / Jx[k] - 1.0));
 		CHECK(st.Nunconverged == 0 && err <= tol,
@@ -408,14 +408,14 @@ static double warm_error(double eps, enum bg_operator op, double tol,
 	rh->input.bg_iterLimit = tol;
 	for (int k = 0; k < N; k++) alb[k] = 1.0 - eps;
 	sweep(rh, &s, J0, Jfs, A, NULL);
-	bgScatterIterate(N, J0, Jfs, A, alb, J1, &kap, sweep, &s);
+	bgScatterIterate(rh, N, J0, Jfs, A, alb, J1, &kap, sweep, &s);
 
 	s.eps *= 1.05;
 	exact(&s, Jx, Lam);
 	for (int k = 0; k < N; k++) alb[k] = 1.0 - s.eps;
 	if (!keep) kap = 0.0;
 	sweep(rh, &s, J1, Jfs, A, NULL);
-	bgScatterIterate(N, J1, Jfs, A, alb, J, &kap, sweep, &s);
+	bgScatterIterate(rh, N, J1, Jfs, A, alb, J, &kap, sweep, &s);
 	for (int k = 0; k < N; k++) err = fmax(err, fabs(J[k] / Jx[k] - 1.0));
 	*kap_out = kap;
 
@@ -474,27 +474,27 @@ static void check_before_after(void)
 	rh->input.bg_depth        = 3;
 	rh->input.bg_iterLimit    = 1.0e-10;
 	rh->input.bg_NmaxIter     = 1000;
-	bgScatterSetup();
-	CHECK(bgScatterPending(0) && bgScatterPending(1),
+	bgScatterSetup(rh);
+	CHECK(bgScatterPending(rh, 0) && bgScatterPending(rh, 1),
 		  "the first sweep does not iterate first");
 
-	bgScatterBefore(0, N, Jdag, Js, sweep, &s);
+	bgScatterBefore(rh, 0, N, Jdag, Js, sweep, &s);
 	for (int k = 0; k < N; k++) err = fmax(err, fabs(Js[k] / Jx[k] - 1.0));
 	CHECK(err < 1.0e-8, "J* from J = 0 off by %.2e", err);
-	CHECK(bgScatterPending(0), "an iterated wavelength was dropped");
+	CHECK(bgScatterPending(rh, 0), "an iterated wavelength was dropped");
 
 	memcpy(u, Js, N * sizeof(double));
-	bgScatterBefore(0, N, u, Js, sweep, &s);
-	CHECK(!bgScatterPending(0), "a converged wavelength stays pending");
-	CHECK(bgScatterPending(1), "wavelength 1 was dropped");
+	bgScatterBefore(rh, 0, N, u, Js, sweep, &s);
+	CHECK(!bgScatterPending(rh, 0), "a converged wavelength stays pending");
+	CHECK(bgScatterPending(rh, 1), "wavelength 1 was dropped");
 
 	sweep(rh, &s, Jx, Jfs, A, alb);
-	bgScatterAfter(0, N, Jx, Jfs, A, alb);
-	CHECK(!bgScatterPending(0), "bgScatterAfter: converged J made it pending");
+	bgScatterAfter(rh, 0, N, Jx, Jfs, A, alb);
+	CHECK(!bgScatterPending(rh, 0), "bgScatterAfter: converged J made it pending");
 	for (int k = 0; k < N; k++) u[k] = 0.5 * Jx[k];
 	sweep(rh, &s, u, Jfs, A, alb);
-	bgScatterAfter(0, N, u, Jfs, A, alb);
-	CHECK(bgScatterPending(0), "bgScatterAfter: J off by 2 did not make it pending");
+	bgScatterAfter(rh, 0, N, u, Jfs, A, alb);
+	CHECK(bgScatterPending(rh, 0), "bgScatterAfter: J off by 2 did not make it pending");
 
 	slab_free(&s);
 	free(Lam);
@@ -521,19 +521,19 @@ static void check_linear_choice(void)
 	rh->input.bg_NmaxIter     = 50;
 	rh->input.bg_linearAlbedo = 0.9;
 	rh->input.bg_linearTau    = 1.0;
-	bgScatterSetup();
+	bgScatterSetup(rh);
 
-	CHECK(!bgScatterLinear(0, -1.0), "query set the flag");
-	CHECK(!bgScatterLinear(0, 0.9), "albedo = threshold chose linear");
-	CHECK(bgScatterLinear(0, 0.95), "albedo 0.95 > 0.9 did not choose linear");
-	CHECK(bgScatterLinear(0, -1.0), "a query lost the choice");
-	CHECK(!bgScatterLinear(1, -1.0), "wavelength 1 chose linear");
-	bgScatterStats(&st, TRUE);
+	CHECK(!bgScatterLinear(rh, 0, -1.0), "query set the flag");
+	CHECK(!bgScatterLinear(rh, 0, 0.9), "albedo = threshold chose linear");
+	CHECK(bgScatterLinear(rh, 0, 0.95), "albedo 0.95 > 0.9 did not choose linear");
+	CHECK(bgScatterLinear(rh, 0, -1.0), "a query lost the choice");
+	CHECK(!bgScatterLinear(rh, 1, -1.0), "wavelength 1 chose linear");
+	bgScatterStats(rh, &st, TRUE);
 	CHECK(st.Nlinear == 1 && st.Nto == 1 && st.Nback == 0,
 		  "linear %ld, +%ld -%ld, not 1, +1 -0", st.Nlinear, st.Nto, st.Nback);
-	CHECK(!bgScatterLinear(0, 0.1), "albedo 0.1 kept the linear solver");
-	CHECK(!bgScatterLinear(0, -1.0), "a query lost the switch back");
-	bgScatterStats(&st, TRUE);
+	CHECK(!bgScatterLinear(rh, 0, 0.1), "albedo 0.1 kept the linear solver");
+	CHECK(!bgScatterLinear(rh, 0, -1.0), "a query lost the switch back");
+	bgScatterStats(rh, &st, TRUE);
 	CHECK(st.Nlinear == 0 && st.Nto == 0 && st.Nback == 1,
 		  "linear %ld, +%ld -%ld, not 0, +0 -1", st.Nlinear, st.Nto, st.Nback);
 }
@@ -544,8 +544,8 @@ int main(void)
 	rh->geometry->Nrays             = NMU;
 	rh->geometry->muz               = mus;
 	rh->geometry->wmu               = wmus;
-	rh->geometry->Itop              = matrix_double(1, NMU);
-	rh->geometry->Ibottom           = matrix_double(1, NMU);
+	rh->geometry->Itop              = matrix_double(rh, 1, NMU);
+	rh->geometry->Ibottom           = matrix_double(rh, 1, NMU);
 	rh->geometry->vboundary[TOP]    = ZERO;
 	rh->geometry->vboundary[BOTTOM] = IRRADIATED;
 

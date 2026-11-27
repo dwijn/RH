@@ -58,7 +58,7 @@
 
 /* ------- begin -------------------------- distribute_nH.c --------- */
 
-void distribute_nH()
+void distribute_nH(RHState *rh)
 {
 	const char   routineName[] = "distribute_nH";
 	register int k, i;
@@ -97,7 +97,7 @@ void distribute_nH()
 	} else {
 		rh->atmos.H->NLTEpops = TRUE;
 		if (!rh->atmos.H->active)
-			rh->atmos.H->n = matrix_double(rh->atmos.H->Nlevel, rh->atmos.Nspace);
+			rh->atmos.H->n = matrix_double(rh, rh->atmos.H->Nlevel, rh->atmos.Nspace);
 
 		/* --- Find principal quantum number from label --   ------------ */
 
@@ -139,13 +139,13 @@ void distribute_nH()
 	}
 	/* --- Free memory for atmospheric populations --    -------------- */
 
-	freeMatrix((void **) rh->atmos.nH);
+	freeMatrix(rh, (void **) rh->atmos.nH);
 }
 /* ------- end ---------------------------- distribute_nH.c --------- */
 
 /* ------- begin -------------------------- Hydrogen_bf.c ----------- */
 
-bool_t Hydrogen_bf(double lambda, double *chi, double *eta)
+bool_t Hydrogen_bf(RHState *rh, double lambda, double *chi, double *eta)
 {
 	/* --- Hydrogen bound-free opacity
 
@@ -206,7 +206,7 @@ bool_t Hydrogen_bf(double lambda, double *chi, double *eta)
 
 /* ------- begin -------------------------- Hydrogen_ff.c ----------- */
 
-void Hydrogen_ff(double lambda, double *chi)
+void Hydrogen_ff(RHState *rh, double lambda, double *chi)
 {
 	/* --- Hydrogen free-free opacity
 
@@ -227,7 +227,7 @@ void Hydrogen_ff(double lambda, double *chi)
 	np = rh->atmos.H->n[rh->atmos.H->Nlevel - 1];
 	for (k = 0; k < Nspace; k++) {
 		stim   = 1.0 - exp(-hc_kla / rh->atmos.T[k]);
-		g_ff   = Gaunt_ff(lambda, 1, rh->atmos.T[k]);
+		g_ff   = Gaunt_ff(rh, lambda, 1, rh->atmos.T[k]);
 		chi[k] = sigma / sqrt(rh->atmos.T[k]) * nu3 * rh->atmos.ne[k] *
 				 np[k] * stim * g_ff;
 	}
@@ -436,7 +436,7 @@ void Gaunt_ff_freeTable(void)
 }
 /* ------- end ---------------------------- Gaunt_ff_freeTable.c ---- */
 
-double Gaunt_ff(double lambda, int charge, double T)
+double Gaunt_ff(RHState *rh, double lambda, int charge, double T)
 {
 	/* --- <g_ff> at lambda [nm] and temperature T [K] for an ion of
 		   charge Z. Needs the table (Gaunt_ff_readTable). -- ----- */
@@ -722,7 +722,7 @@ void Hminus_bf_joins(double *short_ratio, double *long_ratio)
 }
 /* ------- end ---------------------------- Hminus_bf_joins.c ------- */
 
-bool_t Hminus_bf(double lambda, double *chi, double *eta)
+bool_t Hminus_bf(RHState *rh, double lambda, double *chi, double *eta)
 {
 	const char   routineName[] = "Hminus_bf";
 	register int k;
@@ -872,7 +872,7 @@ double Hminus_ff_kappa(double lambda, double theta)
 }
 /* ------- end ---------------------------- Hminus_ff_kappa.c ------- */
 
-bool_t Hminus_ff(double lambda, double *chi)
+bool_t Hminus_ff(RHState *rh, double lambda, double *chi)
 {
 	register int k;
 
@@ -902,7 +902,7 @@ static atomic_flag H2mff_beyond_told = ATOMIC_FLAG_INIT;
 static const double thetaFF_H2m[NTHETA_H2] = {
 	0.5, 0.8, 1.0, 1.2, 1.6, 2.0, 2.8, 3.6};
 
-static void H2minus_ff_prepare(void)
+static void H2minus_ff_prepare(RHState *rh)
 {
 	register int k;
 
@@ -925,7 +925,7 @@ static void H2minus_ff_prepare(void)
 	}
 }
 
-bool_t H2minus_ff(double lambda, double *chi)
+bool_t H2minus_ff(RHState *rh, double lambda, double *chi)
 {
 	const char   routineName[] = "H2minus_ff";
 	register int k;
@@ -1060,7 +1060,7 @@ static const double tempFF_H2p[NTEMP_H2P] = {
 	2.5E+03, 3.0E+03, 3.5E+03, 4.0E+03, 5.0E+03,
 	6.0E+03, 7.0E+03, 8.0E+03, 1.0E+04, 1.2E+04};
 
-static void H2plus_ff_prepare(void)
+static void H2plus_ff_prepare(RHState *rh)
 {
 	register int k;
 
@@ -1083,7 +1083,7 @@ static void H2plus_ff_prepare(void)
 	}
 }
 
-bool_t H2plus_ff(double lambda, double *chi)
+bool_t H2plus_ff(RHState *rh, double lambda, double *chi)
 {
 	const char   routineName[] = "H2plus_ff";
 	register int k;
@@ -1182,7 +1182,7 @@ bool_t H2plus_ff(double lambda, double *chi)
 #define RAYLEIGH_H2_LIMIT 121.57
 #define N_RAYLEIGH_H2     21
 
-bool_t Rayleigh_H2(double lambda, double *scatt)
+bool_t Rayleigh_H2(RHState *rh, double lambda, double *scatt)
 {
 	register int k;
 
@@ -1275,7 +1275,7 @@ double bilinear(int Ncol, int Nrow, const double *f, double x, double y)
 
 /* ------- begin -------------------------- hydrogenPrepare.c ------- */
 
-void hydrogenPrepare(void)
+void hydrogenPrepare(RHState *rh)
 {
 	/* --- One-time setup for the opacity routines above. After this
 		   they only read their tables, and can be called concurrently
@@ -1286,7 +1286,7 @@ void hydrogenPrepare(void)
 	char       msg[MAX_MESSAGE_LENGTH];
 	double     short_ratio, long_ratio;
 
-	hydrogenCleanup();
+	hydrogenCleanup(rh);
 
 	if (gff_lng == NULL &&
 		Gaunt_ff_readTable(rh->input.GauntFfData, msg, MAX_MESSAGE_LENGTH) != 0)
@@ -1304,14 +1304,14 @@ void hydrogenPrepare(void)
 					Hmbf_lambda[Hmbf_N - 1]);
 		}
 	}
-	H2minus_ff_prepare();
-	H2plus_ff_prepare();
+	H2minus_ff_prepare(rh);
+	H2plus_ff_prepare(rh);
 }
 /* ------- end ---------------------------- hydrogenPrepare.c ------- */
 
 /* ------- begin -------------------------- hydrogenCleanup.c ------- */
 
-void hydrogenCleanup(void)
+void hydrogenCleanup(RHState *rh)
 {
 	/* --- Free the temperature index tables. The H-minus bound-free
 		   table, which does not depend on the atmosphere, is kept.

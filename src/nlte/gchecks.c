@@ -130,7 +130,7 @@ static void randomDirection(const double *x, double *p, long N,
 
 /* ------- begin -------------------------- restrictDirection.c ----- */
 
-static void restrictDirection(double *p, const char *prefix)
+static void restrictDirection(RHState *rh, double *p, const char *prefix)
 {
 	register long k;
 	register int  n;
@@ -142,16 +142,16 @@ static void restrictDirection(double *p, const char *prefix)
 		   "populations CA", "rho", "J") --              -------------- */
 
 	if (prefix == NULL) return;
-	for (n = 0, off = 0; n < stateNblocks(); off += stateBlockSize(n), n++) {
-		if (strncmp(stateBlockName(n), prefix, strlen(prefix)))
-			for (k = off; k < off + stateBlockSize(n); k++) p[k] = 0.0;
+	for (n = 0, off = 0; n < stateNblocks(rh); off += stateBlockSize(rh, n), n++) {
+		if (strncmp(stateBlockName(rh, n), prefix, strlen(prefix)))
+			for (k = off; k < off + stateBlockSize(rh, n); k++) p[k] = 0.0;
 	}
 }
 /* ------- end ---------------------------- restrictDirection.c ----- */
 
 /* ------- begin -------------------------- compare.c --------------- */
 
-static void compare(const char *what, const double *a, const double *b,
+static void compare(RHState *rh, const char *what, const double *a, const double *b,
 					long N)
 {
 	register long k;
@@ -225,7 +225,7 @@ static int ecnoise(int nf, double *f, double *fnoise)
 
 /* ------- begin -------------------------- gcheckRun.c ------------- */
 
-void gcheckRun(const GCheckOptions *opt)
+void gcheckRun(RHState *rh, const GCheckOptions *opt)
 {
 	register long k;
 	register int  n, i;
@@ -235,8 +235,8 @@ void gcheckRun(const GCheckOptions *opt)
 	double *x, *xb, *y1, *y2, *p, **f, *col, fn, rel, nmax, nsum,
 		t_start, *D[2], eps, num, den, dmax;
 
-	N  = stateInit();
-	Nb = stateNblocks();
+	N  = stateInit(rh);
+	Nb = stateNblocks(rh);
 	x  = (double *) malloc(N * sizeof(double));
 	xb = (double *) malloc(N * sizeof(double));
 	y1 = (double *) malloc(N * sizeof(double));
@@ -245,8 +245,8 @@ void gcheckRun(const GCheckOptions *opt)
 	Message(rh, "\ngcheck: state vector of %ld values in %d blocks:",
 			N, Nb);
 	for (n = 0; n < Nb; n++) {
-		Message(rh, " %s (%ld)%s", stateBlockName(n),
-				stateBlockSize(n), (n < Nb - 1) ? "," : "\n");
+		Message(rh, " %s (%ld)%s", stateBlockName(rh, n),
+				stateBlockSize(rh, n), (n < Nb - 1) ? "," : "\n");
 	}
 	Message(rh, "gcheck: %d steps of plain G from x0, x_b = %d steps"
 				" before the end; PRD sub-iterations per G: %d;"
@@ -256,29 +256,29 @@ void gcheckRun(const GCheckOptions *opt)
 
 	/* --- Iterate plain G to x_a, keep x_b --          -------------- */
 
-	stateGather(x);
+	stateGather(rh, x);
 	t_start = wallClock();
 	for (i = 1; i <= opt->Nsteps; i++) {
 		if (i == opt->Nsteps - opt->lag + 1) memcpy(xb, x, N * sizeof(double));
-		G_eval(x, x);
+		G_eval(rh, x, x);
 	}
 
 	/* --- Twice and history --                         -------------- */
 
-	G_eval(x, y1);
-	G_eval(x, y2);
-	compare("twice", y1, y2, N);
-	G_eval(xb, y2);
-	G_eval(x, y2);
-	compare("history", y1, y2, N);
+	G_eval(rh, x, y1);
+	G_eval(rh, x, y2);
+	compare(rh, "twice", y1, y2, N);
+	G_eval(rh, xb, y2);
+	G_eval(rh, x, y2);
+	compare(rh, "history", y1, y2, N);
 
-	for (n = 0, off = 0; n < Nb; off += stateBlockSize(n), n++) {
+	for (n = 0, off = 0; n < Nb; off += stateBlockSize(rh, n), n++) {
 		dmax = 0.0;
-		for (k = off; k < off + stateBlockSize(n); k++)
+		for (k = off; k < off + stateBlockSize(rh, n); k++)
 			if (y1[k]) dmax = MAX(dmax, fabs((y1[k] - x[k]) / y1[k]));
 		Message(rh, "gcheck: at x_a, max |G(x_a) - x_a| / |G(x_a)|"
 					" of %s = %.3E\n",
-				stateBlockName(n), dmax);
+				stateBlockName(rh, n), dmax);
 	}
 
 	/* --- ECnoise --                                   -------------- */
@@ -286,23 +286,23 @@ void gcheckRun(const GCheckOptions *opt)
 	if (opt->hEcnoise > 0.0) {
 		nf = opt->Necn + 1;
 		p  = (double *) malloc(N * sizeof(double));
-		f  = matrix_double(nf, N);
+		f  = matrix_double(rh, nf, N);
 		randomDirection(x, p, N, GCHECK_SEED_P);
-		restrictDirection(p, opt->perturb);
+		restrictDirection(rh, p, opt->perturb);
 		for (i = 0; i < nf; i++) {
 			for (k = 0; k < N; k++)
 				y2[k] = x[k] + (i - opt->Necn / 2) * opt->hEcnoise * p[k];
-			G_eval(y2, f[i]);
+			G_eval(rh, y2, f[i]);
 		}
 		col = (double *) malloc(nf * sizeof(double));
 		Message(rh, "gcheck: ecnoise, %d points, relative step %.1E:"
 					" per block max and RMS of delta / |G|, components"
 					" with noise / step too small / too large\n",
 				nf, opt->hEcnoise);
-		for (n = 0, off = 0; n < Nb; off += stateBlockSize(n), n++) {
+		for (n = 0, off = 0; n < Nb; off += stateBlockSize(rh, n), n++) {
 			Nnoise = Nsmall = Nlarge = 0;
 			nmax = nsum = 0.0;
-			for (k = off; k < off + stateBlockSize(n); k++) {
+			for (k = off; k < off + stateBlockSize(rh, n); k++) {
 				for (i = 0; i < nf; i++) col[i] = f[i][k];
 				inform = ecnoise(nf, col, &fn);
 				if (inform == 1 && f[opt->Necn / 2][k] != 0.0) {
@@ -317,13 +317,13 @@ void gcheckRun(const GCheckOptions *opt)
 			}
 			Message(rh, "gcheck: ecnoise %-24s max %.3E  RMS %.3E"
 						"  (%ld / %d / %d)\n",
-					stateBlockName(n), nmax,
+					stateBlockName(rh, n), nmax,
 					(Nnoise) ? sqrt(nsum / Nnoise) : 0.0, (long) Nnoise,
 					Nsmall, Nlarge);
 		}
 		free(col);
 		free(p);
-		freeMatrix((void **) f);
+		freeMatrix(rh, (void **) f);
 	}
 
 	/* --- Finite-difference Jacobian products --       -------------- */
@@ -333,22 +333,22 @@ void gcheckRun(const GCheckOptions *opt)
 		D[0] = (double *) malloc(N * sizeof(double));
 		D[1] = (double *) malloc(N * sizeof(double));
 		randomDirection(x, p, N, GCHECK_SEED_V);
-		restrictDirection(p, opt->perturb);
+		restrictDirection(rh, p, opt->perturb);
 		Message(rh, "gcheck: fd, |D(eps) - D(10 eps)| / |D(eps)| per block\n");
 		Message(rh, "gcheck: fd %8s", "eps");
 		for (n = 0; n < Nb; n++) {
-			Message(rh, " %16.16s", stateBlockName(n));
+			Message(rh, " %16.16s", stateBlockName(rh, n));
 		}
 		Message(rh, "\n");
 		for (ne = 0, eps = opt->fdmax; ne < NEPS; ne++, eps *= 0.1) {
 			for (k = 0; k < N; k++) y2[k] = x[k] + eps * p[k];
-			G_eval(y2, D[ne % 2]);
+			G_eval(rh, y2, D[ne % 2]);
 			for (k = 0; k < N; k++) D[ne % 2][k] = (D[ne % 2][k] - y1[k]) / eps;
 			if (ne == 0) continue;
 			Message(rh, "gcheck: fd %8.1E", eps);
-			for (n = 0, off = 0; n < Nb; off += stateBlockSize(n), n++) {
+			for (n = 0, off = 0; n < Nb; off += stateBlockSize(rh, n), n++) {
 				num = den = 0.0;
-				for (k = off; k < off + stateBlockSize(n); k++) {
+				for (k = off; k < off + stateBlockSize(rh, n); k++) {
 					num += SQ(D[ne % 2][k] - D[(ne + 1) % 2][k]);
 					den += SQ(D[ne % 2][k]);
 				}
@@ -366,7 +366,7 @@ void gcheckRun(const GCheckOptions *opt)
 				opt->perturb);
 	}
 	Message(rh, "gcheck: %ld evaluations of G, %.3f s per evaluation\n",
-			G_count(), (wallClock() - t_start) / G_count());
+			G_count(rh), (wallClock() - t_start) / G_count(rh));
 
 	free(x);
 	free(xb);

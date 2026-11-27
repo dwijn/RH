@@ -21,14 +21,14 @@
 
 /* --- Function prototypes --                          -------------- */
 
-void LUdecomp(int N, double **A, int *index, double *d);
+void LUdecomp(RHState *rh, int N, double **A, int *index, double *d);
 void LUbacksubst(int N, double **A, int *index, double *b);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- SolveLinearEq.c --------- */
 
-void SolveLinearEq(int N, double **A, double *b, bool_t improve)
+void SolveLinearEq(RHState *rh, int N, double **A, double *b, bool_t improve)
 {
 	register int i, j;
 
@@ -50,7 +50,7 @@ void SolveLinearEq(int N, double **A, double *b, bool_t improve)
 	if (improve) {
 		residual = (double *) malloc(N * sizeof(double));
 		b_copy   = (double *) malloc(N * sizeof(double));
-		A_copy   = matrix_double(N, N);
+		A_copy   = matrix_double(rh, N, N);
 
 		for (i = 0; i < N; i++) {
 			b_copy[i] = b[i];
@@ -59,7 +59,7 @@ void SolveLinearEq(int N, double **A, double *b, bool_t improve)
 	}
 	/* --- Initial solution --                           ------------- */
 
-	LUdecomp(N, A, index, &d);
+	LUdecomp(rh, N, A, index, &d);
 	LUbacksubst(N, A, index, b);
 
 	if (improve) {
@@ -75,7 +75,7 @@ void SolveLinearEq(int N, double **A, double *b, bool_t improve)
 
 		free(residual);
 		free(b_copy);
-		freeMatrix((void **) A_copy);
+		freeMatrix(rh, (void **) A_copy);
 	}
 	free(index);
 }
@@ -86,7 +86,7 @@ void SolveLinearEq(int N, double **A, double *b, bool_t improve)
 
 #define TINY 1.0e-20;
 
-void LUdecomp(int N, double **A, int *index, double *d)
+void LUdecomp(RHState *rh, int N, double **A, int *index, double *d)
 {
 	register int i, j, k;
 

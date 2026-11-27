@@ -43,7 +43,7 @@ static void *runChunk(void *argument)
 	return NULL;
 }
 
-void parallelFor(int N, int nthreads, ParallelRange work, void *arg)
+void parallelFor(RHState *rh, int N, int nthreads, ParallelRange work, void *arg)
 {
 	int        nt, size, Nchunk;
 	Chunk     *chunk;
@@ -123,7 +123,7 @@ static void *runDynamic(void *argument)
 	return NULL;
 }
 
-void parallelForDynamic(int N, int chunk, int nthreads,
+void parallelForDynamic(RHState *rh, int N, int chunk, int nthreads,
 						ParallelRange work, void *arg)
 {
 	int            nt, Nchunk;

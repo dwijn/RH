@@ -87,23 +87,23 @@ FORMAT(F11.4,F7.3,F6.2,F12.3,F5.2,1X,A10,F12.3,F5.2,1X,A10,
 
 /* --- Function prototypes --                          -------------- */
 
-double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
+double RLKProfile(RHState *rh, RLK_Line *rlk, int k, int mu, bool_t to_obs,
 				  double  lambda,
 				  double *phi_Q, double *phi_U, double *phi_V,
 				  double *psi_Q, double *psi_U, double *psi_V);
-void   RLKZeeman(RLK_Line *rlk);
-double RLKLande(RLK_level *level);
+void   RLKZeeman(RHState *rh, RLK_Line *rlk);
+double RLKLande(RHState *rh, RLK_level *level);
 void   initRLK(RLK_Line *rlk);
-bool_t RLKdet_level(char *label, RLK_level *level);
-double getJK_K(char c);
-void   getUnsoldcross(RLK_Line *rlk);
-void   free_BS(Barklemstruct *bs);
+bool_t RLKdet_level(RHState *rh, char *label, RLK_level *level);
+double getJK_K(RHState *rh, char c);
+void   getUnsoldcross(RHState *rh, RLK_Line *rlk);
+void   free_BS(RHState *rh, Barklemstruct *bs);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- readKuruczLines.c ------- */
 
-void readKuruczLines(char *inputFile)
+void readKuruczLines(RHState *rh, char *inputFile)
 {
 	const char   routineName[] = "readKuruczLines";
 	const double C             = 2.0 * PI * (Q_ELECTRON / EPSILON_0) *
@@ -126,9 +126,9 @@ void readKuruczLines(char *inputFile)
 
 	/* --- Read in the data files for Barklem collisional broadening -- */
 
-	readBarklemTable(SP, &bs_SP);
-	readBarklemTable(PD, &bs_PD);
-	readBarklemTable(DF, &bs_DF);
+	readBarklemTable(rh, SP, &bs_SP);
+	readBarklemTable(rh, PD, &bs_PD);
+	readBarklemTable(rh, DF, &bs_DF);
 
 	labeli[RLK_LABEL_LENGTH] = '\0';
 	labelj[RLK_LABEL_LENGTH] = '\0';
@@ -139,7 +139,7 @@ void readKuruczLines(char *inputFile)
 	}
 	/* --- Go through each of the linelist files listed in input file - */
 
-	while (getLine(fp_Kurucz, commentChar, listName, FALSE) != EOF) {
+	while (getLine(rh, fp_Kurucz, commentChar, listName, FALSE) != EOF) {
 		Nread = sscanf(listName, "%s", filename);
 		if ((fp_linelist = fopen(filename, "r")) == NULL) {
 			Error(rh, ERROR_LEVEL_1, routineName, "Unable to open input file %s", filename);
@@ -230,8 +230,8 @@ void readKuruczLines(char *inputFile)
 
 				/* --- Get quantum numbers for angular momentum and spin -- - */
 
-				determined       = (RLKdet_level(labeli, &rlk->level_i) &&
-                              RLKdet_level(labelj, &rlk->level_j));
+				determined       = (RLKdet_level(rh, labeli, &rlk->level_i) &&
+                              RLKdet_level(rh, labelj, &rlk->level_j));
 				rlk->polarizable = (rh->atmos.Stokes && determined);
 
 				/* --- Line broadening --                      -------------- */
@@ -271,19 +271,19 @@ void readKuruczLines(char *inputFile)
 
 					if ((Li == S_ORBIT && Lj == P_ORBIT) ||
 						(Li == P_ORBIT && Lj == S_ORBIT)) {
-						useBarklem = getBarklemcross(&bs_SP, rlk);
+						useBarklem = getBarklemcross(rh, &bs_SP, rlk);
 					} else if ((Li == P_ORBIT && Lj == D_ORBIT) ||
 							   (Li == D_ORBIT && Lj == P_ORBIT)) {
-						useBarklem = getBarklemcross(&bs_PD, rlk);
+						useBarklem = getBarklemcross(rh, &bs_PD, rlk);
 					} else if ((Li == D_ORBIT && Lj == F_ORBIT) ||
 							   (Li == F_ORBIT && Lj == D_ORBIT)) {
-						useBarklem = getBarklemcross(&bs_DF, rlk);
+						useBarklem = getBarklemcross(rh, &bs_DF, rlk);
 					}
 				}
 				/* --- Else use good old Unsoeld --            -------------- */
 
 				if (!useBarklem) {
-					getUnsoldcross(rlk);
+					getUnsoldcross(rh, rlk);
 				}
 				/* --- Radiative broadening --                 -------------- */
 
@@ -320,7 +320,7 @@ void readKuruczLines(char *inputFile)
 				iso_dl      = 0;
 				rlk->iso_dl = iso_dl * MILLI * ANGSTROM_TO_NM;
 
-				checkNread(Nread, Nrequired = 17, routineName, checkPoint = 1);
+				checkNread(rh, Nread, Nrequired = 17, routineName, checkPoint = 1);
 				rlk++;
 			}
 		}
@@ -333,9 +333,9 @@ void readKuruczLines(char *inputFile)
 
 	fclose(fp_Kurucz);
 
-	free_BS(&bs_SP);
-	free_BS(&bs_PD);
-	free_BS(&bs_DF);
+	free_BS(rh, &bs_SP);
+	free_BS(rh, &bs_PD);
+	free_BS(rh, &bs_DF);
 }
 /* ------- end ---------------------------- readKuruczLines.c ------- */
 
@@ -423,7 +423,7 @@ void rlk_locate(int N, RLK_Line *lines, double lambda, int *low)
 
 /* ------- begin -------------------------- rlk_prepare.c ---------- */
 
-void rlk_prepare(void)
+void rlk_prepare(RHState *rh)
 {
 	register int k, n;
 
@@ -454,10 +454,10 @@ void rlk_prepare(void)
 			continue;
 
 		if (element->n == NULL) {
-			element->n = matrix_double(element->Nstage, rh->atmos.Nspace);
-			LTEpops_elem(element);
+			element->n = matrix_double(rh, element->Nstage, rh->atmos.Nspace);
+			LTEpops_elem(rh, element);
 		}
-		if (rlk->polarizable && rlk->zm == NULL) RLKZeeman(rlk);
+		if (rlk->polarizable && rlk->zm == NULL) RLKZeeman(rh, rlk);
 
 		if (rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1] == NULL)
 			rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1] =
@@ -489,7 +489,7 @@ void rlk_prepare(void)
 
 /* ------- begin -------------------------- rlk_cleanup.c ---------- */
 
-void rlk_cleanup(void)
+void rlk_cleanup(RHState *rh)
 {
 	register int n, i;
 
@@ -521,7 +521,7 @@ void rlk_cleanup(void)
 
 /* ------- begin -------------------------- rlk_opacity.c ----------- */
 
-flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
+flags rlk_opacity(RHState *rh, double lambda, int nspect, int mu, bool_t to_obs,
 				  double *chi, double *eta, double *scatt, double *chip)
 {
 	register int k, n, kr;
@@ -675,7 +675,7 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 				pf = rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1][rlk->stage];
 
 				for (k = 0; k < rh->atmos.Nspace; k++) {
-					phi = RLKProfile(rlk, k, mu, to_obs, lambda,
+					phi = RLKProfile(rh, rlk, k, mu, to_obs, lambda,
 									 &phi_Q, &phi_U, &phi_V,
 									 &psi_Q, &psi_U, &psi_V);
 
@@ -728,7 +728,7 @@ flags rlk_opacity(double lambda, int nspect, int mu, bool_t to_obs,
 
 /* ------- begin -------------------------- RLKProfile.c ------------ */
 
-double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
+double RLKProfile(RHState *rh, RLK_Line *rlk, int k, int mu, bool_t to_obs,
 				  double  lambda,
 				  double *phi_Q, double *phi_U, double *phi_V,
 				  double *psi_Q, double *psi_U, double *psi_V)
@@ -747,9 +747,9 @@ double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
 	v = (lambda / rlk->lambda0 - 1.0) * CLIGHT / vbroad;
 	if (rh->atmos.moving) {
 		if (to_obs)
-			v += vproject(k, mu) / vbroad;
+			v += vproject(rh, k, mu) / vbroad;
 		else
-			v -= vproject(k, mu) / vbroad;
+			v -= vproject(rh, k, mu) / vbroad;
 	}
 	sv = 1.0 / (SQRTPI * vbroad);
 
@@ -827,7 +827,7 @@ double RLKProfile(RLK_Line *rlk, int k, int mu, bool_t to_obs,
 
 /* ------- begin -------------------------- RLKZeeman.c ------------- */
 
-void RLKZeeman(RLK_Line *rlk)
+void RLKZeeman(RHState *rh, RLK_Line *rlk)
 {
 	register int n;
 
@@ -875,8 +875,8 @@ void RLKZeeman(RLK_Line *rlk)
 
 	/* --- Fill the structure and normalize the strengths -- -------- */
 
-	gLl = RLKLande(&rlk->level_i);
-	gLu = RLKLande(&rlk->level_j);
+	gLl = RLKLande(rh, &rlk->level_i);
+	gLu = RLKLande(rh, &rlk->level_j);
 
 	n = 0;
 	for (Ml = -Jl; Ml <= Jl; Ml++) {
@@ -884,7 +884,7 @@ void RLKZeeman(RLK_Line *rlk)
 			if (fabs(Mu - Ml) <= 1.0) {
 				zm->q[n]        = (int) (Ml - Mu);
 				zm->shift[n]    = gLl * Ml - gLu * Mu;
-				zm->strength[n] = ZeemanStrength(Ju, Mu, Jl, Ml);
+				zm->strength[n] = ZeemanStrength(rh, Ju, Mu, Jl, Ml);
 
 				norm[zm->q[n] + 1] += zm->strength[n];
 				if (zm->q[n] == 1) g_eff += zm->shift[n] * zm->strength[n];
@@ -906,7 +906,7 @@ void RLKZeeman(RLK_Line *rlk)
 #define JK_COUNT 6
 #define JJ_COUNT 4
 
-bool_t RLKdet_level(char *label, RLK_level *level)
+bool_t RLKdet_level(RHState *rh, char *label, RLK_level *level)
 {
 	const char routineName[] = "RLKdet_level";
 
@@ -958,7 +958,7 @@ bool_t RLKdet_level(char *label, RLK_level *level)
 				return FALSE;
 			}
 
-			level->L = getOrbital(orbit[0]);
+			level->L = getOrbital(rh, orbit[0]);
 			level->S = (multiplicity - 1) / 2.0;
 
 			length = strlen(words[0]);
@@ -966,7 +966,7 @@ bool_t RLKdet_level(char *label, RLK_level *level)
 			free(words);
 
 			// --- JdlCR: also extract l --- //
-			level->l = getOrbital(toupper(orbit[0]));
+			level->l = getOrbital(rh, toupper(orbit[0]));
 
 			level->cpl = LS_COUPLING;
 			return TRUE;
@@ -1017,7 +1017,7 @@ bool_t RLKdet_level(char *label, RLK_level *level)
 				counterror = TRUE;
 			else {
 				level->S = (multiplicity - 1) / 2.0;
-				level->L = getOrbital(Lchar);
+				level->L = getOrbital(rh, Lchar);
 
 				level->cpl = LS_COUPLING;
 			}
@@ -1030,9 +1030,9 @@ bool_t RLKdet_level(char *label, RLK_level *level)
 				counterror = TRUE;
 			else {
 				level->S1 = (M1 - 1) / 2.0;
-				level->L1 = getOrbital(L1char);
-				level->l  = getOrbital(toupper(lchar));
-				level->K  = getJK_K(Kchar);
+				level->L1 = getOrbital(rh, L1char);
+				level->l  = getOrbital(rh, toupper(lchar));
+				level->K  = getJK_K(rh, Kchar);
 
 				level->cpl = JK_COUPLING;
 			}
@@ -1044,8 +1044,8 @@ bool_t RLKdet_level(char *label, RLK_level *level)
 								&level->j2, &l2char)) != JJ_COUNT)
 				counterror = TRUE;
 			else {
-				level->l1 = getOrbital(toupper(l1char));
-				level->l2 = getOrbital(toupper(l2char));
+				level->l1 = getOrbital(rh, toupper(l1char));
+				level->l2 = getOrbital(rh, toupper(l2char));
 
 				level->cpl = JJ_COUPLING;
 			}
@@ -1077,7 +1077,7 @@ void initRLK(RLK_Line *rlk)
 
 /* ------- begin -------------------------- getUnsoldcross.c -------- */
 
-void getUnsoldcross(RLK_Line *rlk)
+void getUnsoldcross(RHState *rh, RLK_Line *rlk)
 {
 	const double FOURPIEPS0 = 4.0 * PI * EPSILON_0;
 
@@ -1120,19 +1120,19 @@ void getUnsoldcross(RLK_Line *rlk)
 
 /* ------- begin -------------------------- free_BS.c --------------- */
 
-void free_BS(Barklemstruct *bs)
+void free_BS(RHState *rh, Barklemstruct *bs)
 {
 	free(bs->neff1);
 	free(bs->neff2);
 
-	freeMatrix((void **) bs->cross);
-	freeMatrix((void **) bs->alpha);
+	freeMatrix(rh, (void **) bs->cross);
+	freeMatrix(rh, (void **) bs->alpha);
 }
 /* ------- end ---------------------------- free_BS.c --------------- */
 
 /* ------- begin -------------------------- RLKLande.c -------------- */
 
-double RLKLande(RLK_level *level)
+double RLKLande(RHState *rh, RLK_level *level)
 {
 	const char routineName[] = "RLKLande";
 
@@ -1171,7 +1171,7 @@ double RLKLande(RLK_level *level)
 
 /* ------- begin -------------------------- getJK_K.c -- ------------ */
 
-double getJK_K(char Kchar)
+double getJK_K(RHState *rh, char Kchar)
 {
 	const char routineName[] = "getJK_K";
 

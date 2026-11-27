@@ -12,14 +12,14 @@
 /* --- State vector x (populations, molecular populations, PRD rho, J)
 	   and the map G, see solver.c --                 -------------- */
 
-long        stateInit(void);
-void        stateGather(double *x);
-void        stateScatter(const double *x);
-int         stateNblocks(void);
-const char *stateBlockName(int n);
-long        stateBlockSize(int n);
-bool_t      G_eval(const double *x_in, double *x_out);
-long        G_count(void);
+long        stateInit(RHState *rh);
+void        stateGather(RHState *rh, double *x);
+void        stateScatter(RHState *rh, const double *x);
+int         stateNblocks(RHState *rh);
+const char *stateBlockName(RHState *rh, int n);
+long        stateBlockSize(RHState *rh, int n);
+bool_t      G_eval(RHState *rh, const double *x_in, double *x_out);
+long        G_count(RHState *rh);
 
 /* --- The state of the solver between calls, its part of RHState
 	   (rh->solver, Q-46) --                          -------------- */
@@ -68,9 +68,9 @@ typedef struct {
 
 #define SOLVER_STATE_INIT {.offJ = -1, .varKind = VARIABLES_LOG}
 
-void iterateFixedPoint(int NmaxIter, double iterLimit);
-void iterateAnderson(int NmaxIter, double iterLimit);
-void iterateNewton(int NmaxIter, double iterLimit);
+void iterateFixedPoint(RHState *rh, int NmaxIter, double iterLimit);
+void iterateAnderson(RHState *rh, int NmaxIter, double iterLimit);
+void iterateNewton(RHState *rh, int NmaxIter, double iterLimit);
 
 /* --- Acceptance checks of G (gchecks.c), run by the gcheck programs */
 
@@ -82,7 +82,7 @@ typedef struct {
 } GCheckOptions;
 
 void gcheckParse(int *argc, char *argv[], GCheckOptions *opt);
-void gcheckRun(const GCheckOptions *opt);
+void gcheckRun(RHState *rh, const GCheckOptions *opt);
 
 #endif /* !__SOLVER_H__ */
 

@@ -46,7 +46,7 @@
 
 /* ------- begin -------------------------- Feautrier.c ------------- */
 
-double Feautrier(int nspect, int mu, double *chi, double *S,
+double Feautrier(RHState *rh, int nspect, int mu, double *chi, double *S,
 				 enum FeautrierOrder F_order, double *P, double *Psi)
 {
 	const char   routineName[] = "Feautrier";

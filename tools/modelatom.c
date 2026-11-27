@@ -171,7 +171,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 		   to new format. Currently only OHM, CI, CE, and CP entries are
 		   supported --                                 --------------- */
 
-	getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
+	getLine(rh, atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
 	nread = sscanf(input, "%s", collisionRoutine);
 	if (nread != 1) {
 		Error(rh, ERROR_LEVEL_2, "writeCollisions", "Malformed input line:\n %.200s", input);
@@ -183,7 +183,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 	}
 	fprintf(fp_out, "\n# Collisional data\n");
 
-	while ((getLine(atomFile, MULTI_COMMENT_CHAR, input,
+	while ((getLine(rh, atomFile, MULTI_COMMENT_CHAR, input,
 					exit_on_EOF = FALSE) != EOF)) {
 		nread = sscanf(input, "%s", keyword);
 		if (nread != 1) {
@@ -191,7 +191,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 		}
 
 		if (strcmp(keyword, "TEMP") == 0) {
-			getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
+			getLine(rh, atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
 			sscanf(strtok(input, " "), "%d", &Ntemp);
 			temp = (double *) realloc(temp, Ntemp * sizeof(double));
 
@@ -203,7 +203,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 			fprintf(fp_out, "\n\n");
 
 		} else if (strcmp(keyword, "OHM") == 0) {
-			getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
+			getLine(rh, atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
 			sscanf(strtok(input, " "), "%d", &i1);
 			sscanf(strtok(NULL, " "), "%d", &i2);
 
@@ -217,7 +217,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 			fprintf(fp_out, "\n");
 
 		} else if (strcmp(keyword, "CE") == 0) {
-			getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
+			getLine(rh, atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
 			sscanf(strtok(input, " "), "%d", &i1);
 			sscanf(strtok(NULL, " "), "%d", &i2);
 
@@ -231,7 +231,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 			fprintf(fp_out, "\n");
 
 		} else if (strcmp(keyword, "CI") == 0) {
-			getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
+			getLine(rh, atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
 			sscanf(strtok(input, " "), "%d", &i1);
 			sscanf(strtok(NULL, " "), "%d", &i2);
 
@@ -245,7 +245,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 			fprintf(fp_out, "\n");
 
 		} else if (strcmp(keyword, "CP") == 0) {
-			getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
+			getLine(rh, atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
 			sscanf(strtok(input, " "), "%d", &i1);
 			sscanf(strtok(NULL, " "), "%d", &i2);
 
@@ -259,7 +259,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 			fprintf(fp_out, "\n");
 
 		} else if (strcmp(keyword, "CH0") == 0) {
-			getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
+			getLine(rh, atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
 			sscanf(strtok(input, " "), "%d", &i1);
 			sscanf(strtok(NULL, " "), "%d", &i2);
 
@@ -273,7 +273,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 			fprintf(fp_out, "\n");
 
 		} else if (strcmp(keyword, "CH+") == 0) {
-			getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
+			getLine(rh, atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
 			sscanf(strtok(input, " "), "%d", &i1);
 			sscanf(strtok(NULL, " "), "%d", &i2);
 

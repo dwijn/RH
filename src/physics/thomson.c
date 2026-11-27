@@ -29,7 +29,7 @@
 
 /* ------- begin -------------------------- Thomson.c --------------- */
 
-void Thomson(double *chi)
+void Thomson(RHState *rh, double *chi)
 {
 	register int k;
 

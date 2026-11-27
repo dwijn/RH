@@ -26,7 +26,7 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double E1(double x);
+double E1(RHState *rh, double x);
 
 /* --- Global variables --                             -------------- */
 
@@ -35,7 +35,7 @@ double E1(double x);
 #define N_53 6
 #define N_56 4
 
-double E1(double x)
+double E1(RHState *rh, double x)
 {
 	/* --- Use Eq 5.1.53 and 5.1.56 --                   ------------- */
 
@@ -67,7 +67,7 @@ double E1(double x)
 
 #define E2_MAX_ITER 100
 
-double E2(double x)
+double E2(RHState *rh, double x)
 {
 	register int i;
 
@@ -80,7 +80,7 @@ double E2(double x)
 		/* --- Use the recurrence relation En+1 = 1/n (exp(-x) - xEn(x))
 			   (Eq. 5.1.14) --                           -------------- */
 
-		E2 = exp(-x) - x * E1(x);
+		E2 = exp(-x) - x * E1(rh, x);
 	} else if (x <= X_UNDERFLOW) {
 
 		/* --- For x >= 1 the recurrence cancels (x E1 -> exp(-x)): use

@@ -39,20 +39,20 @@ void *Formal_pthread(void *argument);
 
 /* --- Global variables --                             -------------- */
 
-static void   iterateNg(int NmaxIter, double iterLimit);
-static bool_t moreIterations(int niter, int NmaxIter);
+static void   iterateNg(RHState *rh, int NmaxIter, double iterLimit);
+static bool_t moreIterations(RHState *rh, int niter, int NmaxIter);
 
 /* ------- begin -------------------------- Iterate.c --------------- */
 
 /* --- Whether the loop of iterateNg runs iteration niter: up to
 	   N_MAX_ITER, and up to CR_Nstep if that is larger -- ------------ */
 
-static bool_t moreIterations(int niter, int NmaxIter)
+static bool_t moreIterations(RHState *rh, int niter, int NmaxIter)
 {
 	return (niter <= NmaxIter || (rh->input.CR_Nstep > 0 && niter <= rh->input.CR_Nstep));
 }
 
-void Iterate(int NmaxIter, double iterLimit)
+void Iterate(RHState *rh, int NmaxIter, double iterLimit)
 {
 	double t_start;
 
@@ -64,40 +64,40 @@ void Iterate(int NmaxIter, double iterLimit)
 		   G(x) - x (NEWTON_KRYLOV; see solver.c) --                                   -------------- */
 
 	if (NmaxIter <= 0) {
-		workPhase(WORK_FINAL);
+		workPhase(rh, WORK_FINAL);
 		return;
 	}
 	Message(rh, " -- SOLVER = %s%s\n", solverName(rh->input.solver),
 			rh->input.solver_default ? " (the default)" : "");
 
-	getCPU(1, TIME_START, NULL);
-	workPhase(WORK_ITERATE);
+	getCPU(rh, 1, TIME_START, NULL);
+	workPhase(rh, WORK_ITERATE);
 	t_start = wallClock();
 
 	switch (rh->input.solver) {
 	case SOLVER_FIXED_POINT:
-		iterateFixedPoint(NmaxIter, iterLimit);
+		iterateFixedPoint(rh, NmaxIter, iterLimit);
 		break;
 	case SOLVER_ANDERSON:
-		iterateAnderson(NmaxIter, iterLimit);
+		iterateAnderson(rh, NmaxIter, iterLimit);
 		break;
 	case SOLVER_NEWTON_KRYLOV:
-		iterateNewton(NmaxIter, iterLimit);
+		iterateNewton(rh, NmaxIter, iterLimit);
 		break;
 	default:
-		iterateNg(NmaxIter, iterLimit);
+		iterateNg(rh, NmaxIter, iterLimit);
 		break;
 	}
 
-	workAdd(WORK_ITERATION, wallClock() - t_start);
-	workPhase(WORK_FINAL);
-	getCPU(1, TIME_POLL, "Iteration Total");
+	workAdd(rh, WORK_ITERATION, wallClock() - t_start);
+	workPhase(rh, WORK_FINAL);
+	getCPU(rh, 1, TIME_POLL, "Iteration Total");
 }
 /* ------- end ---------------------------- Iterate.c --------------- */
 
 /* ------- begin -------------------------- iterateNg.c ------------- */
 
-static void iterateNg(int NmaxIter, double iterLimit)
+static void iterateNg(RHState *rh, int NmaxIter, double iterLimit)
 {
 	const char   routineName[] = "Iterate";
 	register int niter, nact;
@@ -115,45 +115,45 @@ static void iterateNg(int NmaxIter, double iterLimit)
 
 	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		atom       = rh->atmos.activeatoms[nact];
-		atom->Ng_n = NgInit(atom->Nlevel * rh->atmos.Nspace, rh->input.Ngdelay,
+		atom->Ng_n = NgInit(rh, atom->Nlevel * rh->atmos.Nspace, rh->input.Ngdelay,
 							rh->input.Ngorder, rh->input.Ngperiod, atom->n[0]);
 	}
 	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 		molecule = rh->atmos.activemols[nact];
 		Ngorder  = (rh->input.accelerate_mols) ? rh->input.Ngorder : 0;
 
-		molecule->Ng_nv = NgInit(molecule->Nv * rh->atmos.Nspace, rh->input.Ngdelay,
+		molecule->Ng_nv = NgInit(rh, molecule->Nv * rh->atmos.Nspace, rh->input.Ngdelay,
 								 Ngorder, rh->input.Ngperiod, molecule->nv[0]);
 	}
 
 	/* --- Start of the main iteration loop --             ------------ */
 
 	niter = 1;
-	while (moreIterations(niter, NmaxIter)) {
+	while (moreIterations(rh, niter, NmaxIter)) {
 
 		/* --- A stop request is read once per iteration: here before the
 			   first one, afterwards at the end of the previous iteration
 			   (below), before its hydrostatic step -- ------------------- */
 
-		if (niter == 1 && StopRequested()) {
+		if (niter == 1 && StopRequested(rh)) {
 			stopped = TRUE;
 			break;
 		}
 
-		getCPU(2, TIME_START, NULL);
+		getCPU(rh, 2, TIME_START, NULL);
 
 		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
-			initGammaAtom(rh->atmos.activeatoms[nact], niter);
-			zeroGammaThreads(rh->atmos.activeatoms[nact]);
+			initGammaAtom(rh, rh->atmos.activeatoms[nact], niter);
+			zeroGammaThreads(rh, rh->atmos.activeatoms[nact]);
 		}
 		for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
-			initGammaMolecule(rh->atmos.activemols[nact]);
-			zeroGammaThreadsMolecule(rh->atmos.activemols[nact]);
+			initGammaMolecule(rh, rh->atmos.activemols[nact]);
+			zeroGammaThreadsMolecule(rh, rh->atmos.activemols[nact]);
 		}
 
 		/* --- Formal solution for all wavelengths --      -------------- */
 
-		solveSpectrum(eval_operator = TRUE, FALSE);
+		solveSpectrum(rh, eval_operator = TRUE, FALSE);
 
 		/* --- Merge each thread's Gamma contributions (accumulated with
 			   no locking during the sweep above) into the shared Gamma,
@@ -161,14 +161,14 @@ static void iterateNg(int NmaxIter, double iterLimit)
 			   from initGammaAtom/initGammaMolecule above --  ---------- */
 
 		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++)
-			mergeGammaThreads(rh->atmos.activeatoms[nact]);
+			mergeGammaThreads(rh, rh->atmos.activeatoms[nact]);
 		for (nact = 0; nact < rh->atmos.Nactivemol; nact++)
-			mergeGammaThreadsMolecule(rh->atmos.activemols[nact]);
+			mergeGammaThreadsMolecule(rh, rh->atmos.activemols[nact]);
 
 		/* --- Solve statistical equilibrium equations --  -------------- */
 
 		Message(rh, "\n -- Iteration %3d\n", niter);
-		dpopsmax = updatePopulations(niter);
+		dpopsmax = updatePopulations(rh, niter);
 
 		if (rh->atmos.NPRDactive > 0) {
 
@@ -179,11 +179,11 @@ static void iterateNg(int NmaxIter, double iterLimit)
 			else
 				PRDiterlimit = rh->input.PRDiterLimit;
 
-			Redistribute(rh->input.PRD_NmaxIter, PRDiterlimit);
+			Redistribute(rh, rh->input.PRD_NmaxIter, PRDiterlimit);
 		}
 
 		snprintf(label, sizeof(label), "Total Iteration %3d", niter);
-		getCPU(2, TIME_POLL, label);
+		getCPU(rh, 2, TIME_POLL, label);
 
 		/* --- With collisional relaxation the collision rates are scaled
 			   up until iteration CR_Nstep, so populations close to LTE
@@ -196,15 +196,15 @@ static void iterateNg(int NmaxIter, double iterLimit)
 		if (niter < rh->input.CR_Nstep) {
 			for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 				atom = rh->atmos.activeatoms[nact];
-				NgFree(atom->Ng_n);
-				atom->Ng_n = NgInit(atom->Nlevel * rh->atmos.Nspace, rh->input.Ngdelay,
+				NgFree(rh, atom->Ng_n);
+				atom->Ng_n = NgInit(rh, atom->Nlevel * rh->atmos.Nspace, rh->input.Ngdelay,
 									rh->input.Ngorder, rh->input.Ngperiod, atom->n[0]);
 			}
 			for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 				molecule = rh->atmos.activemols[nact];
 				Ngorder  = (rh->input.accelerate_mols) ? rh->input.Ngorder : 0;
-				NgFree(molecule->Ng_nv);
-				molecule->Ng_nv = NgInit(molecule->Nv * rh->atmos.Nspace, rh->input.Ngdelay,
+				NgFree(rh, molecule->Ng_nv);
+				molecule->Ng_nv = NgInit(rh, molecule->Nv * rh->atmos.Nspace, rh->input.Ngdelay,
 										 Ngorder, rh->input.Ngperiod, molecule->nv[0]);
 			}
 		} else if (dpopsmax < iterLimit) {
@@ -216,14 +216,14 @@ static void iterateNg(int NmaxIter, double iterLimit)
 		/* --- Whether another iteration follows; if a stop is requested
 			   none does --                               -------------- */
 
-		more = moreIterations(niter, NmaxIter);
-		if (more && StopRequested()) {
+		more = moreIterations(rh, niter, NmaxIter);
+		if (more && StopRequested(rh)) {
 			stopped = TRUE;
 			more    = FALSE;
 		}
 
 		if (rh->input.solve_ne == ITERATION)
-			Background(write_analyze_output = TRUE, equilibria_only = FALSE);
+			Background(rh, write_analyze_output = TRUE, equilibria_only = FALSE);
 
 		if (rh->atmos.hydrostatic) {
 			if (!rh->atmos.atoms[0].active) {
@@ -238,7 +238,7 @@ static void iterateNg(int NmaxIter, double iterLimit)
 				   HSE change in the output (N-16). A converged run never
 				   gets here --                                ------------ */
 
-			if (more) Hydrostatic(N_MAX_HSE_ITER, HSE_ITER_LIMIT);
+			if (more) Hydrostatic(rh, N_MAX_HSE_ITER, HSE_ITER_LIMIT);
 		}
 		if (stopped) break;
 	}
@@ -255,24 +255,24 @@ static void iterateNg(int NmaxIter, double iterLimit)
 		Warning(rh, routineName, "Stopped on request (STOP_RH) after %d iterations:"
 								 " NOT CONVERGED.\n The output is not a converged solution",
 				niter - 1);
-		SetExitFlag(RH_EXIT_NOT_CONVERGED);
+		SetExitFlag(rh, RH_EXIT_NOT_CONVERGED);
 	} else {
 		Warning(rh, routineName, "NOT CONVERGED after %d iterations: max change"
 								 " %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"
 								 " solution; increase N_MAX_ITER or see what limits convergence",
 				niter - 1, dpopsmax, iterLimit);
-		SetExitFlag(RH_EXIT_NOT_CONVERGED);
+		SetExitFlag(rh, RH_EXIT_NOT_CONVERGED);
 	}
 
 	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		atom = rh->atmos.activeatoms[nact];
-		freeMatrix((void **) atom->Gamma);
-		NgFree(atom->Ng_n);
+		freeMatrix(rh, (void **) atom->Gamma);
+		NgFree(rh, atom->Ng_n);
 	}
 	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 		molecule = rh->atmos.activemols[nact];
-		freeMatrix((void **) molecule->Gamma);
-		NgFree(molecule->Ng_nv);
+		freeMatrix(rh, (void **) molecule->Gamma);
+		NgFree(rh, molecule->Ng_nv);
 	}
 }
 /* ------- end ---------------------------- Iterate.c --------------- */
@@ -293,7 +293,7 @@ static const char *linearNote(const BgScatterStats *bs)
 	return note;
 }
 
-double solveSpectrum(bool_t eval_operator, bool_t redistribute)
+double solveSpectrum(RHState *rh, bool_t eval_operator, bool_t redistribute)
 {
 	register int nspect, nt;
 
@@ -327,11 +327,11 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 		   updated. These are needed for the emission profile ratio \rho.
 		   --                                            -------------- */
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	/* --- First zero the radiative rates --             -------------- */
 
-	zeroRates(redistribute);
+	zeroRates(rh, redistribute);
 	lambda_max = 0;
 	dJmax      = 0.0;
 
@@ -340,10 +340,10 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 	if (redistribute) {
 		Nsolved = 0;
 		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
-			if (containsPRDline(&rh->spectrum.as[nspect])) Nsolved++;
+			if (containsPRDline(rh, &rh->spectrum.as[nspect])) Nsolved++;
 	} else
 		Nsolved = rh->spectrum.Nspect;
-	workSweep(eval_operator, redistribute, Nsolved);
+	workSweep(rh, eval_operator, redistribute, Nsolved);
 
 	/* --- Zero out J in gas parcel's frame. The PRD sub-iterations
 		   re-solve only the wavelengths with a PRD line and keep the
@@ -352,7 +352,7 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 	if (rh->spectrum.updateJ &&
 		rh->input.PRD_angle_dep == PRD_ANGLE_APPROX &&
 		rh->atmos.NPRDactive > 0) {
-		beginJgas(redistribute);
+		beginJgas(rh, redistribute);
 	}
 
 	if (rh->input.Nthreads > 1) {
@@ -408,10 +408,10 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 		/* --- Else call the solution for wavelengths sequentially -- --- */
 
 		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
-			if (negTauFound()) break; /* the sweep is void (N-40) */
+			if (negTauFound(rh)) break; /* the sweep is void (N-40) */
 			if (!redistribute ||
-				(redistribute && containsPRDline(&rh->spectrum.as[nspect]))) {
-				dJ = Formal(nspect, eval_operator, redistribute);
+				(redistribute && containsPRDline(rh, &rh->spectrum.as[nspect]))) {
+				dJ = Formal(rh, nspect, eval_operator, redistribute);
 				if (dJ > dJmax) {
 					dJmax      = dJ;
 					lambda_max = nspect;
@@ -425,29 +425,29 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 		   before anything downstream (PRDScatter, RADRATE_OUTPUT, ...)
 		   reads them --                                  -------------- */
 
-	mergeRates(redistribute);
+	mergeRates(rh, redistribute);
 
 	if (rh->spectrum.updateJ &&
 		rh->input.PRD_angle_dep == PRD_ANGLE_APPROX &&
 		rh->atmos.NPRDactive > 0)
-		endJgas(redistribute);
+		endJgas(rh, redistribute);
 
 	/* --- A wavelength whose total opacity was negative enough to
 		   overflow the formal solution was skipped (N-40): stop with a
 		   message, unless a solver is evaluating a trial point, which it
 		   then rejects --                                -------------- */
 
-	negTauStop();
+	negTauStop(rh);
 
 	Message(rh, " Spectrum max delta J = %6.4E (lambda#: %d)\n",
 			dJmax, lambda_max);
 
 	/* --- The background scattering iteration of the sweep (N-51) -- */
 
-	if (bgScatterActive()) {
+	if (bgScatterActive(rh)) {
 		BgScatterStats bs;
 
-		bgScatterStats(&bs, TRUE);
+		bgScatterStats(rh, &bs, TRUE);
 		if (bs.Niterated > 0) {
 			Message(rh, "  Background scattering: %ld wavelengths iterated,"
 						" %ld solves%s%s",
@@ -458,11 +458,11 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 							" (estimated error up to %.2E)\n",
 						bs.Nunconverged, bs.rmax);
 			}
-			workBgScatter(bs.Nsweeps);
+			workBgScatter(rh, bs.Nsweeps);
 		}
 	}
 
-	getCPU(3, TIME_POLL,
+	getCPU(rh, 3, TIME_POLL,
 		   (eval_operator) ? "Spectrum & Operator" : "Solve Spectrum");
 
 	return dJmax;
@@ -485,10 +485,10 @@ void *Formal_pthread(void *argument)
 	ti->lambda_max = -1;
 
 	for (nspect = ti->nt; nspect < rh->spectrum.Nspect; nspect += ti->Nthreads) {
-		if (negTauFound()) break; /* the sweep is void (N-40) */
+		if (negTauFound(rh)) break; /* the sweep is void (N-40) */
 		if (!ti->redistribute ||
-			(ti->redistribute && containsPRDline(&rh->spectrum.as[nspect]))) {
-			dJ = Formal(nspect, ti->eval_operator, ti->redistribute);
+			(ti->redistribute && containsPRDline(rh, &rh->spectrum.as[nspect]))) {
+			dJ = Formal(rh, nspect, ti->eval_operator, ti->redistribute);
 			if (dJ > ti->dJmax) {
 				ti->dJmax      = dJ;
 				ti->lambda_max = nspect;

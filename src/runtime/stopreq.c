@@ -27,7 +27,7 @@
 
 /* ------- begin -------------------------- StopRequested.c --------- */
 
-bool_t StopRequested()
+bool_t StopRequested(RHState *rh)
 {
 	const char routineName[] = "StopRequested";
 

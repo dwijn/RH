@@ -36,7 +36,7 @@
 
 /* ------- begin -------------------------- getLambda.c ------------- */
 
-void getLambda(AtomicLine *line)
+void getLambda(RHState *rh, AtomicLine *line)
 {
 	const char   routineName[] = "getLambda";
 	register int la, n;
@@ -97,7 +97,7 @@ void getLambda(AtomicLine *line)
 		q[la] = a * (la + (exp(b * la) - 1.0));
 
 	if (line->polarizable) {
-		g_Lande_eff = effectiveLande(line);
+		g_Lande_eff = effectiveLande(rh, line);
 
 		/* --- When magnetic field is present account for denser
 			   wavelength spacing in the unshifted \pi component, and the
@@ -178,7 +178,7 @@ static bool_t inBlueHalf(double lambda, double lo, double hi)
 	return (lambda >= lo && lambda < hi);
 }
 
-static bool_t blueHalfOverlap(const AtomicLine *line, const double *extra,
+static bool_t blueHalfOverlap(RHState *rh, const AtomicLine *line, const double *extra,
 							  int Nextra)
 {
 	int    n, kr, la;
@@ -225,7 +225,7 @@ static bool_t blueHalfOverlap(const AtomicLine *line, const double *extra,
 	return FALSE;
 }
 
-int asymmetricBlends(const double *extra, int Nextra)
+int asymmetricBlends(RHState *rh, const double *extra, int Nextra)
 {
 	int    n, kr, Nchanged = 0;
 	bool_t changed;
@@ -239,7 +239,7 @@ int asymmetricBlends(const double *extra, int Nextra)
 			for (kr = 0; kr < atom->Nline; kr++) {
 				AtomicLine *line = &atom->line[kr];
 
-				if (!line->symmetric || !blueHalfOverlap(line, extra, Nextra))
+				if (!line->symmetric || !blueHalfOverlap(rh, line, extra, Nextra))
 					continue;
 
 				/* --- getLambda gives a symmetric line an odd number N of
@@ -250,7 +250,7 @@ int asymmetricBlends(const double *extra, int Nextra)
 				line->Nlambda   = 2 * line->Nlambda;
 				line->symmetric = FALSE;
 				free(line->lambda);
-				getLambda(line);
+				getLambda(rh, line);
 
 				Message(rh, " -- Line %3d -> %3d of atom %2s (%.4f nm): other"
 							" transitions have wavelengths in its blue half;"
@@ -417,7 +417,7 @@ static int mirrorTransition(QuadTransition *T, const SymmetricLine *A, int NA)
 	return Ngap;
 }
 
-int mirrorQuadrature(void)
+int mirrorQuadrature(RHState *rh)
 {
 	int            n, kr, NA = 0, NT = 0, Npair = 0, Nmax = 0, Ngap;
 	SymmetricLine *A;

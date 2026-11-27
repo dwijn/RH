@@ -99,10 +99,10 @@ static Slab *slab_new(int Nz, double DX)
 		geo->muz[mu] = ray_mu[mu][2];
 		geo->wmu[mu] = 1.0 / NRAYS;
 	}
-	geo->Itop    = matrix_double(1, Nplane);
-	geo->Ibottom = matrix_double(1, Nplane);
+	geo->Itop    = matrix_double(rh, 1, Nplane);
+	geo->Ibottom = matrix_double(rh, 1, Nplane);
 
-	fillMesh(geo);
+	fillMesh(rh, geo);
 	return slab;
 }
 
@@ -140,7 +140,7 @@ static Errors ray_errors(Slab *slab, const double s[NPOLY], bool_t only_to_obs)
 				slab->geo.Itop[0][n]    = 0.0;
 				slab->geo.Ibottom[0][n] = Ib;
 			}
-			ShortChar(&slab->geo, 0, mu, to_obs, slab->chi, slab->S, slab->I,
+			ShortChar(rh, &slab->geo, 0, mu, to_obs, slab->chi, slab->S, slab->I,
 					  NULL);
 
 			for (int k = 0; k < Nz; k++) {
@@ -321,8 +321,8 @@ static void check_stokes(bool_t verbose)
 		for (int mesh = 0; mesh < NMESH; mesh++) {
 			Slab    *slab   = slabs[i][1][mesh];
 			int      Nspace = Nplane * slab->Nz;
-			double **Sv = stokes_S[i][mesh] = matrix_double(4, Nspace),
-				   **I = stokes_I[i][mesh] = matrix_double(4, Nspace);
+			double **Sv = stokes_S[i][mesh] = matrix_double(rh, 4, Nspace),
+				   **I = stokes_I[i][mesh] = matrix_double(rh, 4, Nspace);
 			/* --- Both long-characteristic schemes (N-41): the K' = 0
 				   comparison is with the unpolarized solver using the
 				   same scheme --                          -------------- */
@@ -340,8 +340,8 @@ static void check_stokes(bool_t verbose)
 				for (int mu = 0; mu < NRAYS; mu++)
 					for (int to_obs = 0; to_obs <= 1; to_obs++) {
 						set_boundary(slab, cub, mu);
-						ShortChar_Stokes(&slab->geo, 0, mu, to_obs, slab->chi, Sv, I, NULL);
-						ShortChar(&slab->geo, 0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
+						ShortChar_Stokes(rh, &slab->geo, 0, mu, to_obs, slab->chi, Sv, I, NULL);
+						ShortChar(rh, &slab->geo, 0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
 						for (int n = 0; n < Nspace; n++) {
 							unpol = MAX(unpol, fabs(I[0][n] - slab->I[n]) / fabs(slab->I[n]));
 							for (int j = 1; j < 4; j++) quv = MAX(quv, fabs(I[j][n]));
@@ -354,7 +354,7 @@ static void check_stokes(bool_t verbose)
 				full_K(K_ELEMENTS, 1.0, K);
 				for (int mu = 0; mu < NRAYS; mu++) {
 					set_boundary(slab, lin, mu);
-					ShortChar_Stokes(&slab->geo, 0, mu, TRUE, slab->chi, Sv, I, NULL);
+					ShortChar_Stokes(rh, &slab->geo, 0, mu, TRUE, slab->chi, Sv, I, NULL);
 					for (int k = 0; k < slab->Nz && slab->tau[k] <= 10.0; k++) {
 						Vec want;
 						I_exact_pol(lin, K, slab->tau[k], slab->tau[0], ray_mu[mu][2], TRUE, want);
@@ -459,7 +459,7 @@ static void check_longchar_positions_rays(bool_t verbose, int set,
 			geo->muz[mu] = rays[mu][2];
 			geo->wmu[mu] = 1.0 / Nrays;
 		}
-		fillMesh(geo);
+		fillMesh(rh, geo);
 
 		for (int kk = 0; kk < Nz; kk++)
 			for (int mm = 0; mm < N; mm++)
@@ -490,7 +490,7 @@ static void check_longchar_positions_rays(bool_t verbose, int set,
 				for (int n = lc->Nst - 1; n >= 0; n--) {
 					s += lc->stencil[n].ds;
 					for (int c = 0; c < 3; c++) {
-						double got = Interpolate_3D(xyz[c], geo, &lc->stencil[n], l, m) - x0[c];
+						double got = Interpolate_3D(rh, xyz[c], geo, &lc->stencil[n], l, m) - x0[c];
 
 						err = MAX(err, fabs(got - sgn * rays[mu][c] * s));
 					}
@@ -590,7 +590,7 @@ static void check_cone(bool_t verbose)
 						slab->geo.Itop[0][n]    = 0.0;
 						slab->geo.Ibottom[0][n] = 1.0;
 					}
-					ShortChar_Stokes(&slab->geo, 0, mu, to_obs, chi, Sv, I, NULL);
+					ShortChar_Stokes(rh, &slab->geo, 0, mu, to_obs, chi, Sv, I, NULL);
 					for (int n = 0; n < Nspace; n++) {
 						double p = sqrt(SQ(I[1][n]) + SQ(I[2][n]) + SQ(I[3][n]));
 
@@ -652,7 +652,7 @@ static void check_psi_bound(bool_t verbose)
 					for (int to_obs = 0; to_obs <= 1; to_obs++) {
 						for (int n = 0; n < Nplane; n++)
 							slab->geo.Itop[0][n] = slab->geo.Ibottom[0][n] = 0.0;
-						ShortChar(&slab->geo, 0, mu, to_obs, slab->chi, slab->S,
+						ShortChar(rh, &slab->geo, 0, mu, to_obs, slab->chi, slab->S,
 								  slab->I, Psi);
 						for (int n = 0; n < Nspace; n++) {
 							if (slab->I[n] <= 0.0) continue;

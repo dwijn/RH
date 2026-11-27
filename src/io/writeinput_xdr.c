@@ -29,7 +29,7 @@ int is_big_endian(void);
 
 /* ------- begin -------------------------- writeInput.c ------------ */
 
-void writeInput(void)
+void writeInput(RHState *rh)
 {
 	const char routineName[] = "writeInput";
 

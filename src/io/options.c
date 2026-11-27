@@ -21,7 +21,7 @@
 
 /* ------- begin -------------------------- setOptions.c ------------ */
 
-void setOptions(int argc, char *argv[])
+void setOptions(RHState *rh, int argc, char *argv[])
 {
 	const char  routineName[] = "setOptions";
 	static char logfileName[MAX_LINE_SIZE], wavetable[MAX_LINE_SIZE];
@@ -43,7 +43,7 @@ void setOptions(int argc, char *argv[])
 		 "Show keyword values with current keyword input file"}};
 	Noption = sizeof(theOptions) / sizeof(Option);
 
-	parse(argc, argv, Noption, theOptions);
+	parse(rh, argc, argv, Noption, theOptions);
 
 	if (strlen(logfileName) > 0) {
 		if ((rh->commandline.logfile = fopen(logfileName, "w")) == NULL) {

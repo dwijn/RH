@@ -62,7 +62,7 @@ static void reset_rho(void)
 
 static void run_stop(void)
 {
-	PRDRhoCheck(&atom, 0);
+	PRDRhoCheck(rh, &atom, 0);
 }
 
 /* --- Run f in a child with its output discarded; 1 if it ended with
@@ -103,13 +103,13 @@ static void check_case(const char *name, long row, int k, double value, bool_t s
 
 	CHECK(is_fatal(run_stop) == 1, "%s: outside a trial the run does not stop (or fork failed)", name);
 
-	negTauReset();
-	negTauTrial(TRUE);
-	ok = PRDRhoCheck(&atom, 0);
-	negTauTrial(FALSE);
-	CHECK(!ok && negTauFound(), "%s: in a trial: ok %d, invalid %d", name, ok,
-		  negTauFound());
-	negTauMessage(msg, sizeof(msg));
+	negTauReset(rh);
+	negTauTrial(rh, TRUE);
+	ok = PRDRhoCheck(rh, &atom, 0);
+	negTauTrial(rh, FALSE);
+	CHECK(!ok && negTauFound(rh), "%s: in a trial: ok %d, invalid %d", name, ok,
+		  negTauFound(rh));
+	negTauMessage(rh, msg, sizeof(msg));
 	CHECK(strstr(msg, "atom XX") && strstr(msg, "PRD line 0") && strstr(msg, where) &&
 			  strstr(msg, "negative line emissivity"),
 		  "%s: message: %s", name, msg);
@@ -123,8 +123,8 @@ static void check_case(const char *name, long row, int k, double value, bool_t s
 		CHECK(strstr(msg, "(2 of "), "%s: count of bad values: %s", name, msg);
 	CHECK(rho[row][k] == saved || (isnan(saved) && isnan(rho[row][k])),
 		  "%s: rho changed", name);
-	negTauReset();
-	CHECK(!negTauFound(), "%s: still invalid after negTauReset", name);
+	negTauReset(rh);
+	CHECK(!negTauFound(rh), "%s: still invalid after negTauReset", name);
 }
 
 static void check_all(const char *tag, bool_t angle)
@@ -133,16 +133,16 @@ static void check_all(const char *tag, bool_t angle)
 
 	rh->input.PRD_angle_dep = (angle) ? PRD_ANGLE_DEP : PRD_ANGLE_AVER;
 	Nrow                    = (angle) ? 2L * NRAYS * NLAMBDA : NLAMBDA;
-	rho                     = matrix_double(Nrow, NSPACE);
+	rho                     = matrix_double(rh, Nrow, NSPACE);
 	line.rho_prd            = rho;
 
-	CHECK(PRDRhoSize(&line) == Nrow * NSPACE, "%s: PRDRhoSize %ld, rows %ld", tag,
-		  PRDRhoSize(&line), Nrow);
+	CHECK(PRDRhoSize(rh, &line) == Nrow * NSPACE, "%s: PRDRhoSize %ld, rows %ld", tag,
+		  PRDRhoSize(rh, &line), Nrow);
 	reset_rho();
-	negTauReset();
-	negTauTrial(TRUE);
-	CHECK(PRDRhoCheck(&atom, 0) && !negTauFound(), "%s: positive rho rejected", tag);
-	negTauTrial(FALSE);
+	negTauReset(rh);
+	negTauTrial(rh, TRUE);
+	CHECK(PRDRhoCheck(rh, &atom, 0) && !negTauFound(rh), "%s: positive rho rejected", tag);
+	negTauTrial(rh, FALSE);
 	CHECK(is_fatal(run_stop) == 0, "%s: positive rho stops the run (or fork failed)", tag);
 
 	/* --- With angle dependence row = 2 * (NRAYS * la + mu) + to_obs -- */
@@ -165,7 +165,7 @@ static void check_all(const char *tag, bool_t angle)
 		sprintf(name, "%s two bad values", tag);
 		check_case(name, row, 1, -0.3, TRUE, where);
 	}
-	freeMatrix((void **) rho);
+	freeMatrix(rh, (void **) rho);
 }
 
 int main(void)

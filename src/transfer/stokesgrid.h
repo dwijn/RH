@@ -56,7 +56,7 @@ typedef struct {
 	double *buffer;
 } StokesGrid;
 
-void StokesGrid_init(StokesGrid *sg, int nspect, int Nspace, double *chi,
+void StokesGrid_init(RHState *rh, StokesGrid *sg, int nspect, int Nspace, double *chi,
 					 double **S, double **I);
 void StokesGrid_update_I(StokesGrid *sg, int k);
 void StokesGrid_free(StokesGrid *sg);

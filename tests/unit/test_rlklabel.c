@@ -26,7 +26,7 @@
 #include "check.h"
 #include "state.h"
 
-bool_t RLKdet_level(char *label, RLK_level *level);
+bool_t RLKdet_level(RHState *rh, char *label, RLK_level *level);
 
 int main(void)
 {
@@ -38,12 +38,12 @@ int main(void)
 	rh->input.RLK_explicit  = FALSE;
 
 	memset(&level, 0, sizeof(level));
-	CHECK(RLKdet_level(ok, &level), "\"s6D)4d f7D\" not parsed");
+	CHECK(RLKdet_level(rh, ok, &level), "\"s6D)4d f7D\" not parsed");
 	CHECK(level.S == 3.0 && level.L == 2 && level.l == 2 && level.cpl == LS_COUPLING,
 		  "\"s6D)4d f7D\": S = %g, L = %d, l = %d, want 3, 2, 2", level.S, level.L, level.l);
 
-	CHECK(!RLKdet_level(lower, &level), "\"4d f7d\" parsed");
-	CHECK(!RLKdet_level(empty, &level), "empty label parsed");
+	CHECK(!RLKdet_level(rh, lower, &level), "\"4d f7d\" parsed");
+	CHECK(!RLKdet_level(rh, empty, &level), "empty label parsed");
 
 	{
 		char abc[] = "a b c", a[] = "a", **words;

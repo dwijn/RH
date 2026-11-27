@@ -84,7 +84,7 @@ static void build(const Spec *s, Molecule *m)
 
 static double lnK(Molecule *m, double theta)
 {
-	return log(equilconstant(m, THETA0 / theta));
+	return log(equilconstant(rh, m, THETA0 / theta));
 }
 
 int main(int argc, char *argv[])
@@ -107,8 +107,8 @@ int main(int argc, char *argv[])
 			/* --- Continuity at the edge (this also checks the units
 				   of the log form against the product form) --  --- */
 
-			CHECK_CLOSE(equilconstant(&m, Tedge + sgn * 1.0E-6),
-						equilconstant(&m, Tedge), 1.0E-6, 0.0,
+			CHECK_CLOSE(equilconstant(rh, &m, Tedge + sgn * 1.0E-6),
+						equilconstant(rh, &m, Tedge), 1.0E-6, 0.0,
 						"%s: K continuous at %s", s->id, e ? "Tmax" : "Tmin");
 
 			/* --- Slope in theta continuous across the edge: one-sided
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
 						"%s: ln K linear in theta beyond %s", s->id,
 						e ? "Tmax" : "Tmin");
 			CHECK(isfinite(l1) && isfinite(l2) && isfinite(l3) &&
-					  equilconstant(&m, THETA0 / th3) > 0.0,
+					  equilconstant(rh, &m, THETA0 / th3) > 0.0,
 				  "%s: K positive and finite beyond %s", s->id,
 				  e ? "Tmax" : "Tmin");
 
@@ -152,15 +152,15 @@ int main(int argc, char *argv[])
 		/* --- Partition function held at the edges --      ------- */
 
 		if (s->Npf > 0 && s->fit != TSUJI_73) {
-			double pmin = partfunction(&m, m.Tmin);
-			double pmax = partfunction(&m, m.Tmax);
+			double pmin = partfunction(rh, &m, m.Tmin);
+			double pmax = partfunction(rh, &m, m.Tmax);
 
 			CHECK(pmin > 0.0 && pmax > 0.0, "%s: pf positive at the edges", s->id);
-			CHECK(partfunction(&m, 0.5 * m.Tmin) == pmin &&
-					  partfunction(&m, 300.0) == pmin,
+			CHECK(partfunction(rh, &m, 0.5 * m.Tmin) == pmin &&
+					  partfunction(rh, &m, 300.0) == pmin,
 				  "%s: pf held at Tmin below it", s->id);
-			CHECK(partfunction(&m, 3.0 * m.Tmax) == pmax &&
-					  partfunction(&m, 1.0E6) == pmax,
+			CHECK(partfunction(rh, &m, 3.0 * m.Tmax) == pmax &&
+					  partfunction(rh, &m, 1.0E6) == pmax,
 				  "%s: pf held at Tmax above it", s->id);
 		}
 		if (table && s->shipped) {
@@ -178,13 +178,13 @@ int main(int argc, char *argv[])
 				printf("%-4s Tmin raised to %5.0f K: K(%4.0f K) extrapolated / fit"
 					   " = %.5f\n",
 					   s->id, c.Tmin, m.Tmin,
-					   equilconstant(&c, m.Tmin) / equilconstant(&m, m.Tmin));
+					   equilconstant(rh, &c, m.Tmin) / equilconstant(rh, &m, m.Tmin));
 				c      = m;
 				c.Tmax = m.Tmax - dTs[j];
 				printf("%-4s Tmax lowered to %5.0f K: K(%4.0f K) extrapolated / fit"
 					   " = %.5f\n",
 					   s->id, c.Tmax, m.Tmax,
-					   equilconstant(&c, m.Tmax) / equilconstant(&m, m.Tmax));
+					   equilconstant(rh, &c, m.Tmax) / equilconstant(rh, &m, m.Tmax));
 			}
 		}
 		free(m.pf_coef);

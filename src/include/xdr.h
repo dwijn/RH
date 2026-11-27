@@ -48,14 +48,14 @@ static inline bool_t rh_xdr_bool(XDR *xdrs, void *p, unsigned int n)
 /* --- Associated function prototypes --               -------------- */
 
 void   convertJ(FILE *fp_J, int Nspect, enum xdr_op xdrOperation);
-bool_t readB(Atmosphere *atmos);
-bool_t writeFlux(char *fileName);
-bool_t writeMetals(char *fileName);
-bool_t xdr_atom(XDR *xdrs, Atom *atom);
+bool_t readB(RHState *rh, Atmosphere *atmos);
+bool_t writeFlux(RHState *rh, char *fileName);
+bool_t writeMetals(RHState *rh, char *fileName);
+bool_t xdr_atom(RHState *rh, XDR *xdrs, Atom *atom);
 bool_t xdr_counted_string(XDR *xdrs, char **p);
-bool_t xdr_populations(XDR *xdrs, char *atmosID, int Nlevel, int Nspace,
+bool_t xdr_populations(RHState *rh, XDR *xdrs, char *atmosID, int Nlevel, int Nspace,
 					   double *n, double *nstar);
-bool_t xdr_BRS(XDR *xdrs);
+bool_t xdr_BRS(RHState *rh, XDR *xdrs);
 
 #endif /* !__XDR_H__ */
 

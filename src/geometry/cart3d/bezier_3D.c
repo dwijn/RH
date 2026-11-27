@@ -33,7 +33,7 @@
 
 /* ------- begin -------------------------- Piece_Stokes_Bezier3_3D.c */
 
-void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
+void Piece_Stokes_Bezier3_3D(RHState *rh, Geometry *geometry, Stencil *st_uw,
 							 Stencil *st_dw, StokesGrid *sg,
 							 int k, int kend, int l, int m,
 							 double *I_uw, double *Psi)
@@ -62,11 +62,11 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 
 	/* --- The upwind quantities --                      -------------- */
 
-	chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
+	chi_uw  = Interpolate_3D(rh, chi, geometry, st_uw, l, m);
 	dchi_uw = (chi[local] - chi_uw) / st_uw->ds;
-	StokesK_3D(sg, geometry, st_uw, l, m, chi_uw, K_uw);
-	Interpolate_Stokes_3D(sg, STOKES_SOURCE, geometry, st_uw, l, m, S_uw);
-	StokesK(nspect, local, chi[local], K_loc);
+	StokesK_3D(rh, sg, geometry, st_uw, l, m, chi_uw, K_uw);
+	Interpolate_Stokes_3D(rh, sg, STOKES_SOURCE, geometry, st_uw, l, m, S_uw);
+	StokesK(rh, nspect, local, chi[local], K_loc);
 	for (n = 0; n < 4; n++) S_loc[n] = S[n][local];
 
 	if (k == kend) {
@@ -88,9 +88,9 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 
 		/* --- Bezier piecewise elsewhere --               -------------- */
 
-		chi_dw  = Interpolate_3D(chi, geometry, st_dw, l, m);
+		chi_dw  = Interpolate_3D(rh, chi, geometry, st_dw, l, m);
 		dchi_dw = (chi_dw - chi[local]) / st_dw->ds;
-		StokesK_3D(sg, geometry, st_dw, l, m, chi_dw, K_dw);
+		StokesK_3D(rh, sg, geometry, st_dw, l, m, chi_dw, K_dw);
 
 		dchi_c = cent_deriv(st_uw->ds, st_dw->ds,
 							chi_uw, chi[local], chi_dw);
@@ -116,7 +116,7 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 		c2      = chi[local] + ds03 * dchi_c;
 		dtau_dw = st_dw->ds * (chi[local] + chi_dw + c1 + c2) * 0.25;
 
-		Interpolate_Stokes_3D(sg, STOKES_SOURCE, geometry, st_dw, l, m, S_dw);
+		Interpolate_Stokes_3D(rh, sg, STOKES_SOURCE, geometry, st_dw, l, m, S_dw);
 		for (n = 0; n < 4; n++) {
 			dS_uw[n] = (S_loc[n] - S_uw[n]) / dtau_uw;
 
@@ -145,7 +145,7 @@ void Piece_Stokes_Bezier3_3D(Geometry *geometry, Stencil *st_uw,
 
 /* ------- begin -------------------------- Piecewise_Bezier3_3D.c -- */
 
-void Piecewise_Bezier3_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
+void Piecewise_Bezier3_3D(RHState *rh, Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 						  int k, int kend, int l, int m, double I_uw,
 						  double *chi, double *S, double *I, double *Psi)
 {
@@ -167,9 +167,9 @@ void Piecewise_Bezier3_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 
 	/* --- The upwind quantities --                      -------------- */
 
-	chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
+	chi_uw  = Interpolate_3D(rh, chi, geometry, st_uw, l, m);
 	dchi_uw = (chi[local] - chi_uw) / st_uw->ds;
-	S_uw    = Interpolate_3D(S, geometry, st_uw, l, m);
+	S_uw    = Interpolate_3D(rh, S, geometry, st_uw, l, m);
 
 	if (k == kend) {
 
@@ -182,7 +182,7 @@ void Piecewise_Bezier3_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 
 		/* --- Bezier interpolation --                     -------------- */
 
-		chi_dw  = Interpolate_3D(chi, geometry, st_dw, l, m);
+		chi_dw  = Interpolate_3D(rh, chi, geometry, st_dw, l, m);
 		dchi_dw = (chi_dw - chi[local]) / st_dw->ds;
 
 		dchi_c = cent_deriv(st_uw->ds, st_dw->ds,
@@ -208,7 +208,7 @@ void Piecewise_Bezier3_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 		c1      = chi[local] + ds03 * dchi_c;
 		c2      = chi_dw - ds03 * dchi_dw;
 		dtau_dw = st_dw->ds * (chi[local] + chi_dw + c1 + c2) * 0.25;
-		S_dw    = Interpolate_3D(S, geometry, st_dw, l, m);
+		S_dw    = Interpolate_3D(rh, S, geometry, st_dw, l, m);
 
 		/* --- dS/dt at central point --                   -------------- */
 

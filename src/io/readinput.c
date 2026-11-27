@@ -47,7 +47,7 @@ static void   setKeywordValue(Keyword *theKeywords, int Nkeyword,
 
 /* ------- begin -------------------------- readInput.c ------------- */
 
-void readInput()
+void readInput(RHState *rh)
 {
 	const char routineName[] = "readInput";
 	char       errorStr[MAX_MESSAGE_LENGTH];
@@ -274,7 +274,7 @@ void readInput()
 			  rh->commandline.keyword_input);
 	}
 
-	readValues(fp_keyword, Nkeyword, theKeywords);
+	readValues(rh, fp_keyword, Nkeyword, theKeywords);
 	fclose(fp_keyword);
 
 	/* --- Perform some sanity checks --                 -------------- */

@@ -26,7 +26,7 @@
 
 /* ------- begin -------------------------- checkAlloc.c ------------ */
 
-static void checkAlloc(const char *routineName, void *theMatrix, void *Matrix,
+static void checkAlloc(RHState *rh, const char *routineName, void *theMatrix, void *Matrix,
 					   int Nrow, int Ncol)
 {
 	if ((theMatrix == NULL && (size_t) Nrow * Ncol > 0) ||
@@ -38,7 +38,7 @@ static void checkAlloc(const char *routineName, void *theMatrix, void *Matrix,
 
 /* ------- begin -------------------------- matrix_char.c ----------- */
 
-char **matrix_char(int Nrow, int Ncol)
+char **matrix_char(RHState *rh, int Nrow, int Ncol)
 {
 	register int i;
 
@@ -47,7 +47,7 @@ char **matrix_char(int Nrow, int Ncol)
 
 	theMatrix = (char *) calloc((size_t) Nrow * Ncol, typeSize);
 	Matrix    = (char **) malloc((size_t) Nrow * pointerSize);
-	checkAlloc("matrix_char", theMatrix, Matrix, Nrow, Ncol);
+	checkAlloc(rh, "matrix_char", theMatrix, Matrix, Nrow, Ncol);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
 
@@ -57,7 +57,7 @@ char **matrix_char(int Nrow, int Ncol)
 
 /* ------- begin -------------------------- matrix_int.c ------------ */
 
-int **matrix_int(int Nrow, int Ncol)
+int **matrix_int(RHState *rh, int Nrow, int Ncol)
 {
 	register int i;
 
@@ -66,7 +66,7 @@ int **matrix_int(int Nrow, int Ncol)
 
 	theMatrix = (int *) calloc((size_t) Nrow * Ncol, typeSize);
 	Matrix    = (int **) malloc((size_t) Nrow * pointerSize);
-	checkAlloc("matrix_int", theMatrix, Matrix, Nrow, Ncol);
+	checkAlloc(rh, "matrix_int", theMatrix, Matrix, Nrow, Ncol);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
 
@@ -76,7 +76,7 @@ int **matrix_int(int Nrow, int Ncol)
 
 /* ------- begin -------------------------- matrix_double.c --------- */
 
-double **matrix_double(int Nrow, int Ncol)
+double **matrix_double(RHState *rh, int Nrow, int Ncol)
 {
 	register int i;
 
@@ -87,7 +87,7 @@ double **matrix_double(int Nrow, int Ncol)
 	memSize   = (size_t) Nrow * Ncol;
 	theMatrix = (double *) calloc(memSize, typeSize);
 	Matrix    = (double **) malloc((size_t) Nrow * pointerSize);
-	checkAlloc("matrix_double", theMatrix, Matrix, Nrow, Ncol);
+	checkAlloc(rh, "matrix_double", theMatrix, Matrix, Nrow, Ncol);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
 
@@ -97,7 +97,7 @@ double **matrix_double(int Nrow, int Ncol)
 
 /* ------- begin -------------------------- matrix_float.c ---------- */
 
-float **matrix_float(int Nrow, int Ncol)
+float **matrix_float(RHState *rh, int Nrow, int Ncol)
 {
 	register int i;
 
@@ -105,7 +105,7 @@ float **matrix_float(int Nrow, int Ncol)
 
 	theMatrix = (float *) calloc((size_t) Nrow * Ncol, sizeof(float));
 	Matrix    = (float **) malloc((size_t) Nrow * sizeof(float *));
-	checkAlloc("matrix_float", theMatrix, Matrix, Nrow, Ncol);
+	checkAlloc(rh, "matrix_float", theMatrix, Matrix, Nrow, Ncol);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
 
@@ -115,7 +115,7 @@ float **matrix_float(int Nrow, int Ncol)
 
 /* ------- begin -------------------------- freeMatrix.c ------------ */
 
-void freeMatrix(void **matrix)
+void freeMatrix(RHState *rh, void **matrix)
 {
 	const char routineName[] = "freeMatrix";
 

@@ -58,7 +58,7 @@ double negTauRun(int Ninterval, const double *dtau, int *kfirst, int *klast)
 
 /* ------- begin -------------------------- negTauCheck.c ----------- */
 
-bool_t negTauCheck(int nspect, int mu, int to_obs, int Ninterval,
+bool_t negTauCheck(RHState *rh, int nspect, int mu, int to_obs, int Ninterval,
 				   const double *dtau, long column)
 {
 	int    kfirst, klast;
@@ -170,7 +170,7 @@ void negTauIntervals(enum negtau_quadrature quad, int Nz, long Ncol, long c,
 
 /* ------- begin -------------------------- negTauColumns.c --------- */
 
-bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
+bool_t negTauColumns(RHState *rh, int nspect, int mu, int to_obs, int Nz, long Ncol,
 					 const double *chi, const double *z, double muz,
 					 enum negtau_quadrature quad)
 {
@@ -216,7 +216,7 @@ bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
 		return FALSE;
 	}
 	negTauIntervals(quad, Nz, Ncol, cmin, chi, z, muz, dtau);
-	negTauCheck(nspect, mu, to_obs, Nz - 1, dtau, (Ncol > 1) ? cmin : -1);
+	negTauCheck(rh, nspect, mu, to_obs, Nz - 1, dtau, (Ncol > 1) ? cmin : -1);
 	free(dtau);
 
 	return TRUE;
@@ -225,7 +225,7 @@ bool_t negTauColumns(int nspect, int mu, int to_obs, int Nz, long Ncol,
 
 /* ------- begin -------------------------- negTauTrial.c ----------- */
 
-void negTauTrial(bool_t is_trial)
+void negTauTrial(RHState *rh, bool_t is_trial)
 {
 	/* --- Called by the solvers around G_eval at a trial point, from
 		   the main thread between sweeps --             -------------- */
@@ -236,7 +236,7 @@ void negTauTrial(bool_t is_trial)
 
 /* ------- begin -------------------------- negTauInTrial.c --------- */
 
-bool_t negTauInTrial(void)
+bool_t negTauInTrial(RHState *rh)
 {
 	return rh->negtau.trial;
 }
@@ -244,7 +244,7 @@ bool_t negTauInTrial(void)
 
 /* ------- begin -------------------------- negTauInvalid.c --------- */
 
-void negTauInvalid(const char *message)
+void negTauInvalid(RHState *rh, const char *message)
 {
 	/* --- Marks the trial point invalid, like a detection: negTauFound
 		   is TRUE until the next negTauReset and negTauMessage gives
@@ -268,7 +268,7 @@ void negTauInvalid(const char *message)
 
 /* ------- begin -------------------------- negTauFound.c ----------- */
 
-bool_t negTauFound(void)
+bool_t negTauFound(RHState *rh)
 {
 	bool_t found;
 
@@ -285,7 +285,7 @@ bool_t negTauFound(void)
 
 /* ------- begin -------------------------- negTauReset.c ----------- */
 
-void negTauReset(void)
+void negTauReset(RHState *rh)
 {
 	rh->negtau.detected.found = FALSE;
 	rh->negtau.detected.tau   = 0.0;
@@ -295,7 +295,7 @@ void negTauReset(void)
 
 /* ------- begin -------------------------- negTauMessage.c --------- */
 
-void negTauMessage(char *message, size_t size)
+void negTauMessage(RHState *rh, char *message, size_t size)
 {
 	char where[64];
 
@@ -322,7 +322,7 @@ void negTauMessage(char *message, size_t size)
 
 /* ------- begin -------------------------- negTauStop.c ------------ */
 
-void negTauStop(void)
+void negTauStop(RHState *rh)
 {
 	const char routineName[] = "negTauStop";
 	char       what[256];
@@ -332,7 +332,7 @@ void negTauStop(void)
 
 	if (!rh->negtau.detected.found || rh->negtau.trial) return; /* (invalid only in a trial) */
 
-	negTauMessage(what, sizeof(what));
+	negTauMessage(rh, what, sizeof(what));
 	Error(rh, ERROR_LEVEL_2, routineName, "\n  %s.\n  The formal solution would overflow there. A negative"
 										  " total opacity\n  comes from a strong inverted line (population"
 										  " inversion) in\n  the current populations (SOLVER.md, trap 5)",

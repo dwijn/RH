@@ -30,7 +30,7 @@
 
 /* ------- begin -------------------------- writeBRS.c -------------- */
 
-void writeBRS(void)
+void writeBRS(RHState *rh)
 {
 	const char routineName[] = "writeBRS";
 
@@ -43,7 +43,7 @@ void writeBRS(void)
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
-	if (!xdr_BRS(&xdrs)) {
+	if (!xdr_BRS(rh, &xdrs)) {
 		Error(rh, ERROR_LEVEL_1, routineName, "Unable to write to output file %s", BRS_DOT_OUT);
 	}
 
@@ -54,7 +54,7 @@ void writeBRS(void)
 
 /* ------- begin -------------------------- readBRS.c --------------- */
 
-void readBRS(void)
+void readBRS(RHState *rh)
 {
 	const char routineName[] = "readBRS";
 
@@ -66,7 +66,7 @@ void readBRS(void)
 	}
 	xdrstdio_create(&xdrs, fp_in, XDR_DECODE);
 
-	if (!xdr_BRS(&xdrs)) {
+	if (!xdr_BRS(rh, &xdrs)) {
 		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s", BRS_DOT_OUT);
 	}
 
@@ -77,7 +77,7 @@ void readBRS(void)
 
 /* ------- begin -------------------------- xdr_BRS.c --------------- */
 
-bool_t xdr_BRS(XDR *xdrs)
+bool_t xdr_BRS(RHState *rh, XDR *xdrs)
 {
 	const char   routineName[] = "xdr_BRS";
 	register int nspect;

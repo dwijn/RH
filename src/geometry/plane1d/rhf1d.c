@@ -53,43 +53,43 @@ int main(int argc, char *argv[])
 
 	/* --- Read input data and initialize --             -------------- */
 
-	setOptions(argc, argv);
-	getCPU(0, TIME_START, NULL);
+	setOptions(rh, argc, argv);
+	getCPU(rh, 0, TIME_START, NULL);
 	SetFPEtraps();
 
-	readInput();
+	readInput(rh);
 	rh->spectrum.updateJ = TRUE;
 
-	getCPU(1, TIME_START, NULL);
-	MULTIatmos(&rh->atmos, rh->geometry);
-	if (rh->atmos.Stokes) Bproject();
+	getCPU(rh, 1, TIME_START, NULL);
+	MULTIatmos(rh, &rh->atmos, rh->geometry);
+	if (rh->atmos.Stokes) Bproject(rh);
 
-	readAtomicModels();
-	readMolecularModels();
-	SortLambda();
+	readAtomicModels(rh);
+	readMolecularModels(rh);
+	SortLambda(rh);
 
-	getBoundary(rh->geometry);
+	getBoundary(rh, rh->geometry);
 
-	Background(write_analyze_output = TRUE, equilibria_only = FALSE);
-	convertScales(&rh->atmos, rh->geometry);
+	Background(rh, write_analyze_output = TRUE, equilibria_only = FALSE);
+	convertScales(rh, &rh->atmos, rh->geometry);
 
-	getProfiles();
-	initSolution();
-	initScatter();
+	getProfiles(rh);
+	initSolution(rh);
+	initScatter(rh);
 
-	getCPU(1, TIME_POLL, "Total Initialize");
+	getCPU(rh, 1, TIME_POLL, "Total Initialize");
 
 	/* --- Solve radiative transfer for active ingredients -- --------- */
 
-	Iterate(rh->input.NmaxIter, rh->input.iterLimit);
+	Iterate(rh, rh->input.NmaxIter, rh->input.iterLimit);
 
 	/* --- If appropriate final solution(s) should be polarized -- ---- */
 
-	adjustStokesMode();
+	adjustStokesMode(rh);
 
 	niter = 0;
 	while (niter < rh->input.NmaxScatter) {
-		deltaJ = solveSpectrum(FALSE, FALSE);
+		deltaJ = solveSpectrum(rh, FALSE, FALSE);
 		if (!rh->input.backgr_pol && deltaJ <= rh->input.iterLimit) break;
 
 		niter++;
@@ -99,36 +99,36 @@ int main(int argc, char *argv[])
 
 	if (rh->atmos.hydrostatic) {
 		rh->geometry->scale = COLUMN_MASS;
-		convertScales(&rh->atmos, rh->geometry);
+		convertScales(rh, &rh->atmos, rh->geometry);
 	}
-	getCPU(1, TIME_START, NULL);
+	getCPU(rh, 1, TIME_START, NULL);
 
-	writeInput();
-	writeAtmos(&rh->atmos);
-	writeGeometry(rh->geometry);
-	writeSpectrum(&rh->spectrum);
-	writeFlux(FLUX_DOT_OUT);
+	writeInput(rh);
+	writeAtmos(rh, &rh->atmos);
+	writeGeometry(rh, rh->geometry);
+	writeSpectrum(rh, &rh->spectrum);
+	writeFlux(rh, FLUX_DOT_OUT);
 
 	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		atom = rh->atmos.activeatoms[nact];
 
-		writeAtom(atom);
-		writePopulations(atom);
-		writeRadRate(atom);
-		writeCollisionRate(atom);
-		writeDamping(atom);
+		writeAtom(rh, atom);
+		writePopulations(rh, atom);
+		writeRadRate(rh, atom);
+		writeCollisionRate(rh, atom);
+		writeDamping(rh, atom);
 	}
 	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 		molecule = rh->atmos.activemols[nact];
-		writeMolPops(molecule);
+		writeMolPops(rh, molecule);
 	}
 
-	writeOpacity();
+	writeOpacity(rh);
 
-	getCPU(1, TIME_POLL, "Write output");
-	printWork();
-	printTotalCPU();
+	getCPU(rh, 1, TIME_POLL, "Write output");
+	printWork(rh);
+	printTotalCPU(rh);
 
-	return ExitStatus();
+	return ExitStatus(rh);
 }
 /* ------- end ---------------------------- rhf1d.c ----------------- */

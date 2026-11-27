@@ -69,7 +69,7 @@
 
 /* ------- begin -------------------------- readAbundance.c --------- */
 
-void readAbundance(Atmosphere *atmos)
+void readAbundance(RHState *rh, Atmosphere *atmos)
 {
 	const char   routineName[] = "readAbundance";
 	register int n, k, i;
@@ -103,7 +103,7 @@ void readAbundance(Atmosphere *atmos)
 	}
 	/* --- Read abundances from file --                  -------------- */
 
-	while (getLine(fp_abund, COMMENT_CHAR, line, exit_on_EOF = FALSE) != EOF) {
+	while (getLine(rh, fp_abund, COMMENT_CHAR, line, exit_on_EOF = FALSE) != EOF) {
 		if ((Nread = sscanf(line, "%s %lf", ID, &abund)) != 2) {
 			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read input file %s",
 				  rh->input.abund_input);
@@ -173,7 +173,7 @@ void readAbundance(Atmosphere *atmos)
 
 		result &= xdr_int(&xdrs, &pti);
 		result &= xdr_int(&xdrs, &element->Nstage);
-		element->pf = matrix_double(element->Nstage, atmos->Npf);
+		element->pf = matrix_double(rh, element->Nstage, atmos->Npf);
 		element->ionpot =
 			(double *) malloc(element->Nstage * sizeof(double));
 

@@ -23,7 +23,7 @@
 
 /* ------- begin -------------------------- getLine.c --------------- */
 
-int getLine(FILE *inputFile, char *commentChar, char *line,
+int getLine(RHState *rh, FILE *inputFile, char *commentChar, char *line,
 			bool_t exit_on_EOF)
 {
 	const char routineName[] = "getLine";
@@ -52,7 +52,7 @@ int getLine(FILE *inputFile, char *commentChar, char *line,
 
 /* ------- begin -------------------------- checkNread.c ------------ */
 
-void checkNread(int Nread, int Nrequired, const char *routineName,
+void checkNread(RHState *rh, int Nread, int Nrequired, const char *routineName,
 				int checkPoint)
 {
 	/* --- Check whether Nread igreater or equal to Nrequired and issue

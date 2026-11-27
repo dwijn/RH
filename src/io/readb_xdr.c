@@ -37,7 +37,7 @@
 
 /* ------- begin -------------------------- readB.c ----------------- */
 
-bool_t readB(Atmosphere *atmos)
+bool_t readB(RHState *rh, Atmosphere *atmos)
 {
 	const char routineName[] = "readB";
 

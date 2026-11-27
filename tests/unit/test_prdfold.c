@@ -99,7 +99,7 @@ int main(void)
 					}
 					maxlen = MAX(maxlen, len);
 					for (m = 0; m < NTAB + 2 * GUARD; m++) buf[m] = 0.0;
-					prdFold(NTAB, q_abs, Np, qp, gw, m0, len, W);
+					prdFold(rh, NTAB, q_abs, Np, qp, gw, m0, len, W);
 
 					double got = 0.0, wsum = 0.0;
 					for (m = 0; m < len; m++) {

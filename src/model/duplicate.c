@@ -32,7 +32,7 @@
 
 /* ------- begin -------------------------- duplicateLevel.c -------- */
 
-bool_t duplicateLevel(Atom *atom, char *label)
+bool_t duplicateLevel(RHState *rh, Atom *atom, char *label)
 {
 	const char   routineName[] = "duplicateLevel";
 	register int i;
@@ -70,7 +70,7 @@ bool_t duplicateLevel(Atom *atom, char *label)
 
 /* ------- begin -------------------------- duplicateLine.c --------- */
 
-bool_t duplicateLine(struct Atom *atom, char *labeli, char *labelj)
+bool_t duplicateLine(RHState *rh, struct Atom *atom, char *labeli, char *labelj)
 {
 	const char   routineName[] = "duplicateLine";
 	register int kr;

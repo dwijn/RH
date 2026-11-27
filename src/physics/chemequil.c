@@ -111,7 +111,7 @@
 
 /* --- Global variables --                             -------------- */
 
-double chemLastChangeReset(void)
+double chemLastChangeReset(RHState *rh)
 {
 	double d = rh->chemequil.chemLastChange;
 
@@ -121,12 +121,12 @@ double chemLastChangeReset(void)
 
 /* ------- begin -------------------------- ChemicalEquilibrium.c --- */
 
-static void chemicalEquilibrium(int NmaxIter, double iterLimit,
+static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit,
 								bool_t ofState);
 
-void ChemicalEquilibrium(int NmaxIter, double iterLimit)
+void ChemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit)
 {
-	chemicalEquilibrium(NmaxIter, iterLimit, FALSE);
+	chemicalEquilibrium(rh, NmaxIter, iterLimit, FALSE);
 }
 
 /* --- For the map G with ne in the state (S-2b, docs/SOLVER.md): a
@@ -137,9 +137,9 @@ void ChemicalEquilibrium(int NmaxIter, double iterLimit)
 	   rescaled in place: only ntotal and the LTE populations follow the
 	   new equilibrium --                               -------------- */
 
-void ChemicalEquilibriumOfState(int NmaxIter, double iterLimit)
+void ChemicalEquilibriumOfState(RHState *rh, int NmaxIter, double iterLimit)
 {
-	chemicalEquilibrium(NmaxIter, iterLimit, TRUE);
+	chemicalEquilibrium(rh, NmaxIter, iterLimit, TRUE);
 }
 
 /* ------- begin -------------------------- chemSolve.c ------------- */
@@ -289,7 +289,7 @@ int chemSolve(ChemSystem *cs, const double *a, double *u, int maxIter,
 }
 /* ------- end ---------------------------- chemSolve.c ------------- */
 
-static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
+static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, bool_t ofState)
 {
 	const char   routineName[] = "ChemicalEquilibrium";
 	register int k, i, j, nu, pass;
@@ -303,7 +303,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	Molecule  *molecule;
 	Element  **nuclei;
 
-	getCPU(3, TIME_START, NULL);
+	getCPU(rh, 3, TIME_START, NULL);
 
 	/* --- Constant for Saha equation Hminus --          -------------- */
 
@@ -380,8 +380,8 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 
 	cs.Nn  = Nnuclei;
 	cs.Ns  = Nnuclei + 1 + rh->atmos.Nmolecule;
-	cs.nu  = matrix_double(cs.Ns, Nnuclei);
-	cs.H   = matrix_double(Nnuclei, Nnuclei);
+	cs.nu  = matrix_double(rh, cs.Ns, Nnuclei);
+	cs.H   = matrix_double(rh, Nnuclei, Nnuclei);
 	cs.lnc = (double *) malloc(cs.Ns * sizeof(double));
 	cs.n   = (double *) malloc(cs.Ns * sizeof(double));
 	cs.g   = (double *) malloc(Nnuclei * sizeof(double));
@@ -416,7 +416,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 
 				/* --- If no atomic model is present for this nucleus -- ---- */
 
-				getfjk(nuclei[i], rh->atmos.ne[k], k, fjk, dfjk);
+				getfjk(rh, nuclei[i], rh->atmos.ne[k], k, fjk, dfjk);
 				fn0[i] = fjk[0];
 				a[i]   = nuclei[i]->abund * rh->atmos.nHtot[k];
 			} else {
@@ -460,7 +460,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 		/* --- Equilibrium constant for each molecule at this location -- */
 
 		for (i = 0; i < rh->atmos.Nmolecule; i++)
-			Phi[i] = equilconstant(&rh->atmos.molecules[i], rh->atmos.T[k]);
+			Phi[i] = equilconstant(rh, &rh->atmos.molecules[i], rh->atmos.T[k]);
 
 		/* --- ln c of every species at this location: 0 for a free
 			   nucleus, H- from the neutral hydrogen density, a molecule
@@ -492,8 +492,8 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 					 " steps at location %d: T = %.1f K, nHtot = %.4E m^-3,"
 					 " ne = %.4E m^-3, relative residual %.3E",
 					 NmaxIter, k, rh->atmos.T[k], rh->atmos.nHtot[k], rh->atmos.ne[k], res);
-			if (negTauInTrial()) {
-				negTauInvalid(msg + 3);
+			if (negTauInTrial(rh)) {
+				negTauInvalid(rh, msg + 3);
 			} else
 				Error(rh, ERROR_LEVEL_2, routineName, "%s", msg);
 		}
@@ -552,8 +552,8 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	free(u);
 	free(Phi);
 	free(fn0);
-	freeMatrix((void **) cs.nu);
-	freeMatrix((void **) cs.H);
+	freeMatrix(rh, (void **) cs.nu);
+	freeMatrix(rh, (void **) cs.H);
 	free(cs.lnc);
 	free(cs.n);
 	free(cs.g);
@@ -569,13 +569,13 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 		free(fjk);
 		free(dfjk);
 	}
-	getCPU(3, TIME_POLL, "Chemical equilibrium");
+	getCPU(rh, 3, TIME_POLL, "Chemical equilibrium");
 }
 /* ------- end ---------------------------- ChemicalEquilibrium.c --- */
 
 /* ------- begin -------------------------- partfunction.c ---------- */
 
-double partfunction(struct Molecule *molecule, double T)
+double partfunction(RHState *rh, struct Molecule *molecule, double T)
 {
 	register int i;
 
@@ -646,7 +646,7 @@ double partfunction(struct Molecule *molecule, double T)
 	   without regard to the range [Tmin, Tmax] of the fit. Used only for
 	   the extrapolation outside that range, see equilconstant. -- ----- */
 
-static double lnEquilConstant(struct Molecule *molecule, double T)
+static double lnEquilConstant(RHState *rh, struct Molecule *molecule, double T)
 {
 	register int i;
 
@@ -709,7 +709,7 @@ static double lnEquilConstant(struct Molecule *molecule, double T)
 	   result is capped at ln K = 700 to stay below the double range
 	   (N-53) --                                     ----------------- */
 
-static double extrapolatedEquilConstant(struct Molecule *molecule, double T)
+static double extrapolatedEquilConstant(RHState *rh, struct Molecule *molecule, double T)
 {
 	double Tedge, theta, theta_edge, dtheta, lnK_edge, slope, lnK;
 
@@ -718,16 +718,16 @@ static double extrapolatedEquilConstant(struct Molecule *molecule, double T)
 	theta_edge = THETA0 / Tedge;
 	dtheta     = 1.0E-3 * theta_edge;
 
-	lnK_edge = lnEquilConstant(molecule, Tedge);
-	slope    = (lnEquilConstant(molecule, THETA0 / (theta_edge + dtheta)) -
-             lnEquilConstant(molecule, THETA0 / (theta_edge - dtheta))) /
+	lnK_edge = lnEquilConstant(rh, molecule, Tedge);
+	slope    = (lnEquilConstant(rh, molecule, THETA0 / (theta_edge + dtheta)) -
+             lnEquilConstant(rh, molecule, THETA0 / (theta_edge - dtheta))) /
 			(2.0 * dtheta);
 
 	lnK = lnK_edge + slope * (theta - theta_edge);
 	return exp(MIN(lnK, 700.0));
 }
 
-double equilconstant(struct Molecule *molecule, double T)
+double equilconstant(RHState *rh, struct Molecule *molecule, double T)
 {
 	register int i;
 
@@ -735,7 +735,7 @@ double equilconstant(struct Molecule *molecule, double T)
 	double kT, t, eqc = 0.0, theta, cgs_to_SI = 1.0;
 
 	if (T < molecule->Tmin || T > molecule->Tmax)
-		return extrapolatedEquilConstant(molecule, T);
+		return extrapolatedEquilConstant(rh, molecule, T);
 
 	/* --- Evaluate polynomial in temperature for equilibrium constant.
 		   Constant should have units of [m^3,6,9, etc] -- ------------ */

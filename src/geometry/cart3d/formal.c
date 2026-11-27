@@ -62,7 +62,7 @@ static void solve_3D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi
 {
 	(void) Tri;
 	(void) lin;
-	ShortChar(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
+	ShortChar(rh, rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
 }
 /* ------- end ---------------------------- solve_3D.c -------------- */
 
@@ -71,7 +71,7 @@ static void solve_3D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi
 static void solveStokes_3D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 						   double **S, double **I, double *Psi)
 {
-	ShortChar_Stokes(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
+	ShortChar_Stokes(rh, rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
 }
 /* ------- end ---------------------------- solveStokes_3D.c -------- */
 
@@ -80,7 +80,7 @@ static void solveStokes_3D(RHState *rh, int nspect, int mu, bool_t to_obs, doubl
 static bool_t checkTau_3D(RHState *rh, int nspect, int mu, int to_obs, const double *chi,
 						  enum negtau_quadrature quad)
 {
-	return negTauColumns(nspect, mu, to_obs, rh->geometry->Nz, rh->geometry->Nplane, chi,
+	return negTauColumns(rh, nspect, mu, to_obs, rh->geometry->Nz, rh->geometry->Nplane, chi,
 						 rh->geometry->z, rh->geometry->muz[mu], quad);
 }
 /* ------- end ---------------------------- checkTau_3D.c ----------- */
@@ -134,7 +134,7 @@ const GeometryOps geometryOps = {
 
 /* ------- begin -------------------------- Hydrostatic.c ----------- */
 
-void Hydrostatic(int NmaxIter, double iterLimit)
+void Hydrostatic(RHState *rh, int NmaxIter, double iterLimit)
 {
 	const char routineName[] = "Hydrostatic";
 

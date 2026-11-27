@@ -25,7 +25,7 @@
 
 /* ------- begin -------------------------- Rayleigh.c -------------- */
 
-bool_t Rayleigh(double lambda, Atom *atom, double *scatt)
+bool_t Rayleigh(RHState *rh, double lambda, Atom *atom, double *scatt)
 {
 	/* --- Rayleigh scattering by transitions from the ground state of
 		   neutral atoms. Sums scattering crosssections of all bound-bound

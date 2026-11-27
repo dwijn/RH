@@ -50,7 +50,7 @@ static void initLine(AtomicLine *line, double l0, int j, int i)
 	line->c_shift    = (double *) calloc(1, sizeof(double));
 	line->j          = j;
 	line->i          = i;
-	getLambda(line);
+	getLambda(rh, line);
 }
 
 int main(void)
@@ -102,7 +102,7 @@ int main(void)
 	rh->atmos.atoms     = atoms;
 	rh->atmos.Nmolecule = 0;
 
-	Nchanged = asymmetricBlends(extra, 2);
+	Nchanged = asymmetricBlends(rh, extra, 2);
 	CHECK(Nchanged == 4, "%d lines made asymmetric, want 4", Nchanged);
 
 	for (kr = 0; kr < NLINE; kr++) {
@@ -126,7 +126,7 @@ int main(void)
 						"line %g: blue point %d not the mirror of the red one", lambda0[kr], la);
 	}
 
-	CHECK(asymmetricBlends(extra, 2) == 0, "a second call changes lines");
+	CHECK(asymmetricBlends(rh, extra, 2) == 0, "a second call changes lines");
 
 	for (kr = 0; kr < NLINE; kr++) {
 		free(lines[kr].lambda);

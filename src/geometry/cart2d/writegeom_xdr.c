@@ -26,7 +26,7 @@
 
 /* ------- begin -------------------------- writeGeometry.c --------- */
 
-void writeGeometry(Geometry *geometry)
+void writeGeometry(RHState *rh, Geometry *geometry)
 {
 	const char routineName[] = "writeGeometry";
 

@@ -42,7 +42,7 @@ static double sigma_at(double lambda)
 {
 	double s = -1.0;
 
-	CHECK(Rayleigh_H2(lambda, &s), "Rayleigh_H2 FALSE at %g nm", lambda);
+	CHECK(Rayleigh_H2(rh, lambda, &s), "Rayleigh_H2 FALSE at %g nm", lambda);
 	return s / MEGABARN_TO_M2; /* n(H2) = 1 */
 }
 
@@ -80,7 +80,7 @@ int main(void)
 		  above / sig[NT - 1]);
 
 	s = -1.0;
-	CHECK(!Rayleigh_H2(121.0, &s) && s == -1.0, "below 121.57 nm");
+	CHECK(!Rayleigh_H2(rh, 121.0, &s) && s == -1.0, "below 121.57 nm");
 
 	return check_summary("test_rayleigh_h2");
 }

@@ -70,15 +70,15 @@ typedef struct Geometry {
 
 /* --- Associated function prototypes --               -------------- */
 
-void   getAngleQuadr(Geometry *geometry);
-void   fillMesh(Geometry *geometry);
-bool_t writeFlux(char *fileName);
-void   writeGeometry(Geometry *geometry);
-void   readAtmos(Atmosphere *atmos, Geometry *geometry);
-void   getBoundary(Atmosphere *atmos, Geometry *geometry);
+void   getAngleQuadr(RHState *rh, Geometry *geometry);
+void   fillMesh(RHState *rh, Geometry *geometry);
+bool_t writeFlux(RHState *rh, char *fileName);
+void   writeGeometry(RHState *rh, Geometry *geometry);
+void   readAtmos(RHState *rh, Atmosphere *atmos, Geometry *geometry);
+void   getBoundary(RHState *rh, Atmosphere *atmos, Geometry *geometry);
 void   setStencilWeights(Stencil *stencil, enum direction direction,
 						 const double h[3]);
-void   StokesK_2D(StokesGrid *sg, Stencil *st, enum direction direction,
+void   StokesK_2D(RHState *rh, StokesGrid *sg, Stencil *st, enum direction direction,
 				  double chi_I, double K[4][4]);
 void   Interp_Stokes_2D(StokesGrid *sg, enum stokes_vector v, Stencil *st,
 						enum direction direction, double out[4]);
@@ -220,10 +220,10 @@ static inline double Interp_2D_linear(const double *values, const Stencil *stenc
 
 /* --- Formal solution related --                      -------------- */
 
-double SolveLong(LongChar *lc, int local, double *chi, double *S,
+double SolveLong(RHState *rh, LongChar *lc, int local, double *chi, double *S,
 				 double *I);
 
-double Feautrier(int nspect, int lx, double *chi, double *S,
+double Feautrier(RHState *rh, int nspect, int lx, double *chi, double *S,
 				 enum FeautrierOrder order, double *P, double *Psi);
 
 void Piecewise_Linear_2D(RHState *rh, Geometry *geometry, int nspect, int mu,
@@ -238,7 +238,7 @@ void Piecewise_Hermite_2D(Geometry *geometry, int nspect, int mu,
 
 /* --- Polarized long characteristics (N-41) --       -------------- */
 
-void SolveLongStokes(StokesGrid *sg, LongChar *lc, int local, double *I_uw);
+void SolveLongStokes(RHState *rh, StokesGrid *sg, LongChar *lc, int local, double *I_uw);
 
 /* --- Prototypes for cubic Bezier solvers --          -------------- */
 
@@ -246,7 +246,7 @@ void Piecewise_Bezier3_2D(RHState *rh, Geometry *geometry, int nspect, int mu,
 						  bool_t to_observer, double *chi, double *S,
 						  double *I, double *Psi);
 
-void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
+void Piece_Stokes_Bezier3_2D(RHState *rh, Geometry *geometry, int nspect, int mu,
 							 bool_t to_observer, double *chi, double **S,
 							 double **I, double *Psi);
 

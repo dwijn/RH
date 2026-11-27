@@ -68,9 +68,9 @@ static void bgSweep(RHState *rh, void *ctx, const double *u, double *J, double *
 			if (c->angle_dep) {
 				initialize = (mu == 0 && to_obs == 0);
 				if (initialize || rh->atmos.backgrflags[c->nspect].hasline)
-					readBackground(c->nspect, mu, to_obs);
+					readBackground(rh, c->nspect, mu, to_obs);
 				if (initialize || c->boundbound)
-					Opacity(c->nspect, mu, to_obs, initialize);
+					Opacity(rh, c->nspect, mu, to_obs, initialize);
 				for (k = 0; k < Nspace; k++) c->chi[k] = as->chi[k] + as->chi_c[k];
 			}
 			if (c->angle_dep || (mu == 0 && to_obs == 0)) {
@@ -101,13 +101,13 @@ static void bgSweep(RHState *rh, void *ctx, const double *u, double *J, double *
 	   choice (bgScatterLinear). Only those wavelengths iterate the
 	   background scattering (*bg, *Tri) -- --          -------------- */
 
-static bool_t linearChoice(int nspect, bool_t *bg, double **Tri,
+static bool_t linearChoice(RHState *rh, int nspect, bool_t *bg, double **Tri,
 						   const ActiveSet *as)
 {
 	bool_t lin;
 
 	if (!geometryOps.bg_linear_fallback(rh)) return FALSE;
-	lin = bgScatterLinear(nspect, (*bg) ? geometryOps.bg_max_albedo(rh, as) : -1.0);
+	lin = bgScatterLinear(rh, nspect, (*bg) ? geometryOps.bg_max_albedo(rh, as) : -1.0);
 	if (!lin) {
 		*bg  = FALSE;
 		*Tri = NULL;
@@ -118,7 +118,7 @@ static bool_t linearChoice(int nspect, bool_t *bg, double **Tri,
 
 /* ------- begin -------------------------- Formal.c ---------------- */
 
-double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
+double Formal(RHState *rh, int nspect, bool_t eval_operator, bool_t redistribute)
 {
 	register int k, mu, n;
 
@@ -137,7 +137,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	/* --- Retrieve active set as of transitions at wavelength nspect - */
 
 	as = &rh->spectrum.as[nspect];
-	alloc_as(nspect, eval_operator);
+	alloc_as(rh, nspect, eval_operator);
 
 	/* --- Check whether current active set includes a bound-bound
 		   and/or polarized transition and/or angle-dependent PRD
@@ -147,17 +147,17 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	/* --- Check for bound-bound transition in active set -- ---------- */
 
-	boundbound = containsBoundBound(as);
+	boundbound = containsBoundBound(rh, as);
 
 	/* --- Check for line with angle-dependent PRD in set -- ---------- */
 
-	PRD_angle_dep = (containsPRDline(as) &&
+	PRD_angle_dep = (containsPRDline(rh, as) &&
 					 (rh->input.PRD_angle_dep == PRD_ANGLE_DEP ||
 					  rh->input.PRD_angle_dep == PRD_ANGLE_APPROX));
 
 	/* --- Check for polarized bound-bound transition in active set - - */
 
-	polarized_as = containsPolarized(as);
+	polarized_as = containsPolarized(rh, as);
 
 	/* --- Check for polarized bound-bound transition in background - - */
 
@@ -188,7 +188,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		   Stokes or background polarization (J20), which keep the
 		   lambda iteration -- --                       -------------- */
 
-	bg = (rh->spectrum.updateJ && bgScatterActive() && !solveStokes &&
+	bg = (rh->spectrum.updateJ && bgScatterActive(rh) && !solveStokes &&
 		  !rh->input.backgr_pol);
 
 	/* --- Allocate temporary space --                   -------------- */
@@ -204,9 +204,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		Psi = NULL;
 
 	if (solveStokes) {
-		Ipol = matrix_double(4, Nspace);
+		Ipol = matrix_double(rh, 4, Nspace);
 		I    = Ipol[0];
-		Spol = matrix_double(4, Nspace);
+		Spol = matrix_double(rh, 4, Nspace);
 		S    = Spol[0];
 	} else {
 		I = (double *) malloc(Nspace * sizeof(double));
@@ -219,7 +219,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 	Jdag = (double *) malloc(Nspace * sizeof(double));
 	if (rh->input.limit_memory) {
 		J = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-		readJlambda(nspect, Jdag);
+		readJlambda(rh, nspect, Jdag);
 	} else {
 		J = rh->spectrum.J[nspect];
 		for (k = 0; k < Nspace; k++) Jdag[k] = J[k];
@@ -244,7 +244,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		bgc.I          = I;
 		bgc.Tri        = Tri;
 		bgc.as         = as;
-		pending        = bgScatterPending(nspect);
+		pending        = bgScatterPending(rh, nspect);
 	}
 	if (bg && angle_dep && geometryOps.bg_linear_fallback(rh)) {
 
@@ -252,13 +252,13 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 			   iterated linear (N-52), from the opacities of the first
 			   ray, before its iteration --              -------------- */
 
-		readBackground(nspect, 0, 0);
-		Opacity(nspect, 0, 0, TRUE);
-		lin = linearChoice(nspect, &bg, &Tri, as);
+		readBackground(rh, nspect, 0, 0);
+		Opacity(rh, nspect, 0, 0, TRUE);
+		lin = linearChoice(rh, nspect, &bg, &Tri, as);
 	}
 	if (bg && pending && angle_dep) {
 		Jstar = (double *) malloc(Nspace * sizeof(double));
-		bgScatterBefore(nspect, Nspace, Jdag, Jstar, bgSweep, &bgc);
+		bgScatterBefore(rh, nspect, Nspace, Jdag, Jstar, bgSweep, &bgc);
 		Jsrc = Jstar;
 	}
 
@@ -268,7 +268,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		J20dag = (double *) malloc(Nspace * sizeof(double));
 		if (rh->input.limit_memory) {
 			J20 = (double *) malloc(Nspace * sizeof(double));
-			readJ20lambda(nspect, J20dag);
+			readJ20lambda(rh, nspect, J20dag);
 		} else {
 			J20 = rh->spectrum.J20[nspect];
 			for (k = 0; k < Nspace; k++)
@@ -291,13 +291,13 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 				initialize = (mu == 0 && to_obs == 0);
 
 				if (initialize || rh->atmos.backgrflags[nspect].hasline)
-					readBackground(nspect, mu, to_obs);
+					readBackground(rh, nspect, mu, to_obs);
 
 				if (initialize || boundbound)
-					Opacity(nspect, mu, to_obs, initialize);
-				if (initialize) lin = linearChoice(nspect, &bg, &Tri, as);
+					Opacity(rh, nspect, mu, to_obs, initialize);
+				if (initialize) lin = linearChoice(rh, nspect, &bg, &Tri, as);
 
-				if (eval_operator) addtoCoupling(nspect);
+				if (eval_operator) addtoCoupling(rh, nspect);
 				for (k = 0; k < Nspace; k++) {
 					chi[k] = as->chi[k] + as->chi_c[k];
 					S[k]   = as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jsrc[k];
@@ -350,7 +350,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 				if (Psi) {
 					for (k = 0; k < Nspace; k++) Psi[k] /= chi[k];
-					if (eval_operator) addtoGamma(nspect, wmu, I, Psi);
+					if (eval_operator) addtoGamma(rh, nspect, wmu, I, Psi);
 				}
 				if (bg) {
 					geometryOps.bg_add_operator(Nspace, to_obs, wmu, Tri, as->sca_c, chi, Abg);
@@ -364,7 +364,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 					for (k = 0; k < Nspace; k++)
 						J[k] += wmu * I[k];
-					addtoRates(nspect, mu, to_obs, wmu, I, redistribute);
+					addtoRates(rh, nspect, mu, to_obs, wmu, I, redistribute);
 
 					/* --- Accumulate anisotropy --            -------------- */
 
@@ -387,12 +387,12 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 					if (rh->atmos.NPRDactive > 0 &&
 						rh->input.PRD_angle_dep == PRD_ANGLE_APPROX) {
 
-						addJgasRay(nspect, mu, to_obs, wmu, I);
+						addJgasRay(rh, nspect, mu, to_obs, wmu, I);
 					}
 
-					if (containsPRDline(as) &&
+					if (containsPRDline(rh, as) &&
 						rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
-						writeImu(nspect, mu, to_obs, I);
+						writeImu(rh, nspect, mu, to_obs, I);
 				}
 			}
 			/* --- Save emergent intensity --              -------------- */
@@ -405,10 +405,10 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 			   are the same for every ray, but each direction is still
 			   solved with the method of S_INTERPOLATION (N-23) -- ---- */
 
-		readBackground(nspect, 0, 0);
-		Opacity(nspect, 0, 0, initialize = TRUE);
-		lin = linearChoice(nspect, &bg, &Tri, as);
-		if (eval_operator) addtoCoupling(nspect);
+		readBackground(rh, nspect, 0, 0);
+		Opacity(rh, nspect, 0, 0, initialize = TRUE);
+		lin = linearChoice(rh, nspect, &bg, &Tri, as);
+		if (eval_operator) addtoCoupling(rh, nspect);
 
 		for (k = 0; k < Nspace; k++) chi[k] = as->chi[k] + as->chi_c[k];
 		for (mu = 1, muslant = 0; mu < Nrays; mu++) /* the most slanted ray */
@@ -417,7 +417,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 			goto cleanup;
 		if (bg && pending) {
 			Jstar = (double *) malloc(Nspace * sizeof(double));
-			bgScatterBefore(nspect, Nspace, Jdag, Jstar, bgSweep, &bgc);
+			bgScatterBefore(rh, nspect, Nspace, Jdag, Jstar, bgSweep, &bgc);
 			Jsrc = Jstar;
 		}
 		for (k = 0; k < Nspace; k++)
@@ -430,7 +430,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 				if (Psi) {
 					for (k = 0; k < Nspace; k++) Psi[k] /= chi[k];
-					if (eval_operator) addtoGamma(nspect, wmu, I, Psi);
+					if (eval_operator) addtoGamma(rh, nspect, wmu, I, Psi);
 				}
 				if (bg) {
 					geometryOps.bg_add_operator(Nspace, to_obs, wmu, Tri, as->sca_c, chi, Abg);
@@ -440,14 +440,14 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 				if (rh->spectrum.updateJ) {
 					for (k = 0; k < Nspace; k++) J[k] += wmu * I[k];
-					addtoRates(nspect, mu, to_obs, wmu, I, redistribute);
+					addtoRates(rh, nspect, mu, to_obs, wmu, I, redistribute);
 
 					/* --- Accumulate gas-frame mean intensity, which is the
 						   same as J in the angle-independent case -- ----- */
 
 					if (rh->atmos.NPRDactive > 0 &&
 						rh->input.PRD_angle_dep == PRD_ANGLE_APPROX) {
-						addJgasRow(nspect, wmu, I);
+						addJgasRow(rh, nspect, wmu, I);
 					}
 				}
 			}
@@ -471,11 +471,11 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		/* --- Whether the next sweep iterates the background
 			   scattering at this wavelength first (N-51) -- -------- */
 
-		if (bg && !pending) bgScatterAfter(nspect, Nspace, Jsrc, J, Abg, albedo);
+		if (bg && !pending) bgScatterAfter(rh, nspect, Nspace, Jsrc, J, Abg, albedo);
 		if (rh->input.limit_memory) {
-			writeJlambda(nspect, J);
+			writeJlambda(rh, nspect, J);
 			if (rh->input.backgr_pol)
-				writeJ20lambda(nspect, J20);
+				writeJ20lambda(rh, nspect, J20);
 		}
 	}
 	/* --- Clean up; the formal solution of this wavelength stops here
@@ -483,14 +483,14 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		   the caller stops the run or rejects the trial point) -- --- */
 
 cleanup:
-	free_as(nspect, eval_operator);
+	free_as(rh, nspect, eval_operator);
 	if (eval_operator) free(Psi);
 	free(Abg);
 
 	free(chi);
 	if (solveStokes) {
-		freeMatrix((void **) Ipol);
-		freeMatrix((void **) Spol);
+		freeMatrix(rh, (void **) Ipol);
+		freeMatrix(rh, (void **) Spol);
 	} else {
 		free(I);
 		free(S);

@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 	strcpy(rh->input.abund_input, argv[1]);
 	strcpy(rh->input.KuruczData, "none");
 	strcpy(rh->input.pfData, argv[2]);
-	readAbundance(&atmos);
+	readAbundance(rh, &atmos);
 	fprintf(stderr, "\n  The average weight per Hydrogen atom for \n"
 					"  abundance file %s is %6.4f",
 			argv[1], atmos.wght_per_H);

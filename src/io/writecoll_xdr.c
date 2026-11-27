@@ -21,13 +21,13 @@
 
 /* --- Function prototypes --                          -------------- */
 
-bool_t xdr_collrate(XDR *xdrs, Atom *atom);
+bool_t xdr_collrate(RHState *rh, XDR *xdrs, Atom *atom);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- writeCollisionRate.c ---- */
 
-bool_t writeCollisionRate(Atom *atom)
+bool_t writeCollisionRate(RHState *rh, Atom *atom)
 {
 	const char routineName[] = "writeCollisionRate";
 
@@ -47,7 +47,7 @@ bool_t writeCollisionRate(Atom *atom)
 	}
 	xdrstdio_create(&xdrs, fp_rate, XDR_ENCODE);
 
-	if (!xdr_collrate(&xdrs, atom)) {
+	if (!xdr_collrate(rh, &xdrs, atom)) {
 		Warning(rh, routineName, "Unable to write to output file %s", ratesfile);
 	}
 
@@ -59,7 +59,7 @@ bool_t writeCollisionRate(Atom *atom)
 
 /* ------- begin -------------------------- readCollisionRate.c ----- */
 
-bool_t readCollisionRate(Atom *atom)
+bool_t readCollisionRate(RHState *rh, Atom *atom)
 {
 	const char routineName[] = "readCollisionRate";
 
@@ -79,7 +79,7 @@ bool_t readCollisionRate(Atom *atom)
 	}
 	xdrstdio_create(&xdrs, fp_rate, XDR_DECODE);
 
-	if (!xdr_collrate(&xdrs, atom)) {
+	if (!xdr_collrate(rh, &xdrs, atom)) {
 		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s", ratesfile);
 	}
 	xdr_destroy(&xdrs);
@@ -90,7 +90,7 @@ bool_t readCollisionRate(Atom *atom)
 
 /* ------- begin -------------------------- xdr_collrate.c ---------- */
 
-bool_t xdr_collrate(XDR *xdrs, Atom *atom)
+bool_t xdr_collrate(RHState *rh, XDR *xdrs, Atom *atom)
 {
 	register int ij;
 

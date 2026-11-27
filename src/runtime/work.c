@@ -49,7 +49,7 @@ double wallClock(void)
 
 /* ------- begin -------------------------- workPhase.c ------------- */
 
-void workPhase(enum WorkPhase phase)
+void workPhase(RHState *rh, enum WorkPhase phase)
 {
 	rh->work.phase = phase;
 }
@@ -57,7 +57,7 @@ void workPhase(enum WorkPhase phase)
 
 /* ------- begin -------------------------- workSweep.c ------------- */
 
-void workSweep(bool_t eval_operator, bool_t redistribute, int Nsolved)
+void workSweep(RHState *rh, bool_t eval_operator, bool_t redistribute, int Nsolved)
 {
 	enum WorkKind kind;
 
@@ -70,7 +70,7 @@ void workSweep(bool_t eval_operator, bool_t redistribute, int Nsolved)
 
 /* ------- begin -------------------------- workAdd.c --------------- */
 
-void workAdd(enum WorkTimer timer, double seconds)
+void workAdd(RHState *rh, enum WorkTimer timer, double seconds)
 {
 	rh->work.calls[timer]++;
 	rh->work.seconds[timer] += seconds;
@@ -83,7 +83,7 @@ void workAdd(enum WorkTimer timer, double seconds)
 	   molecule), and how many of them with LU because GTH elimination
 	   could not be used (statequil.c) --              -------------- */
 
-void workRates(long Nsolved, long Nlu)
+void workRates(RHState *rh, long Nsolved, long Nlu)
 {
 	rh->work.Nrates += Nsolved;
 	rh->work.Nrates_lu += Nlu;
@@ -92,7 +92,7 @@ void workRates(long Nsolved, long Nlu)
 
 /* ------- begin -------------------------- workBgScatter.c --------- */
 
-void workBgScatter(long Nsolved)
+void workBgScatter(RHState *rh, long Nsolved)
 {
 	/* --- Wavelength solves of the background scattering iteration
 		   (N-51), on top of those of the sweep -- ----- -------------- */
@@ -103,7 +103,7 @@ void workBgScatter(long Nsolved)
 
 /* ------- begin -------------------------- printWork.c ------------- */
 
-void printWork(void)
+void printWork(RHState *rh)
 {
 	static const char *const kindName[WORK_NKIND] = {"operator", "plain", "PRD"};
 	int                      phase, kind;

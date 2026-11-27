@@ -21,11 +21,11 @@ struct Ng {
 
 /* --- Associated function prototypes --               -------------- */
 
-bool_t      Accelerate(struct Ng *Ngs, double *solution);
-void        NgFree(struct Ng *Ngs);
-struct Ng  *NgInit(int N, int Ndelay, int Norder, int Nperiod,
+bool_t      Accelerate(RHState *rh, struct Ng *Ngs, double *solution);
+void        NgFree(RHState *rh, struct Ng *Ngs);
+struct Ng  *NgInit(RHState *rh, int N, int Ndelay, int Norder, int Nperiod,
 				   double *solution);
-double      MaxChange(struct Ng *Ngs, char *text, bool_t quiet);
+double      MaxChange(RHState *rh, struct Ng *Ngs, char *text, bool_t quiet);
 const char *NgStatus(struct Ng *Ngs, bool_t accel);
 
 #endif /* !__ACCELERATE_H__ */

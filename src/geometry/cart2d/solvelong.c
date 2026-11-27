@@ -47,7 +47,7 @@
 	   integration used before did not (N-39, see rhsc3d/solvelong.c)
 	   --                                              -------------- */
 
-double SolveLong(LongChar *lc, int local, double *chi, double *S, double *I)
+double SolveLong(RHState *rh, LongChar *lc, int local, double *chi, double *S, double *I)
 {
 	register int ls;
 
@@ -90,7 +90,7 @@ double SolveLong(LongChar *lc, int local, double *chi, double *S, double *I)
 
 /* ------- begin -------------------------- SolveLongStokes.c ------- */
 
-void SolveLongStokes(StokesGrid *sg, LongChar *lc, int local, double *I_uw)
+void SolveLongStokes(RHState *rh, StokesGrid *sg, LongChar *lc, int local, double *I_uw)
 {
 	/* --- The polarized counterpart of SolveLong: the same points, and
 		   each section integrated with DELO-linear (LongChar_Stokes_Linear)
@@ -110,9 +110,9 @@ void SolveLongStokes(StokesGrid *sg, LongChar *lc, int local, double *I_uw)
 	double *chi = sg->chi, **S = sg->S;
 
 	chi_uw = Interp_2D(chi, &lc->stencil[0], UPWIND);
-	StokesK_2D(sg, &lc->stencil[0], UPWIND, chi_uw, K_uw);
+	StokesK_2D(rh, sg, &lc->stencil[0], UPWIND, chi_uw, K_uw);
 	chi_loc = Interp_2D(chi, &lc->stencil[1], UPWIND);
-	StokesK_2D(sg, &lc->stencil[1], UPWIND, chi_loc, K_loc);
+	StokesK_2D(rh, sg, &lc->stencil[1], UPWIND, chi_loc, K_loc);
 	Interp_Stokes_2D(sg, STOKES_SOURCE, &lc->stencil[0], UPWIND, S_uw);
 	Interp_Stokes_2D(sg, STOKES_INTENSITY, &lc->stencil[0], UPWIND, I_uw);
 	Interp_Stokes_2D(sg, STOKES_SOURCE, &lc->stencil[1], UPWIND, S_loc);
@@ -121,11 +121,11 @@ void SolveLongStokes(StokesGrid *sg, LongChar *lc, int local, double *I_uw)
 	for (ls = 2; ls <= lc->Nlc; ls++) {
 		if (ls == lc->Nlc) {
 			chi_dw = chi[local];
-			if (bezier) StokesK(nspect, local, chi_dw, K_dw);
+			if (bezier) StokesK(rh, nspect, local, chi_dw, K_dw);
 			for (n = 0; n < 4; n++) S_dw[n] = S[n][local];
 		} else {
 			chi_dw = Interp_2D(chi, &lc->stencil[ls], UPWIND);
-			StokesK_2D(sg, &lc->stencil[ls], UPWIND, chi_dw, K_dw);
+			StokesK_2D(rh, sg, &lc->stencil[ls], UPWIND, chi_dw, K_dw);
 			Interp_Stokes_2D(sg, STOKES_SOURCE, &lc->stencil[ls], UPWIND, S_dw);
 		}
 		ds_dw = lc->stencil[ls - 1].ds[UPWIND];

@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
 	/* --- Count the actual number of levels in the energy table -- --- */
 
 	Nl = 0;
-	while (getLine(fp_energy, "=", input, exit_on_EOF = FALSE) != EOF) Nl++;
+	while (getLine(rh, fp_energy, "=", input, exit_on_EOF = FALSE) != EOF) Nl++;
 	atom.Nlevel = MIN(Nlevel + 1, Nl);
 	islp        = (int *) malloc(atom.Nlevel * sizeof(int));
 	ilv         = (int *) malloc(atom.Nlevel * sizeof(int));
@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
 	te = (double *) malloc((atom.Nlevel - 1) * sizeof(double));
 
 	for (i = 0; i < atom.Nlevel - 1; i++) {
-		getLine(fp_energy, "=", input, exit_on_EOF = TRUE);
+		getLine(rh, fp_energy, "=", input, exit_on_EOF = TRUE);
 		ntoken = countTokens(input, " ");
 		switch (ntoken) {
 		case 10:
@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
 	if (lines) {
 		C = 2 * PI * (Q_ELECTRON / EPSILON_0) * (Q_ELECTRON / M_ELECTRON) / CLIGHT;
 
-		while (getLine(fp_lines, "=", input, exit_on_EOF = FALSE) != EOF) {
+		while (getLine(rh, fp_lines, "=", input, exit_on_EOF = FALSE) != EOF) {
 			Nread = sscanf(input, "%d %d %d %d %d %lf %lf",
 						   &i_l, &islp_l, &ilv_l, &jslp_l, &jlv_l, &gf, &fdum);
 			if (Nread != 7) {
@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
 		(AtomicContinuum *) malloc((Nrad - atom.Nline) * sizeof(AtomicContinuum));
 	continuum = atom.continuum;
 	if (readphoto) {
-		while (getLine(fp_photo, "=", input, exit_on_EOF = FALSE) != EOF) {
+		while (getLine(rh, fp_photo, "=", input, exit_on_EOF = FALSE) != EOF) {
 
 			Nread = sscanf(input, "%d %d %d %d %d %lf %d",
 						   &i_p, &nz, &ne, &islp_p, &ilv_p, &Eion, &Nlamb);

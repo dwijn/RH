@@ -20,7 +20,7 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double MolZeemanStr(double Ju, double Mu, double Jl, double Ml);
+double MolZeemanStr(RHState *rh, double Ju, double Mu, double Jl, double Ml);
 double MolLande_a(double Lambda, double Sigma, double Omega, double J);
 double MolLande_b(double Lambda, double S, double N, double J);
 
@@ -28,7 +28,7 @@ double MolLande_b(double Lambda, double S, double N, double J);
 
 /* ------- begin -------------------------- MolZeemanStr.c ---------- */
 
-double MolZeemanStr(double Ju, double Mu, double Jl, double Ml)
+double MolZeemanStr(RHState *rh, double Ju, double Mu, double Jl, double Ml)
 {
 	const char routineName[] = "MolZeemanStr";
 
@@ -150,7 +150,7 @@ double MolLande_b(double Lambda, double S, double N, double J)
 
 /* ------- begin -------------------------- MolLande_eff.c ---------- */
 
-double MolLande_eff(MolecularLine *mrt)
+double MolLande_eff(RHState *rh, MolecularLine *mrt)
 {
 	const char      routineName[] = "MolLande_eff";
 	register double Ml, Mu;
@@ -190,7 +190,7 @@ double MolLande_eff(MolecularLine *mrt)
 		for (Mu = -Ju; Mu <= Ju; Mu++) {
 			if ((Ml - Mu) == 1.0) {
 				shift    = gLl * Ml - gLu * Mu;
-				strength = MolZeemanStr(Ju, Mu, Jl, Ml);
+				strength = MolZeemanStr(rh, Ju, Mu, Jl, Ml);
 
 				g_eff += shift * strength;
 				norm += strength;
@@ -205,7 +205,7 @@ double MolLande_eff(MolecularLine *mrt)
 
 /* ------- begin -------------------------- MolZeeman.c ------------- */
 
-void MolZeeman(MolecularLine *mrt)
+void MolZeeman(RHState *rh, MolecularLine *mrt)
 {
 	const char routineName[] = "MolZeeman";
 
@@ -305,7 +305,7 @@ void MolZeeman(MolecularLine *mrt)
 				if (fabs(Ml - Mu) <= 1.0) {
 					zm->q[n]        = (int) (Ml - Mu);
 					zm->shift[n]    = gLl * Ml - gLu * Mu;
-					zm->strength[n] = MolZeemanStr(Ju, Mu, Jl, Ml);
+					zm->strength[n] = MolZeemanStr(rh, Ju, Mu, Jl, Ml);
 
 					if ((Ml - Mu) == 1)
 						g_eff += zm->strength[n] * zm->shift[n];

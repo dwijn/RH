@@ -33,7 +33,7 @@
 
 /* ------- begin -------------------------- Piece_Stokes_Bezier3_1D.c */
 
-void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
+void Piece_Stokes_Bezier3_1D(RHState *rh, int nspect, int mu, bool_t to_obs,
 							 double *chi, double **S, double **I,
 							 double *Psi)
 {
@@ -128,8 +128,8 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 
 	/* --- Ku, K0 and dKu, dSu -                     ------------------ */
 
-	StokesK(nspect, k_start, chi[k_start], Ku);
-	StokesK(nspect, k_start + dk, chi[k_start + dk], K0);
+	StokesK(rh, nspect, k_start, chi[k_start], Ku);
+	StokesK(rh, nspect, k_start + dk, chi[k_start + dk], K0);
 
 	Svec(k_start, S, Su);
 	Svec(k_start + dk, S, S0);
@@ -173,7 +173,7 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 
 			/* ---- get algebra in place --              ------------------ */
 
-			StokesK(nspect, k + dk, chi[k + dk], Kd);
+			StokesK(rh, nspect, k + dk, chi[k + dk], Kd);
 			Svec(k + dk, S, Sd);
 
 			cent_deriv_mat(dK0, dtau_uw, dtau_dw, Ku, K0, Kd);

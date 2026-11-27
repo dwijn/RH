@@ -51,9 +51,9 @@ void rawAtom(Atom *atom, char *atomFileName)
 	}
 	/* --- Read atom ID and convert to uppercase --      -------------- */
 
-	getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%2s", atom->ID);
-	checkNread(Nread, Nrequired = 1, routineName, checkPoint = 1);
+	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 1);
 	for (n = 0; n < (int) strlen(atom->ID); n++)
 		atom->ID[n] = toupper(atom->ID[n]);
 	if (strlen(atom->ID) == 1) strcat(atom->ID, " ");
@@ -71,10 +71,10 @@ void rawAtom(Atom *atom, char *atomFileName)
 	}
 	/* --- Get Number of levels, lines fixed transitions, and continua  */
 
-	getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%d %d %d %d",
 				   &atom->Nlevel, &atom->Nline, &atom->Ncont, &atom->Nfixed);
-	checkNread(Nread, Nrequired = 4, routineName, checkPoint = 2);
+	checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 2);
 	Nlevel = atom->Nlevel;
 	Nline  = atom->Nline;
 	Ncont  = atom->Ncont;
@@ -90,10 +90,10 @@ void rawAtom(Atom *atom, char *atomFileName)
 
 	for (i = 0; i < Nlevel; i++) {
 		atom->label[i] = (char *) calloc((ATOM_LABEL_WIDTH + 1), sizeof(char));
-		getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%lf %lf '%20c' %d",
 					   &atom->E[i], &atom->g[i], atom->label[i], &atom->stage[i]);
-		checkNread(Nread, Nrequired = 4, routineName, checkPoint = 3);
+		checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 3);
 
 		atom->E[i] *= (HPLANCK * CLIGHT) / CM_TO_M;
 	}
@@ -112,7 +112,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 		line->atom         = atom;
 		line->isotope_frac = 1.0;
 
-		getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine,
 					   "%d %d %lf %s %d %s %lf %lf %s %lf %lf %lf %lf %lf %lf %lf",
 					   &j, &i, &f, shapeStr,
@@ -121,7 +121,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 					   &line->cvdWaals[0], &line->cvdWaals[1],
 					   &line->cvdWaals[2], &line->cvdWaals[3],
 					   &line->Grad, &line->cStark, &line->g_Lande_eff);
-		checkNread(Nread, Nrequired = 15, routineName, checkPoint = 4);
+		checkNread(rh, Nread, Nrequired = 15, routineName, checkPoint = 4);
 		if (Nread == 15) line->g_Lande_eff = 0.0;
 
 		line->j = MAX(i, j);
@@ -163,11 +163,11 @@ void rawAtom(Atom *atom, char *atomFileName)
 		continuum->atom         = atom;
 		continuum->isotope_frac = 1.0;
 
-		getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%d %d %lf %d %s %lf",
 					   &j, &i, &continuum->alpha0, &continuum->Nlambda,
 					   nuDepStr, &lambdamin);
-		checkNread(Nread, Nrequired = 6, routineName, checkPoint = 5);
+		checkNread(rh, Nread, Nrequired = 6, routineName, checkPoint = 5);
 
 		continuum->j = MAX(i, j);
 		continuum->i = MIN(i, j);
@@ -184,10 +184,10 @@ void rawAtom(Atom *atom, char *atomFileName)
 		if (strstr(nuDepStr, "EXPLICIT")) {
 			continuum->hydrogenic = FALSE;
 			for (la = continuum->Nlambda - 1; la >= 0; la--) {
-				getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+				getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 				Nread = sscanf(inputLine, "%lf %lf",
 							   &continuum->lambda[la], &continuum->alpha[la]);
-				checkNread(Nread, Nrequired = 2, routineName, checkPoint = 6);
+				checkNread(rh, Nread, Nrequired = 2, routineName, checkPoint = 6);
 			}
 			for (la = 1; la < continuum->Nlambda; la++) {
 				if (continuum->lambda[la] < continuum->lambda[la - 1]) {
@@ -214,11 +214,11 @@ void rawAtom(Atom *atom, char *atomFileName)
 		for (kf = 0; kf < Nfixed; kf++) {
 			fixed = atom->ft + kf;
 
-			getLine(atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			getLine(rh, atomFile, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 			Nread = sscanf(inputLine, "%d %d %lf %lf %s",
 						   &j, &i, &fixed->strength,
 						   &fixed->Trad, optionStr);
-			checkNread(Nread, Nrequired = 5, routineName, checkPoint = 7);
+			checkNread(rh, Nread, Nrequired = 5, routineName, checkPoint = 7);
 
 			fixed->j = MAX(i, j);
 			fixed->i = MIN(i, j);

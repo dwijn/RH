@@ -25,7 +25,7 @@
 
 /* ------- begin -------------------------- xdr_populations.c ------- */
 
-bool_t xdr_populations(XDR *xdrs, char *atmosID, int Nlevel, int Nspace,
+bool_t xdr_populations(RHState *rh, XDR *xdrs, char *atmosID, int Nlevel, int Nspace,
 					   double *n, double *nstar)
 {
 	const char routineName[] = "xdr_populations";
@@ -89,7 +89,7 @@ bool_t xdr_populations(XDR *xdrs, char *atmosID, int Nlevel, int Nspace,
 
 /* ------- begin -------------------------- writePopulations.c ------ */
 
-void writePopulations(Atom *atom)
+void writePopulations(RHState *rh, Atom *atom)
 {
 	const char routineName[] = "writePopulations";
 
@@ -103,7 +103,7 @@ void writePopulations(Atom *atom)
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
-	if (!xdr_populations(&xdrs, rh->atmos.ID, atom->Nlevel, rh->atmos.Nspace,
+	if (!xdr_populations(rh, &xdrs, rh->atmos.ID, atom->Nlevel, rh->atmos.Nspace,
 						 atom->n[0], atom->nstar[0])) {
 		Error(rh, ERROR_LEVEL_1, routineName, "Unable to write to output file %s",
 			  atom->popsoutFile);
@@ -116,7 +116,7 @@ void writePopulations(Atom *atom)
 
 /* ------- begin -------------------------- readPopulations.c ------- */
 
-void readPopulations(Atom *atom)
+void readPopulations(RHState *rh, Atom *atom)
 {
 	const char routineName[] = "readPopulations";
 
@@ -138,7 +138,7 @@ void readPopulations(Atom *atom)
 	}
 	xdrstdio_create(&xdrs, fp_in, XDR_DECODE);
 
-	if (!xdr_populations(&xdrs, rh->atmos.ID, atom->Nlevel, rh->atmos.Nspace,
+	if (!xdr_populations(rh, &xdrs, rh->atmos.ID, atom->Nlevel, rh->atmos.Nspace,
 						 atom->n[0], NULL)) {
 		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s",
 			  atom->popsinFile);
@@ -150,7 +150,7 @@ void readPopulations(Atom *atom)
 
 /* ------- begin -------------------------- writeMolPops.c ---------- */
 
-void writeMolPops(struct Molecule *molecule)
+void writeMolPops(RHState *rh, struct Molecule *molecule)
 {
 	const char routineName[] = "writeMolPops";
 
@@ -166,7 +166,7 @@ void writeMolPops(struct Molecule *molecule)
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
-	if (!xdr_populations(&xdrs, rh->atmos.ID, molecule->Nv, rh->atmos.Nspace,
+	if (!xdr_populations(rh, &xdrs, rh->atmos.ID, molecule->Nv, rh->atmos.Nspace,
 						 molecule->nv[0], molecule->nvstar[0])) {
 		Error(rh, ERROR_LEVEL_1, routineName, "Unable to write to output file %s",
 			  molecule->popsFile);
@@ -178,7 +178,7 @@ void writeMolPops(struct Molecule *molecule)
 
 /* ------- begin -------------------------- readMolPops.c ----------- */
 
-void readMolPops(struct Molecule *molecule)
+void readMolPops(RHState *rh, struct Molecule *molecule)
 {
 	const char routineName[] = "readMolPops";
 
@@ -198,7 +198,7 @@ void readMolPops(struct Molecule *molecule)
 	}
 	xdrstdio_create(&xdrs, fp_in, XDR_DECODE);
 
-	if (!xdr_populations(&xdrs, rh->atmos.ID, molecule->Nv, rh->atmos.Nspace,
+	if (!xdr_populations(rh, &xdrs, rh->atmos.ID, molecule->Nv, rh->atmos.Nspace,
 						 molecule->nv[0], NULL)) {
 		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s",
 			  molecule->popsFile);

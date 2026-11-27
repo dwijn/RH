@@ -124,10 +124,10 @@ static Slab *slab_new(int Nz, double DX, bool_t uneven)
 		geo->muy[mu] = sqrt(MAX(0.0, 1.0 - SQ(ray_mux[mu]) - SQ(ray_muz[mu])));
 		geo->wmu[mu] = 1.0 / NRAYS;
 	}
-	geo->Itop    = matrix_double(1, NX);
-	geo->Ibottom = matrix_double(1, NX);
+	geo->Itop    = matrix_double(rh, 1, NX);
+	geo->Ibottom = matrix_double(rh, 1, NX);
 
-	fillMesh(geo);
+	fillMesh(rh, geo);
 	return slab;
 }
 
@@ -151,8 +151,8 @@ static void mesh_free(Geometry *geo)
 	}
 	free(geo->stencil);
 	free(geo->longchar);
-	if (geo->Itop != NULL) freeMatrix((void **) geo->Itop);
-	if (geo->Ibottom != NULL) freeMatrix((void **) geo->Ibottom);
+	if (geo->Itop != NULL) freeMatrix(rh, (void **) geo->Itop);
+	if (geo->Ibottom != NULL) freeMatrix(rh, (void **) geo->Ibottom);
 	free(geo->x);
 	free(geo->dx);
 	free(geo->z);
@@ -512,7 +512,7 @@ static void stokes_solve(Slab *slab, double **Sv, double **I, const double s[NPO
 		slab->geo.Itop[0][l]    = 0.0;
 		slab->geo.Ibottom[0][l] = Ib;
 	}
-	Piece_Stokes_Bezier3_2D(&slab->geo, 0, mu, to_obs, slab->chi, Sv, I, NULL);
+	Piece_Stokes_Bezier3_2D(rh, &slab->geo, 0, mu, to_obs, slab->chi, Sv, I, NULL);
 }
 
 /* --- Measured (gcc, x86-64): K' = 0 equal to the unpolarized solver
@@ -541,8 +541,8 @@ static void check_stokes(bool_t verbose)
 
 	for (int r = 0; r < NREFINE; r++)
 		for (int m = 0; m < NMESH; m++) {
-			stokes_S[r][m] = matrix_double(4, NX * slabs[r][m]->Nz);
-			stokes_I[r][m] = matrix_double(4, NX * slabs[r][m]->Nz);
+			stokes_S[r][m] = matrix_double(rh, 4, NX * slabs[r][m]->Nz);
+			stokes_I[r][m] = matrix_double(rh, 4, NX * slabs[r][m]->Nz);
 		}
 
 	for (int mesh = 0; mesh < NMESH; mesh++) {
@@ -765,7 +765,7 @@ static void check_stencils(bool_t verbose)
 		geo.muy[mu] = sqrt(MAX(0.0, 1.0 - SQ(mux[mu]) - SQ(muz[mu])));
 		geo.wmu[mu] = 1.0 / Nrays;
 	}
-	fillMesh(&geo);
+	fillMesh(rh, &geo);
 
 	for (int k = 0; k < Nz; k++)
 		for (int l = 0; l < Nx; l++) {
@@ -892,7 +892,7 @@ static void check_cone(bool_t verbose)
 					slab->geo.Itop[0][l]    = 0.0;
 					slab->geo.Ibottom[0][l] = 1.0;
 				}
-				Piece_Stokes_Bezier3_2D(&slab->geo, 0, mu, to_obs, chi, Sv, I, NULL);
+				Piece_Stokes_Bezier3_2D(rh, &slab->geo, 0, mu, to_obs, chi, Sv, I, NULL);
 				for (int n = 0; n < Nspace; n++) {
 					double p = sqrt(SQ(I[1][n]) + SQ(I[2][n]) + SQ(I[3][n]));
 

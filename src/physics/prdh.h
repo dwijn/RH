@@ -31,10 +31,10 @@ typedef struct {
 	bool_t lo_end, hi_end;
 } PRDhBracket;
 
-double prdhShift(int mu, int to_obs, int k);
-void   prdhBracket(int nspect, double fac, PRDhBracket *b);
-double prdhWeight(const PRDhBracket *b, long idx);
+double prdhShift(RHState *rh, int mu, int to_obs, int k);
+void   prdhBracket(RHState *rh, int nspect, double fac, PRDhBracket *b);
+double prdhWeight(RHState *rh, const PRDhBracket *b, long idx);
 void   prdhRhoWeights(const AtomicLine *line, double lag, int *id0, int *id1, double *frac);
-void   initPRDhTables(void);
+void   initPRDhTables(RHState *rh);
 
 #endif /* !PRDH_H */

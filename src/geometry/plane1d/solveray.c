@@ -62,19 +62,19 @@ int main(int argc, char *argv[])
 	XDR        xdrs;
 	ActiveSet *as;
 
-	setOptions(argc, argv);
-	getCPU(0, TIME_START, NULL);
+	setOptions(rh, argc, argv);
+	getCPU(rh, 0, TIME_START, NULL);
 	SetFPEtraps();
 
 	/* --- Read input data and initialize --             -------------- */
 
-	readInput();
+	readInput(rh);
 	rh->spectrum.updateJ = FALSE;
 
 	/* --- Read input data for atmosphere --             -------------- */
 
-	getCPU(1, TIME_START, NULL);
-	MULTIatmos(&rh->atmos, rh->geometry);
+	getCPU(rh, 1, TIME_START, NULL);
+	MULTIatmos(rh, &rh->atmos, rh->geometry);
 
 	/* --- Read direction cosine for ray --              -------------- */
 
@@ -82,9 +82,9 @@ int main(int argc, char *argv[])
 		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", RAY_INPUT_FILE);
 	}
 
-	getLine(fp_ray, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, fp_ray, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%lf", &muz);
-	checkNread(Nread, Nrequired = 1, argv[0], checkPoint = 1);
+	checkNread(rh, Nread, Nrequired = 1, argv[0], checkPoint = 1);
 
 	if (muz <= 0.0 || muz > 1.0) {
 		Error(rh, ERROR_LEVEL_2, argv[0], "Value of muz = %f does not lie in interval <0.0, 1.0]\n", muz);
@@ -104,15 +104,15 @@ int main(int argc, char *argv[])
 	rh->geometry->mux[0]                  = sqrt(1.0 - SQ(rh->geometry->muz[0]));
 	rh->geometry->muy[0]                  = 0.0;
 	rh->geometry->wmu[0]                  = 1.0;
-	if (rh->atmos.Stokes) Bproject();
+	if (rh->atmos.Stokes) Bproject(rh);
 
 	rh->input.startJ = OLD_J;
 
-	readAtomicModels();
-	readMolecularModels();
-	SortLambda();
+	readAtomicModels(rh);
+	readMolecularModels(rh);
+	SortLambda(rh);
 
-	getBoundary(rh->geometry);
+	getBoundary(rh, rh->geometry);
 
 	/* --- Open file with background opacities --        -------------- */
 
@@ -121,28 +121,28 @@ int main(int argc, char *argv[])
 		/* --- Case of angle-dependent background opacities -- ---------- */
 
 		strcpy(rh->input.background_File, rh->input.background_ray_File);
-		Background(analyze_output = FALSE, equilibria_only = FALSE);
+		Background(rh, analyze_output = FALSE, equilibria_only = FALSE);
 	} else {
-		Background(analyze_output = FALSE, equilibria_only = TRUE);
+		Background(rh, analyze_output = FALSE, equilibria_only = TRUE);
 
 		if ((rh->atmos.fd_background =
 				 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
 			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s",
 				  rh->input.background_File);
 		}
-		readBRS();
+		readBRS(rh);
 	}
-	convertScales(&rh->atmos, rh->geometry);
+	convertScales(rh, &rh->atmos, rh->geometry);
 
-	getProfiles();
-	initSolution();
-	initScatter();
+	getProfiles(rh);
+	initSolution(rh);
+	initScatter(rh);
 
-	getCPU(1, TIME_POLL, "Total initialize");
+	getCPU(rh, 1, TIME_POLL, "Total initialize");
 
 	/* --- Solve radiative transfer equations --         -------------- */
 
-	solveSpectrum(FALSE, FALSE);
+	solveSpectrum(rh, FALSE, FALSE);
 
 	/* --- Write emergent spectrum to output file --     -------------- */
 
@@ -188,13 +188,13 @@ int main(int argc, char *argv[])
 		   written out for the specified direction --    -------------- */
 
 	Nread = fscanf(fp_ray, "%d", &Nspect);
-	checkNread(Nread, 1, argv[0], checkPoint = 2);
+	checkNread(rh, Nread, 1, argv[0], checkPoint = 2);
 
 	if (Nspect > 0) {
 		wave_index = (int *) malloc(Nspect * sizeof(int));
 		Nread      = 0;
 		while (fscanf(fp_ray, "%d", &wave_index[Nread]) != EOF) Nread++;
-		checkNread(Nread, Nspect, argv[0], checkPoint = 3);
+		checkNread(rh, Nread, Nspect, argv[0], checkPoint = 3);
 		fclose(fp_ray);
 
 		chi = (double *) malloc(rh->atmos.Nspace * sizeof(double));
@@ -224,12 +224,12 @@ int main(int argc, char *argv[])
 				wave_index[n], rh->spectrum.lambda[wave_index[n]]);
 
 		as = &rh->spectrum.as[wave_index[n]];
-		alloc_as(wave_index[n], crosscoupling = FALSE);
-		Opacity(wave_index[n], 0, to_obs = TRUE, initialize = TRUE);
-		readBackground(wave_index[n], 0, to_obs = TRUE);
+		alloc_as(rh, wave_index[n], crosscoupling = FALSE);
+		Opacity(rh, wave_index[n], 0, to_obs = TRUE, initialize = TRUE);
+		readBackground(rh, wave_index[n], 0, to_obs = TRUE);
 
 		if (rh->input.limit_memory) {
-			readJlambda(wave_index[n], J);
+			readJlambda(rh, wave_index[n], J);
 		} else
 			J = rh->spectrum.J[wave_index[n]];
 
@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
 			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write chi and S to file %s", rayFileName);
 		}
 
-		free_as(wave_index[n], crosscoupling = FALSE);
+		free_as(rh, wave_index[n], crosscoupling = FALSE);
 	}
 
 	/* --- If magnetic fields are present or background is polarized --
@@ -274,6 +274,6 @@ int main(int argc, char *argv[])
 
 	xdr_destroy(&xdrs);
 	fclose(fp_out);
-	printTotalCPU();
+	printTotalCPU(rh);
 }
 /* ------- end ---------------------------- solveray.c -------------- */

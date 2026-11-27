@@ -660,7 +660,7 @@ bool_t CH_bf_opac(RHState *rh, double lambda, double *chi, double *eta)
 
 /* ------- begin -------------------------- OHCH_bf_check.c --------- */
 
-void OHCH_bf_check(void)
+void OHCH_bf_check(RHState *rh)
 {
 	const char   routineName[] = "OHCH_bf_check";
 	register int k;

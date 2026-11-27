@@ -83,7 +83,7 @@ static double rel_error(int N, const double *n, const double *p, double ntotal)
 
 static void solve_lu(int N, double **R, int root, double ntotal, double *n)
 {
-	double **A = matrix_double(N, N);
+	double **A = matrix_double(rh, N, N);
 
 	for (int i = 0; i < N; i++) {
 		double diag = 0.0;
@@ -97,8 +97,8 @@ static void solve_lu(int N, double **R, int root, double ntotal, double *n)
 	}
 	n[root] = ntotal;
 	for (int j = 0; j < N; j++) A[root][j] = 1.0;
-	SolveLinearEq(N, A, n, TRUE);
-	freeMatrix((void **) A);
+	SolveLinearEq(rh, N, A, n, TRUE);
+	freeMatrix(rh, (void **) A);
 }
 
 static int argmax(int N, const double *p)
@@ -121,7 +121,7 @@ static void test_random(void)
 
 	for (size_t s = 0; s < sizeof(sizes) / sizeof(sizes[0]); s++) {
 		int      N = sizes[s], ib, jb;
-		double **c = matrix_double(N, N), **R = matrix_double(N, N);
+		double **c = matrix_double(rh, N, N), **R = matrix_double(rh, N, N);
 		double  *p = malloc(N * sizeof(double)), *n = malloc(N * sizeof(double));
 
 		for (int i = 0; i < N; i++) {
@@ -138,8 +138,8 @@ static void test_random(void)
 		CHECK(e <= 4.0e-15, "random N = %d: relative error %.2e", N, e);
 		if (table) printf("  random       N = %2d   GTH %.2e\n", N, e);
 
-		freeMatrix((void **) c);
-		freeMatrix((void **) R);
+		freeMatrix(rh, (void **) c);
+		freeMatrix(rh, (void **) R);
 		free(p);
 		free(n);
 	}
@@ -154,7 +154,7 @@ static void test_groups(void)
 {
 	const int N = 30; /* ten groups of three */
 	int       ib, jb, root;
-	double  **c = matrix_double(N, N), **R = matrix_double(N, N);
+	double  **c = matrix_double(rh, N, N), **R = matrix_double(rh, N, N);
 	double   *p = malloc(N * sizeof(double)), *n = malloc(N * sizeof(double));
 	double    e_gth, e_lu;
 
@@ -182,8 +182,8 @@ static void test_groups(void)
 	CHECK(e_gth <= 4.0e-15, "groups: relative error %.2e", e_gth);
 	if (table) printf("  groups       N = %2d   GTH %.2e   LU %.2e\n", N, e_gth, e_lu);
 
-	freeMatrix((void **) c);
-	freeMatrix((void **) R);
+	freeMatrix(rh, (void **) c);
+	freeMatrix(rh, (void **) R);
 	free(p);
 	free(n);
 }
@@ -197,7 +197,7 @@ static void test_range(void)
 {
 	const int N = 30;
 	int       ib, jb;
-	double  **c = matrix_double(N, N), **R = matrix_double(N, N);
+	double  **c = matrix_double(rh, N, N), **R = matrix_double(rh, N, N);
 	double   *p = malloc(N * sizeof(double)), *n = malloc(N * sizeof(double));
 
 	for (int root = 0; root < N; root += N - 1) {
@@ -215,8 +215,8 @@ static void test_range(void)
 		CHECK(e <= 2.0e-14, "range, root %d: relative error %.2e", root, e);
 		if (table) printf("  range 1e-250 root = %2d   GTH %.2e\n", root, e);
 	}
-	freeMatrix((void **) c);
-	freeMatrix((void **) R);
+	freeMatrix(rh, (void **) c);
+	freeMatrix(rh, (void **) R);
 	free(p);
 	free(n);
 }
@@ -227,7 +227,7 @@ static void test_status(void)
 {
 	const int N = 6;
 	int       ib, jb;
-	double  **R = matrix_double(N, N), n[6], n0[6];
+	double  **R = matrix_double(rh, N, N), n[6], n0[6];
 
 	for (int i = 0; i < N; i++) n0[i] = n[i] = i + 1.0;
 
@@ -258,7 +258,7 @@ static void test_status(void)
 	st = SolveGTH(1, R, 0, 3.0, n, &ib, &jb);
 	CHECK(st == GTH_OK && n[0] == 3.0, "N = 1: status %d, n = %g", st, n[0]);
 
-	freeMatrix((void **) R);
+	freeMatrix(rh, (void **) R);
 }
 
 /* --- statEquil with a negative collisional rate -- ---------------- */
@@ -270,15 +270,15 @@ static void test_statequil(void)
 {
 	const int N = 5, Nspace = 2;
 	Atom      atom;
-	double  **c = matrix_double(N, N), **R = matrix_double(N, N);
+	double  **c = matrix_double(rh, N, N), **R = matrix_double(rh, N, N);
 	double    p[5] = {1.0, 0.3, 0.05, 2e-3, 1e-6};
 
 	memset(&atom, 0, sizeof(atom));
 	strcpy(atom.ID, "XX");
 	atom.Nlevel      = N;
-	atom.Gamma       = matrix_double(N * N, Nspace);
-	atom.C           = matrix_double(N * N, Nspace);
-	atom.n           = matrix_double(N, Nspace);
+	atom.Gamma       = matrix_double(rh, N * N, Nspace);
+	atom.C           = matrix_double(rh, N * N, Nspace);
+	atom.n           = matrix_double(rh, N, Nspace);
 	atom.ntotal      = malloc(Nspace * sizeof(double));
 	rh->atmos.Nspace = Nspace;
 
@@ -301,7 +301,7 @@ static void test_statequil(void)
 	atom.C[3 * N + 1][1] = -0.1;
 	atom.Gamma[3 * N + 1][1] += -0.1;
 
-	statEquil(&atom, -1);
+	statEquil(rh, &atom, -1);
 
 	CHECK_CLOSE(atom.n[0][0], p[0] / (p[0] + p[1] + p[2] + p[3] + p[4]),
 				1.0e-14, 0.0, "statEquil GTH, n[0] at k = %d", 0);
@@ -327,11 +327,11 @@ static void test_statequil(void)
 			printf("  statEquil    k = %d   residual %.2e (%s)\n", k, res / scale,
 				   (k == 0) ? "GTH" : "LU");
 	}
-	freeMatrix((void **) c);
-	freeMatrix((void **) R);
-	freeMatrix((void **) atom.Gamma);
-	freeMatrix((void **) atom.C);
-	freeMatrix((void **) atom.n);
+	freeMatrix(rh, (void **) c);
+	freeMatrix(rh, (void **) R);
+	freeMatrix(rh, (void **) atom.Gamma);
+	freeMatrix(rh, (void **) atom.C);
+	freeMatrix(rh, (void **) atom.n);
 	free(atom.ntotal);
 }
 

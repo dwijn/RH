@@ -19,7 +19,7 @@
 
 /* ------- begin -------------------------- StokesK.c --------------- */
 
-void StokesK(int nspect, int k, double chi_I, double K[4][4])
+void StokesK(RHState *rh, int nspect, int k, double chi_I, double K[4][4])
 {
 	register int i, j;
 
@@ -41,7 +41,7 @@ void StokesK(int nspect, int k, double chi_I, double K[4][4])
 	for (j = 0; j < 4; j++)
 		for (i = 0; i < 4; i++) K[j][i] = 0.0;
 
-	if (containsPolarized(as)) {
+	if (containsPolarized(rh, as)) {
 		K[0][1] = as->chi[rh->atmos.Nspace + k];
 		K[0][2] = as->chi[2 * rh->atmos.Nspace + k];
 		K[0][3] = as->chi[3 * rh->atmos.Nspace + k];

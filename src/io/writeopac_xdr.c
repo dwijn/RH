@@ -39,7 +39,7 @@
 
 /* ------- begin -------------------------- writeOpacity.c ---------- */
 
-void writeOpacity(void)
+void writeOpacity(RHState *rh)
 {
 	const char   routineName[] = "writeOpacity";
 	register int nspect, mu;
@@ -71,24 +71,24 @@ void writeOpacity(void)
 	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
 		as = &rh->spectrum.as[nspect];
 
-		if (containsActive(as)) {
-			alloc_as(nspect, crosscoupling = FALSE);
+		if (containsActive(rh, as)) {
+			alloc_as(rh, nspect, crosscoupling = FALSE);
 
 			/* --- Check whether current active set includes a bound-bound
 				   and/or polarized transition and/or angledependent PRD
 				   transition. Otherwise, only angle-independent opacity and
 				   source functions are needed --            -------------- */
 
-			boundbound    = containsBoundBound(as);
-			PRD_angle_dep = (containsPRDline(as) && rh->input.PRD_angle_dep);
-			polarized     = containsPolarized(as);
+			boundbound    = containsBoundBound(rh, as);
+			PRD_angle_dep = (containsPRDline(rh, as) && rh->input.PRD_angle_dep);
+			polarized     = containsPolarized(rh, as);
 
 			/* --- Case of angle-dependent opacity and source function -- - */
 
 			if (polarized || PRD_angle_dep || (rh->atmos.moving && boundbound)) {
 				for (mu = 0; mu < rh->atmos.Nrays; mu++) {
 					initialize = (mu == 0);
-					Opacity(nspect, mu, to_obs = TRUE, initialize);
+					Opacity(rh, nspect, mu, to_obs = TRUE, initialize);
 					result &= xdr_vector(&xdrs, (char *) as->chi, Nspace,
 										 sizeof(double), (xdrproc_t) rh_xdr_double);
 					result &= xdr_vector(&xdrs, (char *) as->eta, Nspace,
@@ -96,7 +96,7 @@ void writeOpacity(void)
 					as_rn[nspect * rh->atmos.Nrays + mu] = ++record;
 				}
 			} else {
-				Opacity(nspect, 0, to_obs = TRUE, initialize = TRUE);
+				Opacity(rh, nspect, 0, to_obs = TRUE, initialize = TRUE);
 				result &= xdr_vector(&xdrs, (char *) as->chi, Nspace,
 									 sizeof(double), (xdrproc_t) rh_xdr_double);
 				result &= xdr_vector(&xdrs, (char *) as->eta, Nspace,
@@ -109,7 +109,7 @@ void writeOpacity(void)
 				} else
 					as_rn[nspect] = ++record;
 			}
-			free_as(nspect, crosscoupling = FALSE);
+			free_as(rh, nspect, crosscoupling = FALSE);
 		} else {
 			if (rh->atmos.moving || rh->atmos.Stokes ||
 				(rh->atmos.NPRDactive > 0 && rh->input.PRD_angle_dep))

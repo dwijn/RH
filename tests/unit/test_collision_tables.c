@@ -48,7 +48,7 @@ static void run_logged(const char *records)
 	CHECK(n < sizeof(text), "%s", "records too long");
 	rh->commandline.logfile = log;
 	fp                      = fmemopen(text, n, "r");
-	CollisionRate(&atom, fp);
+	CollisionRate(rh, &atom, fp);
 	fclose(fp);
 	rh->commandline.logfile = old;
 	fclose(log);
@@ -89,7 +89,7 @@ int main(void)
 	atom.g      = (double *) malloc(NLEVEL * sizeof(double));
 	atom.E      = (double *) malloc(NLEVEL * sizeof(double));
 	atom.stage  = (int *) calloc(NLEVEL, sizeof(int));
-	atom.nstar  = matrix_double(NLEVEL, NT);
+	atom.nstar  = matrix_double(rh, NLEVEL, NT);
 	for (n = 0; n < NLEVEL; n++) {
 		atom.g[n] = g_lev[n];
 		atom.E[n] = E_lev[n];
@@ -97,7 +97,7 @@ int main(void)
 	}
 	memset(&hydrogen, 0, sizeof(hydrogen));
 	hydrogen.Nlevel = 2;
-	hydrogen.n      = matrix_double(2, NT);
+	hydrogen.n      = matrix_double(rh, 2, NT);
 	for (k = 0; k < NT; k++) {
 		hydrogen.n[0][k] = 1.0e20;
 		hydrogen.n[1][k] = 1.0e18;

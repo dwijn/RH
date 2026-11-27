@@ -24,7 +24,7 @@
 
 /* ------- begin -------------------------- ShortChar.c ------------- */
 
-void ShortChar(Geometry *geometry, int nspect, int mu,
+void ShortChar(RHState *rh, Geometry *geometry, int nspect, int mu,
 			   bool_t to_observer, double *chi, double *S,
 			   double *I, double *Psi)
 {
@@ -58,11 +58,11 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 
 				for (m = 0; m < geometry->Ny; m++) {
 					for (l = 0; l < geometry->Nx; l++) {
-						T_uw = Interpolate_3D(rh->atmos.T, geometry, st_uw, l, m);
+						T_uw = Interpolate_3D(rh, rh->atmos.T, geometry, st_uw, l, m);
 						Planck(1, &T_uw, rh->spectrum.lambda[nspect], &Bnu_uw);
 						Planck(1, &rh->atmos.T[local], rh->spectrum.lambda[nspect], &Bnu);
 
-						chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
+						chi_uw  = Interpolate_3D(rh, chi, geometry, st_uw, l, m);
 						dtau_uw = 0.5 * (chi_uw + chi[local]) * st_uw->ds;
 
 						I[local] = Bnu - (Bnu_uw - Bnu) / dtau_uw;
@@ -153,16 +153,16 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 			for (m = mstart; m != mend + dm; m += dm) {
 				for (l = lstart; l != lend + dl; l += dl) {
 					if (st_uw->plane == XZ && m == mstart)
-						I_uw = SolveLong(geometry, st_uw->longchar,
+						I_uw = SolveLong(rh, geometry, st_uw->longchar,
 										 k, l, m, chi, S, I);
 					else
-						I_uw = Interpolate_3D(I, geometry, st_uw, l, m);
+						I_uw = Interpolate_3D(rh, I, geometry, st_uw, l, m);
 
 					if (rh->input.S_interpolation == S_LINEAR) {
-						Piecewise_Linear_3D(geometry, st_uw, st_dw,
+						Piecewise_Linear_3D(rh, geometry, st_uw, st_dw,
 											k, kend, l, m, I_uw, chi, S, I, Psi);
 					} else if (rh->input.S_interpolation == S_BEZIER3) {
-						Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
+						Piecewise_Bezier3_3D(rh, geometry, st_uw, st_dw,
 											 k, kend, l, m, I_uw, chi, S, I, Psi);
 					} else {
 						Error(rh, ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
@@ -177,16 +177,16 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 			for (l = lstart; l != lend + dl; l += dl) {
 				for (m = mstart; m != mend + dm; m += dm) {
 					if (l == lstart)
-						I_uw = SolveLong(geometry, st_uw->longchar,
+						I_uw = SolveLong(rh, geometry, st_uw->longchar,
 										 k, l, m, chi, S, I);
 					else
-						I_uw = Interpolate_3D(I, geometry, st_uw, l, m);
+						I_uw = Interpolate_3D(rh, I, geometry, st_uw, l, m);
 
 					if (rh->input.S_interpolation == S_LINEAR) {
-						Piecewise_Linear_3D(geometry, st_uw, st_dw,
+						Piecewise_Linear_3D(rh, geometry, st_uw, st_dw,
 											k, kend, l, m, I_uw, chi, S, I, Psi);
 					} else if (rh->input.S_interpolation == S_BEZIER3) {
-						Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
+						Piecewise_Bezier3_3D(rh, geometry, st_uw, st_dw,
 											 k, kend, l, m, I_uw, chi, S, I, Psi);
 					} else {
 						Error(rh, ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
@@ -201,7 +201,7 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 
 /* ------- begin -------------------------- Piecewise_Linear_3D.c --- */
 
-void Piecewise_Linear_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
+void Piecewise_Linear_3D(RHState *rh, Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 						 int k, int kend, int l, int m, double I_uw,
 						 double *chi, double *S, double *I, double *Psi)
 {
@@ -215,8 +215,8 @@ void Piecewise_Linear_3D(Geometry *geometry, Stencil *st_uw, Stencil *st_dw,
 
 	/* --- The upwind quantities --                      -------------- */
 
-	chi_uw  = Interpolate_3D(chi, geometry, st_uw, l, m);
-	S_uw    = Interpolate_3D(S, geometry, st_uw, l, m);
+	chi_uw  = Interpolate_3D(rh, chi, geometry, st_uw, l, m);
+	S_uw    = Interpolate_3D(rh, S, geometry, st_uw, l, m);
 	dtau_uw = 0.5 * (chi_uw + chi[local]) * st_uw->ds;
 	dS_uw   = (S_uw - S[local]) / dtau_uw;
 

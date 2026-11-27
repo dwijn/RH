@@ -137,7 +137,7 @@ static void solveStokes_1D(RHState *rh, int nspect, int mu, bool_t to_obs, doubl
 	const char routineName[] = "solveStokes_1D";
 
 	if (rh->input.S_interpolation_stokes == DELO_BEZIER3) {
-		Piece_Stokes_Bezier3_1D(nspect, mu, to_obs, chi, S, I, Psi);
+		Piece_Stokes_Bezier3_1D(rh, nspect, mu, to_obs, chi, S, I, Psi);
 	} else {
 		Error(rh, ERROR_LEVEL_1, routineName, "Unknown polarization solver: %d",
 			  rh->input.S_interpolation_stokes);
@@ -150,7 +150,7 @@ static void solveStokes_1D(RHState *rh, int nspect, int mu, bool_t to_obs, doubl
 static bool_t checkTau_1D(RHState *rh, int nspect, int mu, int to_obs, const double *chi,
 						  enum negtau_quadrature quad)
 {
-	return negTauColumns(nspect, mu, to_obs, rh->atmos.Nspace, 1, chi,
+	return negTauColumns(rh, nspect, mu, to_obs, rh->atmos.Nspace, 1, chi,
 						 rh->geometry->height, rh->geometry->muz[mu], quad);
 }
 /* ------- end ---------------------------- checkTau_1D.c ----------- */

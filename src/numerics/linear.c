@@ -85,7 +85,7 @@ int heightAtUnityTau(int N, const double *tau_ref, const double *z, double *z1)
 	   when tau_ref is not strictly increasing or does not reach
 	   tau_ref = 1. --                                 -------------- */
 
-double zeroPointAtUnityTau(const char *routineName, const char *atmosID,
+double zeroPointAtUnityTau(RHState *rh, const char *routineName, const char *atmosID,
 						   int N, const double *tau_ref, const double *z)
 {
 	double z1 = 0.0;

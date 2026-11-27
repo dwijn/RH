@@ -202,7 +202,7 @@ void Piecewise_Linear_2D(RHState *rh, Geometry *geometry, int nspect, int mu,
 			S_uw    = Interp_2D(S, st, upwind);
 
 			if (geometry->hboundary == PERIODIC && l == lc->lstart && lc->Nlc > 0)
-				I_uw = SolveLong(lc, local, chi, S, I);
+				I_uw = SolveLong(rh, lc, local, chi, S, I);
 			else
 				I_uw = Interp_2D(I, st, upwind);
 

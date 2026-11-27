@@ -43,7 +43,7 @@
 	   sub-iteration, which the PRD_ITER_LIMIT test and the log use;
 	   the damped step is PRD_DAMPING times it), or 0 without old --- */
 
-double PRDDamp(AtomicLine *line, const double *old, long N)
+double PRDDamp(RHState *rh, AtomicLine *line, const double *old, long N)
 {
 	const double  w   = rh->input.PRD_damping;
 	double       *rho = line->rho_prd[0], dmax = 0.0;
@@ -66,7 +66,7 @@ double PRDDamp(AtomicLine *line, const double *old, long N)
 
 /* ------- begin -------------------------- Redistribute.c ---------- */
 
-void Redistribute(int NmaxIter, double iterLimit)
+void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 {
 	const char   routineName[] = "Redistribute";
 	register int kr, nact;
@@ -87,7 +87,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 		for (kr = 0; kr < atom->Nline; kr++) {
 			line = &atom->line[kr];
 			if (line->PRD && line->Ng_prd == NULL) {
-				NlamuL = PRDRhoSize(line);
+				NlamuL = PRDRhoSize(rh, line);
 				if (NlamuL > INT_MAX) {
 					Error(rh, ERROR_LEVEL_2, routineName, "PRD line %d -> %d: %ld values of rho, too many for"
 														  " the Ng acceleration of the PRD iteration",
@@ -95,7 +95,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 				}
 				Nlamu = (int) NlamuL;
 
-				line->Ng_prd = NgInit(Nlamu, rh->input.PRD_Ngdelay,
+				line->Ng_prd = NgInit(rh, Nlamu, rh->input.PRD_Ngdelay,
 									  rh->input.PRD_Ngorder, rh->input.PRD_Ngperiod,
 									  line->rho_prd[0]);
 			}
@@ -120,34 +120,34 @@ void Redistribute(int NmaxIter, double iterLimit)
 						memcpy(old, line->rho_prd[0], (size_t) line->Ng_prd->N * sizeof(double));
 					}
 					if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
-						PRDAngleScatter(line);
+						PRDAngleScatter(rh, line);
 					else
-						PRDScatter(line);
-					dres = PRDDamp(line, old, line->Ng_prd->N);
+						PRDScatter(rh, line);
+					dres = PRDDamp(rh, line, old, line->Ng_prd->N);
 
 					/* --- Damped, the change of rho is PRD_DAMPING times
 						   the residual; the log and the PRD_ITER_LIMIT
 						   test use the residual (N-38) --  -------------- */
 
-					accel = Accelerate(line->Ng_prd, line->rho_prd[0]);
+					accel = Accelerate(rh, line->Ng_prd, line->rho_prd[0]);
 
 					/* --- Stops the run if rho <= 0 or not finite (N-4).
 						   SOLVER = NG has no trial evaluations, so a
 						   FALSE return would be a bug -- ------------- */
 
-					if (!PRDRhoCheck(atom, kr))
+					if (!PRDRhoCheck(rh, atom, kr))
 						Error(rh, ERROR_LEVEL_2, routineName,
 							  "rho of a PRD line is invalid in a trial evaluation");
 					snprintf(label, sizeof(label),
 							 "  PRD: iter #%d, atom %s, line %d,",
 							 line->Ng_prd->count - 1, atom->ID, kr);
 					if (rh->input.PRD_damping == 1.0)
-						drho = MaxChange(line->Ng_prd, label, quiet = FALSE);
+						drho = MaxChange(rh, line->Ng_prd, label, quiet = FALSE);
 					else {
 						/* --- After an accepted Ng step, its jump counts
 							   too (code review) --          -------------- */
 
-						drho = accel ? MAX(dres, MaxChange(line->Ng_prd, label, quiet = TRUE))
+						drho = accel ? MAX(dres, MaxChange(rh, line->Ng_prd, label, quiet = TRUE))
 									 : dres;
 						fprintf(rh->commandline.logfile, "%s delta = %6.4E", label, drho);
 					}
@@ -160,7 +160,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 		}
 		/* --- Solve transfer equation with fixed populations -- -------- */
 
-		solveSpectrum(eval_operator = FALSE, redistribute = TRUE);
+		solveSpectrum(rh, eval_operator = FALSE, redistribute = TRUE);
 
 		if (drhomaxa < iterLimit) break;
 		niter++;

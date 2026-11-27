@@ -47,7 +47,7 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double MolProfile(MolecularLine *mrt, int k, int mu, bool_t to_obs,
+double MolProfile(RHState *rh, MolecularLine *mrt, int k, int mu, bool_t to_obs,
 				  double  lambda,
 				  double *phi_Q, double *phi_U, double *phi_V,
 				  double *psi_Q, double *psi_U, double *psi_V);
@@ -132,7 +132,7 @@ static void addStokesOpacity(int Nspace, double Bijxhc_4PI, double twohnu3_c2,
 
 /* ------- begin -------------------------- Opacity.c --------------- */
 
-void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
+void Opacity(RHState *rh, int nspect, int mu, bool_t to_obs, bool_t initialize)
 {
 	const char   routineName[] = "Opacity";
 	register int k, n, nact;
@@ -169,7 +169,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 	/* --- If polarized transition is present and we solve for polarized
 		   radiation we need to fill all four Stokes components -- ---- */
 
-	if (rh->input.StokesMode == FULL_STOKES && containsPolarized(as)) {
+	if (rh->input.StokesMode == FULL_STOKES && containsPolarized(rh, as)) {
 		NrecStokes = 4;
 
 		chi_Q = as->chi + rh->atmos.Nspace;
@@ -238,7 +238,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 					lamu = 2 * (rh->atmos.Nrays * la + mu) + to_obs;
 
 					if (rh->input.limit_memory) {
-						readProfile(line, lamu, phi);
+						readProfile(rh, line, lamu, phi);
 						if (solveStokes) {
 							phi_Q = phi + rh->atmos.Nspace;
 							phi_U = phi + 2 * rh->atmos.Nspace;
@@ -267,7 +267,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 					}
 				} else {
 					if (rh->input.limit_memory)
-						readProfile(line, la, phi);
+						readProfile(rh, line, la, phi);
 					else
 						phi = line->phi[la];
 				}
@@ -305,7 +305,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 						lamu = 2 * (rh->atmos.Nrays * la + mu) + to_obs;
 						for (k = 0; k < rh->atmos.Nspace; k++) {
 							if (rh->input.prdh_limit_mem)
-								prdhRhoWeights(line, line->lambda[la] * prdhShift(mu, to_obs, k),
+								prdhRhoWeights(line, line->lambda[la] * prdhShift(rh, mu, to_obs, k),
 											   &id0, &id1, &frac);
 							else {
 								id0  = line->id0[lamu][k];
@@ -487,7 +487,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 	   enough. Pooling per wavelength would grow memory as
 	   Nspect * Nspace.  --                            -------------- */
 
-void alloc_as(int nspect, bool_t crosscoupling)
+void alloc_as(RHState *rh, int nspect, bool_t crosscoupling)
 {
 	register int nact;
 
@@ -539,7 +539,7 @@ void alloc_as(int nspect, bool_t crosscoupling)
 
 	/* --- Now for the active part --                    -------------- */
 
-	if (rh->input.StokesMode == FULL_STOKES && containsPolarized(as)) {
+	if (rh->input.StokesMode == FULL_STOKES && containsPolarized(rh, as)) {
 		NrecStokes_as = 4;
 
 		if (rh->input.magneto_optical) {
@@ -591,7 +591,7 @@ void alloc_as(int nspect, bool_t crosscoupling)
 				   shared Gamma is accumulated into directly. --  -------- */
 
 			if (rh->input.Nthreads > 1 && atom->rhth[nt].Gamma == NULL)
-				atom->rhth[nt].Gamma = matrix_double(SQ(atom->Nlevel), rh->atmos.Nspace);
+				atom->rhth[nt].Gamma = matrix_double(rh, SQ(atom->Nlevel), rh->atmos.Nspace);
 
 			/* --- Vij/gij/wla are sized by the number of this atom's
 				   transitions active AT THIS WAVELENGTH, which varies from
@@ -604,13 +604,13 @@ void alloc_as(int nspect, bool_t crosscoupling)
 			Nrt = as->Nactiveatomrt[nact];
 			if (Nrt > atom->rhth[nt].Nrt_alloc) {
 				if (atom->rhth[nt].Nrt_alloc > 0) {
-					freeMatrix((void **) atom->rhth[nt].Vij);
-					freeMatrix((void **) atom->rhth[nt].gij);
-					freeMatrix((void **) atom->rhth[nt].wla);
+					freeMatrix(rh, (void **) atom->rhth[nt].Vij);
+					freeMatrix(rh, (void **) atom->rhth[nt].gij);
+					freeMatrix(rh, (void **) atom->rhth[nt].wla);
 				}
-				atom->rhth[nt].Vij       = matrix_double(Nrt, rh->atmos.Nspace);
-				atom->rhth[nt].gij       = matrix_double(Nrt, rh->atmos.Nspace);
-				atom->rhth[nt].wla       = matrix_double(Nrt, rh->atmos.Nspace);
+				atom->rhth[nt].Vij       = matrix_double(rh, Nrt, rh->atmos.Nspace);
+				atom->rhth[nt].gij       = matrix_double(rh, Nrt, rh->atmos.Nspace);
+				atom->rhth[nt].wla       = matrix_double(rh, Nrt, rh->atmos.Nspace);
 				atom->rhth[nt].Nrt_alloc = Nrt;
 			}
 
@@ -639,18 +639,18 @@ void alloc_as(int nspect, bool_t crosscoupling)
 
 			if (rh->input.Nthreads > 1 && molecule->rhth[nt].Gamma == NULL)
 				molecule->rhth[nt].Gamma =
-					matrix_double(SQ(molecule->Nv), rh->atmos.Nspace);
+					matrix_double(rh, SQ(molecule->Nv), rh->atmos.Nspace);
 
 			Nrt = as->Nactivemolrt[nact];
 			if (Nrt > molecule->rhth[nt].Nrt_alloc) {
 				if (molecule->rhth[nt].Nrt_alloc > 0) {
-					freeMatrix((void **) molecule->rhth[nt].Vij);
-					freeMatrix((void **) molecule->rhth[nt].gij);
-					freeMatrix((void **) molecule->rhth[nt].wla);
+					freeMatrix(rh, (void **) molecule->rhth[nt].Vij);
+					freeMatrix(rh, (void **) molecule->rhth[nt].gij);
+					freeMatrix(rh, (void **) molecule->rhth[nt].wla);
 				}
-				molecule->rhth[nt].Vij       = matrix_double(Nrt, rh->atmos.Nspace);
-				molecule->rhth[nt].gij       = matrix_double(Nrt, rh->atmos.Nspace);
-				molecule->rhth[nt].wla       = matrix_double(Nrt, rh->atmos.Nspace);
+				molecule->rhth[nt].Vij       = matrix_double(rh, Nrt, rh->atmos.Nspace);
+				molecule->rhth[nt].gij       = matrix_double(rh, Nrt, rh->atmos.Nspace);
+				molecule->rhth[nt].wla       = matrix_double(rh, Nrt, rh->atmos.Nspace);
 				molecule->rhth[nt].Nrt_alloc = Nrt;
 			}
 		}
@@ -660,7 +660,7 @@ void alloc_as(int nspect, bool_t crosscoupling)
 
 /* ------- begin -------------------------- free_as.c --------------- */
 
-void free_as(int nspect, bool_t crosscoupling)
+void free_as(RHState *rh, int nspect, bool_t crosscoupling)
 {
 	ActiveSet *as = &rh->spectrum.as[nspect];
 
@@ -677,7 +677,7 @@ void free_as(int nspect, bool_t crosscoupling)
 
 /* ------- begin -------------------------- containsPolarized.c ----- */
 
-bool_t containsPolarized(ActiveSet *as)
+bool_t containsPolarized(RHState *rh, ActiveSet *as)
 {
 	register int n, nact;
 
@@ -697,7 +697,7 @@ bool_t containsPolarized(ActiveSet *as)
 
 /* ------- begin -------------------------- containsBoundBound.c ---- */
 
-bool_t containsBoundBound(ActiveSet *as)
+bool_t containsBoundBound(RHState *rh, ActiveSet *as)
 {
 	register int n, nact;
 
@@ -721,7 +721,7 @@ bool_t containsBoundBound(ActiveSet *as)
 
 /* ------- begin -------------------------- containsActive.c -------- */
 
-bool_t containsActive(ActiveSet *as)
+bool_t containsActive(RHState *rh, ActiveSet *as)
 {
 	register int nact;
 
@@ -741,7 +741,7 @@ bool_t containsActive(ActiveSet *as)
 
 /* ------- begin -------------------------- containsPRDline.c ------- */
 
-bool_t containsPRDline(ActiveSet *as)
+bool_t containsPRDline(RHState *rh, ActiveSet *as)
 {
 	register int n, nact;
 
@@ -820,7 +820,7 @@ void mrt_locate(int N, MolecularLine *lines, double lambda, int *low)
 
 /* ------- begin -------------------------- molecularPrepare.c ----- */
 
-void molecularPrepare(void)
+void molecularPrepare(RHState *rh)
 {
 	register int n, kr, la;
 
@@ -853,7 +853,7 @@ void molecularPrepare(void)
 					ratio = (w < 1.0) ? 1.0 / (1.0 - w) : 1.0E+300;
 					if (mrt->lambda0 / (1.0 + w) <= lamax &&
 						mrt->lambda0 * ratio >= lamin)
-						MolZeeman(mrt);
+						MolZeeman(rh, mrt);
 				}
 			}
 		}
@@ -863,7 +863,7 @@ void molecularPrepare(void)
 
 /* ------- begin -------------------------- MolecularOpacity.c ------ */
 
-flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
+flags MolecularOpacity(RHState *rh, double lambda, int nspect, int mu, bool_t to_obs,
 					   double *chi, double *eta, double *chip)
 {
 	const char routineName[] = "MolecularOpacity";
@@ -959,7 +959,7 @@ flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
 
 						for (k = 0; k < rh->atmos.Nspace; k++) {
 							if (molecule->n[k] > 0.0) {
-								phi = MolProfile(mrt, k, mu, to_obs, lambda,
+								phi = MolProfile(rh, mrt, k, mu, to_obs, lambda,
 												 &phi_Q, &phi_U, &phi_V,
 												 &psi_Q, &psi_U, &psi_V);
 
@@ -1002,7 +1002,7 @@ flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
 
 /* ------- begin -------------------------- MolProfile.c ------------ */
 
-double MolProfile(MolecularLine *mrt, int k, int mu, bool_t to_obs,
+double MolProfile(RHState *rh, MolecularLine *mrt, int k, int mu, bool_t to_obs,
 				  double  lambda,
 				  double *phi_Q, double *phi_U, double *phi_V,
 				  double *psi_Q, double *psi_U, double *psi_V)
@@ -1021,9 +1021,9 @@ double MolProfile(MolecularLine *mrt, int k, int mu, bool_t to_obs,
 	v     = (lambda / mrt->lambda0 - 1.0) * CLIGHT / molecule->vbroad[k];
 	if (rh->atmos.moving) {
 		if (to_obs)
-			v += vproject(k, mu) / molecule->vbroad[k];
+			v += vproject(rh, k, mu) / molecule->vbroad[k];
 		else
-			v -= vproject(k, mu) / molecule->vbroad[k];
+			v -= vproject(rh, k, mu) / molecule->vbroad[k];
 	}
 	sv = 1.0 / (SQRTPI * molecule->vbroad[k]);
 

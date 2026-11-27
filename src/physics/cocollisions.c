@@ -54,7 +54,7 @@
 
 /* ------- begin -------------------------- COcollisions.c ---------- */
 
-void COcollisions(struct Molecule *molecule)
+void COcollisions(RHState *rh, struct Molecule *molecule)
 {
 	const char   routineName[] = "COcollisions";
 	register int k;

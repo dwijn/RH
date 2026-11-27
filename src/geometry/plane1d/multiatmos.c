@@ -38,7 +38,7 @@
 
 /* ------- begin -------------------------- MULTIatmos.c ------------ */
 
-void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
+void MULTIatmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 {
 	const char   routineName[] = "MULTIatmos";
 	register int k, n;
@@ -55,11 +55,11 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 
 	struct stat statBuffer;
 
-	getCPU(2, TIME_START, NULL);
+	getCPU(rh, 2, TIME_START, NULL);
 
 	/* --- Get abundances of background elements --        ------------ */
 
-	readAbundance(atmos);
+	readAbundance(rh, atmos);
 
 	/* --- Open the input file for model atmosphere in MULTI format - - */
 
@@ -86,7 +86,7 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 	/* --- Read atmos ID, scale type, gravity, and number of depth
 		   points --                                       ------------ */
 
-	getLine(atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	if (enhanced_atmos_ID) {
 
 		/* --- Construct atmosID from filename and last modification date */
@@ -102,13 +102,13 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 	} else
 		Nread = sscanf(inputLine, "%s", atmos->ID);
 
-	getLine(atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread += sscanf(inputLine, "%20s", scaleStr);
-	getLine(atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread += sscanf(inputLine, "%lf", &atmos->gravity);
-	getLine(atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread += sscanf(inputLine, "%d", &geometry->Ndep);
-	checkNread(Nread, Nrequired = 4, routineName, checkPoint = 1);
+	checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 1);
 
 	/* --- Keep duplicates of some of the geometrical quantities in
 		   Atmos structure --                            -------------- */
@@ -132,11 +132,11 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 
 	dscale = (double *) malloc(Ndep * sizeof(double));
 	for (k = 0; k < Ndep; k++) {
-		getLine(atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%lf %lf %lf %lf %lf",
 					   &dscale[k], &atmos->T[k], &atmos->ne[k],
 					   &geometry->vel[k], &atmos->vturb[k]);
-		checkNread(Nread, Nrequired = 5, routineName, checkPoint = 2);
+		checkNread(rh, Nread, Nrequired = 5, routineName, checkPoint = 2);
 	}
 
 	switch (toupper(scaleStr[0])) {
@@ -174,23 +174,23 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 	/* --- Get angle-quadrature and copy geometry independent quantity
 		   wmu to atmos structure. --                    -------------- */
 
-	getAngleQuad(geometry);
+	getAngleQuad(rh, geometry);
 	atmos->wmu = geometry->wmu;
 
 	/* --- Magnetic field is read here. --               -------------- */
 
-	atmos->Stokes = readB(atmos);
+	atmos->Stokes = readB(rh, atmos);
 
 	/* --- Read Hydrogen populations if present --       -------------- */
 
-	atmos->nH = matrix_double(atmos->NHydr, Ndep);
+	atmos->nH = matrix_double(rh, atmos->NHydr, Ndep);
 	for (k = 0; k < Ndep; k++) {
-		if (getLine(atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine,
+		if (getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine,
 					exit_on_EOF = FALSE) == EOF) break;
 		Nread = sscanf(inputLine, "%lf %lf %lf %lf %lf %lf",
 					   &atmos->nH[0][k], &atmos->nH[1][k], &atmos->nH[2][k],
 					   &atmos->nH[3][k], &atmos->nH[4][k], &atmos->nH[5][k]);
-		checkNread(Nread, Nrequired = 6, routineName, checkPoint = 3);
+		checkNread(rh, Nread, Nrequired = 6, routineName, checkPoint = 3);
 	}
 	if (k > 0 && k < Ndep) {
 		Error(rh, ERROR_LEVEL_2, routineName, "Reached end of input file %s before all data was read",
@@ -236,13 +236,13 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 		}
 	}
 
-	getCPU(2, TIME_POLL, "Read Atmosphere");
+	getCPU(rh, 2, TIME_POLL, "Read Atmosphere");
 }
 /* ------- end ---------------------------- MULTIatmos.c ------------ */
 
 /* ------- begin -------------------------- convertScales.c --------- */
 
-void convertScales(Atmosphere *atmos, Geometry *geometry)
+void convertScales(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 {
 	register int k;
 
@@ -265,8 +265,8 @@ void convertScales(Atmosphere *atmos, Geometry *geometry)
 	Locate(rh->spectrum.Nspect, rh->spectrum.lambda, atmos->lambda_ref, &ref_index);
 
 	as = &rh->spectrum.as[ref_index];
-	alloc_as(ref_index, FALSE);
-	readBackground(ref_index, 0, 0);
+	alloc_as(rh, ref_index, FALSE);
+	readBackground(rh, ref_index, 0, 0);
 
 	/* --- Convert to missing depth scales --              ------------ */
 
@@ -304,10 +304,10 @@ void convertScales(Atmosphere *atmos, Geometry *geometry)
 		}
 		break;
 	}
-	free_as(ref_index, FALSE);
+	free_as(rh, ref_index, FALSE);
 
 	if ((geometry->scale == COLUMN_MASS) || (geometry->scale == TAU500)) {
-		h_zero = zeroPointAtUnityTau("convertScales", atmos->ID, Ndep, tau_ref,
+		h_zero = zeroPointAtUnityTau(rh, "convertScales", atmos->ID, Ndep, tau_ref,
 									 height);
 		for (k = 0; k < Ndep; k++) height[k] = height[k] - h_zero;
 	}
@@ -318,7 +318,7 @@ void convertScales(Atmosphere *atmos, Geometry *geometry)
 
 /* ------- begin -------------------------- getBoundary.c ----------- */
 
-void getBoundary(Geometry *geometry)
+void getBoundary(RHState *rh, Geometry *geometry)
 {
 	const char routineName[] = "getBoundary";
 
@@ -334,7 +334,7 @@ void getBoundary(Geometry *geometry)
 		Message(rh, "\n -- reading irradiance input file: %s\n\n",
 				rh->input.Itop);
 
-		geometry->Itop = matrix_double(rh->spectrum.Nspect, geometry->Nrays);
+		geometry->Itop = matrix_double(rh, rh->spectrum.Nspect, geometry->Nrays);
 
 		/* --- Open input file for irradiation at TOP --     -------------- */
 
@@ -363,7 +363,7 @@ void getBoundary(Geometry *geometry)
 	case ZERO: break;
 	case THERMALIZED: break;
 	case IRRADIATED:
-		geometry->Ibottom = matrix_double(rh->spectrum.Nspect, geometry->Nrays);
+		geometry->Ibottom = matrix_double(rh, rh->spectrum.Nspect, geometry->Nrays);
 
 		/* --- Infalling intensities at BOTTOM should be read here -- --- */
 

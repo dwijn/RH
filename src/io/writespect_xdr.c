@@ -30,7 +30,7 @@
 
 /* ------- begin -------------------------- writeSpectrum.c --------- */
 
-void writeSpectrum(Spectrum *spectrum)
+void writeSpectrum(RHState *rh, Spectrum *spectrum)
 {
 	const char   routineName[] = "writeSpectrum";
 	register int nspect;
@@ -107,7 +107,7 @@ void writeSpectrum(Spectrum *spectrum)
 			return;
 		}
 		for (nspect = 0; nspect < spectrum->Nspect; nspect++)
-			writeJlambda(nspect, spectrum->J[nspect]);
+			writeJlambda(rh, nspect, spectrum->J[nspect]);
 
 		close(spectrum->fd_J);
 
@@ -120,7 +120,7 @@ void writeSpectrum(Spectrum *spectrum)
 				return;
 			}
 			for (nspect = 0; nspect < spectrum->Nspect; nspect++)
-				writeJ20lambda(nspect, spectrum->J20[nspect]);
+				writeJ20lambda(rh, nspect, spectrum->J20[nspect]);
 
 			close(spectrum->fd_J20);
 		}
@@ -129,7 +129,7 @@ void writeSpectrum(Spectrum *spectrum)
 		if (rh->atmos.NPRDactive > 0 &&
 			rh->input.PRD_angle_dep == PRD_ANGLE_APPROX) {
 
-			writeJgas(spectrum->Jgas);
+			writeJgas(rh, spectrum->Jgas);
 		}
 	}
 }
@@ -138,7 +138,7 @@ void writeSpectrum(Spectrum *spectrum)
 
 /* ------- begin -------------------------- freeSpectrum.c ---------- */
 
-void freeSpectrum(Spectrum *spectrum)
+void freeSpectrum(RHState *rh, Spectrum *spectrum)
 {
 	register int nspect, nact;
 
@@ -152,16 +152,16 @@ void freeSpectrum(Spectrum *spectrum)
 		free(spectrum->PRDindex);
 
 	free(spectrum->PRDrow);
-	if (spectrum->Jgas_fixed != NULL) freeMatrix((void **) spectrum->Jgas_fixed);
-	freeMatrix((void **) spectrum->I);
-	freeMatrix((void **) spectrum->J);
+	if (spectrum->Jgas_fixed != NULL) freeMatrix(rh, (void **) spectrum->Jgas_fixed);
+	freeMatrix(rh, (void **) spectrum->I);
+	freeMatrix(rh, (void **) spectrum->J);
 
 	if (rh->atmos.Stokes || rh->input.backgr_pol) {
-		freeMatrix((void **) spectrum->Stokes_Q);
-		freeMatrix((void **) spectrum->Stokes_U);
-		freeMatrix((void **) spectrum->Stokes_V);
+		freeMatrix(rh, (void **) spectrum->Stokes_Q);
+		freeMatrix(rh, (void **) spectrum->Stokes_U);
+		freeMatrix(rh, (void **) spectrum->Stokes_V);
 	}
-	if (rh->input.backgr_pol) freeMatrix((void **) spectrum->J20);
+	if (rh->input.backgr_pol) freeMatrix(rh, (void **) spectrum->J20);
 
 	for (nspect = 0; nspect < spectrum->Nspect; nspect++) {
 		as = &spectrum->as[nspect];

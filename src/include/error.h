@@ -73,8 +73,8 @@ _Noreturn void Error(RHState *rh, enum errorlevel level,
 
 extern RHState *const rh;
 
-void SetExitFlag(int flag);
-int  ExitStatus(void);
+void SetExitFlag(RHState *rh, int flag);
+int  ExitStatus(RHState *rh);
 
 /* --- Problems of the run so far (SetExitFlag), its part of RHState
 	   (rh->error, Q-46) --                            -------------- */

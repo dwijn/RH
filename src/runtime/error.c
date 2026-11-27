@@ -116,14 +116,14 @@ void Error(RHState *rh, enum errorlevel level, const char *routineName,
 
 /* --- Problems of a completed run, see error.h --     -------------- */
 
-void SetExitFlag(int flag)
+void SetExitFlag(RHState *rh, int flag)
 {
 	/* --- Only bits 1-63: higher statuses mean failure -- ---------- */
 
 	rh->error.exitFlags |= (flag & 63);
 }
 
-int ExitStatus(void)
+int ExitStatus(RHState *rh)
 {
 	return rh->error.exitFlags;
 }

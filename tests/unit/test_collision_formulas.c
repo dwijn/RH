@@ -43,8 +43,8 @@
 #include "check.h"
 #include "state.h"
 
-double summers(int i, int j, double nne, struct Atom *atom);
-double fone(double x);
+double summers(RHState *rh, int i, int j, double nne, struct Atom *atom);
+double fone(RHState *rh, double x);
 
 static int in_child = 0;
 
@@ -119,7 +119,7 @@ static void run(const char *records)
 	n = (size_t) snprintf(buf, sizeof(buf), "%sEND\n", records);
 	CHECK(n < sizeof(buf), "records too long");
 	fp = fmemopen(buf, n, "r");
-	CollisionRate(&atom, fp);
+	CollisionRate(rh, &atom, fp);
 	fclose(fp);
 }
 
@@ -220,7 +220,7 @@ static void setup(void)
 	atom.g      = (double *) malloc(NLEVEL * sizeof(double));
 	atom.E      = (double *) calloc(NLEVEL, sizeof(double));
 	atom.stage  = (int *) malloc(NLEVEL * sizeof(int));
-	atom.nstar  = matrix_double(NLEVEL, NT);
+	atom.nstar  = matrix_double(rh, NLEVEL, NT);
 	for (int i = 0; i < NLEVEL; i++) {
 		atom.g[i]     = g_lev[i];
 		atom.stage[i] = stage_lev[i];
@@ -233,7 +233,7 @@ static void setup(void)
 
 	memset(&hydrogen, 0, sizeof(hydrogen));
 	hydrogen.Nlevel = 8;
-	hydrogen.n      = matrix_double(8, NT);
+	hydrogen.n      = matrix_double(rh, 8, NT);
 	for (int i = 0; i < 8; i++)
 		for (int k = 0; k < NT; k++)
 			hydrogen.n[i][k] = (i == 7) ? 3e10 : (i == 5) ? 2e10
@@ -246,9 +246,9 @@ static void setup(void)
 
 static void change_hydrogen(int Nlevel, double n5, double nlast)
 {
-	freeMatrix((void **) hydrogen.n);
+	freeMatrix(rh, (void **) hydrogen.n);
 	hydrogen.Nlevel = Nlevel;
-	hydrogen.n      = matrix_double(Nlevel, NT);
+	hydrogen.n      = matrix_double(rh, Nlevel, NT);
 	for (int i = 0; i < Nlevel; i++)
 		for (int k = 0; k < NT; k++)
 			hydrogen.n[i][k] = (i == Nlevel - 1) ? nlast : (i == 5) ? n5
@@ -283,7 +283,7 @@ int main(int argc, char **argv)
 		CHECK(strstr(logText, "SHULL82 0 3") != NULL && strstr(logText, "s^-1"), "SHULL82 message names the record and the unit");
 		for (int k = 0; k < NT; k++) {
 			double T      = rh->atmos.T[k];
-			double sm     = summers(0, 3, rh->atmos.ne[k], &atom);
+			double sm     = summers(rh, 0, 3, rh->atmos.ne[k], &atom);
 			double expect = sm * 1e-10 / T / sqrt(T) * exp(-1e4 / T) * (1.0 - 3.0 * exp(-1e5 / T));
 			expect        = (expect < 0.0) ? 0.0 : expect * rh->atmos.ne[k] * 1e-6; /* cm3 -> m3 */
 			CHECK(atom.C[0 * NLEVEL + 3][k] >= 0.0, "SHULL82: C[0][3] at T = %g: %g", T, atom.C[0 * NLEVEL + 3][k]);
@@ -361,7 +361,7 @@ int main(int argc, char **argv)
 			{1e5, 9.99990000199994e-6, 1.99988000719952e-10}};
 
 		for (size_t n = 0; n < sizeof(ref) / sizeof(ref[0]); n++) {
-			double x = ref[n][0], f = fone(x), br = 1.0 + x - x * (2.0 + x) * f;
+			double x = ref[n][0], f = fone(rh, x), br = 1.0 + x - x * (2.0 + x) * f;
 
 			CHECK_CLOSE(f, ref[n][1], (x <= 50.0) ? 2e-8 : 1e-15, 0.0, "fone(%g)", x);
 			if (x <= 1000.0)
@@ -494,9 +494,9 @@ int main(int argc, char **argv)
 		CHECK(atom.C[3 * NLEVEL + 0][k] == 0.0 && atom.C[0 * NLEVEL + 3][k] == 0.0, "SHULL82 T_col = 0 at T = %g", rh->atmos.T[k]);
 	CHECK(strlen(logText) == 0, "SHULL82 T_col = 0: %s", logText);
 
-	freeMatrix((void **) hydrogen.n);
-	freeMatrix((void **) atom.nstar);
-	freeMatrix((void **) atom.C);
+	freeMatrix(rh, (void **) hydrogen.n);
+	freeMatrix(rh, (void **) atom.nstar);
+	freeMatrix(rh, (void **) atom.C);
 	free(atom.g);
 	free(atom.E);
 	free(atom.stage);
