@@ -237,10 +237,10 @@ void gcheckRun(RHState *rh, const GCheckOptions *opt)
 
 	N  = stateInit(rh);
 	Nb = stateNblocks(rh);
-	x  = (double *) malloc(N * sizeof(double));
-	xb = (double *) malloc(N * sizeof(double));
-	y1 = (double *) malloc(N * sizeof(double));
-	y2 = (double *) malloc(N * sizeof(double));
+	x  = (double *) mallocOrAbort(N * sizeof(double));
+	xb = (double *) mallocOrAbort(N * sizeof(double));
+	y1 = (double *) mallocOrAbort(N * sizeof(double));
+	y2 = (double *) mallocOrAbort(N * sizeof(double));
 
 	Message(rh, "\ngcheck: state vector of %ld values in %d blocks:",
 			N, Nb);
@@ -285,7 +285,7 @@ void gcheckRun(RHState *rh, const GCheckOptions *opt)
 
 	if (opt->hEcnoise > 0.0) {
 		nf = opt->Necn + 1;
-		p  = (double *) malloc(N * sizeof(double));
+		p  = (double *) mallocOrAbort(N * sizeof(double));
 		f  = matrix_double(rh, nf, N);
 		randomDirection(x, p, N, GCHECK_SEED_P);
 		restrictDirection(rh, p, opt->perturb);
@@ -294,7 +294,7 @@ void gcheckRun(RHState *rh, const GCheckOptions *opt)
 				y2[k] = x[k] + (i - opt->Necn / 2) * opt->hEcnoise * p[k];
 			G_eval(rh, y2, f[i]);
 		}
-		col = (double *) malloc(nf * sizeof(double));
+		col = (double *) mallocOrAbort(nf * sizeof(double));
 		Message(rh, "gcheck: ecnoise, %d points, relative step %.1E:"
 					" per block max and RMS of delta / |G|, components"
 					" with noise / step too small / too large\n",
@@ -329,9 +329,9 @@ void gcheckRun(RHState *rh, const GCheckOptions *opt)
 	/* --- Finite-difference Jacobian products --       -------------- */
 
 	if (opt->fd) {
-		p    = (double *) malloc(N * sizeof(double));
-		D[0] = (double *) malloc(N * sizeof(double));
-		D[1] = (double *) malloc(N * sizeof(double));
+		p    = (double *) mallocOrAbort(N * sizeof(double));
+		D[0] = (double *) mallocOrAbort(N * sizeof(double));
+		D[1] = (double *) mallocOrAbort(N * sizeof(double));
 		randomDirection(x, p, N, GCHECK_SEED_V);
 		restrictDirection(rh, p, opt->perturb);
 		Message(rh, "gcheck: fd, |D(eps) - D(10 eps)| / |D(eps)| per block\n");

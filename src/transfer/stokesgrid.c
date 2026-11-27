@@ -87,7 +87,7 @@ void StokesGrid_init(RHState *rh, StokesGrid *sg, int nspect, int Nspace, double
 	sg->polarizedK      = containsPolarized(rh, as) || rh->atmos.backgrflags[nspect].ispolarized;
 	sg->magneto_optical = sg->polarizedK && rh->input.magneto_optical;
 
-	sg->buffer = (double *) malloc(12 * (size_t) Nspace * sizeof(double));
+	sg->buffer = (double *) mallocOrAbort(12 * (size_t) Nspace * sizeof(double));
 	for (int n = 0; n < 3; n++) {
 		sg->wS[n] = sg->buffer + n * Nspace;
 		sg->wI[n] = sg->buffer + (3 + n) * Nspace;

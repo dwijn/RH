@@ -89,18 +89,18 @@ void fillMesh(RHState *rh, Geometry *geometry)
 
 	/* --- Allocate space for interpolation stencils --  -------------- */
 
-	geometry->stencil = (Stencil **) malloc(Nrays * sizeof(Stencil *));
+	geometry->stencil = (Stencil **) mallocOrAbort(Nrays * sizeof(Stencil *));
 	for (mu = 0; mu < Nrays; mu++) {
-		geometry->stencil[mu] = (Stencil *) malloc(Nx * Nz * sizeof(Stencil));
+		geometry->stencil[mu] = (Stencil *) mallocOrAbort(Nx * Nz * sizeof(Stencil));
 	}
 
 	/* --- If the horizontal boundary conditions are PERIODIC allocate
 		   space for possible long characteristics --    -------------- */
 
 	if (hboundary == PERIODIC) {
-		geometry->longchar = (LongChar **) malloc(Nrays * sizeof(LongChar *));
+		geometry->longchar = (LongChar **) mallocOrAbort(Nrays * sizeof(LongChar *));
 		for (mu = 0; mu < Nrays; mu++)
-			geometry->longchar[mu] = (LongChar *) malloc(2 * Nz * sizeof(LongChar));
+			geometry->longchar[mu] = (LongChar *) mallocOrAbort(2 * Nz * sizeof(LongChar));
 	} else
 		geometry->longchar = NULL;
 
@@ -547,7 +547,7 @@ void fillLongChar(RHState *rh, Geometry *geometry, int mu, int k, enum SC_order 
 		   is solved only in one direction, towards the root. -- ------ */
 
 	lc->Nlc     = count;
-	lc->stencil = (Stencil *) malloc(count * sizeof(Stencil));
+	lc->stencil = (Stencil *) mallocOrAbort(count * sizeof(Stencil));
 
 	/* --- Store the interpolation in the horizontal grid line -- ----- */
 

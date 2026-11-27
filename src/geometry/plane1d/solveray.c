@@ -191,17 +191,17 @@ int main(int argc, char *argv[])
 	checkNread(rh, Nread, 1, argv[0], checkPoint = 2);
 
 	if (Nspect > 0) {
-		wave_index = (int *) malloc(Nspect * sizeof(int));
+		wave_index = (int *) mallocOrAbort(Nspect * sizeof(int));
 		Nread      = 0;
 		while (fscanf(fp_ray, "%d", &wave_index[Nread]) != EOF) Nread++;
 		checkNread(rh, Nread, Nspect, argv[0], checkPoint = 3);
 		fclose(fp_ray);
 
-		chi = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		chi = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 		if (rh->atmos.Stokes)
-			S = (double *) malloc(4 * rh->atmos.Nspace * sizeof(double));
+			S = (double *) mallocOrAbort(4 * rh->atmos.Nspace * sizeof(double));
 		else
-			S = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+			S = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 	}
 	result = xdr_int(&xdrs, &Nspect);
 	if (!result) {
@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
 	/* --- Go through the list of wavelengths --         -------------- */
 
 	if (Nspect > 0 && rh->input.limit_memory)
-		J = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		J = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	for (n = 0; n < Nspect; n++) {
 		if (wave_index[n] < 0 || wave_index[n] >= rh->spectrum.Nspect) {

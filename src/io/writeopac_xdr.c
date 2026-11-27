@@ -65,7 +65,7 @@ void writeOpacity(RHState *rh)
 		Nrecord = rh->atmos.Nrays * rh->spectrum.Nspect;
 	else
 		Nrecord = rh->spectrum.Nspect;
-	as_rn = (int *) malloc(Nrecord * sizeof(int));
+	as_rn = (int *) mallocOrAbort(Nrecord * sizeof(int));
 
 	record = -1;
 	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {

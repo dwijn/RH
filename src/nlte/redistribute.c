@@ -115,7 +115,7 @@ void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 				line = &atom->line[kr];
 				if (line->PRD) {
 					if (rh->input.PRD_damping != 1.0) {
-						old = (double *) realloc(old, (size_t) line->Ng_prd->N * sizeof(double));
+						old = (double *) reallocOrAbort(old, (size_t) line->Ng_prd->N * sizeof(double));
 						memcpy(old, line->rho_prd[0], (size_t) line->Ng_prd->N * sizeof(double));
 					}
 					if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)

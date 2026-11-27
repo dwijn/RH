@@ -106,7 +106,7 @@ bool_t xdr_damping(RHState *rh, XDR *xdrs, Atom *atom)
 		   on import since we do not store adamp in any structure -- -- */
 
 	if (xdrs->x_op == XDR_ENCODE) {
-		adamp = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		adamp = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 		for (kr = 0; kr < atom->Nline; kr++) {
 			if (atom->line[kr].Voigt)

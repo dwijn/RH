@@ -97,8 +97,8 @@ enum GTHStatus SolveGTH(int N, double **R, int root, double ntotal, double *n,
 	/* --- Elimination order: the root first (eliminated last), the
 		   other levels in their own order --            -------------- */
 
-	lev    = (int *) malloc(N * sizeof(int));
-	p      = (double *) malloc(N * sizeof(double));
+	lev    = (int *) mallocOrAbort(N * sizeof(int));
+	p      = (double *) mallocOrAbort(N * sizeof(double));
 	lev[0] = root;
 	for (i = 0, a = 1; i < N; i++)
 		if (i != root) lev[a++] = i;

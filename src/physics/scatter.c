@@ -342,7 +342,7 @@ static void prdBlockSizes(RHState *rh, int kbeg, int kend, int nt, void *arg)
 	(void) rh;
 	(void) nt;
 
-	q_abs = (double *) malloc(XRDline->Nlambda * sizeof(double));
+	q_abs = (double *) mallocOrAbort(XRDline->Nlambda * sizeof(double));
 	for (k = kbeg; k < kend; k++) {
 		prdAbsGrid(job->atom, XRDline, k, q_abs);
 		n = 0;
@@ -377,9 +377,9 @@ static void prdIntegrate(RHState *rh, int kbeg, int kend, int nt, void *arg)
 
 	(void) nt;
 
-	J_k   = (double *) malloc(XRDline->Nlambda * sizeof(double));
-	q_abs = (double *) malloc(XRDline->Nlambda * sizeof(double));
-	W     = (double *) malloc(XRDline->Nlambda * sizeof(double));
+	J_k   = (double *) mallocOrAbort(XRDline->Nlambda * sizeof(double));
+	q_abs = (double *) mallocOrAbort(XRDline->Nlambda * sizeof(double));
+	W     = (double *) mallocOrAbort(XRDline->Nlambda * sizeof(double));
 	prdWindowOpen(&win, job->PRDline, job->initialize, job->blocksize, job->kstart, kbeg, kend);
 
 	for (k = kbeg; k < kend; k++) {
@@ -412,9 +412,9 @@ static void prdIntegrate(RHState *rh, int kbeg, int kend, int nt, void *arg)
 					   Recipes, p. 107, eq. 4.1.12, folded with the
 					   interpolation coefficients and normalized -- --- */
 
-				gw = (double *) realloc(gw, Np * sizeof(double));
-				qp = (double *) realloc(qp, Np * sizeof(double));
-				qu = (double *) realloc(qu, Np * sizeof(double));
+				gw = (double *) reallocOrAbort(gw, Np * sizeof(double));
+				qp = (double *) reallocOrAbort(qp, Np * sizeof(double));
+				qu = (double *) reallocOrAbort(qu, Np * sizeof(double));
 				prdFineGrid(q0, Np, XRDline->symmetric, qp);
 				prdFineGrid(q0, Np, FALSE, qu); /* GII: unfolded grid */
 				gnorm = 0.0;
@@ -484,7 +484,7 @@ void PRDScatter(RHState *rh, AtomicLine *PRDline)
 	else
 		Nsubordinate = 1;
 
-	XRD    = (AtomicLine **) malloc(Nsubordinate * sizeof(AtomicLine *));
+	XRD    = (AtomicLine **) mallocOrAbort(Nsubordinate * sizeof(AtomicLine *));
 	XRD[0] = PRDline;
 	if (rh->input.XRD) {
 		for (kxrd = 0; kxrd < PRDline->Nxrd; kxrd++)
@@ -498,9 +498,9 @@ void PRDScatter(RHState *rh, AtomicLine *PRDline)
 			PRDline->rho_prd[la][k] = 1.0;
 		}
 	}
-	Yj    = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	denom = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	adamp = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	Yj    = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	denom = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	adamp = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 	cDop  = (NM_TO_M * PRDline->lambda0) / (4.0 * PI);
 
 	prdInflow(rh, atom, PRDline, XRD, Nsubordinate, Yj);
@@ -519,7 +519,7 @@ void PRDScatter(RHState *rh, AtomicLine *PRDline)
 	job.initialize = prdOpenFile(rh, PRDline, routineName);
 	job.Yj         = Yj;
 	job.adamp      = adamp;
-	job.kstart     = (off_t *) malloc(rh->atmos.Nspace * sizeof(off_t));
+	job.kstart     = (off_t *) mallocOrAbort(rh->atmos.Nspace * sizeof(off_t));
 
 	/* --- Sizes of the locations' blocks of weights, for each
 		   subordinate line: computed with the weights, kept with the
@@ -527,7 +527,7 @@ void PRDScatter(RHState *rh, AtomicLine *PRDline)
 
 	if (job.initialize) {
 		free(PRDline->prd_block);
-		PRDline->prd_block = (long *) malloc((size_t) Nsubordinate * rh->atmos.Nspace * sizeof(long));
+		PRDline->prd_block = (long *) mallocOrAbort((size_t) Nsubordinate * rh->atmos.Nspace * sizeof(long));
 	}
 
 	/* --- Loop over subordinate lines --                -------------- */
@@ -622,7 +622,7 @@ static void prdAngleBlockSizes(RHState *rh, int kbeg, int kend, int nt, void *ar
 
 	(void) nt;
 
-	v_abs = (double *) malloc((size_t) job->Ndir * line->Nlambda * sizeof(double));
+	v_abs = (double *) mallocOrAbort((size_t) job->Ndir * line->Nlambda * sizeof(double));
 	for (k = kbeg; k < kend; k++) {
 		for (d = 0; d < job->Ndir; d++) prdAngleAbsGrid(job, k, d, v_abs + d * line->Nlambda);
 		n = 0;
@@ -658,10 +658,10 @@ static void prdAngleIntegrate(RHState *rh, int kbeg, int kend, int nt, void *arg
 
 	(void) nt;
 
-	v_abs = (double *) malloc((size_t) job->Ndir * Nl * sizeof(double));
-	W     = (double *) malloc((size_t) job->Ndir * Nl * sizeof(double));
-	m0    = (int *) malloc(job->Ndir * sizeof(int));
-	len   = (int *) malloc(job->Ndir * sizeof(int));
+	v_abs = (double *) mallocOrAbort((size_t) job->Ndir * Nl * sizeof(double));
+	W     = (double *) mallocOrAbort((size_t) job->Ndir * Nl * sizeof(double));
+	m0    = (int *) mallocOrAbort(job->Ndir * sizeof(int));
+	len   = (int *) mallocOrAbort(job->Ndir * sizeof(int));
 	prdWindowOpen(&win, job->PRDline, job->initialize, job->blocksize, job->kstart, kbeg, kend);
 
 	for (k = kbeg; k < kend; k++) {
@@ -694,8 +694,8 @@ static void prdAngleIntegrate(RHState *rh, int kbeg, int kend, int nt, void *arg
 						phi = (rh->atmos.moving || (line->polarizable && rh->input.StokesMode == FULL_STOKES))
 								  ? line->phi[lamu][k]
 								  : line->phi[la][k];
-						rii = (double *) realloc(rii, Np * sizeof(double));
-						vp  = (double *) realloc(vp, Np * sizeof(double));
+						rii = (double *) reallocOrAbort(rii, Np * sizeof(double));
+						vp  = (double *) reallocOrAbort(vp, Np * sizeof(double));
 						prdFineGrid(v0, Np, FALSE, vp);
 						norm = 0.0;
 						for (m = 0; m < Nrow; m++) W[m] = 0.0;
@@ -768,18 +768,18 @@ void PRDAngleScatter(RHState *rh, AtomicLine *PRDline)
 	job.PRDline    = PRDline;
 	job.initialize = prdOpenFile(rh, PRDline, routineName);
 	job.Ndir       = 2 * rh->atmos.Nrays;
-	job.g          = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	job.denom      = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	job.adamp      = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	job.sv         = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	job.g          = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	job.denom      = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	job.adamp      = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	job.sv         = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 	job.v_los      = matrix_double(rh, rh->atmos.Nrays, rh->atmos.Nspace);
-	job.kstart     = (off_t *) malloc(rh->atmos.Nspace * sizeof(off_t));
+	job.kstart     = (off_t *) mallocOrAbort(rh->atmos.Nspace * sizeof(off_t));
 	if (job.initialize) {
 		free(PRDline->prd_block);
-		PRDline->prd_block = (long *) malloc(rh->atmos.Nspace * sizeof(long));
+		PRDline->prd_block = (long *) mallocOrAbort(rh->atmos.Nspace * sizeof(long));
 	}
 	job.blocksize = PRDline->prd_block;
-	Yj            = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	Yj            = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	/* --- Inflow Yj into the upper level and the weight g of the
 		   scattering integral (see prdInflow) --         -------------- */

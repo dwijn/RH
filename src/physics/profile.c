@@ -102,7 +102,7 @@ static void profileWorker(RHState *rh, int kbeg, int kend, int nt, void *arg)
 		/* --- Angle-dependent case, with a ray (mu) and direction
 			   (to_obs) dependent profile --               -------------- */
 
-		v = (double *) malloc((kend - kbeg) * line->Ncomponent * sizeof(double));
+		v = (double *) mallocOrAbort((kend - kbeg) * line->Ncomponent * sizeof(double));
 		for (la = 0; la < line->Nlambda; la++) {
 			for (n = 0; n < line->Ncomponent; n++) {
 				for (k = kbeg; k < kend; k++) {
@@ -294,14 +294,14 @@ void Profile(RHState *rh, AtomicLine *line)
 			for (k = 0; k < rh->atmos.Nspace; k++)
 				line->rho_prd[la][k] = 1.0;
 		}
-		line->Qelast = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		line->Qelast = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 	}
 
 	vbroad = atom->vbroad;
-	adamp  = (double *) calloc(rh->atmos.Nspace, sizeof(double));
+	adamp  = (double *) callocOrAbort(rh->atmos.Nspace, sizeof(double));
 	if (line->Voigt) Damping(rh, line, adamp);
 
-	line->wphi = (double *) calloc(rh->atmos.Nspace, sizeof(double));
+	line->wphi = (double *) callocOrAbort(rh->atmos.Nspace, sizeof(double));
 
 	if (line->polarizable && (rh->input.StokesMode > FIELD_FREE)) {
 		Larmor = (Q_ELECTRON / (4.0 * PI * M_ELECTRON)) * (line->lambda0 * NM_TO_M);
@@ -323,7 +323,7 @@ void Profile(RHState *rh, AtomicLine *line)
 
 		if (line->polarizable && (rh->input.StokesMode == FULL_STOKES)) {
 			NrecStokes = (rh->input.magneto_optical) ? 7 : 4;
-			phi        = (float *) malloc((size_t) NrecStokes * rh->atmos.Nspace * sizeof(float));
+			phi        = (float *) mallocOrAbort((size_t) NrecStokes * rh->atmos.Nspace * sizeof(float));
 
 			/* --- Assign pointers to subarrays of phi --    -------------- */
 
@@ -338,7 +338,7 @@ void Profile(RHState *rh, AtomicLine *line)
 			}
 		} else {
 			NrecStokes = 1;
-			phi        = (float *) malloc(rh->atmos.Nspace * sizeof(float));
+			phi        = (float *) mallocOrAbort(rh->atmos.Nspace * sizeof(float));
 		}
 	} else {
 		if (rh->atmos.moving ||
@@ -366,8 +366,8 @@ void Profile(RHState *rh, AtomicLine *line)
 		/* --- Temporary storage for inner loop variables, vB is the
 			   Zeeman splitting due to the local magnetic field -- ------ */
 
-		vB = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-		sv = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		vB = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+		sv = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 		for (k = 0; k < rh->atmos.Nspace; k++) {
 			vB[k] = Larmor * rh->atmos.B[k] / vbroad[k];
@@ -447,12 +447,12 @@ void MolecularProfile(RHState *rh, MolecularLine *mrt)
 
 	getCPU(rh, 3, TIME_START, NULL);
 
-	mrt->wphi = (double *) calloc(rh->atmos.Nspace, sizeof(double));
-	adamp     = (double *) calloc(rh->atmos.Nspace, sizeof(double));
+	mrt->wphi = (double *) callocOrAbort(rh->atmos.Nspace, sizeof(double));
+	adamp     = (double *) callocOrAbort(rh->atmos.Nspace, sizeof(double));
 	if (mrt->Voigt) MolecularDamping(rh, mrt, adamp);
 
 	if (rh->atmos.moving) {
-		v = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		v = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 		/* --- Store line-of-sight velocity in Doppler units to avoid
 			   having to recompute it for every wavelength -- ----------- */
@@ -470,7 +470,7 @@ void MolecularProfile(RHState *rh, MolecularLine *mrt)
 
 	/* --- Temporary storage for Doppler width scaling -- ------------- */
 
-	sv = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	sv = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 	for (k = 0; k < rh->atmos.Nspace; k++)
 		sv[k] = 1.0 / (SQRTPI * molecule->vbroad[k]);
 

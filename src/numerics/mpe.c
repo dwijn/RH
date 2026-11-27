@@ -68,11 +68,11 @@ bool_t mpeExtrapolate(int K, long N, double **D)
 
 	if (K < 2) return FALSE;
 
-	R     = (double *) calloc((size_t) Kc * Kc, sizeof(double));
-	c     = (double *) calloc(Kc + 1, sizeof(double));
-	a     = (double *) calloc(Kc, sizeof(double));
-	beta  = (double *) calloc(Kc, sizeof(double));
-	alive = (bool_t *) calloc(Kc, sizeof(bool_t));
+	R     = (double *) callocOrAbort((size_t) Kc * Kc, sizeof(double));
+	c     = (double *) callocOrAbort(Kc + 1, sizeof(double));
+	a     = (double *) callocOrAbort(Kc, sizeof(double));
+	beta  = (double *) callocOrAbort(Kc, sizeof(double));
+	alive = (bool_t *) callocOrAbort(Kc, sizeof(bool_t));
 
 	/* --- QR of the columns D_0 .. D_(K-2) in place -- ------------- */
 

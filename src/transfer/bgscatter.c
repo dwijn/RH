@@ -167,13 +167,13 @@ void bgScatterSetup(RHState *rh)
 	/* --- The first sweep iterates every wavelength first -- ------ */
 
 	if (rh->bgscatter.pending == NULL) {
-		rh->bgscatter.pending = (unsigned char *) malloc(rh->spectrum.Nspect);
+		rh->bgscatter.pending = (unsigned char *) mallocOrAbort(rh->spectrum.Nspect);
 		memset(rh->bgscatter.pending, 1, rh->spectrum.Nspect);
-		rh->bgscatter.kappa = (float *) calloc(rh->spectrum.Nspect, sizeof(float));
+		rh->bgscatter.kappa = (float *) callocOrAbort(rh->spectrum.Nspect, sizeof(float));
 	}
 
 	if (geometryOps.bg_linear_fallback(rh) && rh->bgscatter.linear == NULL) {
-		rh->bgscatter.linear = (unsigned char *) calloc(rh->spectrum.Nspect, 1);
+		rh->bgscatter.linear = (unsigned char *) callocOrAbort(rh->spectrum.Nspect, 1);
 		Message(rh, "  with S_INTERPOLATION = S_BEZIER3: wavelengths whose albedo"
 					" exceeds BACKGROUND_LINEAR_ALBEDO = %.2f\n  below vertical"
 					" optical depth BACKGROUND_LINEAR_TAU = %.2f use S_LINEAR"
@@ -196,7 +196,7 @@ static int tridiagSolve(int N, double *lo, double *d, double *up, double *x)
 		   partial pivoting (as LAPACK dgtsv). Overwrites lo, d, up.
 		   Returns FALSE when singular or not finite -- ------------ */
 
-	up2 = (double *) calloc(N, sizeof(double));
+	up2 = (double *) callocOrAbort(N, sizeof(double));
 	for (k = 0; k < N - 1; k++) {
 		if (fabs(d[k]) >= fabs(lo[k + 1])) {
 			if (d[k] == 0.0) {
@@ -464,7 +464,7 @@ int bgScatterIterate(RHState *rh, int Nspace, const double *Jdag, const double *
 		   be Jfs) gets the result. kap: in, the last kappa of this
 		   wavelength (<= 0: none); out, the new one (N-66) -- ---- */
 
-	u    = (double *) malloc(6 * Nspace * sizeof(double));
+	u    = (double *) mallocOrAbort(6 * Nspace * sizeof(double));
 	g    = u + Nspace;
 	work = g + Nspace;
 	memcpy(u, Jdag, Nspace * sizeof(double));
@@ -480,13 +480,13 @@ int bgScatterIterate(RHState *rh, int Nspace, const double *Jdag, const double *
 		free(u);
 		return 0;
 	}
-	un    = (double *) malloc((6 + 4 * KAPPA_PAIRS) * Nspace * sizeof(double));
+	un    = (double *) mallocOrAbort((6 + 4 * KAPPA_PAIRS) * Nspace * sizeof(double));
 	Jn    = un + Nspace;
 	An    = Jn + Nspace;
 	w     = An + 3 * Nspace;
 	hu    = w + Nspace;
 	hf    = hu + KAPPA_PAIRS * Nspace;
-	gamma = (double *) calloc((m > 0) ? m : 1, sizeof(double));
+	gamma = (double *) callocOrAbort((m > 0) ? m : 1, sizeof(double));
 	for (k = 0; k < Nspace; k++) w[k] = (g[k] > 0.0) ? 1.0 / g[k] : 0.0;
 	if (m > 0) {
 		a             = andersonInit(Nspace, m);
@@ -590,7 +590,7 @@ void bgScatterBefore(RHState *rh, int nspect, int Nspace, const double *Jdag,
 		   wavelength is solved by one thread at a time, so its flag
 		   and kappa need no lock --                     -------------- */
 
-	Jfs    = (double *) malloc(5 * Nspace * sizeof(double));
+	Jfs    = (double *) mallocOrAbort(5 * Nspace * sizeof(double));
 	A      = Jfs + Nspace;
 	albedo = A + 3 * Nspace;
 	sweep(rh, ctx, Jdag, Jfs, A, albedo);
@@ -623,7 +623,7 @@ void bgScatterAfter(RHState *rh, int nspect, int Nspace, const double *u,
 	double *g;
 
 	if (rh->bgscatter.pending == NULL) return;
-	g = (double *) malloc(5 * Nspace * sizeof(double)); /* g, work */
+	g = (double *) mallocOrAbort(5 * Nspace * sizeof(double)); /* g, work */
 	precondStep(rh, Nspace, u, Jfs, A, g, g + Nspace);
 	if (errFactor(rh->bgscatter.kappa[nspect], maxAlbedo(Nspace, albedo)) *
 			relChange(Nspace, u, g) >

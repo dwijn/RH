@@ -101,8 +101,8 @@ void distribute_nH(RHState *rh)
 
 		/* --- Find principal quantum number from label --   ------------ */
 
-		quantumNo = (int *) malloc((rh->atmos.H->Nlevel - 1) * sizeof(int));
-		g_total   = (double *) calloc(rh->atmos.NHydr - 1, sizeof(double));
+		quantumNo = (int *) mallocOrAbort((rh->atmos.H->Nlevel - 1) * sizeof(int));
+		g_total   = (double *) callocOrAbort(rh->atmos.NHydr - 1, sizeof(double));
 
 		for (i = 0; i < rh->atmos.H->Nlevel - 1; i++) {
 			sscanf(rh->atmos.H->label[i], "H I %s", config);
@@ -363,7 +363,7 @@ int Gaunt_ff_readTable(const char *fileName, char *errmsg, size_t len)
 				goto done;
 			}
 			Ntot = Ng * Nu;
-			lng  = (double *) malloc(Ntot * sizeof(double));
+			lng  = (double *) mallocOrAbort(Ntot * sizeof(double));
 			field++;
 			continue;
 		case 2:
@@ -670,8 +670,8 @@ int Hminus_bf_readTable(const char *fileName, char *errmsg, size_t len)
 		}
 		if (N == Nmax) {
 			Nmax   = (Nmax == 0) ? 64 : 2 * Nmax;
-			lambda = (double *) realloc(lambda, Nmax * sizeof(double));
-			sigma  = (double *) realloc(sigma, Nmax * sizeof(double));
+			lambda = (double *) reallocOrAbort(lambda, Nmax * sizeof(double));
+			sigma  = (double *) reallocOrAbort(sigma, Nmax * sizeof(double));
 		}
 		lambda[N] = l;
 		sigma[N]  = s;
@@ -908,7 +908,7 @@ static void H2minus_ff_prepare(RHState *rh)
 	double theta;
 
 	atomic_flag_clear(&rh->hydrogen.H2mff_beyond_told);
-	rh->hydrogen.H2mff_theta_index = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	rh->hydrogen.H2mff_theta_index = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		theta = THETA0 / rh->atmos.T[k];
 		if (theta <= thetaFF_H2m[0])
@@ -1064,7 +1064,7 @@ static void H2plus_ff_prepare(RHState *rh)
 	double T;
 
 	atomic_flag_clear(&rh->hydrogen.H2pff_beyond_told);
-	rh->hydrogen.H2pff_temp_index = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	rh->hydrogen.H2pff_temp_index = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		T = rh->atmos.T[k];
 		if (T <= tempFF_H2p[0])

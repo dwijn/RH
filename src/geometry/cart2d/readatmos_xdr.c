@@ -128,7 +128,7 @@ void readAtmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 		   Atmos structure --                            -------------- */
 
 	atmos->Ndim = 2;
-	atmos->N    = (int *) malloc(atmos->Ndim * sizeof(int));
+	atmos->N    = (int *) mallocOrAbort(atmos->Ndim * sizeof(int));
 	atmos->N[0] = geometry->Nx = Nx;
 	atmos->N[1] = geometry->Nz = Nz;
 	atmos->Nspace              = Nspace;
@@ -176,7 +176,7 @@ void readAtmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 
 	/* --- Get increments in x, store and check for monotonicity -- --- */
 
-	geometry->dx = (double *) malloc(Nx * sizeof(double));
+	geometry->dx = (double *) mallocOrAbort(Nx * sizeof(double));
 	result       = xdr_vector(&xdrs, (char *) geometry->dx, Nx,
 							  sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
@@ -191,14 +191,14 @@ void readAtmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 				  l);
 		}
 	}
-	geometry->x    = (double *) malloc(Nx * sizeof(double));
+	geometry->x    = (double *) mallocOrAbort(Nx * sizeof(double));
 	geometry->x[0] = 0.0;
 	for (l = 0; l < Nx - 1; l++)
 		geometry->x[l + 1] = geometry->x[l] + geometry->dx[l];
 
 	/* --- Get vertical grid --                          -------------- */
 
-	geometry->z = (double *) malloc(Nz * sizeof(double));
+	geometry->z = (double *) mallocOrAbort(Nz * sizeof(double));
 	result      = xdr_vector(&xdrs, (char *) geometry->z, Nz,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
@@ -206,7 +206,7 @@ void readAtmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 	}
 	for (k = 0; k < Nz; k++) geometry->z[k] *= KM_TO_M;
 
-	geometry->dz = (double *) malloc(Nz * sizeof(double));
+	geometry->dz = (double *) mallocOrAbort(Nz * sizeof(double));
 	for (k = 0; k < Nz - 1; k++) {
 		geometry->dz[k] = geometry->z[k] - geometry->z[k + 1];
 		if (geometry->dz[k] <= 0.0) {
@@ -219,11 +219,11 @@ void readAtmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 
 	/* --- The atmospheric physics --                      ------------ */
 
-	atmos->T     = (double *) malloc(Nspace * sizeof(double));
-	atmos->ne    = (double *) malloc(Nspace * sizeof(double));
-	atmos->vturb = (double *) malloc(Nspace * sizeof(double));
-	geometry->vx = (double *) malloc(Nspace * sizeof(double));
-	geometry->vz = (double *) malloc(Nspace * sizeof(double));
+	atmos->T     = (double *) mallocOrAbort(Nspace * sizeof(double));
+	atmos->ne    = (double *) mallocOrAbort(Nspace * sizeof(double));
+	atmos->vturb = (double *) mallocOrAbort(Nspace * sizeof(double));
+	geometry->vx = (double *) mallocOrAbort(Nspace * sizeof(double));
+	geometry->vz = (double *) mallocOrAbort(Nspace * sizeof(double));
 
 	/* --- Read quantities from atmosFile --               ------------ */
 
@@ -267,7 +267,7 @@ void readAtmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 	if (!result) {
 		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read hydrogen density from file %s", rh->input.atmos_input);
 	}
-	atmos->nHtot = (double *) calloc(Nspace, sizeof(double));
+	atmos->nHtot = (double *) callocOrAbort(Nspace, sizeof(double));
 	for (n = 0; n < atmos->NHydr; n++) {
 		for (k = 0; k < Nspace; k++) {
 			atmos->nHtot[k] += atmos->nH[n][k];

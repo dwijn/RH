@@ -50,8 +50,8 @@ static void solveHydrostatic(RHState *rh, int NmaxIter, double iterLimit)
 	C2 = rh->atmos.gravity / KBOLTZMANN;
 	if (rh->atmos.Stokes) C3 = 1.0 / (2.0 * MU_0 * KBOLTZMANN);
 
-	F     = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	dFdne = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	F     = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	dFdne = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	/* --- Get the electron fraction F and its numerical derivative.
 		   ne^{met} = F(T, ne) n_H^{tot} --              -------------- */
@@ -72,8 +72,8 @@ static void solveHydrostatic(RHState *rh, int NmaxIter, double iterLimit)
 			   is small but nonzero (N-53) --              -------------- */
 
 		Nhse = 5;
-		f    = (double *) malloc(Nhse * sizeof(double));
-		n_k  = (double *) malloc(Nhse * sizeof(double));
+		f    = (double *) mallocOrAbort(Nhse * sizeof(double));
+		n_k  = (double *) mallocOrAbort(Nhse * sizeof(double));
 		dfdn = matrix_double(rh, Nhse, Nhse);
 
 		/* --- Get the equilibrium constants for hydrogen ionization and

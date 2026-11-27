@@ -231,7 +231,7 @@ void MolZeeman(RHState *rh, MolecularLine *mrt)
 
 	   --                                            -------------- */
 
-	mrt->zm = (ZeemanMultiplet *) malloc(sizeof(ZeemanMultiplet));
+	mrt->zm = (ZeemanMultiplet *) mallocOrAbort(sizeof(ZeemanMultiplet));
 	initZeeman(mrt->zm);
 	zm = mrt->zm;
 
@@ -242,9 +242,9 @@ void MolZeeman(RHState *rh, MolecularLine *mrt)
 			   in the input --                             -------------- */
 
 		zm->Ncomponent = 3;
-		zm->q          = (int *) malloc(3 * sizeof(int));
-		zm->strength   = (double *) malloc(3 * sizeof(double));
-		zm->shift      = (double *) malloc(3 * sizeof(double));
+		zm->q          = (int *) mallocOrAbort(3 * sizeof(int));
+		zm->strength   = (double *) mallocOrAbort(3 * sizeof(double));
+		zm->shift      = (double *) mallocOrAbort(3 * sizeof(double));
 
 		/* --- Normal Zeeman triplet --                    -------------- */
 
@@ -290,9 +290,9 @@ void MolZeeman(RHState *rh, MolecularLine *mrt)
 			for (Mu = -Ju; Mu <= Ju; Mu++)
 				if (fabs(Mu - Ml) <= 1.0) zm->Ncomponent++;
 		}
-		zm->q        = (int *) malloc(zm->Ncomponent * sizeof(int));
-		zm->strength = (double *) malloc(zm->Ncomponent * sizeof(double));
-		zm->shift    = (double *) malloc(zm->Ncomponent * sizeof(double));
+		zm->q        = (int *) mallocOrAbort(zm->Ncomponent * sizeof(int));
+		zm->strength = (double *) mallocOrAbort(zm->Ncomponent * sizeof(double));
+		zm->shift    = (double *) mallocOrAbort(zm->Ncomponent * sizeof(double));
 
 		/* --- Fill the structure and normalize the strengths -- -------- */
 

@@ -110,15 +110,15 @@ void fillMesh(RHState *rh, Geometry *geometry)
 		   structures --                                 -------------- */
 
 	geometry->stencil_uw =
-		(Stencil **) malloc(geometry->Nrays * sizeof(Stencil *));
+		(Stencil **) mallocOrAbort(geometry->Nrays * sizeof(Stencil *));
 	geometry->stencil_dw =
-		(Stencil **) malloc(geometry->Nrays * sizeof(Stencil *));
+		(Stencil **) mallocOrAbort(geometry->Nrays * sizeof(Stencil *));
 
 	for (mu = 0; mu < geometry->Nrays; mu++) {
 		geometry->stencil_uw[mu] =
-			(Stencil *) malloc(geometry->Nz * sizeof(Stencil));
+			(Stencil *) mallocOrAbort(geometry->Nz * sizeof(Stencil));
 		geometry->stencil_dw[mu] =
-			(Stencil *) malloc(geometry->Nz * sizeof(Stencil));
+			(Stencil *) mallocOrAbort(geometry->Nz * sizeof(Stencil));
 	}
 	geometry->Nlongchar = 0;
 
@@ -412,7 +412,7 @@ void setStencil(RHState *rh, Geometry *geometry, int mu, int k, enum direction w
 		/* --- Tabulate the vertical intersects, at distance s from the
 			   local point along the upwind direction --  -------------- */
 
-		vis = (Intersect *) malloc((countYZ + countXZ) * sizeof(Intersect));
+		vis = (Intersect *) mallocOrAbort((countYZ + countXZ) * sizeof(Intersect));
 
 		count = 0;
 		for (l = 0; l < countYZ; l++) {
@@ -453,10 +453,10 @@ void setStencil(RHState *rh, Geometry *geometry, int mu, int k, enum direction w
 		for (n = 1; n < count; n++)
 			if (!(vis[n].s - vis[n - 1].s < smin)) vis[Nvalid++] = vis[n];
 
-		st->longchar = (Longchar *) malloc(sizeof(Longchar));
+		st->longchar = (Longchar *) mallocOrAbort(sizeof(Longchar));
 		lc           = st->longchar;
 		lc->Nst      = Nvalid + 1;
-		lc->stencil  = (Stencil *) malloc(lc->Nst * sizeof(Stencil));
+		lc->stencil  = (Stencil *) mallocOrAbort(lc->Nst * sizeof(Stencil));
 
 		/* --- The first stencil to be stored is the intersection with
 			   the horizontal XY plane, ds is the distance to the first

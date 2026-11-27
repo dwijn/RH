@@ -70,9 +70,9 @@ rh_status parallelFor(RHState *rh, int N, int nthreads, ParallelRange work, void
 
 	size    = (N + nthreads - 1) / nthreads;
 	Nchunk  = (N + size - 1) / size;
-	chunk   = (Chunk *) calloc(Nchunk, sizeof(Chunk));
-	id      = (pthread_t *) malloc(Nchunk * sizeof(pthread_t));
-	started = (bool_t *) calloc(Nchunk, sizeof(bool_t));
+	chunk   = (Chunk *) callocOrAbort(Nchunk, sizeof(Chunk));
+	id      = (pthread_t *) mallocOrAbort(Nchunk * sizeof(pthread_t));
+	started = (bool_t *) callocOrAbort(Nchunk, sizeof(bool_t));
 
 	for (nt = 0; nt < Nchunk; nt++) {
 		chunk[nt].rh    = rh;
@@ -160,9 +160,9 @@ rh_status parallelForDynamic(RHState *rh, int N, int chunk, int nthreads,
 	job.chunk = chunk;
 	atomic_init(&job.next, 0);
 
-	worker  = (DynamicWorker *) malloc(nthreads * sizeof(DynamicWorker));
-	id      = (pthread_t *) malloc(nthreads * sizeof(pthread_t));
-	started = (bool_t *) calloc(nthreads, sizeof(bool_t));
+	worker  = (DynamicWorker *) mallocOrAbort(nthreads * sizeof(DynamicWorker));
+	id      = (pthread_t *) mallocOrAbort(nthreads * sizeof(pthread_t));
+	started = (bool_t *) callocOrAbort(nthreads, sizeof(bool_t));
 
 	for (nt = 0; nt < nthreads; nt++) {
 		worker[nt].job = &job;

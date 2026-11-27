@@ -230,8 +230,8 @@ void Opacity(RHState *rh, int nspect, int mu, bool_t to_obs, bool_t initialize)
 					else
 						Nrecphi = 1;
 
-					phi = (float *) malloc(Nrecphi *
-										   rh->atmos.Nspace * sizeof(float));
+					phi = (float *) mallocOrAbort(Nrecphi *
+												  rh->atmos.Nspace * sizeof(float));
 				}
 
 				if (rh->atmos.moving || solveStokes) {
@@ -502,7 +502,7 @@ void alloc_as(RHState *rh, int nspect, bool_t crosscoupling)
 
 	pthread_mutex_lock(&rh->opacity.as_pool_lock);
 	if (rh->opacity.as_pool == NULL)
-		rh->opacity.as_pool = (AsPool *) calloc(rh->input.Nthreads, sizeof(AsPool));
+		rh->opacity.as_pool = (AsPool *) callocOrAbort(rh->input.Nthreads, sizeof(AsPool));
 	pthread_mutex_unlock(&rh->opacity.as_pool_lock);
 	pool = &rh->opacity.as_pool[nt];
 
@@ -517,7 +517,7 @@ void alloc_as(RHState *rh, int nspect, bool_t crosscoupling)
 
 		if (rh->input.magneto_optical) {
 			if (pool->chip_c == NULL)
-				pool->chip_c = (double *) malloc(3 * rh->atmos.Nspace * sizeof(double));
+				pool->chip_c = (double *) mallocOrAbort(3 * rh->atmos.Nspace * sizeof(double));
 			as->chip_c = pool->chip_c;
 		}
 	} else
@@ -526,12 +526,12 @@ void alloc_as(RHState *rh, int nspect, bool_t crosscoupling)
 	if (NrecStokes > pool->Nrec_c) {
 		free(pool->chi_c);
 		free(pool->eta_c);
-		pool->chi_c  = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
-		pool->eta_c  = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
+		pool->chi_c  = (double *) mallocOrAbort(NrecStokes * rh->atmos.Nspace * sizeof(double));
+		pool->eta_c  = (double *) mallocOrAbort(NrecStokes * rh->atmos.Nspace * sizeof(double));
 		pool->Nrec_c = NrecStokes;
 	}
 	if (pool->sca_c == NULL)
-		pool->sca_c = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		pool->sca_c = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	as->chi_c = pool->chi_c;
 	as->eta_c = pool->eta_c;
@@ -544,7 +544,7 @@ void alloc_as(RHState *rh, int nspect, bool_t crosscoupling)
 
 		if (rh->input.magneto_optical) {
 			if (pool->chip == NULL)
-				pool->chip = (double *) malloc(3 * rh->atmos.Nspace * sizeof(double));
+				pool->chip = (double *) mallocOrAbort(3 * rh->atmos.Nspace * sizeof(double));
 			as->chip = pool->chip;
 		}
 	} else
@@ -553,8 +553,8 @@ void alloc_as(RHState *rh, int nspect, bool_t crosscoupling)
 	if (NrecStokes_as > pool->Nrec_as) {
 		free(pool->chi);
 		free(pool->eta);
-		pool->chi     = (double *) malloc(NrecStokes_as * rh->atmos.Nspace * sizeof(double));
-		pool->eta     = (double *) malloc(NrecStokes_as * rh->atmos.Nspace * sizeof(double));
+		pool->chi     = (double *) mallocOrAbort(NrecStokes_as * rh->atmos.Nspace * sizeof(double));
+		pool->eta     = (double *) mallocOrAbort(NrecStokes_as * rh->atmos.Nspace * sizeof(double));
 		pool->Nrec_as = NrecStokes_as;
 	}
 	as->chi = pool->chi;
@@ -576,8 +576,8 @@ void alloc_as(RHState *rh, int nspect, bool_t crosscoupling)
 
 			if (atom->rhth[nt].eta == NULL)
 				atom->rhth[nt].eta =
-					(double *) malloc((rh->atmos.Stokes ? 4 : 1) * rh->atmos.Nspace *
-									  sizeof(double));
+					(double *) mallocOrAbort((rh->atmos.Stokes ? 4 : 1) * rh->atmos.Nspace *
+											 sizeof(double));
 
 			/* --- Per-thread rate-matrix accumulator. addtoGamma() writes
 				   only here (no locking needed, each thread owns its own
@@ -620,11 +620,11 @@ void alloc_as(RHState *rh, int nspect, bool_t crosscoupling)
 
 			if (crosscoupling && atom->rhth[nt].Uji_down == NULL) {
 				atom->rhth[nt].Uji_down =
-					(double **) calloc(atom->Nlevel, sizeof(double *));
+					(double **) callocOrAbort(atom->Nlevel, sizeof(double *));
 
 				for (i = 0; i < atom->Nlevel; i++) {
 					atom->rhth[nt].Uji_down[i] =
-						(double *) malloc(rh->atmos.Nspace * sizeof(double));
+						(double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 				}
 			}
 		}
@@ -635,7 +635,7 @@ void alloc_as(RHState *rh, int nspect, bool_t crosscoupling)
 		if (as->Nactivemolrt[nact] > 0) {
 			if (molecule->rhth[nt].eta == NULL)
 				molecule->rhth[nt].eta =
-					(double *) malloc(rh->atmos.Nspace * sizeof(double));
+					(double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 			if (rh->input.Nthreads > 1 && molecule->rhth[nt].Gamma == NULL)
 				molecule->rhth[nt].Gamma =

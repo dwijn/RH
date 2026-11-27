@@ -147,7 +147,7 @@ bool_t Metal_bf(RHState *rh, double lambda, int Nmetal, struct Atom *metals,
 					   not for each transition seperately -- ------------ */
 
 					if (expla == NULL) {
-						expla = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+						expla = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 						for (k = 0; k < rh->atmos.Nspace; k++)
 							expla[k] = exp(-hc_kla / rh->atmos.T[k]);
 					}
@@ -189,7 +189,7 @@ bool_t Metal_bf(RHState *rh, double lambda, int Nmetal, struct Atom *metals,
 
 PassiveBBCache *passiveBBCacheCreate(void)
 {
-	return (PassiveBBCache *) calloc(1, sizeof(PassiveBBCache));
+	return (PassiveBBCache *) callocOrAbort(1, sizeof(PassiveBBCache));
 }
 
 void passiveBBCacheFree(PassiveBBCache *cache)
@@ -296,7 +296,7 @@ flags passive_bb(RHState *rh, PassiveBBCache *cache, double lambda, int nspect, 
 						/* --- Create a new entry in the list -- -------------- */
 
 						linelist[*Nlist] =
-							(struct Linelist *) malloc(sizeof(struct Linelist));
+							(struct Linelist *) mallocOrAbort(sizeof(struct Linelist));
 						entry                 = (*Nlist)++;
 						linelist[entry]->line = line;
 
@@ -311,7 +311,7 @@ flags passive_bb(RHState *rh, PassiveBBCache *cache, double lambda, int nspect, 
 
 						if (line->Voigt) {
 							linelist[entry]->adamp =
-								(double *) malloc(rh->atmos.Nspace * sizeof(double));
+								(double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 							Damping(rh, line, linelist[entry]->adamp);
 						} else
 							linelist[entry]->adamp = NULL;

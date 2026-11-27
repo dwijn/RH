@@ -225,7 +225,7 @@ void statEquil(RHState *rh, Atom *atom, int isum)
 		   point by spatial point while depth is normally the fastest
 		   running index --                              -------------- */
 
-	n_k = (double *) malloc(Nlevel * sizeof(double));
+	n_k = (double *) mallocOrAbort(Nlevel * sizeof(double));
 	R   = matrix_double(rh, Nlevel, Nlevel);
 	A   = matrix_double(rh, Nlevel, Nlevel);
 
@@ -267,7 +267,7 @@ void statEquilMolecule(RHState *rh, struct Molecule *molecule, int isum)
 
 	Nlevel = molecule->Nv;
 
-	n_k = (double *) malloc(Nlevel * sizeof(double));
+	n_k = (double *) mallocOrAbort(Nlevel * sizeof(double));
 	R   = matrix_double(rh, Nlevel, Nlevel);
 	A   = matrix_double(rh, Nlevel, Nlevel);
 

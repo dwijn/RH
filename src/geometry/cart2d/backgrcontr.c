@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to read Nlambda from inputfile %s",
 			  CONTR_INPUT_FILE);
 	}
-	lambda = (double *) malloc(Nlambda * sizeof(double));
+	lambda = (double *) mallocOrAbort(Nlambda * sizeof(double));
 	for (n = 0; n < Nlambda; n++) {
 		Nread = fscanf(fp, "%lf", &lambda[n]);
 		if (Nread != 1) {

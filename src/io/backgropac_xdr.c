@@ -81,7 +81,7 @@ void backgrOpac(RHState *rh, int Nlambda, double *lambda)
 
 		getLine(rh, fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		sscanf(inputLine, "%d", &Nfudge);
-		lambda_fudge = (double *) malloc(Nfudge * sizeof(double));
+		lambda_fudge = (double *) mallocOrAbort(Nfudge * sizeof(double));
 		fudge        = matrix_double(rh, 3, Nfudge);
 		for (n = 0; n < Nfudge; n++) {
 			getLine(rh, fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
@@ -95,10 +95,10 @@ void backgrOpac(RHState *rh, int Nlambda, double *lambda)
 
 	/* --- Temporary storage for this routine --         -------------- */
 
-	chi     = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	eta     = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	scatt   = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	thomson = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	chi     = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	eta     = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	scatt   = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	thomson = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	/* --- Check whether He is present among the metals --  ----------- */
 

@@ -70,10 +70,10 @@ void Paschen(RHState *rh, double L, double S, double *E0, double B, Paschenstruc
 		Jb            = Jmax;
 		ps[Mindex].Nj = (int) (Jb - Ja) + 1;
 
-		ps[Mindex].eigenval = (double *) malloc(ps[Mindex].Nj * sizeof(double));
+		ps[Mindex].eigenval = (double *) mallocOrAbort(ps[Mindex].Nj * sizeof(double));
 		ps[Mindex].C        = matrix_double(rh, ps[Mindex].Nj, ps[Mindex].Nj);
 
-		ud = (double *) malloc(ps[Mindex].Nj * sizeof(double));
+		ud = (double *) mallocOrAbort(ps[Mindex].Nj * sizeof(double));
 
 		for (j = 0; j < ps[Mindex].Nj; j++) {
 			J = Ja + j;

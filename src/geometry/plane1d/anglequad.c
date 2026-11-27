@@ -51,10 +51,10 @@ void getAngleQuad(RHState *rh, Geometry *geometry)
 
 	geometry->Nrays = rh->atmos.Nrays;
 
-	geometry->mux = (double *) malloc(geometry->Nrays * sizeof(double));
-	geometry->muy = (double *) malloc(geometry->Nrays * sizeof(double));
-	geometry->muz = (double *) malloc(geometry->Nrays * sizeof(double));
-	geometry->wmu = (double *) malloc(geometry->Nrays * sizeof(double));
+	geometry->mux = (double *) mallocOrAbort(geometry->Nrays * sizeof(double));
+	geometry->muy = (double *) mallocOrAbort(geometry->Nrays * sizeof(double));
+	geometry->muz = (double *) mallocOrAbort(geometry->Nrays * sizeof(double));
+	geometry->wmu = (double *) mallocOrAbort(geometry->Nrays * sizeof(double));
 
 	switch (rh->atmos.angleSet.set) {
 	case SET_VERTICAL:

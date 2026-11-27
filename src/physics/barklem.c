@@ -134,11 +134,11 @@ bool_t readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs)
 		return FALSE;
 	}
 
-	bs->neff1 = (double *) malloc(bs->N1 * sizeof(double));
+	bs->neff1 = (double *) mallocOrAbort(bs->N1 * sizeof(double));
 	for (n = 0; n < bs->N1; n++)
 		bs->neff1[n] = neff1_0 + n * BARKLEM_DELTA_NEFF;
 
-	bs->neff2 = (double *) malloc(bs->N2 * sizeof(double));
+	bs->neff2 = (double *) mallocOrAbort(bs->N2 * sizeof(double));
 	for (n = 0; n < bs->N2; n++)
 		bs->neff2[n] = neff2_0 + n * BARKLEM_DELTA_NEFF;
 

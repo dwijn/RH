@@ -57,15 +57,15 @@ double Feautrier(RHState *rh, int nspect, int mu, double *chi, double *S,
 		   tau0 = 0.0, Bnu[2], zmu, dtau_mid, Iplus, *dtau, *abc, *A1, *C1,
 		   *F, *G, *Q, *Stmp, *ztmp;
 
-	dtau = (double *) malloc(Ndep * sizeof(double));
-	abc  = (double *) malloc(Ndep * sizeof(double));
-	Q    = (double *) malloc(Ndep * sizeof(double));
-	A1   = (double *) malloc(Ndep * sizeof(double));
-	C1   = (double *) malloc(Ndep * sizeof(double));
-	F    = (double *) malloc(Ndep * sizeof(double));
-	G    = (double *) malloc(Ndep * sizeof(double));
-	ztmp = (double *) malloc(Ndep * sizeof(double));
-	Stmp = (double *) malloc(Ndep * sizeof(double));
+	dtau = (double *) mallocOrAbort(Ndep * sizeof(double));
+	abc  = (double *) mallocOrAbort(Ndep * sizeof(double));
+	Q    = (double *) mallocOrAbort(Ndep * sizeof(double));
+	A1   = (double *) mallocOrAbort(Ndep * sizeof(double));
+	C1   = (double *) mallocOrAbort(Ndep * sizeof(double));
+	F    = (double *) mallocOrAbort(Ndep * sizeof(double));
+	G    = (double *) mallocOrAbort(Ndep * sizeof(double));
+	ztmp = (double *) mallocOrAbort(Ndep * sizeof(double));
+	Stmp = (double *) mallocOrAbort(Ndep * sizeof(double));
 
 	zmu = 0.5 / rh->geometry->muz[mu];
 	for (k = 0; k < Ndep - 1; k++) {

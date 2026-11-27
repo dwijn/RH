@@ -95,10 +95,10 @@ void LTEpops(RHState *rh, Atom *atom, bool_t Debeye)
 		c2 = sqrt(8.0 * PI / KBOLTZMANN) *
 			 pow(SQ(Q_ELECTRON) / (4.0 * PI * EPSILON_0), 1.5);
 
-	nDebeye = (int *) calloc(atom->Nlevel, sizeof(int));
-	dZ      = (int *) malloc(atom->Nlevel * sizeof(int));
-	lgi0    = (double *) malloc(atom->Nlevel * sizeof(double));
-	dE      = (double *) malloc(atom->Nlevel * sizeof(double));
+	nDebeye = (int *) callocOrAbort(atom->Nlevel, sizeof(int));
+	dZ      = (int *) mallocOrAbort(atom->Nlevel * sizeof(int));
+	lgi0    = (double *) mallocOrAbort(atom->Nlevel * sizeof(double));
+	dE      = (double *) mallocOrAbort(atom->Nlevel * sizeof(double));
 	for (i = 0; i < atom->Nlevel; i++) {
 		dZ[i]   = atom->stage[i] - atom->stage[0];
 		dE[i]   = atom->E[i] - atom->E[0];
@@ -154,9 +154,9 @@ void LTEpops_elem(RHState *rh, Element *element)
 
 	C1 = (HPLANCK / (2.0 * PI * M_ELECTRON)) * (HPLANCK / KBOLTZMANN);
 
-	lCT_ne = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	Uk     = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	Ukp1   = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	lCT_ne = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	Uk     = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	Ukp1   = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		if (rh->atmos.ne[k] <= 0.0) {

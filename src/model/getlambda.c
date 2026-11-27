@@ -92,7 +92,7 @@ void getLambda(RHState *rh, AtomicLine *line)
 	b = 2.0 * log(y) / (Nlambda - 1);
 	a = line->qwing / (Nlambda - 2.0 + SQ(y));
 
-	q = (double *) malloc(Nlambda * sizeof(double));
+	q = (double *) mallocOrAbort(Nlambda * sizeof(double));
 	for (la = 0; la < Nlambda; la++)
 		q[la] = a * (la + (exp(b * la) - 1.0));
 
@@ -115,7 +115,7 @@ void getLambda(RHState *rh, AtomicLine *line)
 		Locate(Nlambda, q, qB_char / 2.0, &NB);
 		qB_shift = 2 * q[NB];
 
-		q = realloc(q, (Nlambda + 2 * NB) * sizeof(double));
+		q = reallocOrAbort(q, (Nlambda + 2 * NB) * sizeof(double));
 		for (la = NB + 1; la <= 2 * NB; la++)
 			q[la] = qB_shift - a * (2 * NB - la + (exp(b * (2 * NB - la)) - 1.0));
 
@@ -130,12 +130,12 @@ void getLambda(RHState *rh, AtomicLine *line)
 
 	if (line->symmetric) {
 		line->Nlambda = Nlambda;
-		line->lambda  = (double *) malloc(line->Nlambda * sizeof(double));
+		line->lambda  = (double *) mallocOrAbort(line->Nlambda * sizeof(double));
 		for (la = 0; la < line->Nlambda; la++)
 			line->lambda[la] = line->lambda0 + q_to_lambda * q[la];
 	} else {
 		line->Nlambda = (2 * Nlambda - 1) * line->Ncomponent;
-		line->lambda  = (double *) malloc(line->Nlambda * sizeof(double));
+		line->lambda  = (double *) mallocOrAbort(line->Nlambda * sizeof(double));
 
 		for (n = 0; n < line->Ncomponent; n++) {
 			Nmid    = n * (2 * Nlambda - 1) + Nlambda - 1;
@@ -361,7 +361,7 @@ static int mirrorTransition(QuadTransition *T, const SymmetricLine *A, int NA)
 	/* --- The intervals [b, b + 1] that end at the center of a
 		   symmetric line inside T's range --        -------------- */
 
-	gap = (double *) calloc(N, sizeof(double));
+	gap = (double *) callocOrAbort(N, sizeof(double));
 	for (a = 0; a < NA; a++) {
 		i0 = A[a].Nblue - T->Nblue;
 		if (i0 >= 1 && i0 <= N - 1) {
@@ -376,7 +376,7 @@ static int mirrorTransition(QuadTransition *T, const SymmetricLine *A, int NA)
 
 	/* --- Trapezoid over the other intervals --      -------------- */
 
-	w = (double *) calloc(N, sizeof(double));
+	w = (double *) callocOrAbort(N, sizeof(double));
 	for (m = 0; m < N - 1; m++) {
 		if (gap[m]) continue;
 		h = L[m + 1] - L[m];
@@ -427,7 +427,7 @@ int mirrorQuadrature(RHState *rh)
 	for (n = 0; n < rh->atmos.Nactivemol; n++) Nmax += rh->atmos.activemols[n]->Nrt;
 	if (Nmax == 0) return 0;
 
-	A = (SymmetricLine *) malloc(Nmax * sizeof(SymmetricLine));
+	A = (SymmetricLine *) mallocOrAbort(Nmax * sizeof(SymmetricLine));
 	for (n = 0; n < rh->atmos.Nactiveatom; n++) {
 		Atom *atom = rh->atmos.activeatoms[n];
 

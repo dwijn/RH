@@ -41,7 +41,7 @@ bool_t xdr_counted_string(XDR *xdrs, char **p)
 
 	if (!xdr_short(xdrs, &length)) return FALSE;
 	if (!output) {
-		*p           = (char *) malloc((length + 1) * sizeof(char));
+		*p           = (char *) mallocOrAbort((length + 1) * sizeof(char));
 		(*p)[length] = '\0';
 	}
 	return (length ? xdr_string(xdrs, p, length) : TRUE);

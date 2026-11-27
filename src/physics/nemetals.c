@@ -39,7 +39,7 @@ void FMetals(RHState *rh, double *F)
 	double *f_n;
 	Atom   *metal;
 
-	f_n = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	f_n = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 	for (k = 0; k < rh->atmos.Nspace; k++) F[k] = 0.0;
 
 	for (n = 1; n < rh->atmos.Natom; n++) {
@@ -72,9 +72,9 @@ void dFMetals(RHState *rh, double *dFdne)
 
 	/* --- Numerically evaluate the derivative dF/dne -- -------------- */
 
-	neold = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	Fmin  = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	Fplus = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	neold = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	Fmin  = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	Fplus = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	/* --- Store electron densities, evaluate LTE populations for reduced
 		   electron density --                           -------------- */

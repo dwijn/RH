@@ -53,7 +53,7 @@ void writeSpectrum(RHState *rh, Spectrum *spectrum)
 	result &= xdr_int(&xdrs, &spectrum->Nspect);
 
 	if (spectrum->vacuum_to_air) {
-		lambda_air = (double *) malloc(spectrum->Nspect * sizeof(double));
+		lambda_air = (double *) mallocOrAbort(spectrum->Nspect * sizeof(double));
 		vacuum_to_air(spectrum->Nspect, spectrum->lambda, lambda_air);
 		result &= xdr_vector(&xdrs, (char *) lambda_air, spectrum->Nspect,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);

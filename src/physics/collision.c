@@ -533,15 +533,15 @@ static bool_t firstReport(Atom *atom, const char *keyword, int i1, int i2,
 
 	snprintf(key, sizeof(key), "%.20s %d %d %.20s", keyword, i1, i2, what);
 	if (atom->rateReports == NULL)
-		atom->rateReports = (struct RateReports *) calloc(1, sizeof(struct RateReports));
+		atom->rateReports = (struct RateReports *) callocOrAbort(1, sizeof(struct RateReports));
 	rr = atom->rateReports;
 	for (n = 0; n < rr->N; n++)
 		if (!strcmp(rr->key[n], key)) return FALSE;
 	if (rr->N == rr->Nalloc) {
 		rr->Nalloc = (rr->Nalloc == 0) ? 8 : 2 * rr->Nalloc;
-		rr->key    = (char **) realloc(rr->key, rr->Nalloc * sizeof(char *));
+		rr->key    = (char **) reallocOrAbort(rr->key, rr->Nalloc * sizeof(char *));
 	}
-	rr->key[rr->N++] = strdup(key);
+	rr->key[rr->N++] = strdupOrAbort(key);
 	return TRUE;
 }
 
@@ -777,7 +777,7 @@ void CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 	}
 
 	T = coeff = NULL;
-	C         = (double *) malloc(Nspace * sizeof(double));
+	C         = (double *) mallocOrAbort(Nspace * sizeof(double));
 
 	/* --- For safety, initialize to 1, since we don't check whether it
 		   gets set later on --                          -------------- */
@@ -793,7 +793,7 @@ void CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 			/* --- Read temperature grid --                  -------------- */
 
 			Nitem = Ntemp = atoi(strtok(NULL, " "));
-			T             = (double *) realloc(T, Nitem * sizeof(double));
+			T             = (double *) reallocOrAbort(T, Nitem * sizeof(double));
 			for (n = 0, nitem = 0; n < Nitem; n++) {
 				if ((pointer = strtok(NULL, " ")) == NULL) break;
 				nitem += sscanf(pointer, "%lf", T + n);
@@ -815,7 +815,7 @@ void CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 					  atom->ID, keyword, i1, i2);
 			}
 			Nitem = Ntemp;
-			coeff = (double *) realloc(coeff, Nitem * sizeof(double));
+			coeff = (double *) reallocOrAbort(coeff, Nitem * sizeof(double));
 
 			for (n = 0, nitem = 0; n < Nitem; n++) {
 				if ((pointer = strtok(NULL, " ")) == NULL) break;
@@ -835,7 +835,7 @@ void CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 			i2 = atoi(strtok(NULL, " "));
 
 			Nitem = 6;
-			coeff = (double *) realloc(coeff, Nitem * sizeof(double));
+			coeff = (double *) reallocOrAbort(coeff, Nitem * sizeof(double));
 
 			for (n = 0, nitem = 0; n < Nitem; n++) {
 				if ((pointer = strtok(NULL, " ")) == NULL) break;
@@ -854,7 +854,7 @@ void CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 			i2 = atoi(strtok(NULL, " "));
 
 			Nitem    = 1;
-			coeff    = (double *) realloc(coeff, Nitem * sizeof(double));
+			coeff    = (double *) reallocOrAbort(coeff, Nitem * sizeof(double));
 			coeff[0] = atof(strtok(NULL, " "));
 			nitem    = 1;
 
@@ -869,7 +869,7 @@ void CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 			i2 = atoi(strtok(NULL, " "));
 
 			Nitem = 8;
-			coeff = (double *) realloc(coeff, Nitem * sizeof(double));
+			coeff = (double *) reallocOrAbort(coeff, Nitem * sizeof(double));
 
 			for (n = 0, nitem = 0; n < Nitem; n++) {
 				if ((pointer = strtok(NULL, " ")) == NULL) break;

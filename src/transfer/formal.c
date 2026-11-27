@@ -194,12 +194,12 @@ double Formal(RHState *rh, int nspect, bool_t eval_operator, bool_t redistribute
 	/* --- Allocate temporary space --                   -------------- */
 
 	if (bg) {
-		Abg    = (double *) calloc(7 * Nspace, sizeof(double));
+		Abg    = (double *) callocOrAbort(7 * Nspace, sizeof(double));
 		albedo = Abg + 3 * Nspace;
 		Tri    = albedo + Nspace;
 	}
 	if (eval_operator)
-		Psi = (double *) malloc(Nspace * sizeof(double));
+		Psi = (double *) mallocOrAbort(Nspace * sizeof(double));
 	else
 		Psi = NULL;
 
@@ -209,16 +209,16 @@ double Formal(RHState *rh, int nspect, bool_t eval_operator, bool_t redistribute
 		Spol = matrix_double(rh, 4, Nspace);
 		S    = Spol[0];
 	} else {
-		I = (double *) malloc(Nspace * sizeof(double));
-		S = (double *) malloc(Nspace * sizeof(double));
+		I = (double *) mallocOrAbort(Nspace * sizeof(double));
+		S = (double *) mallocOrAbort(Nspace * sizeof(double));
 	}
-	chi = (double *) malloc(Nspace * sizeof(double));
+	chi = (double *) mallocOrAbort(Nspace * sizeof(double));
 
 	/* --- Store current mean intensity, initialize new one to zero - - */
 
-	Jdag = (double *) malloc(Nspace * sizeof(double));
+	Jdag = (double *) mallocOrAbort(Nspace * sizeof(double));
 	if (rh->input.limit_memory) {
-		J = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		J = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 		readJlambda(rh, nspect, Jdag);
 	} else {
 		J = rh->spectrum.J[nspect];
@@ -257,7 +257,7 @@ double Formal(RHState *rh, int nspect, bool_t eval_operator, bool_t redistribute
 		lin = linearChoice(rh, nspect, &bg, &Tri, as);
 	}
 	if (bg && pending && angle_dep) {
-		Jstar = (double *) malloc(Nspace * sizeof(double));
+		Jstar = (double *) mallocOrAbort(Nspace * sizeof(double));
 		bgScatterBefore(rh, nspect, Nspace, Jdag, Jstar, bgSweep, &bgc);
 		Jsrc = Jstar;
 	}
@@ -265,9 +265,9 @@ double Formal(RHState *rh, int nspect, bool_t eval_operator, bool_t redistribute
 	/* --- Store current anisotropy, initialize new one to zero ---- -- */
 
 	if (rh->input.backgr_pol) {
-		J20dag = (double *) malloc(Nspace * sizeof(double));
+		J20dag = (double *) mallocOrAbort(Nspace * sizeof(double));
 		if (rh->input.limit_memory) {
-			J20 = (double *) malloc(Nspace * sizeof(double));
+			J20 = (double *) mallocOrAbort(Nspace * sizeof(double));
 			readJ20lambda(rh, nspect, J20dag);
 		} else {
 			J20 = rh->spectrum.J20[nspect];
@@ -416,7 +416,7 @@ double Formal(RHState *rh, int nspect, bool_t eval_operator, bool_t redistribute
 		if (geometryOps.check_tau(rh, nspect, muslant, -1, chi, quad))
 			goto cleanup;
 		if (bg && pending) {
-			Jstar = (double *) malloc(Nspace * sizeof(double));
+			Jstar = (double *) mallocOrAbort(Nspace * sizeof(double));
 			bgScatterBefore(rh, nspect, Nspace, Jdag, Jstar, bgSweep, &bgc);
 			Jsrc = Jstar;
 		}
