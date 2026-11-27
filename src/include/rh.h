@@ -21,6 +21,8 @@
 #include <rpc/types.h>
 #include <pthread.h>
 
+#include "alloc.h"
+
 /* --- The state of a run (state.h); a parameter of most functions
 	   (Q-49) --                                       -------------- */
 
