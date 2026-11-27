@@ -361,9 +361,14 @@ flowchart LR
 - Non-convergence is reported in `rh_solve_info` (converged, iterations,
   residual, error estimate); the stand-alone program maps it to exit-status
   bit 1 as now.
-- Warnings and messages go through `Error(level, routine, format, ...)`
-  (Q-48) and, from phase 6, to the env's callback (serialized by the
-  env). `messageStr` disappears (Q-48).
+- Messages and warnings go through `Message(rh, format, ...)` and
+  `Warning(rh, routine, format, ...)`, macros over one function,
+  `Log(rh, level, routine, format, ...)`. It formats the message (Q-48)
+  and writes it, from phase 6 to the env's callback (serialized by the
+  env). `Error(rh, level, routine, format, ...)` is for fatal errors
+  only: it prints the message and exits, until the errors return
+  (Q-51). *Agreed 2026-11-26 (Q-49):* a call that reports no error is
+  not named `Error`. `messageStr` is gone (Q-48).
 - *Agreed 2026-11-26:* internal and public functions differ. Only the
   API of §4 has `rh_` names; it checks its arguments, never exits or
   aborts, copies the recorded error into the caller's `rh_error`, and is
