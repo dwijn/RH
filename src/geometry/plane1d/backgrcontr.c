@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 	/* --- Read input data and initialize --             -------------- */
 
 	setOptions(rh, argc, argv);
-	SetFPEtraps();
+	SetFPEtraps(rh);
 
 	readInput(rh);
 	MULTIatmos(rh, &rh->atmos, rh->geometry);

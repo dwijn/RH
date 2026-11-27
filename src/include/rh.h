@@ -93,7 +93,7 @@ enum PRDangle { PRD_ANGLE_AVER = 0,
 
 /* --- Function prototypes --                          -------------- */
 
-void   SetFPEtraps(void);
+void   SetFPEtraps(RHState *rh);
 void   checkNread(RHState *rh, int Nread, int Nrequired, const char *routineName,
 				  int checkPoint);
 void   setOptions(RHState *rh, int argc, char *argv[]);

@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
 
 	setOptions(rh, argc, argv);
 	getCPU(rh, 0, TIME_START, NULL);
-	SetFPEtraps();
+	SetFPEtraps(rh);
 
 	readInput(rh);
 	rh->spectrum.updateJ = TRUE;

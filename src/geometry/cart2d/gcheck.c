@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 	gcheckParse(&argc, argv, &opt);
 	setOptions(rh, argc, argv);
 	getCPU(rh, 0, TIME_START, NULL);
-	SetFPEtraps();
+	SetFPEtraps(rh);
 
 	readInput(rh);
 	if (rh->input.solver != SOLVER_FIXED_POINT) {
