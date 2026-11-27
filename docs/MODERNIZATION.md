@@ -23,8 +23,8 @@ upstream. Newest changes go at the top of the changelog.
 *Status on 2026-11-27.* The work is on the fork
 [dwijn/RH](https://github.com/dwijn/RH), integration branch `modernize`.
 Every change is a pull request, verified against upstream RH (`c95bdf6`)
-or against its base commit. 253 issues are logged; 178 are fixed and 5
-closed without a fix. Of the 70 open, 35 are on the wishlist.
+or against its base commit. 254 issues are logged; 178 are fixed and 5
+closed without a fix. Of the 71 open, 35 are on the wishlist.
 Plan steps 1–4 (crash fixes, build and hygiene, tests, the solver) are
 done: step 4 closed on 2026-11-23, its research items and the parts not
 needed now on the wishlist (§4). The library track (errors that return,
@@ -32,7 +32,7 @@ no globals; from step 7) is in its phase 3, phases 0 to 2 merged;
 then speed and memory.
 
 - **Wrong answers that looked right, also in upstream RH.**
-  - 106 of the problems found also exist upstream (§3.9), and 91 of them
+  - 107 of the problems found also exist upstream (§3.9), and 91 of them
     are fixed here.
   - **Formal solvers:**
     - 2-D and 3-D long characteristics stopped one section short (B-24):
@@ -525,6 +525,7 @@ SOLVER.md S-5, Results.
 | [B-74](https://github.com/dwijn/RH/issues/606) | low | `readAtom` stops on an atom file that does not open with nothing but the file name as its message: "-TERMINATING_ERROR in routine readAtom" and the path, without saying what went wrong. It formatted "Unable to open input file %s" into `messageStr` and then passed the file name to `Error` instead. Q-48 kept the output as it was. A run does not get there: `readAtomicModels` opens the file first in `getAtomID`, which stops with its own message, so `readAtom`'s open fails only if the file goes away between the two (found when the fix's test could not reach it). Also upstream (`readatom.c:87-88`) | `src/io/readatom.c:81` | Code reading for Q-48, 2026-11-26 | fixed (#613) |
 | [B-75](https://github.com/dwijn/RH/issues/607) | low | `waveinfo` reports a wavelength file it could not read as if it had read it: it never checks its read. An empty file gives "Found 0 wavelengths, ranging from 0.000 to 0.000 [nm]" from an uninitialized count, reading outside the array; a file with a count of 5 and two values gives "Found 5 wavelengths" with values never read. The failure was formatted into `messageStr` and never printed; Q-48 kept that. Also upstream (`tools/waveinfo.c:102-105`) | `tools/waveinfo.c:89-98` | Q-48 (icx: `result` set but not used); `waveinfo` run on an empty and a truncated file, 2026-11-26 | fixed (#614) |
 | [B-76](https://github.com/dwijn/RH/issues/611) | low | `waveinfo -full` repeats wavelengths in its listing when their number is not a multiple of 5: rows of five go up to `Nlambda - 5`, and the last row is always the last five, so 7 wavelengths list as 1-5 and 3-7, 12 as 1-5, 6-10 and 8-12. The summary line also says "in vaccuum". Also upstream (`tools/waveinfo.c:115-122`) | `tools/waveinfo.c:108-115` | `waveinfo -full` on 7 and 12 wavelengths while fixing B-75, 2026-11-26 | fixed (#615) |
+| [B-77](https://github.com/dwijn/RH/issues/620) | low | A molecule file whose ID (the first word of its first line) is longer than 10 characters overflows two buffers of `MOLECULE_ID_WIDTH + 1` = 11 bytes, both read with an unbounded `sscanf` `%s`: the static buffer of `getMoleculeID` (an array of its caller after Q-50) and `molecule->ID` in `readMolecule`, which the pointers `popsFile` and `configs` follow in the `Molecule` struct. The atom ID is read with `%2s` and is safe. Also upstream (`readmolecule.c:98,1079`) | `src/io/readmolecule.c:86,1113` | code reading during Q-50, 2026-11-27 | open |
 
 ### 3.2 Numerics and convergence
 
@@ -863,6 +864,7 @@ upstream issue or pull request once filed. Most severe first.
 | [B-74](https://github.com/dwijn/RH/issues/606) | low | `readAtom` stops on an atom file that does not open with the file name as its whole message | [#613](https://github.com/dwijn/RH/pull/613) | — |
 | [B-75](https://github.com/dwijn/RH/issues/607) | low | `waveinfo` reports a wavelength file it could not read as if it had read it (an uninitialized count, values never read) | [#614](https://github.com/dwijn/RH/pull/614) | — |
 | [B-76](https://github.com/dwijn/RH/issues/611) | low | `waveinfo -full` repeats up to four wavelengths in its last row when their number is not a multiple of 5 | [#615](https://github.com/dwijn/RH/pull/615) | — |
+| [B-77](https://github.com/dwijn/RH/issues/620) | low | A molecule ID longer than 10 characters overflows `molecule->ID` and the buffer of `getMoleculeID` (unbounded `sscanf` `%s`) | — | — |
 | [N-54](https://github.com/dwijn/RH/issues/498) | low | The height zero point at τ = 1 is interpolated linearly in τ and silently held at the table end when τ = 1 is outside the atmosphere | [#513](https://github.com/dwijn/RH/pull/513) | — |
 | [N-57](https://github.com/dwijn/RH/issues/501) | low | Feautrier's emergent I⁺ = 2P₀ − I⁻ can be negative with an irradiated top | — | — |
 | [N-58](https://github.com/dwijn/RH/issues/502) | low | The `THERMALIZED` boundary intensity B ∓ ΔB/Δτ can be negative over a thin or steep boundary interval | — | — |
