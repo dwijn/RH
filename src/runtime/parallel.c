@@ -28,8 +28,6 @@
 #include "parallel.h"
 #include "state.h"
 
-extern char messageStr[];
-
 typedef struct {
 	ParallelRange work;
 	void         *arg;

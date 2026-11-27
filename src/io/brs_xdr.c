@@ -28,8 +28,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- writeBRS.c -------------- */
 
 void writeBRS(void)
@@ -40,15 +38,13 @@ void writeBRS(void)
 	XDR   xdrs;
 
 	if ((fp_out = fopen(BRS_DOT_OUT, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open output file %s", BRS_DOT_OUT);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", BRS_DOT_OUT);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
 	if (!xdr_BRS(&xdrs)) {
-		sprintf(messageStr, "Unable to write to output file %s", BRS_DOT_OUT);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to write to output file %s", BRS_DOT_OUT);
 	}
 
 	xdr_destroy(&xdrs);
@@ -66,14 +62,12 @@ void readBRS(void)
 	XDR   xdrs;
 
 	if ((fp_in = fopen(BRS_DOT_OUT, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open input file %s", BRS_DOT_OUT);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s", BRS_DOT_OUT);
 	}
 	xdrstdio_create(&xdrs, fp_in, XDR_DECODE);
 
 	if (!xdr_BRS(&xdrs)) {
-		sprintf(messageStr, "Unable to read from input file %s", BRS_DOT_OUT);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to read from input file %s", BRS_DOT_OUT);
 	}
 
 	xdr_destroy(&xdrs);
@@ -129,10 +123,8 @@ bool_t xdr_BRS(XDR *xdrs)
 
 		result &= xdr_counted_string(xdrs, &atmosID);
 		if (!strstr(atmosID, rh->atmos.ID)) {
-			sprintf(messageStr,
-					"Input was derived from different atmosphere (%s) than current",
-					atmosID);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "Input was derived from different atmosphere (%s) than current",
+				  atmosID);
 		}
 		free(atmosID);
 
@@ -178,10 +170,9 @@ bool_t xdr_BRS(XDR *xdrs)
 		if (result && !((rh->atmos.backgrbytes == sizeof(float)) ||
 						(rh->atmos.backgrbytes == sizeof(double) &&
 						 rh->atmos.backgretaexp == 0))) {
-			sprintf(messageStr, "Unknown format of the background file: %d bytes"
-								" per value, emissivity scale 2^%d",
-					rh->atmos.backgrbytes, rh->atmos.backgretaexp);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Unknown format of the background file: %d bytes"
+											  " per value, emissivity scale 2^%d",
+				  rh->atmos.backgrbytes, rh->atmos.backgretaexp);
 		}
 	}
 

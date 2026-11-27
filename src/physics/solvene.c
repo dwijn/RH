@@ -48,8 +48,6 @@ double getKuruczpf(Element *element, int stage, int k);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- Solve_ne.c -------------- */
 
 static double solveNe(double *ne, bool_t fromscratch, int Nfixed);
@@ -150,11 +148,10 @@ static double solveNe(double *ne, bool_t fromscratch, int Nfixed)
 		dnemax = MAX(dnemax, dne);
 
 		if (dne > MAX_ELECTRON_ERROR && Nfixed == 0) {
-			sprintf(messageStr, "Electron density iteration not converged:\n"
-								" spatial location: %d, temperature: %6.1f [K], \n"
-								" density: %9.3E [m^-3],\n dnemax: %9.3E\n",
-					k, rh->atmos.T[k], rh->atmos.nHtot[k], dne);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName, "Electron density iteration not converged:\n"
+										" spatial location: %d, temperature: %6.1f [K], \n"
+										" density: %9.3E [m^-3],\n dnemax: %9.3E\n",
+				  k, rh->atmos.T[k], rh->atmos.nHtot[k], dne);
 		}
 	}
 

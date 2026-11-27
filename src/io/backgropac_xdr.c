@@ -34,8 +34,6 @@ bool_t write_contrib_xdr(XDR *xdrs, char *label, enum opac_type type,
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- backgrOpac.c ------------ */
 
 void backgrOpac(int Nlambda, double *lambda)
@@ -76,13 +74,10 @@ void backgrOpac(int Nlambda, double *lambda)
 			   missing UV backround line haze --           -------------- */
 
 		if ((fp_fudge = fopen(rh->input.fudgeData, "r")) == NULL) {
-			sprintf(messageStr, "Unable to open input file %s", rh->input.fudgeData);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s", rh->input.fudgeData);
 		}
-		sprintf(messageStr,
-				"\n-Fudging background opacities with file\n  %s\n\n",
-				rh->input.fudgeData);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, "\n-Fudging background opacities with file\n  %s\n\n",
+			  rh->input.fudgeData);
 
 		getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		sscanf(inputLine, "%d", &Nfudge);
@@ -122,9 +117,8 @@ void backgrOpac(int Nlambda, double *lambda)
 				(int) log10(lambda[nspect]) + 5);
 		sprintf(contribution_out, format, lambda[nspect]);
 		if ((fp_out = fopen(contribution_out, "w")) == NULL) {
-			sprintf(messageStr, "Unable to open output file %s",
-					contribution_out);
-			Error(ERROR_LEVEL_1, routineName, messageStr);
+			Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+				  contribution_out);
 			return;
 		}
 		xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);

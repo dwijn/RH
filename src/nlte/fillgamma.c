@@ -33,8 +33,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- initGammaAtom.c --------- */
 
 void initGammaAtom(Atom *atom, int niter)
@@ -296,8 +294,7 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 				break;
 
 			default:
-				sprintf(messageStr, "Invalid transition type");
-				Error(ERROR_LEVEL_1, routineName, messageStr);
+				Error(ERROR_LEVEL_1, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 
@@ -334,8 +331,7 @@ void addtoGamma(int nspect, double wmu, double *I, double *Psi)
 				break;
 
 			default:
-				sprintf(messageStr, "Invalid transition type");
-				Error(ERROR_LEVEL_1, routineName, messageStr);
+				Error(ERROR_LEVEL_1, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 
@@ -414,8 +410,7 @@ void addtoCoupling(int nspect)
 				break;
 
 			default:
-				sprintf(messageStr, "Invalid transition type");
-				Error(ERROR_LEVEL_1, routineName, messageStr);
+				Error(ERROR_LEVEL_1, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 			if (twohnu3_c2) {

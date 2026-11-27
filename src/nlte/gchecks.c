@@ -57,8 +57,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 #define GCHECK_SEED_P 12345u
 #define GCHECK_SEED_V 54321u
 #define NEPS          12
@@ -168,13 +166,13 @@ static void compare(const char *what, const double *a, const double *b,
 		}
 	}
 	if (Ndiff == 0)
-		sprintf(messageStr, "gcheck: %-8s bit-identical (%ld values)\n",
-				what, N);
+		Error(MESSAGE, NULL, "gcheck: %-8s bit-identical (%ld values)\n",
+			  what, N);
 	else
-		sprintf(messageStr, "gcheck: %-8s DIFFERS: %ld of %ld values,"
-							" max relative difference %.3E\n",
-				what, Ndiff, N, dmax);
-	Error(MESSAGE, NULL, messageStr);
+		Error(MESSAGE, NULL,
+			  "gcheck: %-8s DIFFERS: %ld of %ld values,"
+			  " max relative difference %.3E\n",
+			  what, Ndiff, N, dmax);
 }
 /* ------- end ---------------------------- compare.c --------------- */
 
@@ -245,20 +243,17 @@ void gcheckRun(const GCheckOptions *opt)
 	y1 = (double *) malloc(N * sizeof(double));
 	y2 = (double *) malloc(N * sizeof(double));
 
-	sprintf(messageStr, "\ngcheck: state vector of %ld values in %d blocks:",
-			N, Nb);
-	Error(MESSAGE, NULL, messageStr);
+	Error(MESSAGE, NULL, "\ngcheck: state vector of %ld values in %d blocks:",
+		  N, Nb);
 	for (n = 0; n < Nb; n++) {
-		sprintf(messageStr, " %s (%ld)%s", stateBlockName(n),
-				stateBlockSize(n), (n < Nb - 1) ? "," : "\n");
-		Error(MESSAGE, NULL, messageStr);
+		Error(MESSAGE, NULL, " %s (%ld)%s", stateBlockName(n),
+			  stateBlockSize(n), (n < Nb - 1) ? "," : "\n");
 	}
-	sprintf(messageStr, "gcheck: %d steps of plain G from x0, x_b = %d steps"
-						" before the end; PRD sub-iterations per G: %d;"
-						" threads: %d\n",
-			opt->Nsteps, opt->lag,
-			(rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0, rh->input.Nthreads);
-	Error(MESSAGE, NULL, messageStr);
+	Error(MESSAGE, NULL, "gcheck: %d steps of plain G from x0, x_b = %d steps"
+						 " before the end; PRD sub-iterations per G: %d;"
+						 " threads: %d\n",
+		  opt->Nsteps, opt->lag,
+		  (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0, rh->input.Nthreads);
 
 	/* --- Iterate plain G to x_a, keep x_b --          -------------- */
 
@@ -282,10 +277,9 @@ void gcheckRun(const GCheckOptions *opt)
 		dmax = 0.0;
 		for (k = off; k < off + stateBlockSize(n); k++)
 			if (y1[k]) dmax = MAX(dmax, fabs((y1[k] - x[k]) / y1[k]));
-		sprintf(messageStr, "gcheck: at x_a, max |G(x_a) - x_a| / |G(x_a)|"
-							" of %s = %.3E\n",
-				stateBlockName(n), dmax);
-		Error(MESSAGE, NULL, messageStr);
+		Error(MESSAGE, NULL, "gcheck: at x_a, max |G(x_a) - x_a| / |G(x_a)|"
+							 " of %s = %.3E\n",
+			  stateBlockName(n), dmax);
 	}
 
 	/* --- ECnoise --                                   -------------- */
@@ -302,11 +296,10 @@ void gcheckRun(const GCheckOptions *opt)
 			G_eval(y2, f[i]);
 		}
 		col = (double *) malloc(nf * sizeof(double));
-		sprintf(messageStr, "gcheck: ecnoise, %d points, relative step %.1E:"
-							" per block max and RMS of delta / |G|, components"
-							" with noise / step too small / too large\n",
-				nf, opt->hEcnoise);
-		Error(MESSAGE, NULL, messageStr);
+		Error(MESSAGE, NULL, "gcheck: ecnoise, %d points, relative step %.1E:"
+							 " per block max and RMS of delta / |G|, components"
+							 " with noise / step too small / too large\n",
+			  nf, opt->hEcnoise);
 		for (n = 0, off = 0; n < Nb; off += stateBlockSize(n), n++) {
 			Nnoise = Nsmall = Nlarge = 0;
 			nmax = nsum = 0.0;
@@ -323,12 +316,11 @@ void gcheckRun(const GCheckOptions *opt)
 				else if (inform == 3)
 					Nlarge++;
 			}
-			sprintf(messageStr, "gcheck: ecnoise %-24s max %.3E  RMS %.3E"
-								"  (%ld / %d / %d)\n",
-					stateBlockName(n), nmax,
-					(Nnoise) ? sqrt(nsum / Nnoise) : 0.0, (long) Nnoise,
-					Nsmall, Nlarge);
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, "gcheck: ecnoise %-24s max %.3E  RMS %.3E"
+								 "  (%ld / %d / %d)\n",
+				  stateBlockName(n), nmax,
+				  (Nnoise) ? sqrt(nsum / Nnoise) : 0.0, (long) Nnoise,
+				  Nsmall, Nlarge);
 		}
 		free(col);
 		free(p);
@@ -344,11 +336,9 @@ void gcheckRun(const GCheckOptions *opt)
 		randomDirection(x, p, N, GCHECK_SEED_V);
 		restrictDirection(p, opt->perturb);
 		Error(MESSAGE, NULL, "gcheck: fd, |D(eps) - D(10 eps)| / |D(eps)| per block\n");
-		sprintf(messageStr, "gcheck: fd %8s", "eps");
-		Error(MESSAGE, NULL, messageStr);
+		Error(MESSAGE, NULL, "gcheck: fd %8s", "eps");
 		for (n = 0; n < Nb; n++) {
-			sprintf(messageStr, " %16.16s", stateBlockName(n));
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, " %16.16s", stateBlockName(n));
 		}
 		Error(MESSAGE, NULL, "\n");
 		for (ne = 0, eps = opt->fdmax; ne < NEPS; ne++, eps *= 0.1) {
@@ -356,16 +346,14 @@ void gcheckRun(const GCheckOptions *opt)
 			G_eval(y2, D[ne % 2]);
 			for (k = 0; k < N; k++) D[ne % 2][k] = (D[ne % 2][k] - y1[k]) / eps;
 			if (ne == 0) continue;
-			sprintf(messageStr, "gcheck: fd %8.1E", eps);
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, "gcheck: fd %8.1E", eps);
 			for (n = 0, off = 0; n < Nb; off += stateBlockSize(n), n++) {
 				num = den = 0.0;
 				for (k = off; k < off + stateBlockSize(n); k++) {
 					num += SQ(D[ne % 2][k] - D[(ne + 1) % 2][k]);
 					den += SQ(D[ne % 2][k]);
 				}
-				sprintf(messageStr, " %16.3E", (den > 0.0) ? sqrt(num / den) : 0.0);
-				Error(MESSAGE, NULL, messageStr);
+				Error(MESSAGE, NULL, " %16.3E", (den > 0.0) ? sqrt(num / den) : 0.0);
 			}
 			Error(MESSAGE, NULL, "\n");
 		}
@@ -374,14 +362,12 @@ void gcheckRun(const GCheckOptions *opt)
 		free(D[1]);
 	}
 	if (opt->perturb) {
-		sprintf(messageStr, "gcheck: ecnoise and fd directions restricted to"
-							" blocks \"%s...\"\n",
-				opt->perturb);
-		Error(MESSAGE, NULL, messageStr);
+		Error(MESSAGE, NULL, "gcheck: ecnoise and fd directions restricted to"
+							 " blocks \"%s...\"\n",
+			  opt->perturb);
 	}
-	sprintf(messageStr, "gcheck: %ld evaluations of G, %.3f s per evaluation\n",
-			G_count(), (wallClock() - t_start) / G_count());
-	Error(MESSAGE, NULL, messageStr);
+	Error(MESSAGE, NULL, "gcheck: %ld evaluations of G, %.3f s per evaluation\n",
+		  G_count(), (wallClock() - t_start) / G_count());
 
 	free(x);
 	free(xb);

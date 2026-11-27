@@ -54,8 +54,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- profileWorker.c -------- */
 
 /* --- The absorption profile at one grid point depends only on that
@@ -263,7 +261,7 @@ void Profile(AtomicLine *line)
 	const char   routineName[] = "Profile";
 	register int la, k, mu;
 
-	char    filename[MAX_LINE_SIZE];
+	char    filename[MAX_LINE_SIZE], label[MAX_MESSAGE_LENGTH];
 	int     Nlamu, NrecStokes = 0;
 	double *adamp = NULL, **v_los = NULL, *vB = NULL, *sv = NULL, *vbroad,
 		   Larmor = 0.0;
@@ -309,10 +307,8 @@ void Profile(AtomicLine *line)
 		Larmor = (Q_ELECTRON / (4.0 * PI * M_ELECTRON)) * (line->lambda0 * NM_TO_M);
 
 		Zeeman(line);
-		sprintf(messageStr,
-				" -- Atom %2s, line %3d -> %3d has %2d Zeeman components\n",
-				atom->ID, line->j, line->i, line->zm->Ncomponent);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, " -- Atom %2s, line %3d -> %3d has %2d Zeeman components\n",
+			  atom->ID, line->j, line->i, line->zm->Ncomponent);
 	}
 
 	/* --- Initialize permanent storage for line profiles -- ---------- */
@@ -322,8 +318,7 @@ void Profile(AtomicLine *line)
 				line->j, line->i);
 		if ((line->fd_profile =
 				 open(filename, O_RDWR | O_CREAT, PERMISSIONS)) == -1) {
-			sprintf(messageStr, "Unable to open profile file %s", filename);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Unable to open profile file %s", filename);
 		}
 
 		if (line->polarizable && (rh->input.StokesMode == FULL_STOKES)) {
@@ -431,11 +426,11 @@ void Profile(AtomicLine *line)
 		free(vB);
 		free(sv);
 
-		sprintf(messageStr, "Stokes prof %7.1f", line->lambda0);
+		snprintf(label, sizeof(label), "Stokes prof %7.1f", line->lambda0);
 	} else
-		sprintf(messageStr, "Profile %7.1f", line->lambda0);
+		snprintf(label, sizeof(label), "Profile %7.1f", line->lambda0);
 
-	getCPU(3, TIME_POLL, messageStr);
+	getCPU(3, TIME_POLL, label);
 }
 /* ------- end ---------------------------- Profile.c --------------- */
 
@@ -445,6 +440,7 @@ void MolecularProfile(MolecularLine *mrt)
 {
 	register int la, k, mu;
 
+	char      label[MAX_MESSAGE_LENGTH];
 	double   *adamp, *v = NULL, vk, **v_los = NULL, wlamu, *sv, wlambda;
 	float    *phi_down, *phi_up;
 	Molecule *molecule = mrt->molecule;
@@ -531,8 +527,8 @@ void MolecularProfile(MolecularLine *mrt)
 	free(adamp);
 	free(sv);
 
-	sprintf(messageStr, "Profile %7.1f", mrt->lambda0);
-	getCPU(3, TIME_POLL, messageStr);
+	snprintf(label, sizeof(label), "Profile %7.1f", mrt->lambda0);
+	getCPU(3, TIME_POLL, label);
 }
 /* ------- end ---------------------------- MolecularProfile.c ------ */
 

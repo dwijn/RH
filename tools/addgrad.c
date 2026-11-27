@@ -23,7 +23,6 @@ void writeModelAtom(Atom *atom, FILE *fp_out);
 
 static RHState rh_state = RH_STATE_INIT(ONE_D_PLANE, NULL);
 RHState *const rh       = &rh_state;
-char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- addgrad.c --------------- */
 

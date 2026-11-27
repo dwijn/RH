@@ -25,7 +25,6 @@ void rawAtom(Atom *atom, char *atomFileName);
 
 static RHState rh_state = RH_STATE_INIT(ONE_D_PLANE, NULL);
 RHState *const rh       = &rh_state;
-char           messageStr[MAX_LINE_SIZE];
 
 /* ------- begin -------------------------- printneff.c ------------- */
 
@@ -63,7 +62,7 @@ int main(int argc, char *argv[])
 			 ((atom.stage[ic] < atom.stage[i] + 1) && (ic < atom.Nlevel)); ic++);
 		if (atom.stage[ic] == atom.stage[i]) {
 			sprintf(errorMsg, "Found no overlying continuum for level %d", i);
-			Error(ERROR_LEVEL_2, argv[0], errorMsg);
+			Error(ERROR_LEVEL_2, argv[0], "%s", errorMsg);
 		} else {
 			Z     = (float) (atom.stage[i] + 1);
 			n_eff = Z * sqrt(E_Rydberg / (atom.E[ic] - atom.E[i]));

@@ -31,8 +31,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- Piece_Stokes_Bezier3_1D.c */
 
 void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
@@ -91,9 +89,8 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 			for (n = 1; n < 4; n++) I_upw[n] = 0.0;
 			break;
 		case REFLECTIVE:
-			sprintf(messageStr, "Boundary condition not implemented: %d",
-					rh->geometry->vboundary[BOTTOM]);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+				  rh->geometry->vboundary[BOTTOM]);
 		}
 	} else {
 		switch (rh->geometry->vboundary[TOP]) {
@@ -105,9 +102,8 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 			for (n = 1; n < 4; n++) I_upw[n] = 0.0;
 			break;
 		default:
-			sprintf(messageStr, "Boundary condition not implemented: %d",
-					rh->geometry->vboundary[TOP]);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+				  rh->geometry->vboundary[TOP]);
 		}
 	}
 
@@ -330,9 +326,8 @@ void Piecewise_Bezier3_1D_tri(int nspect, int mu, bool_t to_obs,
 			I_upw = rh->geometry->Ibottom[nspect][mu];
 			break;
 		case REFLECTIVE:
-			sprintf(messageStr, "Boundary condition not implemented: %d",
-					rh->geometry->vboundary[BOTTOM]);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+				  rh->geometry->vboundary[BOTTOM]);
 		}
 	} else {
 		switch (rh->geometry->vboundary[TOP]) {
@@ -347,9 +342,8 @@ void Piecewise_Bezier3_1D_tri(int nspect, int mu, bool_t to_obs,
 			I_upw = rh->geometry->Itop[nspect][mu];
 			break;
 		case REFLECTIVE:
-			sprintf(messageStr, "Boundary condition not implemented: %d",
-					rh->geometry->vboundary[BOTTOM]);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+				  rh->geometry->vboundary[BOTTOM]);
 		}
 	}
 

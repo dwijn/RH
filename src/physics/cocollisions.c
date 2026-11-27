@@ -52,8 +52,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- COcollisions.c ---------- */
 
 void COcollisions(struct Molecule *molecule)
@@ -64,8 +62,7 @@ void COcollisions(struct Molecule *molecule)
 	double hcomega_k, *beta, C_0;
 
 	if (strcmp(molecule->ID, "CO") != 0) {
-		sprintf(messageStr, "Molecule is not CO: %s\n", molecule->ID);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Molecule is not CO: %s\n", molecule->ID);
 	}
 
 	C_0 = KBOLTZMANN / ATM_TO_PA;

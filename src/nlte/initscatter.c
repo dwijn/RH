@@ -21,8 +21,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- initScatter.c ----------- */
 
 void initScatter()
@@ -63,10 +61,8 @@ void initScatter()
 		   when we are also planning to do main iterations -- --------- */
 
 	if (rh->spectrum.updateJ) {
-		sprintf(messageStr,
-				" %s: Lambda iterating background scattering...\n\n",
-				routineName);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, " %s: Lambda iterating background scattering...\n\n",
+			  routineName);
 
 		niter = 0;
 		while (rh->input.NmaxIter && niter < rh->input.NmaxScatter) {

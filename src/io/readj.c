@@ -44,8 +44,6 @@ size_t pread_rh(int fd, const void *buf, size_t count, off_t offset);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- readJlambda.c ----------- */
 
 void readJlambda(int nspect, double *J)
@@ -62,10 +60,8 @@ void readJlambda(int nspect, double *J)
 	result &= (pread_rh(rh->spectrum.fd_J, J, recordsize, offset) == recordsize);
 
 	if (!result) {
-		sprintf(messageStr,
-				"Error reading file: offset = %lld, recordsize = %zu (%s)",
-				(long long) offset, recordsize, strerror(errno));
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
+			  (long long) offset, recordsize, strerror(errno));
 	}
 }
 /* ------- end ---------------------------- readJlambda.c ----------- */
@@ -86,10 +82,8 @@ void writeJlambda(int nspect, double *J)
 	result &= (pwrite_rh(rh->spectrum.fd_J, J, recordsize, offset) == recordsize);
 
 	if (!result) {
-		sprintf(messageStr,
-				"Error writing file: offset = %lld, recordsize = %zu (%s)",
-				(long long) offset, recordsize, strerror(errno));
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
+			  (long long) offset, recordsize, strerror(errno));
 	}
 }
 /* ------- end ---------------------------- writeJlambda.c ---------- */
@@ -105,14 +99,12 @@ void readJgas(double **Jgas)
 
 	recordsize = (size_t) rh->atmos.Nspace * rh->spectrum.Nspect;
 	if ((fp = fopen("Jgas.dat", "r")) == NULL) {
-		sprintf(messageStr, "Cannot open Jgas.dat for reading (%s)",
-				strerror(errno));
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Cannot open Jgas.dat for reading (%s)",
+			  strerror(errno));
 	}
 	if (fread(&(Jgas[0][0]), sizeof(double), recordsize, fp) != recordsize) {
-		sprintf(messageStr, "Error reading Jgas.dat (%zu values expected)",
-				recordsize);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Error reading Jgas.dat (%zu values expected)",
+			  recordsize);
 	}
 
 	fclose(fp);
@@ -130,14 +122,12 @@ void writeJgas(double **Jgas)
 
 	recordsize = (size_t) rh->atmos.Nspace * rh->spectrum.Nspect;
 	if ((fp = fopen("Jgas.dat", "w")) == NULL) {
-		sprintf(messageStr, "Cannot open Jgas.dat for writing (%s)",
-				strerror(errno));
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Cannot open Jgas.dat for writing (%s)",
+			  strerror(errno));
 	}
 	if (fwrite(&(Jgas[0][0]), sizeof(double), recordsize, fp) != recordsize) {
-		sprintf(messageStr, "Error writing Jgas.dat (%zu values expected)",
-				recordsize);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Error writing Jgas.dat (%zu values expected)",
+			  recordsize);
 	}
 
 	fclose(fp);
@@ -161,10 +151,8 @@ void readJ20lambda(int nspect, double *J20)
 						recordsize, offset) == recordsize);
 
 	if (!result) {
-		sprintf(messageStr,
-				"Error reading file: offset = %lld, recordsize = %zu (%s)",
-				(long long) offset, recordsize, strerror(errno));
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
+			  (long long) offset, recordsize, strerror(errno));
 	}
 }
 /* ------- end ---------------------------- readJ20lambda.c --------- */
@@ -186,10 +174,8 @@ void writeJ20lambda(int nspect, double *J20)
 						 recordsize, offset) == recordsize);
 
 	if (!result) {
-		sprintf(messageStr,
-				"Error writing file: offset = %lld, recordsize = %zu (%s)",
-				(long long) offset, recordsize, strerror(errno));
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
+			  (long long) offset, recordsize, strerror(errno));
 	}
 }
 /* ------- end ---------------------------- writeJ20lambda.c -------- */
@@ -215,10 +201,8 @@ void readImu(int nspect, int mu, bool_t to_obs, double *I)
 						recordsize, offset) == recordsize);
 
 	if (!result) {
-		sprintf(messageStr,
-				"Error reading file: offset = %lld, recordsize = %zu (%s)",
-				(long long) offset, recordsize, strerror(errno));
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
+			  (long long) offset, recordsize, strerror(errno));
 	}
 }
 /* ------- end ---------------------------- readImu.c --------------- */
@@ -244,10 +228,8 @@ void writeImu(int nspect, int mu, bool_t to_obs, double *I)
 						 recordsize, offset) == recordsize);
 
 	if (!result) {
-		sprintf(messageStr,
-				"Error writing file: offset = %lld, recordsize = %zu (%s)",
-				(long long) offset, recordsize, strerror(errno));
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
+			  (long long) offset, recordsize, strerror(errno));
 	}
 }
 /* ------- end ---------------------------- writeImu.c -------------- */
@@ -277,9 +259,8 @@ void mapBackground(void)
 
 	p = mmap(NULL, (size_t) st.st_size, PROT_READ, MAP_SHARED, rh->atmos.fd_background, 0);
 	if (p == MAP_FAILED) {
-		sprintf(messageStr, "Cannot map the background file (%s); reading it with pread",
-				strerror(errno));
-		Error(WARNING, "mapBackground", messageStr);
+		Error(WARNING, "mapBackground", "Cannot map the background file (%s); reading it with pread",
+			  strerror(errno));
 		return;
 	}
 	bg_map    = (const char *) p;
@@ -370,19 +351,17 @@ static bool_t backgroundIO(double *values, int Nrec, off_t recordno,
 		else
 			return (pread_rh(rh->atmos.fd_background, values, count, offset) == count);
 	} else if (rh->atmos.backgrbytes != sizeof(float) || buffer == NULL) {
-		sprintf(messageStr, "Unknown format of the background file: %d bytes"
-							" per value, emissivity scale 2^%d",
-				rh->atmos.backgrbytes, rh->atmos.backgretaexp);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unknown format of the background file: %d bytes"
+										  " per value, emissivity scale 2^%d",
+			  rh->atmos.backgrbytes, rh->atmos.backgretaexp);
 	}
 	if (write_it) {
 		for (n = 0; n < Nvalues; n++) {
 			v = values[n] * scale;
 			if (fabs(v) > FLT_MAX && isfinite(v)) {
-				sprintf(messageStr, "Background %s %.3e out of the range of"
-									" the (single-precision) background file",
-						(emissivity) ? "emissivity" : "opacity", values[n]);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Background %s %.3e out of the range of"
+												  " the (single-precision) background file",
+					  (emissivity) ? "emissivity" : "opacity", values[n]);
 			}
 			buffer[n] = (float) v;
 		}
@@ -771,17 +750,12 @@ static double *jgasRow(int src, int row)
 	if (rh->spectrum.Jgas_fixed != NULL && rh->spectrum.PRDrow[src] == -1 && rh->spectrum.PRDrow[row] != -1) {
 		if (rh->spectrum.PRDrow[row] == -2) {
 
-			/* --- Called by worker threads, never with a lock held; the
-				   message goes in a buffer of its own, not the shared
-				   messageStr --                         -------------- */
+			/* --- Called by worker threads, never with a lock held -- */
 
-			char msg[256];
-
-			snprintf(msg, sizeof(msg),
-					 "Wavelength %d (%g nm) without PRD line gives to wavelength %d (%g nm) "
-					 "with PRD line, which the reach computed at the start excludes",
-					 src, rh->spectrum.lambda[src], row, rh->spectrum.lambda[row]);
-			Error(ERROR_LEVEL_2, "jgasRow", msg);
+			Error(ERROR_LEVEL_2, "jgasRow",
+				  "Wavelength %d (%g nm) without PRD line gives to wavelength %d (%g nm) "
+				  "with PRD line, which the reach computed at the start excludes",
+				  src, rh->spectrum.lambda[src], row, rh->spectrum.lambda[row]);
 		}
 		return rh->spectrum.Jgas_fixed[rh->spectrum.PRDrow[row]];
 	}

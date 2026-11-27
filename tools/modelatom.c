@@ -25,8 +25,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[MAX_LINE_SIZE];
-
 /* ------- begin -------------------------- writeModelAtom.c -------- */
 
 void writeModelAtom(Atom *atom, FILE *fp_out)
@@ -176,8 +174,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 	getLine(atomFile, MULTI_COMMENT_CHAR, input, exit_on_EOF = TRUE);
 	nread = sscanf(input, "%s", collisionRoutine);
 	if (nread != 1) {
-		sprintf(messageStr, "Malformed input line:\n %.200s", input);
-		Error(ERROR_LEVEL_2, "writeCollisions", messageStr);
+		Error(ERROR_LEVEL_2, "writeCollisions", "Malformed input line:\n %.200s", input);
 	}
 	if ((strcmp(collisionRoutine, "GENCOL") != 0)) {
 		fprintf(stderr, "\n Error: can only treat collisional data from\n ");
@@ -190,8 +187,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 					exit_on_EOF = FALSE) != EOF)) {
 		nread = sscanf(input, "%s", keyword);
 		if (nread != 1) {
-			sprintf(messageStr, "Malformed input line:\n %.200s", input);
-			Error(ERROR_LEVEL_2, "writeCollisions", messageStr);
+			Error(ERROR_LEVEL_2, "writeCollisions", "Malformed input line:\n %.200s", input);
 		}
 
 		if (strcmp(keyword, "TEMP") == 0) {
@@ -294,8 +290,7 @@ void writeCollisions(FILE *atomFile, Atom *atom, FILE *fp_out)
 			fprintf(fp_out, "\n END");
 			break;
 		} else {
-			sprintf(messageStr, "Unknown keyword: %s", keyword);
-			Error(ERROR_LEVEL_2, "writeCollisions", messageStr);
+			Error(ERROR_LEVEL_2, "writeCollisions", "Unknown keyword: %s", keyword);
 		}
 	}
 }

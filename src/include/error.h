@@ -40,12 +40,14 @@ enum errorlevel { MESSAGE,
 
 /* --- Associated function prototypes --               -------------- */
 
-void           ErrorMessage(enum errorlevel level, const char *routineName,
-							const char *messageStr);
+void ErrorMessage(enum errorlevel level, const char *routineName,
+				  const char *format, ...)
+	__attribute__((format(printf, 3, 4)));
 _Noreturn void ErrorExit(enum errorlevel level, const char *routineName,
-						 const char *messageStr);
-void           SetExitFlag(int flag);
-int            ExitStatus(void);
+						 const char *format, ...)
+	__attribute__((format(printf, 3, 4)));
+void SetExitFlag(int flag);
+int  ExitStatus(void);
 
 /* --- Problems of the run so far (SetExitFlag), its part of RHState
 	   (rh->error, Q-46) --                            -------------- */
@@ -54,17 +56,19 @@ typedef struct {
 	int exitFlags;
 } ErrorState;
 
-/* --- Print a message (MESSAGE) or warning (WARNING) and return, or
-	   print an error (ERROR_LEVEL_1, ERROR_LEVEL_2) and exit with status
-	   RH_EXIT_FATAL. Inline, so that the compiler knows that the
-	   error levels do not return --                   -------------- */
+/* --- Error(level, routineName, format, ...): print a message
+	   (MESSAGE) or warning (WARNING) and return, or print an error
+	   (ERROR_LEVEL_1, ERROR_LEVEL_2) and exit with status
+	   RH_EXIT_FATAL. The message is formatted as by printf, and the
+	   compiler checks the format against the arguments (Q-48; before,
+	   the caller formatted it into the global messageStr). A macro,
+	   so that the compiler sees which branch a constant level takes
+	   and knows that the error levels do not return.
+	   --                                              -------------- */
 
-static inline void Error(enum errorlevel level, const char *routineName,
-						 const char *messageStr)
-{
-	if (level >= ERROR_LEVEL_1) ErrorExit(level, routineName, messageStr);
-	ErrorMessage(level, routineName, messageStr);
-}
+#define Error(level, routineName, ...)                                         \
+	((level) >= ERROR_LEVEL_1 ? ErrorExit((level), (routineName), __VA_ARGS__) \
+							  : ErrorMessage((level), (routineName), __VA_ARGS__))
 
 #endif /* !__ERROR_H__ */
 

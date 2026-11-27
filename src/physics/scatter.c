@@ -42,8 +42,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- prdInflow.c -------------- */
 
 static void prdInflow(Atom *atom, AtomicLine *PRDline, AtomicLine **XRD,
@@ -211,11 +209,9 @@ static void prdWindowFlush(PRDWindow *w, const char *routineName)
 	N = (w->kstart[w->kwin_end - 1] - w->kstart[w->kwin_start]) / sizeof(prdw_t) +
 		w->blocksize[w->kwin_end - 1];
 	if (!prdFileIO(w->fd, w->win, N, w->kstart[w->kwin_start], TRUE)) {
-		sprintf(messageStr,
-				"Unable to write the redistribution weights of locations %d to %d"
-				" to %s",
-				w->kwin_start, w->kwin_end - 1, w->name);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to write the redistribution weights of locations %d to %d"
+										  " to %s",
+			  w->kwin_start, w->kwin_end - 1, w->name);
 	}
 }
 
@@ -251,11 +247,9 @@ static prdw_t *prdWindowBlock(PRDWindow *w, int k, const char *routineName)
 			if (w->win == NULL) Error(ERROR_LEVEL_2, routineName, "Out of memory");
 		}
 		if (!w->initialize && !prdFileIO(w->fd, w->win, N, w->kstart[k], FALSE)) {
-			sprintf(messageStr,
-					"Unable to read the redistribution weights of locations %d to %d"
-					" from %s",
-					k, w->kwin_end - 1, w->name);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Unable to read the redistribution weights of locations %d to %d"
+											  " from %s",
+				  k, w->kwin_end - 1, w->name);
 		}
 	}
 	return w->win + (w->kstart[k] - w->kstart[w->kwin_start]) / sizeof(prdw_t);
@@ -272,10 +266,9 @@ static void prdWindowClose(PRDWindow *w, const char *routineName)
 
 static void prdBlockError(const char *routineName, int k, long n, long size)
 {
-	sprintf(messageStr, "Inconsistent block of redistribution weights at"
-						" location %d: %ld instead of %ld",
-			k, n, size);
-	Error(ERROR_LEVEL_2, routineName, messageStr);
+	Error(ERROR_LEVEL_2, routineName, "Inconsistent block of redistribution weights at"
+									  " location %d: %ld instead of %ld",
+		  k, n, size);
 }
 
 /* --- Block offsets in the file from the block sizes -- ---------- */
@@ -301,8 +294,7 @@ static bool_t prdOpenFile(AtomicLine *PRDline, const char *routineName)
 	if (PRDline->fp_GII != NULL) return FALSE;
 	prdFileName(PRDline, filename);
 	if ((PRDline->fp_GII = fopen(filename, "w+")) == NULL) {
-		sprintf(messageStr, "Unable to open temporary file %s", filename);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to open temporary file %s", filename);
 	}
 	return TRUE;
 }
@@ -466,6 +458,7 @@ void PRDScatter(AtomicLine *PRDline)
 {
 	const char   routineName[] = "PRDScatter";
 	register int la, k, kxrd;
+	char         label[MAX_MESSAGE_LENGTH];
 	int          Nsubordinate;
 	off_t        offset;
 	double       cDop, *adamp, *Yj, *denom;
@@ -478,9 +471,8 @@ void PRDScatter(AtomicLine *PRDline)
 
 	atom = PRDline->atom;
 	if (!PRDline->PRD) {
-		sprintf(messageStr, "Line %d -> %d of %2s is not a PRD line",
-				PRDline->j, PRDline->i, atom->ID);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
+			  PRDline->j, PRDline->i, atom->ID);
 	}
 	getCPU(3, TIME_START, NULL);
 
@@ -564,8 +556,8 @@ void PRDScatter(AtomicLine *PRDline)
 	free(denom);
 	free(adamp);
 
-	sprintf(messageStr, "Scatter Int %5.1f", PRDline->lambda0);
-	getCPU(3, TIME_POLL, messageStr);
+	snprintf(label, sizeof(label), "Scatter Int %5.1f", PRDline->lambda0);
+	getCPU(3, TIME_POLL, label);
 }
 /* ------- end ---------------------------- PRDScatter.c ------------ */
 
@@ -753,6 +745,7 @@ void PRDAngleScatter(AtomicLine *PRDline)
 {
 	const char   routineName[] = "PRDAngleScatter";
 	register int k, mu, lap, d;
+	char         label[MAX_MESSAGE_LENGTH];
 	double       cDop, Jbar, *Yj, *Irow;
 	Atom        *atom;
 	PRDAngleJob  job;
@@ -763,9 +756,8 @@ void PRDAngleScatter(AtomicLine *PRDline)
 	atom = PRDline->atom;
 
 	if (!PRDline->PRD) {
-		sprintf(messageStr, "Line %d -> %d of %2s is not a PRD line",
-				PRDline->j, PRDline->i, atom->ID);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
+			  PRDline->j, PRDline->i, atom->ID);
 	}
 	getCPU(3, TIME_START, NULL);
 
@@ -844,7 +836,7 @@ void PRDAngleScatter(AtomicLine *PRDline)
 	free(job.kstart);
 	free(Yj);
 
-	sprintf(messageStr, "Scatter Int %5.1f", PRDline->lambda0);
-	getCPU(3, TIME_POLL, messageStr);
+	snprintf(label, sizeof(label), "Scatter Int %5.1f", PRDline->lambda0);
+	getCPU(3, TIME_POLL, label);
 }
 /* ------- end ---------------------------- PRDAngleScatter.c ------- */

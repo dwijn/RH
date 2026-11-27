@@ -30,8 +30,6 @@ static Geometry geometry_data;
 static RHState  rh_state = RH_STATE_INIT(ONE_D_PLANE, &geometry_data);
 RHState *const  rh       = &rh_state;
 
-char messageStr[MAX_LINE_SIZE];
-
 /* ------- begin -------------------------- backgrcontr.c ----------- */
 
 int main(int argc, char *argv[])
@@ -53,23 +51,20 @@ int main(int argc, char *argv[])
 	readMolecularModels();
 
 	if ((fp = fopen(CONTR_INPUT_FILE, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open inputfile %s", CONTR_INPUT_FILE);
-		Error(ERROR_LEVEL_2, argv[0], messageStr);
+		Error(ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", CONTR_INPUT_FILE);
 	}
 
 	result = fscanf(fp, "%d", &Nlambda);
 	if (result != 1) {
-		sprintf(messageStr, "Unable to read Nlambda from inputfile %s",
-				CONTR_INPUT_FILE);
-		Error(ERROR_LEVEL_2, argv[0], messageStr);
+		Error(ERROR_LEVEL_2, argv[0], "Unable to read Nlambda from inputfile %s",
+			  CONTR_INPUT_FILE);
 	}
 	lambda = (double *) malloc(Nlambda * sizeof(double));
 	for (n = 0; n < Nlambda; n++) {
 		result = fscanf(fp, "%lf", &lambda[n]);
 		if (result != 1) {
-			sprintf(messageStr, "Unable to read wavelength %d from inputfile %s",
-					n, CONTR_INPUT_FILE);
-			Error(ERROR_LEVEL_2, argv[0], messageStr);
+			Error(ERROR_LEVEL_2, argv[0], "Unable to read wavelength %d from inputfile %s",
+				  n, CONTR_INPUT_FILE);
 		}
 	}
 	fclose(fp);

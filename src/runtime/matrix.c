@@ -24,8 +24,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- checkAlloc.c ------------ */
 
 static void checkAlloc(const char *routineName, void *theMatrix, void *Matrix,
@@ -33,8 +31,7 @@ static void checkAlloc(const char *routineName, void *theMatrix, void *Matrix,
 {
 	if ((theMatrix == NULL && (size_t) Nrow * Ncol > 0) ||
 		(Matrix == NULL && Nrow > 0)) {
-		sprintf(messageStr, "Unable to allocate a %d x %d matrix", Nrow, Ncol);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to allocate a %d x %d matrix", Nrow, Ncol);
 	}
 }
 /* ------- end ---------------------------- checkAlloc.c ------------ */
@@ -123,8 +120,7 @@ void freeMatrix(void **matrix)
 	const char routineName[] = "freeMatrix";
 
 	if (matrix == NULL || matrix[0] == NULL) {
-		sprintf(messageStr, "Trying to free NULL pointer");
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Trying to free NULL pointer");
 	} else {
 		/* --- Free the memory allocated for matrix matrix -- ----------- */
 

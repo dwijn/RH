@@ -49,8 +49,6 @@ char *getAtomID(char *atom_file);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- readAtom.c -------------- */
 
 void readAtom(Atom *atom, char *atom_file)
@@ -78,12 +76,10 @@ void readAtom(Atom *atom, char *atom_file)
 	/* --- Open the data file for current model atom --  -------------- */
 
 	if ((atom->fp_input = fopen(atom_file, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open input file %s", atom_file);
-		Error(ERROR_LEVEL_2, routineName, atom_file);
+		Error(ERROR_LEVEL_2, routineName, "%s", atom_file);
 	} else {
-		sprintf(messageStr, " -- reading input file: %s %s",
-				atom_file, (atom->active) ? "(active)\n\n" : "(passive)\n");
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, " -- reading input file: %s %s",
+			  atom_file, (atom->active) ? "(active)\n\n" : "(passive)\n");
 	}
 
 	/* --- Read atom ID and convert to uppercase --     -------------- */
@@ -115,10 +111,9 @@ void readAtom(Atom *atom, char *atom_file)
 		}
 	}
 	if (!match) {
-		sprintf(messageStr, " No matching element in periodic table for "
-							" element %s in file %s, or abundance not specified",
-				atom->ID, atom_file);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, " No matching element in periodic table for "
+										  " element %s in file %s, or abundance not specified",
+			  atom->ID, atom_file);
 	}
 
 	/* --- Get Number of levels, lines fixed transitions, and continua  */
@@ -150,10 +145,8 @@ void readAtom(Atom *atom, char *atom_file)
 		atom->E[i] *= (HPLANCK * CLIGHT) / CM_TO_M;
 	}
 	if (atom->stage[Nlevel - 1] != (atom->stage[Nlevel - 2] + 1)) {
-		sprintf(messageStr,
-				"Atomic model %s in file %s does not have overlying continuum",
-				atom->ID, atom_file);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Atomic model %s in file %s does not have overlying continuum",
+			  atom->ID, atom_file);
 	}
 
 	atom->nstar  = matrix_double(Nlevel, Nspace);
@@ -175,9 +168,8 @@ void readAtom(Atom *atom, char *atom_file)
 	/* --- Check validity of input.isum for active atom -- ------------ */
 
 	if (atom->active && (rh->input.isum < -1 || rh->input.isum >= Nlevel)) {
-		sprintf(messageStr, "Invalid value for ISUM = %d, Nlevel = %d",
-				rh->input.isum, Nlevel);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Invalid value for ISUM = %d, Nlevel = %d",
+			  rh->input.isum, Nlevel);
 	}
 
 	/* --- Go through the bound-bound transitions --     -------------- */
@@ -219,18 +211,15 @@ void readAtom(Atom *atom, char *atom_file)
 			!strstr(shapeStr, "VOIGT") &&
 			!strstr(shapeStr, "GAUSS") &&
 			!strstr(shapeStr, "COMPOSIT")) {
-			sprintf(messageStr, "Invalid value for line-shape string: %s",
-					shapeStr);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Invalid value for line-shape string: %s",
+				  shapeStr);
 		}
 		if (strstr(shapeStr, "PRD") && rh->input.PRD_NmaxIter > 0) {
 			atom->Nprd++;
 			line->PRD = TRUE;
 
 			if (rh->input.limit_memory && atom->active) {
-				sprintf(messageStr,
-						"Cannot limit memory with PRD lines present in active atom");
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Cannot limit memory with PRD lines present in active atom");
 			}
 		}
 
@@ -253,17 +242,13 @@ void readAtom(Atom *atom, char *atom_file)
 			if (c_sum > (1.0 + MAX_ABUND_ERROR) ||
 				c_sum < (1.0 - MAX_ABUND_ERROR)) {
 				vacuum_to_air(1, &line->lambda0, &lambda_air);
-				sprintf(messageStr,
-						"Line %d -> %d (%9.3f [nm]): \n"
-						" Component fractions do not add up to unity: %f",
-						line->j, line->i, lambda_air, c_sum);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Line %d -> %d (%9.3f [nm]): \n"
+												  " Component fractions do not add up to unity: %f",
+					  line->j, line->i, lambda_air, c_sum);
 			} else {
 				vacuum_to_air(1, &line->lambda0, &lambda_air);
-				sprintf(messageStr,
-						" Line %d -> %d (%9.3f [nm]) has %d components\n",
-						line->j, line->i, lambda_air, line->Ncomponent);
-				Error(MESSAGE, routineName, messageStr);
+				Error(MESSAGE, routineName, " Line %d -> %d (%9.3f [nm]) has %d components\n",
+					  line->j, line->i, lambda_air, line->Ncomponent);
 			}
 		} else {
 			line->Ncomponent = 1;
@@ -282,25 +267,20 @@ void readAtom(Atom *atom, char *atom_file)
 		} else if (strstr(vdWstr, "BARKLEM")) {
 			line->vdWaals = BARKLEM;
 			if (!getBarklemactivecross(line)) {
-				sprintf(messageStr,
-						"Line %3d -> %3d: cannot treat line "
-						"with Barklem type broadening. Using UNSOLD.",
-						j, i);
-				Error(WARNING, routineName, messageStr);
+				Error(WARNING, routineName, "Line %3d -> %3d: cannot treat line "
+											"with Barklem type broadening. Using UNSOLD.",
+					  j, i);
 				line->vdWaals     = UNSOLD;
 				line->cvdWaals[3] = line->cvdWaals[1] = 0.0;
 			}
 		} else if (strstr(vdWstr, "ABO_EXPL")) {
 			line->vdWaals = BARKLEM;
 			if (getBarklemExplicit(line)) {
-				sprintf(messageStr,
-						"Line %3d -> %3d: Using explicit ABO coefficients",
-						j, i);
-				Error(WARNING, routineName, messageStr);
+				Error(WARNING, routineName, "Line %3d -> %3d: Using explicit ABO coefficients",
+					  j, i);
 			}
 		} else {
-			sprintf(messageStr, "Invalid value for vd Waals string: %s", vdWstr);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Invalid value for vd Waals string: %s", vdWstr);
 		}
 
 		line->symmetric   = (strstr(symmStr, "ASYMM")) ? FALSE : TRUE;
@@ -326,10 +306,8 @@ void readAtom(Atom *atom, char *atom_file)
 
 					line->polarizable = TRUE;
 				} else {
-					sprintf(messageStr,
-							" -- Treating line %3d -> %3d without polarization%s\n",
-							j, i, (kr == Nline - 1) ? "\n" : "");
-					Error(MESSAGE, routineName, messageStr);
+					Error(MESSAGE, routineName, " -- Treating line %3d -> %3d without polarization%s\n",
+						  j, i, (kr == Nline - 1) ? "\n" : "");
 					line->polarizable = FALSE;
 				}
 			}
@@ -381,45 +359,39 @@ void readAtom(Atom *atom, char *atom_file)
 				n = la - Ndup;
 				if (continuum->lambda[la] == continuum->lambda[n - 1]) {
 					if (continuum->alpha[la] != continuum->alpha[n - 1]) {
-						sprintf(messageStr, "Continuum %d - %d lists wavelength %f nm"
-											" twice with different cross sections",
-								j, i,
-								continuum->lambda[la]);
-						Error(ERROR_LEVEL_2, routineName, messageStr);
+						Error(ERROR_LEVEL_2, routineName, "Continuum %d - %d lists wavelength %f nm"
+														  " twice with different cross sections",
+							  j, i,
+							  continuum->lambda[la]);
 					}
 					Ndup++;
 					continue;
 				}
 				if (continuum->lambda[la] < continuum->lambda[n - 1]) {
-					sprintf(messageStr, "Wavelengths for continuum %d - %d"
-										" are not monotonic",
-							j, i);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
+					Error(ERROR_LEVEL_2, routineName, "Wavelengths for continuum %d - %d"
+													  " are not monotonic",
+						  j, i);
 				}
 				continuum->lambda[n] = continuum->lambda[la];
 				continuum->alpha[n]  = continuum->alpha[la];
 			}
 			if (Ndup > 0) {
 				continuum->Nlambda -= Ndup;
-				sprintf(messageStr, "Continuum %d - %d: ignoring %d repeated"
-									" wavelength(s) in the cross-section table",
-						j, i, Ndup);
-				Error(WARNING, routineName, messageStr);
+				Error(WARNING, routineName, "Continuum %d - %d: ignoring %d repeated"
+											" wavelength(s) in the cross-section table",
+					  j, i, Ndup);
 			}
 		} else if (strstr(nuDepStr, "HYDROGENIC")) {
 			continuum->hydrogenic = TRUE;
 			if (lambdamin >= continuum->lambda0) {
-				sprintf(messageStr, "Minimum wavelength for continuum %d -> %d"
-									" is larger than continuum edge at: %f [nm]",
-						j, i, lambdamin);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Minimum wavelength for continuum %d -> %d"
+												  " is larger than continuum edge at: %f [nm]",
+					  j, i, lambdamin);
 			}
 			getLambdaCont(continuum, lambdamin);
 		} else {
-			sprintf(messageStr,
-					"Invalid value for wavelength dependence string: %s",
-					nuDepStr);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Invalid value for wavelength dependence string: %s",
+				  nuDepStr);
 		}
 		if (atom->active) {
 
@@ -461,19 +433,16 @@ void readAtom(Atom *atom, char *atom_file)
 			for (kr = 0; kr < Nline; kr++) {
 				line = atom->line + kr;
 				if (line->i == i && line->j == j) {
-					sprintf(messageStr,
-							"Fixed transition j = %d, i = %d duplicates active line",
-							j, i);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
+					Error(ERROR_LEVEL_2, routineName, "Fixed transition j = %d, i = %d duplicates active line",
+						  j, i);
 				}
 			}
 			for (kr = 0; kr < Ncont; kr++) {
 				continuum = atom->continuum + kr;
 				if (continuum->i == i && continuum->j == j) {
-					sprintf(messageStr, "Fixed transition j = %d,  i = %d"
-										" duplicates active continuum",
-							j, i);
-					Error(ERROR_LEVEL_2, routineName, messageStr);
+					Error(ERROR_LEVEL_2, routineName, "Fixed transition j = %d,  i = %d"
+													  " duplicates active continuum",
+						  j, i);
 				}
 			}
 			lambda0        = (HPLANCK * CLIGHT) / (atom->E[j] - atom->E[i]);
@@ -491,10 +460,9 @@ void readAtom(Atom *atom, char *atom_file)
 			else if (strstr(optionStr, "TRAD_CHROMOSPHERIC"))
 				fixed->option = TRAD_CHROMOSPHERIC;
 			else {
-				sprintf(messageStr, "Invalid value for radiation temperature"
-									" option string: %s",
-						optionStr);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Invalid value for radiation temperature"
+												  " option string: %s",
+					  optionStr);
 			}
 		}
 	}
@@ -506,20 +474,16 @@ void readAtom(Atom *atom, char *atom_file)
 
 		if (atom->Nprd > 0) {
 			if (rh->atmos.moving && rh->input.PRD_angle_dep == PRD_ANGLE_AVER) {
-				sprintf(messageStr,
-						"Using angle-averaged PRD in moving atmosphere for "
-						"atom %2s\n",
-						atom->ID);
-				Error(WARNING, routineName, messageStr);
+				Error(WARNING, routineName, "Using angle-averaged PRD in moving atmosphere for "
+											"atom %2s\n",
+					  atom->ID);
 			}
 			if (!rh->atmos.moving &&
 				(rh->input.PRD_angle_dep == PRD_ANGLE_DEP ||
 				 rh->input.PRD_angle_dep == PRD_ANGLE_APPROX)) {
-				sprintf(messageStr,
-						"Using angle-dependent PRD in static atmosphere for "
-						"atom %2s\n",
-						atom->ID);
-				Error(WARNING, routineName, messageStr);
+				Error(WARNING, routineName, "Using angle-dependent PRD in static atmosphere for "
+											"atom %2s\n",
+					  atom->ID);
 			}
 
 			/* --- Create the array to store cross redistribution lines - - */
@@ -548,11 +512,9 @@ void readAtom(Atom *atom, char *atom_file)
 						line->xrd =
 							realloc(line->xrd, line->Nxrd * sizeof(AtomicLine *));
 
-						sprintf(messageStr,
-								"Found %d subordinate PRD lines for line %d-%d of "
-								"atom %2s\n",
-								line->Nxrd, line->j, line->i, atom->ID);
-						Error(MESSAGE, routineName, messageStr);
+						Error(MESSAGE, routineName, "Found %d subordinate PRD lines for line %d-%d of "
+													"atom %2s\n",
+							  line->Nxrd, line->j, line->i, atom->ID);
 					}
 				}
 			}
@@ -586,10 +548,8 @@ void readAtom(Atom *atom, char *atom_file)
 			atom->n = matrix_double(atom->Nlevel, rh->atmos.Nspace);
 			readPopulations(atom);
 
-			sprintf(messageStr,
-					" --- Read input file: %s with NLTE populations for atom %s\n",
-					atom->popsinFile, atom->ID);
-			Error(MESSAGE, routineName, messageStr);
+			Error(MESSAGE, routineName, " --- Read input file: %s with NLTE populations for atom %s\n",
+				  atom->popsinFile, atom->ID);
 		} else {
 			atom->NLTEpops = FALSE;
 
@@ -862,9 +822,8 @@ void readAtomicModels(void)
 	/* --- Open input file for atomic models --          -------------- */
 
 	if ((fp_atoms = fopen(rh->input.atoms_input, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open input file %s",
-				rh->input.atoms_input);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s",
+			  rh->input.atoms_input);
 	}
 	/* --- Get the number of atomic models to be read -- -------------- */
 
@@ -885,17 +844,14 @@ void readAtomicModels(void)
 
 		atomID = getAtomID(filename);
 		if (n == 0 && !strstr(atomID, "H ")) {
-			sprintf(messageStr, "First atomic model is not hydrogen: %s",
-					atomID);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "First atomic model is not hydrogen: %s",
+				  atomID);
 		}
 		/* --- Check for duplicate atomic ID --            -------------- */
 
 		for (m = 0; m < n; m++) {
 			if (strstr(atomID, rh->atmos.atoms[m].ID)) {
-				sprintf(messageStr,
-						"Aready read atomic model for element %s\n", atomID);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Aready read atomic model for element %s\n", atomID);
 			}
 		}
 		/* --- Set active flag. Active set to TRUE means atom will be
@@ -918,10 +874,8 @@ void readAtomicModels(void)
 		/* --- If popsKey is not recognized --             -------------- */
 
 		if (atom->initial_solution == UNKNOWN) {
-			sprintf(messageStr,
-					"Unknown initial solution specified for atom: %s\n",
-					atomID);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Unknown initial solution specified for atom: %s\n",
+				  atomID);
 		}
 		/* --- A PASSIVE atom keeps the populations it starts with: LTE,
 			   or (OLD_POPULATIONS) read from a file. ZERO_RADIATION
@@ -934,27 +888,21 @@ void readAtomicModels(void)
 
 		if (!atom->active) {
 			if (atom->initial_solution == ZERO_RADIATION) {
-				sprintf(messageStr,
-						"ZERO_RADIATION is for ACTIVE atoms only (PASSIVE atom %s).\n"
-						" A PASSIVE atom keeps its populations: LTE_POPULATIONS,\n"
-						" or OLD_POPULATIONS with a file of populations to read",
-						atomID);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "ZERO_RADIATION is for ACTIVE atoms only (PASSIVE atom %s).\n"
+												  " A PASSIVE atom keeps its populations: LTE_POPULATIONS,\n"
+												  " or OLD_POPULATIONS with a file of populations to read",
+					  atomID);
 			}
 			if (n == 0 && atom->initial_solution == OLD_POPULATIONS) {
-				sprintf(messageStr,
-						"PASSIVE hydrogen cannot read OLD_POPULATIONS: its\n"
-						" populations come from the atmosphere, or are LTE with\n"
-						" HYDROGEN_LTE = TRUE. Use LTE_POPULATIONS, or make\n"
-						" hydrogen ACTIVE");
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "PASSIVE hydrogen cannot read OLD_POPULATIONS: its\n"
+												  " populations come from the atmosphere, or are LTE with\n"
+												  " HYDROGEN_LTE = TRUE. Use LTE_POPULATIONS, or make\n"
+												  " hydrogen ACTIVE");
 			}
 			if (atom->initial_solution == LTE_POPULATIONS && Nread == 4) {
-				sprintf(messageStr,
-						"Populations file %s of PASSIVE atom %s is not read\n"
-						" with LTE_POPULATIONS (OLD_POPULATIONS reads it)",
-						popsFile, atomID);
-				Error(WARNING, routineName, messageStr);
+				Error(WARNING, routineName, "Populations file %s of PASSIVE atom %s is not read\n"
+											" with LTE_POPULATIONS (OLD_POPULATIONS reads it)",
+					  popsFile, atomID);
 			}
 		}
 		/* --- If input.startJ == OLD_J then enforce OLD_POPULATIONAS - - */
@@ -966,10 +914,8 @@ void readAtomicModels(void)
 
 		if (atom->initial_solution == OLD_POPULATIONS) {
 			if (Nread < 4) {
-				sprintf(messageStr,
-						"No file with OLD_POPULATIONS specified for atom: %s\n",
-						atomID);
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "No file with OLD_POPULATIONS specified for atom: %s\n",
+					  atomID);
 			}
 			atom->popsinFile =
 				(char *) malloc((strlen(popsFile) + 1) * sizeof(char));
@@ -1010,8 +956,7 @@ char *getAtomID(char *atom_file)
 	FILE  *fp_atom;
 
 	if ((fp_atom = fopen(atom_file, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open inputfile %s", atom_file);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to open inputfile %s", atom_file);
 	}
 	/* --- Read atom ID and convert to uppercase --     -------------- */
 

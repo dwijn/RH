@@ -32,8 +32,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- bgSupported.c ----------- */
 
 static const char *bgSupported(void)
@@ -141,9 +139,7 @@ void Hydrostatic(int NmaxIter, double iterLimit)
 	(void) iterLimit;
 
 	if (rh->atmos.hydrostatic) {
-		sprintf(messageStr,
-				"Can only establish hydrostatic equilibrium in 1-D geometry");
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Can only establish hydrostatic equilibrium in 1-D geometry");
 	}
 }
 /* ------- end ---------------------------- Hydrostatic.c ----------- */

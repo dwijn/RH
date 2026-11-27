@@ -19,8 +19,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- setOptions.c ------------ */
 
 void setOptions(int argc, char *argv[])
@@ -49,8 +47,7 @@ void setOptions(int argc, char *argv[])
 
 	if (strlen(logfileName) > 0) {
 		if ((rh->commandline.logfile = fopen(logfileName, "w")) == NULL) {
-			sprintf(messageStr, "Unable to open log file %s", logfileName);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Unable to open log file %s", logfileName);
 		}
 		setvbuf(rh->commandline.logfile, NULL, _IOLBF, BUFSIZ);
 	} else

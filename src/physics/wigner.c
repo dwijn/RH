@@ -25,8 +25,6 @@ double triangleCoefficient(double a, double b, double c);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- w3js.c ------------------ */
 
 double w3js(double j1, double j2, double j3,
@@ -98,9 +96,8 @@ double w3js(double j1, double j2, double j3,
 	/* --- The products of factorials overflow from j ~ 50 -- -------- */
 
 	if (!isfinite(w3js)) {
-		sprintf(messageStr, "3j symbol (%g %g %g; %g %g %g) overflows",
-				j1, j2, j3, m1, m2, m3);
-		Error(ERROR_LEVEL_2, "w3js", messageStr);
+		Error(ERROR_LEVEL_2, "w3js", "3j symbol (%g %g %g; %g %g %g) overflows",
+			  j1, j2, j3, m1, m2, m3);
 	}
 	return w3js;
 }
@@ -166,9 +163,8 @@ double w6js(double j1, double j2, double j3,
 	w6js = sqrt(tc1 * tc2 * tc3 * tc4) * sumz;
 
 	if (!isfinite(w6js)) {
-		sprintf(messageStr, "6j symbol {%g %g %g; %g %g %g} overflows",
-				j1, j2, j3, J1, J2, J3);
-		Error(ERROR_LEVEL_2, "w6js", messageStr);
+		Error(ERROR_LEVEL_2, "w6js", "6j symbol {%g %g %g; %g %g %g} overflows",
+			  j1, j2, j3, J1, J2, J3);
 	}
 	return w6js;
 }
@@ -194,9 +190,8 @@ double fact(double xi)
 		initialize = FALSE;
 	}
 	if (fmod(xi, 1.0) || xi < 0.0 || xi >= NFACT) {
-		sprintf(messageStr, "Factorial of %g: needs an integer from 0 to %d",
-				xi, NFACT - 1);
-		Error(ERROR_LEVEL_2, "fact", messageStr);
+		Error(ERROR_LEVEL_2, "fact", "Factorial of %g: needs an integer from 0 to %d",
+			  xi, NFACT - 1);
 	}
 	return factorial[(int) xi];
 }

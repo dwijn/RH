@@ -21,8 +21,6 @@
 #include "rh.h"
 #include "error.h"
 
-extern char messageStr[];
-
 #if defined(HAVE_FEENABLEEXCEPT)
 
 #include <fenv.h>

@@ -33,8 +33,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- getTime.c --------------- */
 
 void getCPU(int level, enum CPUaction action, char *label)
@@ -55,8 +53,7 @@ void getCPU(int level, enum CPUaction action, char *label)
 		return;
 	else {
 		if ((CPUtime = clock()) == ((clock_t) -1)) {
-			sprintf(messageStr, "Cannot poll resources");
-			Error(ERROR_LEVEL_1, "getCPU", messageStr);
+			Error(ERROR_LEVEL_1, "getCPU", "Cannot poll resources");
 		}
 
 		switch (action) {

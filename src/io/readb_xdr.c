@@ -35,8 +35,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- readB.c ----------------- */
 
 bool_t readB(Atmosphere *atmos)
@@ -51,8 +49,7 @@ bool_t readB(Atmosphere *atmos)
 	if (!strcmp(rh->input.Stokes_input, "none")) return FALSE;
 
 	if ((fp_stokes = fopen(rh->input.Stokes_input, "r")) == NULL) {
-		sprintf(messageStr, "Unable to open inputfile %s", rh->input.Stokes_input);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Unable to open inputfile %s", rh->input.Stokes_input);
 	}
 
 	atmos->B       = (double *) malloc(atmos->Nspace * sizeof(double));
@@ -81,9 +78,8 @@ bool_t readB(Atmosphere *atmos)
 	}
 
 	if (!result) {
-		sprintf(messageStr, "Unable to read from input file %s",
-				rh->input.Stokes_input);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to read from input file %s",
+			  rh->input.Stokes_input);
 	}
 
 	fclose(fp_stokes);

@@ -31,8 +31,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- Hydrostatic.c ----------- */
 
 static void solveHydrostatic(int NmaxIter, double iterLimit)
@@ -40,6 +38,7 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 	const char   routineName[] = "Hydrostatic";
 	register int k, n, m, i;
 
+	char    label[MAX_MESSAGE_LENGTH];
 	bool_t  Debeye, quiet;
 	int     niter, Ngdelay, Ngperiod, Ngorder, Nhse;
 	double *n_k, **dfdn, C1, C2, C3, beta, Phi_H, Phi_H2, *F, *dFdne, *f,
@@ -172,21 +171,20 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 			/* --- Check convergence and accelerate if appropriate -- ----- */
 
 			Accelerate(Nghse, n_k);
-			sprintf(messageStr,
-					"\n%s-- Hydrostatic equilibrium: depth %3.3d, iteration %d",
-					(niter == 1) ? "\n" : "", k, niter);
+			snprintf(label, sizeof(label),
+					 "\n%s-- Hydrostatic equilibrium: depth %3.3d, iteration %d",
+					 (niter == 1) ? "\n" : "", k, niter);
 
-			if ((dnmax = MaxChange(Nghse, messageStr, quiet = TRUE)) <= iterLimit)
+			if ((dnmax = MaxChange(Nghse, label, quiet = TRUE)) <= iterLimit)
 				break;
 			niter++;
 		}
 		if (dnmax > iterLimit) {
-			sprintf(messageStr,
-					"Hydrostatic equilibrium iteration not converged:\n"
-					" temperature: %6.1f [K], \n"
-					" hydrogen density: %9.3E [m^-3],\n dnmax: %9.3E\n",
-					rh->atmos.T[k], rh->atmos.nHtot[k], dnmax);
-			Error(WARNING, routineName, messageStr);
+			Error(WARNING, routineName,
+				  "Hydrostatic equilibrium iteration not converged:\n"
+				  " temperature: %6.1f [K], \n"
+				  " hydrogen density: %9.3E [m^-3],\n dnmax: %9.3E\n",
+				  rh->atmos.T[k], rh->atmos.nHtot[k], dnmax);
 		}
 		/* --- Store results --                            -------------- */
 

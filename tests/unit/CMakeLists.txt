@@ -103,3 +103,4 @@ rh_unit_test(test_zeeman test_zeeman.c
 rh_unit_test(test_ltepops test_ltepops.c)
 rh_unit_test(test_ohchbf_range test_ohchbf_range.c)
 rh_unit_test(test_molecule_range test_molecule_range.c)
+rh_unit_test(test_error test_error.c)

@@ -26,8 +26,6 @@ void LUbacksubst(int N, double **A, int *index, double *b);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- SolveLinearEq.c --------- */
 
 void SolveLinearEq(int N, double **A, double *b, bool_t improve)
@@ -103,8 +101,7 @@ void LUdecomp(int N, double **A, int *index, double *d)
 		for (j = 0; j < N; j++)
 			if ((temp = fabs(A[i][j])) > big) big = temp;
 		if (big == 0.0) {
-			sprintf(messageStr, "Singular matrix");
-			Error(ERROR_LEVEL_2, "LUdecomp", messageStr);
+			Error(ERROR_LEVEL_2, "LUdecomp", "Singular matrix");
 		}
 		vv[i] = 1.0 / big;
 	}

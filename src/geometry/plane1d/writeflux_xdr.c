@@ -22,8 +22,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- writeFlux.c ------------- */
 
 bool_t writeFlux(char *flux_output)
@@ -39,8 +37,7 @@ bool_t writeFlux(char *flux_output)
 	/* --- Write the radiative flux in the z-direction -- ------------ */
 
 	if ((fp_flux = fopen(flux_output, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open outputfile %s", flux_output);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to open outputfile %s", flux_output);
 	}
 	xdrstdio_create(&xdrs, fp_flux, XDR_ENCODE);
 

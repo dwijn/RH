@@ -51,8 +51,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- endSlope.c -------------- */
 
 /* --- One-sided three-point slope at an end of the table, limited to
@@ -124,8 +122,7 @@ void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
 	int    kk, a;
 
 	if (N < 1) {
-		sprintf(messageStr, "Table needs at least one point (N = %d)", N);
-		Error(ERROR_LEVEL_2, routineName, messageStr);
+		Error(ERROR_LEVEL_2, routineName, "Table needs at least one point (N = %d)", N);
 	}
 	pt->N    = N;
 	pt->logx = (scale & PCHIP_LOGX) != 0;
@@ -148,9 +145,8 @@ void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
 	for (k = 0; k < N; k++) {
 		kk = (ascend) ? k : N - 1 - k;
 		if (pt->logx && !(x[kk] > 0.0)) {
-			sprintf(messageStr, "Interpolation in log x needs x > 0 (x = %g)",
-					x[kk]);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Interpolation in log x needs x > 0 (x = %g)",
+				  x[kk]);
 		}
 		pt->x[k] = (pt->logx) ? log(x[kk]) : x[kk];
 		pt->y[k] = (pt->logy && y[kk] > 0.0) ? log(y[kk]) : y[kk];
@@ -158,10 +154,9 @@ void pchipTableInit(PchipTable *pt, int N, const double *x, const double *y,
 	}
 	for (k = 1; k < N; k++) {
 		if (!(pt->x[k] > pt->x[k - 1])) {
-			sprintf(messageStr, "Table abscissae are not strictly monotonic"
-								" (point %d of %d)",
-					k, N);
-			Error(ERROR_LEVEL_2, routineName, messageStr);
+			Error(ERROR_LEVEL_2, routineName, "Table abscissae are not strictly monotonic"
+											  " (point %d of %d)",
+				  k, N);
 		}
 	}
 	if (!mixed) {

@@ -54,8 +54,6 @@ double MolProfile(MolecularLine *mrt, int k, int mu, bool_t to_obs,
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* --- Loops over depth of the active opacity, factored out so that
 	   their arrays are restrict (they do not overlap) and the loops
 	   vectorize (P-7, see simd.h). The arithmetic is that of the loops
@@ -362,8 +360,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 				break;
 
 			default:
-				sprintf(messageStr, "Invalid transition type");
-				Error(ERROR_LEVEL_1, routineName, messageStr);
+				Error(ERROR_LEVEL_1, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 			/* --- Always calculate total opacity and emissivity of set - - */
@@ -443,8 +440,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 				break;
 
 			default:
-				sprintf(messageStr, "Invalid transition type");
-				Error(ERROR_LEVEL_1, routineName, messageStr);
+				Error(ERROR_LEVEL_1, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 			/* --- Always calculate total opacity and emissivity of set - - */
@@ -958,9 +954,8 @@ flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
 						if (mrt->polarizable) {
 							backgrflags.ispolarized = TRUE;
 							if (mrt->zm == NULL) {
-								sprintf(messageStr, "Zeeman multiplet not set up "
-													"(call molecularPrepare first)");
-								Error(ERROR_LEVEL_2, routineName, messageStr);
+								Error(ERROR_LEVEL_2, routineName, "Zeeman multiplet not set up "
+																  "(call molecularPrepare first)");
 							}
 						}
 

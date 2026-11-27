@@ -49,8 +49,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* --- The first location of a call where GTH could not be used, for
 	   the message --                                  -------------- */
 
@@ -165,10 +163,9 @@ static void reportFallback(const char *ID, const SEFallback *fb,
 	default:
 		why[0] = '\0';
 	}
-	sprintf(messageStr, " %s: rate equations solved with LU at %d of %d"
-						" locations (first: %s)\n",
-			ID, fb->Nlu, rh->atmos.Nspace, why);
-	Error(MESSAGE, NULL, messageStr);
+	Error(MESSAGE, NULL, " %s: rate equations solved with LU at %d of %d"
+						 " locations (first: %s)\n",
+		  ID, fb->Nlu, rh->atmos.Nspace, why);
 }
 /* ------- end ---------------------------- reportFallback.c -------- */
 
@@ -206,8 +203,7 @@ static void badPopulations(const char *ID, const char *level, long Nsolved,
 		negTauInvalid(what);
 		return;
 	}
-	snprintf(messageStr, MAX_MESSAGE_LENGTH, "\n  %s", what);
-	Error(ERROR_LEVEL_2, routineName, messageStr);
+	Error(ERROR_LEVEL_2, routineName, "\n  %s", what);
 }
 /* ------- end ---------------------------- badPopulations.c ------- */
 
@@ -304,6 +300,7 @@ double updatePopulations(int niter)
 {
 	register int nact;
 
+	char      label[MAX_MESSAGE_LENGTH];
 	bool_t    accel, quiet;
 	double    dpops, dpopsmax = 0.0;
 	Atom     *atom;
@@ -319,9 +316,9 @@ double updatePopulations(int niter)
 		statEquil(atom, rh->input.isum);
 		accel = Accelerate(atom->Ng_n, atom->n[0]);
 
-		sprintf(messageStr, " %s,", atom->ID);
-		dpops = MaxChange(atom->Ng_n, messageStr, quiet = FALSE);
-		Error(MESSAGE, NULL, NgStatus(atom->Ng_n, accel));
+		snprintf(label, sizeof(label), " %s,", atom->ID);
+		dpops = MaxChange(atom->Ng_n, label, quiet = FALSE);
+		Error(MESSAGE, NULL, "%s", NgStatus(atom->Ng_n, accel));
 
 		dpopsmax = MAX(dpops, dpopsmax);
 	}
@@ -333,9 +330,9 @@ double updatePopulations(int niter)
 		statEquilMolecule(molecule, 0);
 		accel = Accelerate(molecule->Ng_nv, molecule->nv[0]);
 
-		sprintf(messageStr, " %s ,", molecule->ID);
-		dpops = MaxChange(molecule->Ng_nv, messageStr, quiet = FALSE);
-		Error(MESSAGE, NULL, NgStatus(molecule->Ng_nv, accel));
+		snprintf(label, sizeof(label), " %s ,", molecule->ID);
+		dpops = MaxChange(molecule->Ng_nv, label, quiet = FALSE);
+		Error(MESSAGE, NULL, "%s", NgStatus(molecule->Ng_nv, accel));
 
 		dpopsmax = MAX(dpops, dpopsmax);
 	}

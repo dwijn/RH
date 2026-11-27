@@ -32,8 +32,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- Piecewise_1D.c ---------- */
 
 /* --- Unpolarized formal solution along one ray with the method chosen
@@ -52,9 +50,8 @@ static void Piecewise_1D(int nspect, int mu, bool_t to_obs, double *chi,
 	} else if (rh->input.S_interpolation == S_BEZIER3) {
 		Piecewise_Bezier3_1D_tri(nspect, mu, to_obs, chi, S, I, Psi, Tri);
 	} else {
-		sprintf(messageStr, "Unknown radiation solver: %d",
-				rh->input.S_interpolation);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
+			  rh->input.S_interpolation);
 	}
 }
 /* ------- end ---------------------------- Piecewise_1D.c ---------- */
@@ -142,9 +139,8 @@ static void solveStokes_1D(int nspect, int mu, bool_t to_obs, double *chi,
 	if (rh->input.S_interpolation_stokes == DELO_BEZIER3) {
 		Piece_Stokes_Bezier3_1D(nspect, mu, to_obs, chi, S, I, Psi);
 	} else {
-		sprintf(messageStr, "Unknown polarization solver: %d",
-				rh->input.S_interpolation_stokes);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unknown polarization solver: %d",
+			  rh->input.S_interpolation_stokes);
 	}
 }
 /* ------- end ---------------------------- solveStokes_1D.c -------- */

@@ -24,8 +24,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- xdr_counted_string.c ---- */
 
 bool_t xdr_counted_string(XDR *xdrs, char **p)
@@ -66,8 +64,7 @@ void writeAtmos(Atmosphere *atmos)
 	if (!strcmp(rh->input.atmos_output, "none")) return;
 
 	if ((fp_out = fopen(rh->input.atmos_output, "w")) == NULL) {
-		sprintf(messageStr, "Unable to open output file %s", rh->input.atmos_output);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", rh->input.atmos_output);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
@@ -109,9 +106,8 @@ void writeAtmos(Atmosphere *atmos)
 	}
 
 	if (!result) {
-		sprintf(messageStr, "Unable to write proper amount to output file %s",
-				rh->input.atmos_output);
-		Error(ERROR_LEVEL_1, routineName, messageStr);
+		Error(ERROR_LEVEL_1, routineName, "Unable to write proper amount to output file %s",
+			  rh->input.atmos_output);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp_out);

@@ -44,8 +44,6 @@
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 /* ------- begin -------------------------- Feautrier.c ------------- */
 
 double Feautrier(int nspect, int mu, double *chi, double *S,
@@ -165,9 +163,7 @@ double Feautrier(int nspect, int mu, double *chi, double *S,
 
 	if (Psi) {
 		if (F_order == FEAUTRIER_HERMITE) {
-			sprintf(messageStr,
-					"Higher order for diagonal operator calculation not yet implemented");
-			Error(ERROR_LEVEL_1, routineName, messageStr);
+			Error(ERROR_LEVEL_1, routineName, "Higher order for diagonal operator calculation not yet implemented");
 		}
 
 		G[Ndep - 1] = abc[Ndep - 1] / A1[Ndep - 1];

@@ -38,8 +38,6 @@ void *Formal_pthread(void *argument);
 
 /* --- Global variables --                             -------------- */
 
-extern char messageStr[];
-
 static void   iterateNg(int NmaxIter, double iterLimit);
 static bool_t moreIterations(int niter, int NmaxIter);
 
@@ -68,9 +66,8 @@ void Iterate(int NmaxIter, double iterLimit)
 		workPhase(WORK_FINAL);
 		return;
 	}
-	sprintf(messageStr, " -- SOLVER = %s%s\n", solverName(rh->input.solver),
-			rh->input.solver_default ? " (the default)" : "");
-	Error(MESSAGE, "Iterate", messageStr);
+	Error(MESSAGE, "Iterate", " -- SOLVER = %s%s\n", solverName(rh->input.solver),
+		  rh->input.solver_default ? " (the default)" : "");
 
 	getCPU(1, TIME_START, NULL);
 	workPhase(WORK_ITERATE);
@@ -104,6 +101,7 @@ static void iterateNg(int NmaxIter, double iterLimit)
 	const char   routineName[] = "Iterate";
 	register int niter, nact;
 
+	char   label[MAX_MESSAGE_LENGTH];
 	bool_t eval_operator, write_analyze_output, equilibria_only,
 		converged = FALSE, stopped = FALSE, more;
 	int       Ngorder;
@@ -168,8 +166,7 @@ static void iterateNg(int NmaxIter, double iterLimit)
 
 		/* --- Solve statistical equilibrium equations --  -------------- */
 
-		sprintf(messageStr, "\n -- Iteration %3d\n", niter);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, "\n -- Iteration %3d\n", niter);
 		dpopsmax = updatePopulations(niter);
 
 		if (rh->atmos.NPRDactive > 0) {
@@ -184,8 +181,8 @@ static void iterateNg(int NmaxIter, double iterLimit)
 			Redistribute(rh->input.PRD_NmaxIter, PRDiterlimit);
 		}
 
-		sprintf(messageStr, "Total Iteration %3d", niter);
-		getCPU(2, TIME_POLL, messageStr);
+		snprintf(label, sizeof(label), "Total Iteration %3d", niter);
+		getCPU(2, TIME_POLL, label);
 
 		/* --- With collisional relaxation the collision rates are scaled
 			   up until iteration CR_Nstep, so populations close to LTE
@@ -229,9 +226,8 @@ static void iterateNg(int NmaxIter, double iterLimit)
 
 		if (rh->atmos.hydrostatic) {
 			if (!rh->atmos.atoms[0].active) {
-				sprintf(messageStr, "Can only perform hydrostatic equilibrium"
-									" for hydrogen active");
-				Error(ERROR_LEVEL_2, routineName, messageStr);
+				Error(ERROR_LEVEL_2, routineName, "Can only perform hydrostatic equilibrium"
+												  " for hydrogen active");
 			}
 
 			/* --- After the last iteration of a run that did not converge
@@ -251,22 +247,19 @@ static void iterateNg(int NmaxIter, double iterLimit)
 		   this output is not a converged solution --   -------------- */
 
 	if (converged) {
-		sprintf(messageStr, "\n -- Converged in %d iterations: max change"
-							" %.4E < ITER_LIMIT = %.4E\n",
-				niter, dpopsmax, iterLimit);
-		Error(MESSAGE, routineName, messageStr);
+		Error(MESSAGE, routineName, "\n -- Converged in %d iterations: max change"
+									" %.4E < ITER_LIMIT = %.4E\n",
+			  niter, dpopsmax, iterLimit);
 	} else if (stopped) {
-		sprintf(messageStr, "Stopped on request (STOP_RH) after %d iterations:"
-							" NOT CONVERGED.\n The output is not a converged solution",
-				niter - 1);
-		Error(WARNING, routineName, messageStr);
+		Error(WARNING, routineName, "Stopped on request (STOP_RH) after %d iterations:"
+									" NOT CONVERGED.\n The output is not a converged solution",
+			  niter - 1);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	} else {
-		sprintf(messageStr, "NOT CONVERGED after %d iterations: max change"
-							" %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"
-							" solution; increase N_MAX_ITER or see what limits convergence",
-				niter - 1, dpopsmax, iterLimit);
-		Error(WARNING, routineName, messageStr);
+		Error(WARNING, routineName, "NOT CONVERGED after %d iterations: max change"
+									" %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"
+									" solution; increase N_MAX_ITER or see what limits convergence",
+			  niter - 1, dpopsmax, iterLimit);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	}
 
@@ -444,9 +437,8 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 
 	negTauStop();
 
-	sprintf(messageStr, " Spectrum max delta J = %6.4E (lambda#: %d)\n",
-			dJmax, lambda_max);
-	Error(MESSAGE, NULL, messageStr);
+	Error(MESSAGE, NULL, " Spectrum max delta J = %6.4E (lambda#: %d)\n",
+		  dJmax, lambda_max);
 
 	/* --- The background scattering iteration of the sweep (N-51) -- */
 
@@ -455,18 +447,14 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 
 		bgScatterStats(&bs, TRUE);
 		if (bs.Niterated > 0) {
-			sprintf(messageStr,
-					"  Background scattering: %ld wavelengths iterated,"
-					" %ld solves%s%s",
-					bs.Niterated, bs.Nsweeps, linearNote(&bs),
-					(bs.Nunconverged > 0) ? "" : "\n");
-			Error(MESSAGE, NULL, messageStr);
+			Error(MESSAGE, NULL, "  Background scattering: %ld wavelengths iterated,"
+								 " %ld solves%s%s",
+				  bs.Niterated, bs.Nsweeps, linearNote(&bs),
+				  (bs.Nunconverged > 0) ? "" : "\n");
 			if (bs.Nunconverged > 0) {
-				sprintf(messageStr,
-						"; %ld not converged at BACKGROUND_N_MAX_ITER"
-						" (estimated error up to %.2E)\n",
-						bs.Nunconverged, bs.rmax);
-				Error(MESSAGE, NULL, messageStr);
+				Error(MESSAGE, NULL, "; %ld not converged at BACKGROUND_N_MAX_ITER"
+									 " (estimated error up to %.2E)\n",
+					  bs.Nunconverged, bs.rmax);
 			}
 			workBgScatter(bs.Nsweeps);
 		}
