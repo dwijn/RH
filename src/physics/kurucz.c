@@ -153,7 +153,7 @@ void readKuruczLines(RHState *rh, char *inputFile)
 
 		if (rh->atmos.Nrlk == 0) rh->atmos.rlk_lines = NULL;
 		rh->atmos.rlk_lines = (RLK_Line *)
-			realloc(rh->atmos.rlk_lines, (Nline + rh->atmos.Nrlk) * sizeof(RLK_Line));
+			reallocOrAbort(rh->atmos.rlk_lines, (Nline + rh->atmos.Nrlk) * sizeof(RLK_Line));
 
 		/* --- Read lines from file --                     -------------- */
 
@@ -440,8 +440,8 @@ void rlk_prepare(RHState *rh)
 		   are only allocated for the (element, stage) combinations
 		   that occur in the line list. --              -------------- */
 
-	rh->kurucz.rlk_tab.lnU    = (double ***) calloc(Nelem, sizeof(double **));
-	rh->kurucz.rlk_tab.vbroad = (double **) calloc(Nelem, sizeof(double *));
+	rh->kurucz.rlk_tab.lnU    = (double ***) callocOrAbort(Nelem, sizeof(double **));
+	rh->kurucz.rlk_tab.vbroad = (double **) callocOrAbort(Nelem, sizeof(double *));
 	rh->kurucz.rlk_tab.T03    = NULL;
 
 	for (n = 0; n < rh->atmos.Nrlk; n++) {
@@ -461,16 +461,16 @@ void rlk_prepare(RHState *rh)
 
 		if (rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1] == NULL)
 			rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1] =
-				(double **) calloc(element->Nstage, sizeof(double *));
+				(double **) callocOrAbort(element->Nstage, sizeof(double *));
 
 		if (rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1][rlk->stage] == NULL) {
-			double *pf = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+			double *pf = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 			Linear(rh->atmos.Npf, rh->atmos.Tpf, element->pf[rlk->stage],
 				   rh->atmos.Nspace, rh->atmos.T, pf, hunt = TRUE);
 			rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1][rlk->stage] = pf;
 		}
 		if (rh->kurucz.rlk_tab.vbroad[rlk->pt_index - 1] == NULL) {
-			double *vb = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+			double *vb = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 			vtherm = 2.0 * KBOLTZMANN / (AMU * element->weight);
 			for (k = 0; k < rh->atmos.Nspace; k++)
@@ -480,7 +480,7 @@ void rlk_prepare(RHState *rh)
 		if (rlk->Grad && rlk->vdwaals == UNSOLD) unsold = TRUE;
 	}
 	if (unsold) {
-		rh->kurucz.rlk_tab.T03 = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		rh->kurucz.rlk_tab.T03 = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 		for (k = 0; k < rh->atmos.Nspace; k++)
 			rh->kurucz.rlk_tab.T03[k] = pow(rh->atmos.T[k], 0.3);
 	}
@@ -855,7 +855,7 @@ void RLKZeeman(RHState *rh, RLK_Line *rlk)
 	Jl = rlk->level_i.J;
 	Ju = rlk->level_j.J;
 
-	rlk->zm = (ZeemanMultiplet *) malloc(sizeof(ZeemanMultiplet));
+	rlk->zm = (ZeemanMultiplet *) mallocOrAbort(sizeof(ZeemanMultiplet));
 	initZeeman(rlk->zm);
 	zm = rlk->zm;
 
@@ -866,9 +866,9 @@ void RLKZeeman(RHState *rh, RLK_Line *rlk)
 		for (Mu = -Ju; Mu <= Ju; Mu++)
 			if (fabs(Mu - Ml) <= 1.0) zm->Ncomponent++;
 	}
-	zm->q        = (int *) malloc(zm->Ncomponent * sizeof(int));
-	zm->strength = (double *) malloc(zm->Ncomponent * sizeof(double));
-	zm->shift    = (double *) malloc(zm->Ncomponent * sizeof(double));
+	zm->q        = (int *) mallocOrAbort(zm->Ncomponent * sizeof(int));
+	zm->strength = (double *) mallocOrAbort(zm->Ncomponent * sizeof(double));
+	zm->shift    = (double *) mallocOrAbort(zm->Ncomponent * sizeof(double));
 
 	for (n = 0; n < 3; n++) norm[n] = 0.0;
 	g_eff = 0.0;
@@ -1004,7 +1004,7 @@ bool_t RLKdet_level(RHState *rh, char *label, RLK_level *level)
 		}
 
 		length     = ptr_f - ptr_i + 2;
-		quanta_str = (char *) malloc(length);
+		quanta_str = (char *) mallocOrAbort(length);
 		strncpy(quanta_str, ptr_i, length - 1);
 		quanta_str[length - 1] = '\0';
 

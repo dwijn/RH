@@ -127,16 +127,16 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 	Ncont  = atom->Ncont;
 	Nfixed = atom->Nfixed;
 
-	atom->E     = (double *) malloc(Nlevel * sizeof(double));
-	atom->g     = (double *) malloc(Nlevel * sizeof(double));
-	atom->stage = (int *) malloc(Nlevel * sizeof(int));
-	atom->label = (char **) malloc(Nlevel * sizeof(char *));
+	atom->E     = (double *) mallocOrAbort(Nlevel * sizeof(double));
+	atom->g     = (double *) mallocOrAbort(Nlevel * sizeof(double));
+	atom->stage = (int *) mallocOrAbort(Nlevel * sizeof(int));
+	atom->label = (char **) mallocOrAbort(Nlevel * sizeof(char *));
 
 	/* --- Read in the level energies, statistical weights, labels,
 		   and ionization stage --                       -------------- */
 
 	for (i = 0; i < Nlevel; i++) {
-		atom->label[i] = (char *) calloc((ATOM_LABEL_WIDTH + 1), sizeof(char));
+		atom->label[i] = (char *) callocOrAbort((ATOM_LABEL_WIDTH + 1), sizeof(char));
 		getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%lf %lf '%20c' %d",
 					   &atom->E[i], &atom->g[i], atom->label[i], &atom->stage[i]);
@@ -150,7 +150,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 	}
 
 	atom->nstar  = matrix_double(rh, Nlevel, Nspace);
-	atom->ntotal = (double *) malloc(Nspace * sizeof(double));
+	atom->ntotal = (double *) mallocOrAbort(Nspace * sizeof(double));
 
 	for (k = 0; k < Nspace; k++)
 		atom->ntotal[k] = atom->abundance * rh->atmos.nHtot[k];
@@ -159,7 +159,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 		   Doppler width for this particular atomic weight --  -------- */
 
 	if (atom->Nline > 0) {
-		atom->vbroad = (double *) malloc(Nspace * sizeof(double));
+		atom->vbroad = (double *) mallocOrAbort(Nspace * sizeof(double));
 		vtherm       = 2.0 * KBOLTZMANN / (AMU * atom->weight);
 		for (k = 0; k < Nspace; k++)
 			atom->vbroad[k] = sqrt(vtherm * rh->atmos.T[k] + SQ(rh->atmos.vturb[k]));
@@ -175,7 +175,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 	/* --- Go through the bound-bound transitions --     -------------- */
 
 	atom->Nprd = 0;
-	atom->line = (AtomicLine *) malloc(Nline * sizeof(AtomicLine));
+	atom->line = (AtomicLine *) mallocOrAbort(Nline * sizeof(AtomicLine));
 
 	for (kr = 0; kr < Nline; kr++) {
 		line = atom->line + kr;
@@ -228,9 +228,9 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 		if (strstr(shapeStr, "COMPOSIT")) {
 			getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 			Nread         = sscanf(inputLine, "%d", &line->Ncomponent);
-			line->c_shift = (double *) malloc(line->Ncomponent * sizeof(double));
+			line->c_shift = (double *) mallocOrAbort(line->Ncomponent * sizeof(double));
 			line->c_fraction =
-				(double *) malloc(line->Ncomponent * sizeof(double));
+				(double *) mallocOrAbort(line->Ncomponent * sizeof(double));
 
 			c_sum = 0.0;
 			for (n = 0; n < line->Ncomponent; n++) {
@@ -253,9 +253,9 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 		} else {
 			line->Ncomponent = 1;
 
-			line->c_shift       = (double *) malloc(sizeof(double));
+			line->c_shift       = (double *) mallocOrAbort(sizeof(double));
 			line->c_shift[0]    = 0.0;
-			line->c_fraction    = (double *) malloc(sizeof(double));
+			line->c_fraction    = (double *) mallocOrAbort(sizeof(double));
 			line->c_fraction[0] = 1.0;
 		}
 
@@ -290,8 +290,8 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 
 			/* --- Allocate space for up- and downward radiative rates -- - */
 
-			line->Rij = (double *) malloc(Nspace * sizeof(double));
-			line->Rji = (double *) malloc(Nspace * sizeof(double));
+			line->Rij = (double *) mallocOrAbort(Nspace * sizeof(double));
+			line->Rji = (double *) mallocOrAbort(Nspace * sizeof(double));
 
 			/* --- Per-thread accumulators used by the shared addtoRates()
 				   (no lock) --                   -------------- */
@@ -316,7 +316,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 	/* --- Go through the bound-free transitions --      -------------- */
 
 	atom->continuum =
-		(AtomicContinuum *) malloc(Ncont * sizeof(AtomicContinuum));
+		(AtomicContinuum *) mallocOrAbort(Ncont * sizeof(AtomicContinuum));
 	for (kr = 0; kr < Ncont; kr++) {
 		continuum = atom->continuum + kr;
 		initAtomicContinuum(continuum);
@@ -337,9 +337,9 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 		lambda0            = (HPLANCK * CLIGHT) / (atom->E[j] - atom->E[i]);
 		continuum->lambda0 = lambda0 / NM_TO_M;
 		continuum->lambda =
-			(double *) malloc(continuum->Nlambda * sizeof(double));
+			(double *) mallocOrAbort(continuum->Nlambda * sizeof(double));
 		continuum->alpha =
-			(double *) malloc(continuum->Nlambda * sizeof(double));
+			(double *) mallocOrAbort(continuum->Nlambda * sizeof(double));
 
 		if (strstr(nuDepStr, "EXPLICIT")) {
 			continuum->hydrogenic = FALSE;
@@ -397,8 +397,8 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 
 			/* --- Allocate space for up- and downward radiative rates -- - */
 
-			continuum->Rij = (double *) malloc(Nspace * sizeof(double));
-			continuum->Rji = (double *) malloc(Nspace * sizeof(double));
+			continuum->Rij = (double *) mallocOrAbort(Nspace * sizeof(double));
+			continuum->Rji = (double *) mallocOrAbort(Nspace * sizeof(double));
 
 			/* --- Per-thread accumulators used by the shared addtoRates()
 				   (no lock) --                   -------------- */
@@ -413,7 +413,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 	/* --- Go through fixed transitions --               -------------- */
 
 	if (atom->Nfixed > 0) {
-		atom->ft = (FixedTransition *) malloc(Nfixed * sizeof(FixedTransition));
+		atom->ft = (FixedTransition *) mallocOrAbort(Nfixed * sizeof(FixedTransition));
 
 		for (kf = 0; kf < Nfixed; kf++) {
 			fixed       = atom->ft + kf;
@@ -469,7 +469,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 
 	if (atom->active) {
 
-		atom->popsoutFile = (char *) malloc(12 * sizeof(char));
+		atom->popsoutFile = (char *) mallocOrAbort(12 * sizeof(char));
 		sprintf(atom->popsoutFile, (atom->ID[1] == ' ') ? "pops.%.1s.out" : "pops.%.2s.out", atom->ID);
 
 		if (atom->Nprd > 0) {
@@ -491,7 +491,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 			if (rh->input.XRD) {
 				for (kr = 0; kr < Nline; kr++) {
 					line      = &atom->line[kr];
-					line->xrd = (AtomicLine **) malloc(Nline * sizeof(AtomicLine *));
+					line->xrd = (AtomicLine **) mallocOrAbort(Nline * sizeof(AtomicLine *));
 					if (line->PRD) {
 						for (krp = 0; krp < Nline; krp++) {
 							if (atom->line[krp].PRD &&
@@ -510,7 +510,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 							}
 						}
 						line->xrd =
-							realloc(line->xrd, line->Nxrd * sizeof(AtomicLine *));
+							reallocOrAbort(line->xrd, line->Nxrd * sizeof(AtomicLine *));
 
 						Message(rh, "Found %d subordinate PRD lines for line %d-%d of "
 									"atom %2s\n",
@@ -527,7 +527,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 
 		/* --- Allocate space for thread dependent quantities -- -------- */
 
-		atom->rhth = (rhthread *) calloc(rh->input.Nthreads, sizeof(rhthread));
+		atom->rhth = (rhthread *) callocOrAbort(rh->input.Nthreads, sizeof(rhthread));
 
 		/* --- Store the offset to allow pointing back to the start of the
 			   collisional data in the atomic input file, and allocate
@@ -831,7 +831,7 @@ void readAtomicModels(RHState *rh)
 	Nread = sscanf(inputLine, "%d", &rh->atmos.Natom);
 	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 1);
 
-	rh->atmos.atoms = (Atom *) malloc(rh->atmos.Natom * sizeof(Atom));
+	rh->atmos.atoms = (Atom *) mallocOrAbort(rh->atmos.Natom * sizeof(Atom));
 
 	/* --- Read atomic data for the various model atoms -- ------------ */
 
@@ -918,7 +918,7 @@ void readAtomicModels(RHState *rh)
 					  atomID);
 			}
 			atom->popsinFile =
-				(char *) malloc((strlen(popsFile) + 1) * sizeof(char));
+				(char *) mallocOrAbort((strlen(popsFile) + 1) * sizeof(char));
 			strcpy(atom->popsinFile, popsFile);
 		}
 		readAtom(rh, atom, filename);

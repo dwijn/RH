@@ -66,7 +66,7 @@ void SortLambda(RHState *rh)
 		xdrstdio_create(&xdrs, fp_wavetable, XDR_DECODE);
 
 		result &= xdr_int(&xdrs, &Nwave);
-		wavetable = (double *) malloc(Nwave * sizeof(double));
+		wavetable = (double *) mallocOrAbort(Nwave * sizeof(double));
 		result &= xdr_vector(&xdrs, (char *) wavetable, Nwave,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
@@ -87,7 +87,7 @@ void SortLambda(RHState *rh)
 		   full profiles (N-55) --                       -------------- */
 
 	if (rh->atmos.Natom > 0) {
-		double *extra = (double *) malloc((Nwave + 1) * sizeof(double));
+		double *extra = (double *) mallocOrAbort((Nwave + 1) * sizeof(double));
 
 		for (kr = 0; kr < Nwave; kr++) extra[kr] = wavetable[kr];
 		if (rh->atmos.lambda_ref > 0.0) extra[Nwave] = rh->atmos.lambda_ref;
@@ -120,8 +120,8 @@ void SortLambda(RHState *rh)
 		   enumerated --                                 -------------- */
 
 	if (rh->atmos.Nactiveatom > 0) {
-		rh->atmos.activeatoms = (Atom **) malloc(rh->atmos.Nactiveatom *
-												 sizeof(Atom *));
+		rh->atmos.activeatoms = (Atom **) mallocOrAbort(rh->atmos.Nactiveatom *
+														sizeof(Atom *));
 		for (n = 0; n < rh->atmos.Natom; n++) {
 			atom = &rh->atmos.atoms[n];
 			if (atom->active)
@@ -147,8 +147,8 @@ void SortLambda(RHState *rh)
 		  enumerated --                                  -------------- */
 
 	if (rh->atmos.Nactivemol > 0) {
-		rh->atmos.activemols = (Molecule **) malloc(rh->atmos.Nactivemol *
-													sizeof(Molecule *));
+		rh->atmos.activemols = (Molecule **) mallocOrAbort(rh->atmos.Nactivemol *
+														   sizeof(Molecule *));
 		for (n = 0; n < rh->atmos.Nmolecule; n++) {
 			molecule = &rh->atmos.molecules[n];
 			if (molecule->active)
@@ -160,7 +160,7 @@ void SortLambda(RHState *rh)
 	/* --- Fill the wavelength array --                  -------------- */
 
 	nspect              = 0;
-	rh->spectrum.lambda = (double *) malloc(Nspectrum * sizeof(double));
+	rh->spectrum.lambda = (double *) mallocOrAbort(Nspectrum * sizeof(double));
 
 	/* --- First the referenece wavelength if specified -- ------------ */
 
@@ -231,9 +231,9 @@ void SortLambda(RHState *rh)
 	}
 	/* --- Allocate space for wavelength array and active sets -- ----- */
 
-	rh->spectrum.lambda = (double *) realloc(rh->spectrum.lambda,
-											 rh->spectrum.Nspect * sizeof(double));
-	rh->spectrum.as     = (ActiveSet *) calloc(rh->spectrum.Nspect, sizeof(ActiveSet));
+	rh->spectrum.lambda = (double *) reallocOrAbort(rh->spectrum.lambda,
+													rh->spectrum.Nspect * sizeof(double));
+	rh->spectrum.as     = (ActiveSet *) callocOrAbort(rh->spectrum.Nspect, sizeof(ActiveSet));
 
 	/* --- Go through each established wavelength and gather active
 		   transitions --                                -------------- */
@@ -247,14 +247,14 @@ void SortLambda(RHState *rh)
 
 		if (rh->atmos.Nactiveatom > 0) {
 			as->Nactiveatomrt =
-				(int *) malloc(rh->atmos.Nactiveatom * sizeof(int));
+				(int *) mallocOrAbort(rh->atmos.Nactiveatom * sizeof(int));
 			as->art = (AtomicTransition **)
-				malloc(rh->atmos.Nactiveatom * sizeof(AtomicTransition *));
+				mallocOrAbort(rh->atmos.Nactiveatom * sizeof(AtomicTransition *));
 
 			for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 				as->Nactiveatomrt[nact] = 0;
 				as->art[nact]           = (AtomicTransition *)
-					malloc(N_MAX_OVERLAP * sizeof(AtomicTransition));
+					mallocOrAbort(N_MAX_OVERLAP * sizeof(AtomicTransition));
 			}
 		} else {
 			as->Nactiveatomrt = NULL;
@@ -263,14 +263,14 @@ void SortLambda(RHState *rh)
 
 		if (rh->atmos.Nactivemol > 0) {
 			as->Nactivemolrt = (int *)
-				malloc(rh->atmos.Nactivemol * sizeof(int));
+				mallocOrAbort(rh->atmos.Nactivemol * sizeof(int));
 			as->mrt = (MolTransition **)
-				malloc(rh->atmos.Nactivemol * sizeof(MolTransition *));
+				mallocOrAbort(rh->atmos.Nactivemol * sizeof(MolTransition *));
 
 			for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 				as->Nactivemolrt[nact] = 0;
 				as->mrt[nact]          = (MolTransition *)
-					malloc(N_MAX_OVERLAP * sizeof(MolTransition));
+					mallocOrAbort(N_MAX_OVERLAP * sizeof(MolTransition));
 			}
 		} else {
 			as->Nactivemolrt = NULL;
@@ -332,8 +332,8 @@ void SortLambda(RHState *rh)
 				free(continuum->lambda);
 				continuum->lambda = rh->spectrum.lambda + continuum->Nblue;
 				continuum->alpha =
-					(double *) realloc(continuum->alpha,
-									   continuum->Nlambda * sizeof(double));
+					(double *) reallocOrAbort(continuum->alpha,
+											  continuum->Nlambda * sizeof(double));
 
 				Z     = atom->stage[continuum->j];
 				n_eff = Z * sqrt(E_RYDBERG /
@@ -355,7 +355,7 @@ void SortLambda(RHState *rh)
 											   alpha_original, PCHIP_LOGLOG));
 
 				continuum->alpha =
-					(double *) malloc(continuum->Nlambda * sizeof(double));
+					(double *) mallocOrAbort(continuum->Nlambda * sizeof(double));
 				pchipTableEval(&bftable, continuum->Nlambda,
 							   rh->spectrum.lambda + continuum->Nblue, continuum->alpha);
 				pchipTableFree(&bftable);
@@ -459,13 +459,13 @@ void SortLambda(RHState *rh)
 			   wavelength. These are needed in the calculation of the cross
 			   coupling coefficients in the approximate lambda iteration -- */
 
-		as->Nlower = (int *) malloc(rh->atmos.Nactiveatom * sizeof(int));
-		as->Nupper = (int *) malloc(rh->atmos.Nactiveatom * sizeof(int));
+		as->Nlower = (int *) mallocOrAbort(rh->atmos.Nactiveatom * sizeof(int));
+		as->Nupper = (int *) mallocOrAbort(rh->atmos.Nactiveatom * sizeof(int));
 
 		as->upper_levels =
-			(int **) malloc(rh->atmos.Nactiveatom * sizeof(int *));
+			(int **) mallocOrAbort(rh->atmos.Nactiveatom * sizeof(int *));
 		as->lower_levels =
-			(int **) malloc(rh->atmos.Nactiveatom * sizeof(int *));
+			(int **) mallocOrAbort(rh->atmos.Nactiveatom * sizeof(int *));
 
 		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 			atom = rh->atmos.activeatoms[nact];
@@ -478,9 +478,9 @@ void SortLambda(RHState *rh)
 			as->Nupper[nact] = 0;
 			if (as->Nactiveatomrt[nact] > 0) {
 				as->lower_levels[nact] =
-					(int *) malloc(as->Nactiveatomrt[nact] * sizeof(int));
+					(int *) mallocOrAbort(as->Nactiveatomrt[nact] * sizeof(int));
 				as->upper_levels[nact] =
-					(int *) malloc(as->Nactiveatomrt[nact] * sizeof(int));
+					(int *) mallocOrAbort(as->Nactiveatomrt[nact] * sizeof(int));
 			} else {
 				as->lower_levels[nact] = NULL;
 				as->upper_levels[nact] = NULL;
@@ -530,15 +530,15 @@ void SortLambda(RHState *rh)
 		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 			if (as->Nactiveatomrt[nact] > 0) {
 				as->art[nact] = (AtomicTransition *)
-					realloc(as->art[nact],
-							as->Nactiveatomrt[nact] * sizeof(AtomicTransition));
+					reallocOrAbort(as->art[nact],
+								   as->Nactiveatomrt[nact] * sizeof(AtomicTransition));
 
 				as->lower_levels[nact] =
-					(int *) realloc(as->lower_levels[nact],
-									as->Nlower[nact] * sizeof(int));
+					(int *) reallocOrAbort(as->lower_levels[nact],
+										   as->Nlower[nact] * sizeof(int));
 				as->upper_levels[nact] =
-					(int *) realloc(as->upper_levels[nact],
-									as->Nupper[nact] * sizeof(int));
+					(int *) reallocOrAbort(as->upper_levels[nact],
+										   as->Nupper[nact] * sizeof(int));
 			}
 		}
 		/* --- Reallocate space for the molecular transition arrays -- -- */
@@ -546,8 +546,8 @@ void SortLambda(RHState *rh)
 		for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 			if (as->Nactivemolrt[nact] > 0) {
 				as->mrt[nact] = (MolTransition *)
-					realloc(as->mrt[nact],
-							as->Nactivemolrt[nact] * sizeof(MolTransition));
+					reallocOrAbort(as->mrt[nact],
+								   as->Nactivemolrt[nact] * sizeof(MolTransition));
 			}
 		}
 	}

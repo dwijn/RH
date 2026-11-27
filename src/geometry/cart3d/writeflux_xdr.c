@@ -43,8 +43,8 @@ bool_t writeFlux(RHState *rh, char *fileName)
 	}
 	xdrstdio_create(&xdrs, fp_flux, XDR_ENCODE);
 
-	flux = (double *) malloc(Nplane * sizeof(double));
-	wmuz = (double *) malloc(Nrays * sizeof(double));
+	flux = (double *) mallocOrAbort(Nplane * sizeof(double));
+	wmuz = (double *) mallocOrAbort(Nrays * sizeof(double));
 	for (mu = 0; mu < Nrays; mu++)
 		wmuz[mu] = rh->geometry->muz[mu] * rh->geometry->wmu[mu];
 

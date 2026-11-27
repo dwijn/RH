@@ -32,8 +32,8 @@ void parse(RHState *rh, int argc, char *argv[], int Noption, Option *theOptions)
 
 	/* --- Break down the command line in option/value pairs -- ------- */
 
-	options = (char **) malloc(Narg * sizeof(char *));
-	values  = (char **) malloc(Narg * sizeof(char *));
+	options = (char **) mallocOrAbort(Narg * sizeof(char *));
+	values  = (char **) mallocOrAbort(Narg * sizeof(char *));
 
 	Nset = 0;
 	for (n = 1; n <= Narg; n++) {

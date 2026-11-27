@@ -41,13 +41,13 @@ rh_status SolveLinearEq(RHState *rh, int N, double **A, double *b, bool_t improv
 		   The art of scientific computing 1986, p. 41
 			--                                           -------------- */
 
-	index = (int *) malloc(N * sizeof(int));
+	index = (int *) mallocOrAbort(N * sizeof(int));
 
 	/* --- Copy matrix and source vector --              -------------- */
 
 	if (improve) {
-		residual = (double *) malloc(N * sizeof(double));
-		b_copy   = (double *) malloc(N * sizeof(double));
+		residual = (double *) mallocOrAbort(N * sizeof(double));
+		b_copy   = (double *) mallocOrAbort(N * sizeof(double));
 		A_copy   = matrix_double(rh, N, N);
 
 		for (i = 0; i < N; i++) {
@@ -100,7 +100,7 @@ rh_status LUdecomp(RHState *rh, int N, double **A, int *index, double *d)
 	int    imax = 0;
 	double big, dum, sum, temp, *vv;
 
-	vv = (double *) malloc(N * sizeof(double));
+	vv = (double *) mallocOrAbort(N * sizeof(double));
 	*d = 1.0;
 
 	for (i = 0; i < N; i++) {

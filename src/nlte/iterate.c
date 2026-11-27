@@ -371,8 +371,8 @@ double solveSpectrum(RHState *rh, bool_t eval_operator, bool_t redistribute)
 			   orders of magnitude from 1 to 12 threads. This reduces
 			   thread creation to input.Nthreads per call. --  ---------- */
 
-		ti        = (threadinfo *) malloc(rh->input.Nthreads * sizeof(threadinfo));
-		thread_id = (pthread_t *) malloc(rh->input.Nthreads * sizeof(pthread_t));
+		ti        = (threadinfo *) mallocOrAbort(rh->input.Nthreads * sizeof(threadinfo));
+		thread_id = (pthread_t *) mallocOrAbort(rh->input.Nthreads * sizeof(pthread_t));
 
 		for (nt = 0; nt < rh->input.Nthreads; nt++) {
 			ti[nt].rh            = rh;

@@ -114,7 +114,7 @@ void MULTIatmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 		   Atmos structure --                            -------------- */
 
 	atmos->Ndim   = 1;
-	atmos->N      = (int *) malloc(atmos->Ndim * sizeof(int));
+	atmos->N      = (int *) mallocOrAbort(atmos->Ndim * sizeof(int));
 	atmos->Nspace = Ndep = geometry->Ndep;
 	atmos->N[0]          = Ndep;
 
@@ -122,15 +122,15 @@ void MULTIatmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 
 	/* --- Allocate space for arrays that define structure -- --------- */
 
-	geometry->tau_ref = (double *) malloc(Ndep * sizeof(double));
-	geometry->cmass   = (double *) malloc(Ndep * sizeof(double));
-	geometry->height  = (double *) malloc(Ndep * sizeof(double));
-	atmos->T          = (double *) malloc(Ndep * sizeof(double));
-	atmos->ne         = (double *) malloc(Ndep * sizeof(double));
-	atmos->vturb      = (double *) malloc(Ndep * sizeof(double));
-	geometry->vel     = (double *) malloc(Ndep * sizeof(double));
+	geometry->tau_ref = (double *) mallocOrAbort(Ndep * sizeof(double));
+	geometry->cmass   = (double *) mallocOrAbort(Ndep * sizeof(double));
+	geometry->height  = (double *) mallocOrAbort(Ndep * sizeof(double));
+	atmos->T          = (double *) mallocOrAbort(Ndep * sizeof(double));
+	atmos->ne         = (double *) mallocOrAbort(Ndep * sizeof(double));
+	atmos->vturb      = (double *) mallocOrAbort(Ndep * sizeof(double));
+	geometry->vel     = (double *) mallocOrAbort(Ndep * sizeof(double));
 
-	dscale = (double *) malloc(Ndep * sizeof(double));
+	dscale = (double *) mallocOrAbort(Ndep * sizeof(double));
 	for (k = 0; k < Ndep; k++) {
 		getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		Nread = sscanf(inputLine, "%lf %lf %lf %lf %lf",
@@ -205,7 +205,7 @@ void MULTIatmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 												  "File %s",
 				  rh->input.atmos_input);
 		}
-		atmos->nHtot = (double *) calloc(Ndep, sizeof(double));
+		atmos->nHtot = (double *) callocOrAbort(Ndep, sizeof(double));
 
 		atmos->H_LTE = TRUE;
 		meanweight   = atmos->avgMolWght * AMU;
@@ -227,7 +227,7 @@ void MULTIatmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 							  (atmos->totalAbund * (KBOLTZMANN * atmos->T[k] + turbpress));
 		}
 	} else if (k == Ndep) {
-		atmos->nHtot = (double *) calloc(Ndep, sizeof(double));
+		atmos->nHtot = (double *) callocOrAbort(Ndep, sizeof(double));
 		for (n = 0; n < atmos->NHydr; n++) {
 			for (k = 0; k < Ndep; k++) {
 				atmos->nH[n][k] /= CUBE(CM_TO_M);
@@ -256,7 +256,7 @@ void convertScales(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 	cmass   = geometry->cmass;
 	tau_ref = geometry->tau_ref;
 
-	rho = (double *) malloc(Ndep * sizeof(double));
+	rho = (double *) mallocOrAbort(Ndep * sizeof(double));
 	for (k = 0; k < Ndep; k++)
 		rho[k] = (AMU * atmos->wght_per_H) * atmos->nHtot[k];
 

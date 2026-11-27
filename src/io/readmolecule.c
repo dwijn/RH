@@ -107,9 +107,9 @@ void readMolecule(RHState *rh, Molecule *molecule, char *fileName, bool_t active
 			  molecule->ID);
 	}
 	molecule->pt_index =
-		(int *) malloc(molecule->Nelement * sizeof(int));
+		(int *) mallocOrAbort(molecule->Nelement * sizeof(int));
 	molecule->pt_count =
-		(int *) malloc(molecule->Nelement * sizeof(int));
+		(int *) mallocOrAbort(molecule->Nelement * sizeof(int));
 	molecule->Nnuclei = 0;
 
 	token = strtok(inputLine, " ,");
@@ -188,19 +188,19 @@ void readMolecule(RHState *rh, Molecule *molecule, char *fileName, bool_t active
 	getLine(rh, fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(strtok(inputLine, " "), "%d", &molecule->Npf);
 	if (molecule->Npf > 0) {
-		molecule->pf_coef = (double *) malloc(molecule->Npf * sizeof(double));
+		molecule->pf_coef = (double *) mallocOrAbort(molecule->Npf * sizeof(double));
 		for (n = molecule->Npf - 1; n >= 0; n--)
 			Nread += sscanf(strtok(NULL, " "), "%lf", molecule->pf_coef + n);
 		checkNread(rh, Nread, molecule->Npf + 1, routineName, checkPoint = 6);
 	}
-	molecule->pf = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	molecule->pf = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	/* --- Get fit parameters for equilibrium constant -- ------------- */
 
 	getLine(rh, fp_molecule, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(strtok(inputLine, " "), "%d", &molecule->Neqc);
 	if (molecule->Neqc > 0) {
-		molecule->eqc_coef = (double *) malloc(molecule->Neqc * sizeof(double));
+		molecule->eqc_coef = (double *) mallocOrAbort(molecule->Neqc * sizeof(double));
 		for (n = molecule->Neqc - 1; n >= 0; n--)
 			Nread += sscanf(strtok(NULL, " "), "%lf", molecule->eqc_coef + n);
 		checkNread(rh, Nread, molecule->Neqc + 1, routineName, checkPoint = 7);
@@ -217,8 +217,8 @@ void readMolecule(RHState *rh, Molecule *molecule, char *fileName, bool_t active
 	/* --- Allocate memory for total population numbers, broadening
 		   velocity and partition function --            -------------- */
 
-	molecule->n      = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	molecule->vbroad = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	molecule->n      = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	molecule->vbroad = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	vtherm = 2.0 * KBOLTZMANN / (AMU * molecule->weight);
 	for (k = 0; k < rh->atmos.Nspace; k++)
@@ -259,7 +259,7 @@ void readMolecule(RHState *rh, Molecule *molecule, char *fileName, bool_t active
 		J_max   = 0;
 		nconfig = 0;
 
-		molecule->configs      = (char *) malloc(N_MAX_CONFIG * sizeof(char));
+		molecule->configs      = (char *) mallocOrAbort(N_MAX_CONFIG * sizeof(char));
 		molecule->configs[0]   = molecule->mrt[0].configi[0];
 		molecule->mrt[0].ecnoi = nconfig++;
 
@@ -307,8 +307,8 @@ void readMolecule(RHState *rh, Molecule *molecule, char *fileName, bool_t active
 		molecule->Nv      = v_max + 1;
 		molecule->Nconfig = nconfig;
 
-		molecule->configs                    = (char *) realloc(molecule->configs,
-																(molecule->Nconfig + 1) * sizeof(char));
+		molecule->configs                    = (char *) reallocOrAbort(molecule->configs,
+																	   (molecule->Nconfig + 1) * sizeof(char));
 		molecule->configs[molecule->Nconfig] = '\0';
 		Message(rh, " --- Found %d electronic configurations for molecule %s: %s\n\n",
 				molecule->Nconfig, molecule->ID, molecule->configs);
@@ -326,7 +326,7 @@ void readMolecule(RHState *rh, Molecule *molecule, char *fileName, bool_t active
 
 		sprintf(popsFile, "pops_mol.%s.out", molecule->ID);
 		molecule->popsFile =
-			(char *) malloc((strlen(popsFile) + 1) * sizeof(char));
+			(char *) mallocOrAbort((strlen(popsFile) + 1) * sizeof(char));
 		strcpy(molecule->popsFile, popsFile);
 
 		/* --- In this case vibrational partition functions for the molecule
@@ -377,7 +377,7 @@ void readMolecule(RHState *rh, Molecule *molecule, char *fileName, bool_t active
 			dlambda_wing = mrt->qwing * rh->atmos.vmicro_char / CLIGHT;
 			dlambda      = 2.0 * dlambda_wing * mrt->lambda0 / (mrt->Nlambda - 1);
 
-			mrt->lambda = (double *) malloc(mrt->Nlambda * sizeof(double));
+			mrt->lambda = (double *) mallocOrAbort(mrt->Nlambda * sizeof(double));
 
 			lambda = mrt->lambda0 * (1.0 - dlambda_wing);
 			for (la = 0; la < mrt->Nlambda; la++) {
@@ -388,7 +388,7 @@ void readMolecule(RHState *rh, Molecule *molecule, char *fileName, bool_t active
 		/* --- Allocate space for thread dependent quantities -- -------- */
 
 		molecule->rhth =
-			(rhthread *) calloc(rh->input.Nthreads, sizeof(rhthread));
+			(rhthread *) callocOrAbort(rh->input.Nthreads, sizeof(rhthread));
 	}
 
 	fclose(fp_molecule);
@@ -654,7 +654,7 @@ void readMolecularLines(RHState *rh, struct Molecule *molecule, char *line_data)
 		Error(rh, ERROR_LEVEL_2, routineName, "Unknown molecular line type: %s", type_string);
 	}
 	molecule->mrt = (MolecularLine *)
-		realloc(molecule->mrt, (molecule->Nrt + Nrt) * sizeof(MolecularLine));
+		reallocOrAbort(molecule->mrt, (molecule->Nrt + Nrt) * sizeof(MolecularLine));
 
 	getLine(rh, fp_lines, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread = sscanf(inputLine, "%d %lf", &Nlambda, &qwing);
@@ -969,7 +969,7 @@ void readMolecularModels(RHState *rh)
 			  rh->input.molecules_input, rh->atmos.Nmolecule);
 	}
 	rh->atmos.molecules =
-		(Molecule *) malloc(rh->atmos.Nmolecule * sizeof(Molecule));
+		(Molecule *) mallocOrAbort(rh->atmos.Nmolecule * sizeof(Molecule));
 
 	rh->atmos.H2 = NULL;
 	rh->atmos.OH = NULL;
@@ -1027,7 +1027,7 @@ void readMolecularModels(RHState *rh)
 					  moleculeID);
 			}
 			molecule->popsFile =
-				(char *) malloc((strlen(popsFile) + 1) * sizeof(char));
+				(char *) mallocOrAbort((strlen(popsFile) + 1) * sizeof(char));
 			strcpy(molecule->popsFile, popsFile);
 		} else if (strstr(popsKey, "LTE_POPULATIONS")) {
 			molecule->initial_solution = LTE_POPULATIONS;
@@ -1060,7 +1060,7 @@ void readMolecularModels(RHState *rh)
 	for (n = 0; n < rh->atmos.Nelem; n++) {
 		element            = &rh->atmos.elements[n];
 		element->Nmolecule = 0;
-		element->mol_index = (int *) malloc(rh->atmos.Nmolecule * sizeof(int));
+		element->mol_index = (int *) mallocOrAbort(rh->atmos.Nmolecule * sizeof(int));
 
 		for (m = 0; m < rh->atmos.Nmolecule; m++) {
 			molecule = &rh->atmos.molecules[m];
@@ -1076,7 +1076,7 @@ void readMolecularModels(RHState *rh)
 			element->mol_index = NULL;
 		} else
 			element->mol_index = (int *)
-				realloc(element->mol_index, element->Nmolecule * sizeof(int));
+				reallocOrAbort(element->mol_index, element->Nmolecule * sizeof(int));
 	}
 	/* --- Report when the atmosphere leaves the temperature range of the
 		   OH and CH bound-free tables (N-53) --       -------------- */
@@ -1085,7 +1085,7 @@ void readMolecularModels(RHState *rh)
 
 	/* --- Allocate memory for H^- --                    -------------- */
 
-	rh->atmos.nHmin = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	rh->atmos.nHmin = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	getCPU(rh, 2, TIME_POLL, "Read molecular input");
 }
@@ -1129,7 +1129,7 @@ int countTokens(char *line, char *separator)
 
 	/* --- Count the number of tokens separated by separator in line -- */
 
-	string = (char *) malloc((strlen(line) + 1) * sizeof(char));
+	string = (char *) mallocOrAbort((strlen(line) + 1) * sizeof(char));
 	strcpy(string, line);
 
 	token = strtok(string, separator);

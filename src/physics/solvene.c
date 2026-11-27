@@ -87,8 +87,8 @@ static double solveNe(RHState *rh, double *ne, bool_t fromscratch, int Nfixed)
 	Nmaxstage = 0;
 	for (n = 0; n < rh->atmos.Nelem; n++)
 		Nmaxstage = MAX(Nmaxstage, rh->atmos.elements[n].Nstage);
-	fjk  = (double *) malloc(Nmaxstage * sizeof(double));
-	dfjk = (double *) malloc(Nmaxstage * sizeof(double));
+	fjk  = (double *) mallocOrAbort(Nmaxstage * sizeof(double));
+	dfjk = (double *) mallocOrAbort(Nmaxstage * sizeof(double));
 
 	np = rh->atmos.H->n[rh->atmos.H->Nlevel - 1];
 	for (k = 0; k < rh->atmos.Nspace; k++) {

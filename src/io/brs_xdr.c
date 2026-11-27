@@ -87,9 +87,9 @@ bool_t xdr_BRS(RHState *rh, XDR *xdrs)
 	int    Nspace, Nsp, Nrecno;
 
 	hasline =
-		(bool_t *) malloc(rh->spectrum.Nspect * sizeof(bool_t));
+		(bool_t *) mallocOrAbort(rh->spectrum.Nspect * sizeof(bool_t));
 	ispolarized =
-		(bool_t *) malloc(rh->spectrum.Nspect * sizeof(bool_t));
+		(bool_t *) mallocOrAbort(rh->spectrum.Nspect * sizeof(bool_t));
 
 	if (rh->atmos.moving || rh->atmos.Stokes)
 		Nrecno = 2 * rh->spectrum.Nspect * rh->atmos.Nrays;
@@ -118,8 +118,8 @@ bool_t xdr_BRS(RHState *rh, XDR *xdrs)
 	} else {
 		free(rh->atmos.backgrflags);
 		free(rh->atmos.backgrrecno);
-		rh->atmos.backgrflags = (flags *) malloc(rh->spectrum.Nspect * sizeof(flags));
-		rh->atmos.backgrrecno = (int *) malloc(Nrecno * sizeof(int));
+		rh->atmos.backgrflags = (flags *) mallocOrAbort(rh->spectrum.Nspect * sizeof(flags));
+		rh->atmos.backgrrecno = (int *) mallocOrAbort(Nrecno * sizeof(int));
 
 		result &= xdr_counted_string(xdrs, &atmosID);
 		if (!strstr(atmosID, rh->atmos.ID)) {

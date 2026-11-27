@@ -905,7 +905,7 @@ void addJgasRay(RHState *rh, int nspect, int mu, int to_obs, double wmu, double 
 
 		/* --- The target row of each index is resolved on first use -- */
 
-		double **rowp = (double **) calloc(Nrow, sizeof(double *));
+		double **rowp = (double **) callocOrAbort(Nrow, sizeof(double *));
 
 		if (rowp == NULL) Error(rh, ERROR_LEVEL_2, "addJgasRay", "Out of memory");
 		for (k = 0; k < Nspace; k++) {

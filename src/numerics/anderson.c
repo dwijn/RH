@@ -42,6 +42,7 @@
 #include <math.h>
 
 #include "anderson.h"
+#include "alloc.h"
 
 #define MAX_D(a, b) (((a) > (b)) ? (a) : (b))
 
@@ -60,31 +61,31 @@ static int pairIndex(const Anderson *a, int j)
 Anderson *andersonInit(long N, int m)
 {
 	int       j;
-	Anderson *a = (Anderson *) calloc(1, sizeof(Anderson));
+	Anderson *a = (Anderson *) callocOrAbort(1, sizeof(Anderson));
 
 	a->N      = N;
 	a->m      = (m > 0) ? m : 0;
 	a->Npairs = 0;
 	a->newest = 0;
 
-	a->u     = (double **) malloc((a->m + 1) * sizeof(double *));
-	a->g     = (double **) malloc((a->m + 1) * sizeof(double *));
-	a->valid = (unsigned char **) malloc((a->m + 1) * sizeof(unsigned char *));
+	a->u     = (double **) mallocOrAbort((a->m + 1) * sizeof(double *));
+	a->g     = (double **) mallocOrAbort((a->m + 1) * sizeof(double *));
+	a->valid = (unsigned char **) mallocOrAbort((a->m + 1) * sizeof(unsigned char *));
 	for (j = 0; j <= a->m; j++) {
-		a->u[j]     = (double *) malloc(N * sizeof(double));
-		a->g[j]     = (double *) malloc(N * sizeof(double));
-		a->valid[j] = (unsigned char *) malloc(N);
+		a->u[j]     = (double *) mallocOrAbort(N * sizeof(double));
+		a->g[j]     = (double *) mallocOrAbort(N * sizeof(double));
+		a->valid[j] = (unsigned char *) mallocOrAbort(N);
 	}
-	a->mask = (unsigned char *) calloc(N, 1);
+	a->mask = (unsigned char *) callocOrAbort(N, 1);
 	if (a->m > 0) {
-		a->A = (double **) malloc(a->m * sizeof(double *));
+		a->A = (double **) mallocOrAbort(a->m * sizeof(double *));
 		for (j = 0; j < a->m; j++)
-			a->A[j] = (double *) malloc(N * sizeof(double));
-		a->R    = (double *) calloc(a->m * a->m, sizeof(double));
-		a->Rinv = (double *) calloc(a->m * a->m, sizeof(double));
-		a->r    = (double *) calloc(a->m, sizeof(double));
+			a->A[j] = (double *) mallocOrAbort(N * sizeof(double));
+		a->R    = (double *) callocOrAbort(a->m * a->m, sizeof(double));
+		a->Rinv = (double *) callocOrAbort(a->m * a->m, sizeof(double));
+		a->r    = (double *) callocOrAbort(a->m, sizeof(double));
 	}
-	a->b = (double *) malloc(N * sizeof(double));
+	a->b = (double *) mallocOrAbort(N * sizeof(double));
 
 	return a;
 }

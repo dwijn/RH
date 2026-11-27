@@ -85,8 +85,8 @@ static void pchipSlopes(int N, const double *x, const double *y, double *d)
 		if (N == 1) d[0] = 0.0;
 		return;
 	}
-	h   = (double *) malloc((N - 1) * sizeof(double));
-	del = (double *) malloc((N - 1) * sizeof(double));
+	h   = (double *) mallocOrAbort((N - 1) * sizeof(double));
+	del = (double *) mallocOrAbort((N - 1) * sizeof(double));
 	for (k = 0; k < N - 1; k++) {
 		h[k]   = x[k + 1] - x[k];
 		del[k] = (y[k + 1] - y[k]) / h[k];
@@ -136,11 +136,11 @@ rh_status pchipTableInit(RHState *rh, PchipTable *pt, int N, const double *x,
 		for (k = 0; k < N; k++)
 			if (!(y[k] > 0.0)) mixed = TRUE;
 	}
-	pt->x    = (double *) malloc(N * sizeof(double));
-	pt->y    = (double *) malloc(N * sizeof(double));
-	pt->d    = (double *) calloc(N, sizeof(double));
-	pt->ylin = (mixed) ? (double *) malloc(N * sizeof(double)) : NULL;
-	pt->dlin = (mixed) ? (double *) calloc(N, sizeof(double)) : NULL;
+	pt->x    = (double *) mallocOrAbort(N * sizeof(double));
+	pt->y    = (double *) mallocOrAbort(N * sizeof(double));
+	pt->d    = (double *) callocOrAbort(N, sizeof(double));
+	pt->ylin = (mixed) ? (double *) mallocOrAbort(N * sizeof(double)) : NULL;
+	pt->dlin = (mixed) ? (double *) callocOrAbort(N, sizeof(double)) : NULL;
 
 	/* --- Store ascending in x, transformed. With log y and a node
 		   <= 0 (N-49), y is kept in log y at the positive nodes and as

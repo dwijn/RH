@@ -89,13 +89,13 @@ char **getWords(char *label, char *separator, int *count)
 		   an empty label and for single-letter words, B-72) -- ----- */
 
 	*count      = 1;
-	theWords    = (char **) malloc((length / 2 + 2) * sizeof(char *));
+	theWords    = (char **) mallocOrAbort((length / 2 + 2) * sizeof(char *));
 	theWords[0] = strtok(label, separator);
 	if (theWords[0] == NULL) return theWords;
 	while ((theWords[*count] = strtok(NULL, separator)))
 		*count += 1;
 
-	return (char **) realloc(theWords, *count * sizeof(char *));
+	return (char **) reallocOrAbort(theWords, *count * sizeof(char *));
 }
 /* ------- end ---------------------------- getWords.c -------------- */
 
@@ -244,7 +244,7 @@ void Zeeman(RHState *rh, AtomicLine *line)
 
 	   --                                            -------------- */
 
-	line->zm = (ZeemanMultiplet *) malloc(sizeof(ZeemanMultiplet));
+	line->zm = (ZeemanMultiplet *) mallocOrAbort(sizeof(ZeemanMultiplet));
 	initZeeman(line->zm);
 	zm = line->zm;
 
@@ -255,9 +255,9 @@ void Zeeman(RHState *rh, AtomicLine *line)
 			   in the input --                             -------------- */
 
 		zm->Ncomponent = 3;
-		zm->q          = (int *) malloc(3 * sizeof(int));
-		zm->strength   = (double *) malloc(3 * sizeof(double));
-		zm->shift      = (double *) malloc(3 * sizeof(double));
+		zm->q          = (int *) mallocOrAbort(3 * sizeof(int));
+		zm->strength   = (double *) mallocOrAbort(3 * sizeof(double));
+		zm->shift      = (double *) mallocOrAbort(3 * sizeof(double));
 
 		/* --- Normal Zeeman triplet --                    -------------- */
 
@@ -291,9 +291,9 @@ void Zeeman(RHState *rh, AtomicLine *line)
 			for (Mu = -Ju; Mu <= Ju; Mu++)
 				if (fabs(Mu - Ml) <= 1.0) zm->Ncomponent++;
 		}
-		zm->q        = (int *) malloc(zm->Ncomponent * sizeof(int));
-		zm->strength = (double *) malloc(zm->Ncomponent * sizeof(double));
-		zm->shift    = (double *) malloc(zm->Ncomponent * sizeof(double));
+		zm->q        = (int *) mallocOrAbort(zm->Ncomponent * sizeof(int));
+		zm->strength = (double *) mallocOrAbort(zm->Ncomponent * sizeof(double));
+		zm->shift    = (double *) mallocOrAbort(zm->Ncomponent * sizeof(double));
 
 		for (n = 0; n < 3; n++) norm[n] = 0.0;
 

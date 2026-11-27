@@ -198,7 +198,7 @@ bool_t negTauColumns(RHState *rh, int nspect, int mu, int to_obs, int Nz, long N
 		if (chi[n] < 0.0) break;
 	if (n == Nz * Ncol) return FALSE;
 
-	dtau = (double *) malloc((Nz - 1) * sizeof(double));
+	dtau = (double *) mallocOrAbort((Nz - 1) * sizeof(double));
 	for (c = 0; c < Ncol; c++) {
 		for (k = 0; k < Nz; k++)
 			if (chi[k * Ncol + c] < 0.0) break;

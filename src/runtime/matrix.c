@@ -26,12 +26,14 @@
 
 /* ------- begin -------------------------- checkAlloc.c ------------ */
 
-static void checkAlloc(RHState *rh, const char *routineName, void *theMatrix, void *Matrix,
-					   int Nrow, int Ncol)
+/* --- A failed allocation aborts with a message (Q-53) -- -------- */
+
+static void checkAlloc(const char *routineName, void *theMatrix, void *Matrix, int Nrow,
+					   int Ncol)
 {
 	if ((theMatrix == NULL && (size_t) Nrow * Ncol > 0) ||
 		(Matrix == NULL && Nrow > 0)) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Unable to allocate a %d x %d matrix", Nrow, Ncol);
+		outOfMemory(routineName, "Could not allocate a %d x %d matrix", Nrow, Ncol);
 	}
 }
 /* ------- end ---------------------------- checkAlloc.c ------------ */
@@ -45,9 +47,10 @@ char **matrix_char(RHState *rh, int Nrow, int Ncol)
 	char *theMatrix, **Matrix;
 	int   typeSize = sizeof(char), pointerSize = sizeof(char *);
 
+	(void) rh; /* for RH_E_NOMEM in phase 4 */
 	theMatrix = (char *) calloc((size_t) Nrow * Ncol, typeSize);
 	Matrix    = (char **) malloc((size_t) Nrow * pointerSize);
-	checkAlloc(rh, "matrix_char", theMatrix, Matrix, Nrow, Ncol);
+	checkAlloc("matrix_char", theMatrix, Matrix, Nrow, Ncol);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
 
@@ -64,9 +67,10 @@ int **matrix_int(RHState *rh, int Nrow, int Ncol)
 	int *theMatrix, **Matrix, typeSize = sizeof(int),
 							  pointerSize = sizeof(int *);
 
+	(void) rh; /* for RH_E_NOMEM in phase 4 */
 	theMatrix = (int *) calloc((size_t) Nrow * Ncol, typeSize);
 	Matrix    = (int **) malloc((size_t) Nrow * pointerSize);
-	checkAlloc(rh, "matrix_int", theMatrix, Matrix, Nrow, Ncol);
+	checkAlloc("matrix_int", theMatrix, Matrix, Nrow, Ncol);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
 
@@ -84,10 +88,11 @@ double **matrix_double(RHState *rh, int Nrow, int Ncol)
 	size_t  memSize;
 	double *theMatrix, **Matrix;
 
-	memSize   = (size_t) Nrow * Ncol;
+	memSize = (size_t) Nrow * Ncol;
+	(void) rh; /* for RH_E_NOMEM in phase 4 */
 	theMatrix = (double *) calloc(memSize, typeSize);
 	Matrix    = (double **) malloc((size_t) Nrow * pointerSize);
-	checkAlloc(rh, "matrix_double", theMatrix, Matrix, Nrow, Ncol);
+	checkAlloc("matrix_double", theMatrix, Matrix, Nrow, Ncol);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
 
@@ -103,9 +108,10 @@ float **matrix_float(RHState *rh, int Nrow, int Ncol)
 
 	float *theMatrix, **Matrix;
 
+	(void) rh; /* for RH_E_NOMEM in phase 4 */
 	theMatrix = (float *) calloc((size_t) Nrow * Ncol, sizeof(float));
 	Matrix    = (float **) malloc((size_t) Nrow * sizeof(float *));
-	checkAlloc(rh, "matrix_float", theMatrix, Matrix, Nrow, Ncol);
+	checkAlloc("matrix_float", theMatrix, Matrix, Nrow, Ncol);
 	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
 		Matrix[i] = theMatrix;
 

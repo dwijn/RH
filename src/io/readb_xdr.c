@@ -52,9 +52,9 @@ bool_t readB(RHState *rh, Atmosphere *atmos)
 		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open inputfile %s", rh->input.Stokes_input);
 	}
 
-	atmos->B       = (double *) malloc(atmos->Nspace * sizeof(double));
-	atmos->gamma_B = (double *) malloc(atmos->Nspace * sizeof(double));
-	atmos->chi_B   = (double *) malloc(atmos->Nspace * sizeof(double));
+	atmos->B       = (double *) mallocOrAbort(atmos->Nspace * sizeof(double));
+	atmos->gamma_B = (double *) mallocOrAbort(atmos->Nspace * sizeof(double));
+	atmos->chi_B   = (double *) mallocOrAbort(atmos->Nspace * sizeof(double));
 
 	if (rh->input.xdr_endian) {
 		xdrstdio_create(&xdrs, fp_stokes, XDR_DECODE);

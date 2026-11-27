@@ -106,5 +106,9 @@ rh_unit_test(test_molecule_range test_molecule_range.c)
 rh_unit_test(test_error test_error.c)
 rh_unit_test(test_status test_status.c)
 rh_unit_test(test_parallel test_parallel.c)
+rh_unit_test(test_alloc test_alloc.c)
+# ASan by default aborts on an allocation it cannot satisfy; the test needs
+# malloc to return NULL, as it does without sanitizers
+set_tests_properties(test_alloc PROPERTIES ENVIRONMENT "ASAN_OPTIONS=allocator_may_return_null=1")
 rh_unit_test(test_readatom test_readatom.c
   ${PROJECT_SOURCE_DIR}/src/geometry/plane1d/project.c)

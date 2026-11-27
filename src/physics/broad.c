@@ -284,7 +284,7 @@ void Damping(RHState *rh, AtomicLine *line, double *adamp)
 	cDop = (NM_TO_M * line->lambda0) / (4.0 * PI);
 
 	atom   = line->atom;
-	Qelast = (double *) calloc(rh->atmos.Nspace, sizeof(double));
+	Qelast = (double *) callocOrAbort(rh->atmos.Nspace, sizeof(double));
 
 	/* --- Add van der Waals broadening --             -------------- */
 

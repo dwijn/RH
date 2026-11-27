@@ -41,11 +41,11 @@ bool_t writeFlux(RHState *rh, char *flux_output)
 	}
 	xdrstdio_create(&xdrs, fp_flux, XDR_ENCODE);
 
-	wmuz = (double *) malloc(rh->atmos.Nrays * sizeof(double));
+	wmuz = (double *) mallocOrAbort(rh->atmos.Nrays * sizeof(double));
 	for (mu = 0; mu < rh->atmos.Nrays; mu++)
 		wmuz[mu] = rh->geometry->muz[mu] * rh->geometry->wmu[mu];
 
-	flux = (double *) calloc(rh->spectrum.Nspect, sizeof(double));
+	flux = (double *) callocOrAbort(rh->spectrum.Nspect, sizeof(double));
 	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
 		for (mu = 0; mu < rh->atmos.Nrays; mu++)
 			flux[nspect] += rh->spectrum.I[nspect][mu] * wmuz[mu];

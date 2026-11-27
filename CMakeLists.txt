@@ -162,7 +162,7 @@ check_include_file(execinfo.h RH_HAVE_EXECINFO_H)
 # API) from the internal ones is a later phase of the library track.
 
 set(RH_SRC ${PROJECT_SOURCE_DIR}/src)
-set(rh_runtime error fpehandler getcpu matrix parallel stopreq work)
+set(rh_runtime alloc error fpehandler getcpu matrix parallel stopreq work)
 set(rh_numerics accelerate anderson cubeconvol expint gammafunc gaussleg gth
   hunt linear ludcmp maxchange mpe newton order pchip w3)
 set(rh_physics background barklem broad chemequil cocollisions collision

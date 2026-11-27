@@ -83,7 +83,7 @@ void readAbundance(RHState *rh, Atmosphere *atmos)
 	XDR      xdrs;
 
 	atmos->Nelem    = sizeof(atomweight) / sizeof(struct AtomWeight);
-	atmos->elements = (Element *) malloc(atmos->Nelem * sizeof(Element));
+	atmos->elements = (Element *) mallocOrAbort(atmos->Nelem * sizeof(Element));
 	for (n = 0; n < atmos->Nelem; n++) {
 		element = &atmos->elements[n];
 		strcpy(element->ID, atomweight[n].ID);
@@ -143,7 +143,7 @@ void readAbundance(RHState *rh, Atmosphere *atmos)
 	xdrstdio_create(&xdrs, fp_pf, XDR_DECODE);
 
 	result &= xdr_int(&xdrs, &atmos->Npf);
-	atmos->Tpf = (double *) malloc(atmos->Npf * sizeof(double));
+	atmos->Tpf = (double *) mallocOrAbort(atmos->Npf * sizeof(double));
 	result &= xdr_vector(&xdrs, (char *) atmos->Tpf, atmos->Npf,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 
@@ -175,7 +175,7 @@ void readAbundance(RHState *rh, Atmosphere *atmos)
 		result &= xdr_int(&xdrs, &element->Nstage);
 		element->pf = matrix_double(rh, element->Nstage, atmos->Npf);
 		element->ionpot =
-			(double *) malloc(element->Nstage * sizeof(double));
+			(double *) mallocOrAbort(element->Nstage * sizeof(double));
 
 		result &= xdr_vector(&xdrs, (char *) element->pf[0],
 							 element->Nstage * atmos->Npf,

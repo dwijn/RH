@@ -48,7 +48,7 @@ struct Ng *NgInit(RHState *rh, int N, int Ndelay, int Norder, int Nperiod,
 			  " when the order is positive (order %d, period %d)",
 			  Norder, Nperiod);
 
-	Ngs = (struct Ng *) malloc(sizeof(struct Ng));
+	Ngs = (struct Ng *) mallocOrAbort(sizeof(struct Ng));
 
 	Ngs->N       = N;
 	Ngs->Norder  = Norder;
@@ -57,7 +57,7 @@ struct Ng *NgInit(RHState *rh, int N, int Ndelay, int Norder, int Nperiod,
 
 	if (Norder > 0) {
 		Ngs->A = matrix_double(rh, Norder, Norder);
-		Ngs->b = (double *) malloc(Norder * sizeof(double));
+		Ngs->b = (double *) mallocOrAbort(Norder * sizeof(double));
 	}
 	Ngs->previous   = matrix_double(rh, Norder + 2, N);
 	Ngs->theStorage = Ngs->previous[0];
@@ -97,7 +97,7 @@ rh_status Accelerate(RHState *rh, struct Ng *Ngs, double *solution, bool_t *acce
 		getCPU(rh, 4, TIME_START, NULL);
 
 		Delta  = matrix_double(rh, Norder + 1, Ngs->N);
-		weight = (double *) malloc(Ngs->N * sizeof(double));
+		weight = (double *) mallocOrAbort(Ngs->N * sizeof(double));
 
 		for (i = 0; i <= Norder; i++) {
 			ip  = (Ngs->count - 1 - i) % (Norder + 2);

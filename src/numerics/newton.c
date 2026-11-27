@@ -36,25 +36,26 @@
 #include <math.h>
 
 #include "newton.h"
+#include "alloc.h"
 
 /* ------- begin -------------------------- gmresInit.c ------------- */
 
 Gmres *gmresInit(long N, int k)
 {
 	int    j;
-	Gmres *gm = (Gmres *) calloc(1, sizeof(Gmres));
+	Gmres *gm = (Gmres *) callocOrAbort(1, sizeof(Gmres));
 
 	gm->N = N;
 	gm->k = (k > 0) ? k : 1;
-	gm->V = (double **) malloc((gm->k + 1) * sizeof(double *));
-	for (j = 0; j <= gm->k; j++) gm->V[j] = (double *) calloc(N, sizeof(double));
-	gm->H     = (double *) calloc((size_t) (gm->k + 1) * gm->k, sizeof(double));
-	gm->cs    = (double *) calloc(gm->k, sizeof(double));
-	gm->sn    = (double *) calloc(gm->k, sizeof(double));
-	gm->g     = (double *) calloc(gm->k + 1, sizeof(double));
-	gm->y     = (double *) calloc(gm->k, sizeof(double));
-	gm->h     = (double *) calloc(gm->k + 1, sizeof(double));
-	gm->resid = (double *) calloc(gm->k + 1, sizeof(double));
+	gm->V = (double **) mallocOrAbort((gm->k + 1) * sizeof(double *));
+	for (j = 0; j <= gm->k; j++) gm->V[j] = (double *) callocOrAbort(N, sizeof(double));
+	gm->H     = (double *) callocOrAbort((size_t) (gm->k + 1) * gm->k, sizeof(double));
+	gm->cs    = (double *) callocOrAbort(gm->k, sizeof(double));
+	gm->sn    = (double *) callocOrAbort(gm->k, sizeof(double));
+	gm->g     = (double *) callocOrAbort(gm->k + 1, sizeof(double));
+	gm->y     = (double *) callocOrAbort(gm->k, sizeof(double));
+	gm->h     = (double *) callocOrAbort(gm->k + 1, sizeof(double));
+	gm->resid = (double *) callocOrAbort(gm->k + 1, sizeof(double));
 
 	return gm;
 }

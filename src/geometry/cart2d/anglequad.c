@@ -142,10 +142,10 @@ void getAngleQuadr(RHState *rh, Geometry *geometry)
 			  rh->atmos.angleSet.set);
 	}
 
-	geometry->mux = (double *) malloc(geometry->Nrays * sizeof(double));
-	geometry->muy = (double *) malloc(geometry->Nrays * sizeof(double));
-	geometry->muz = (double *) malloc(geometry->Nrays * sizeof(double));
-	geometry->wmu = (double *) malloc(geometry->Nrays * sizeof(double));
+	geometry->mux = (double *) mallocOrAbort(geometry->Nrays * sizeof(double));
+	geometry->muy = (double *) mallocOrAbort(geometry->Nrays * sizeof(double));
+	geometry->muz = (double *) mallocOrAbort(geometry->Nrays * sizeof(double));
+	geometry->wmu = (double *) mallocOrAbort(geometry->Nrays * sizeof(double));
 
 	switch (rh->atmos.angleSet.set) {
 	case SET_VERTICAL:
@@ -159,10 +159,10 @@ void getAngleQuadr(RHState *rh, Geometry *geometry)
 
 		/* --- Quadrature in inclination --                -------------- */
 
-		wmu = (double *) malloc(rh->atmos.angleSet.Ninclination *
-								sizeof(double));
-		xmu = (double *) malloc(rh->atmos.angleSet.Ninclination *
-								sizeof(double));
+		wmu = (double *) mallocOrAbort(rh->atmos.angleSet.Ninclination *
+									   sizeof(double));
+		xmu = (double *) mallocOrAbort(rh->atmos.angleSet.Ninclination *
+									   sizeof(double));
 		GaussLeg(0.0, 1.0, xmu, wmu, rh->atmos.angleSet.Ninclination);
 
 		/* --- Grid step of quadrature in azimuth --       -------------- */

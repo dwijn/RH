@@ -182,7 +182,7 @@ double fact(RHState *rh, double xi)
 	static double *factorial;
 
 	if (initialize) {
-		factorial = (double *) malloc(NFACT * sizeof(double));
+		factorial = (double *) mallocOrAbort(NFACT * sizeof(double));
 
 		factorial[0] = 1.0;
 		for (n = 1; n < NFACT; n++) factorial[n] = factorial[n - 1] * n;

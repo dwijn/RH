@@ -172,37 +172,37 @@ static BackgroundScratch *backgroundScratchCreate(RHState *rh)
 
 	NrecStokes = (rh->atmos.Stokes) ? 4 : 1;
 
-	sc = (BackgroundScratch *) malloc(sizeof(BackgroundScratch));
+	sc = (BackgroundScratch *) mallocOrAbort(sizeof(BackgroundScratch));
 
-	sc->chi_c = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
-	sc->eta_c = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
-	sc->sca_c = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	sc->chi_c = (double *) mallocOrAbort(NrecStokes * rh->atmos.Nspace * sizeof(double));
+	sc->eta_c = (double *) mallocOrAbort(NrecStokes * rh->atmos.Nspace * sizeof(double));
+	sc->sca_c = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
-	sc->chi   = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
-	sc->eta   = (double *) malloc(NrecStokes * rh->atmos.Nspace * sizeof(double));
-	sc->scatt = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	sc->chi   = (double *) mallocOrAbort(NrecStokes * rh->atmos.Nspace * sizeof(double));
+	sc->eta   = (double *) mallocOrAbort(NrecStokes * rh->atmos.Nspace * sizeof(double));
+	sc->scatt = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	if (rh->atmos.Stokes && rh->input.magneto_optical) {
-		sc->chip   = (double *) malloc(3 * rh->atmos.Nspace * sizeof(double));
-		sc->chip_c = (double *) malloc(3 * rh->atmos.Nspace * sizeof(double));
+		sc->chip   = (double *) mallocOrAbort(3 * rh->atmos.Nspace * sizeof(double));
+		sc->chip_c = (double *) mallocOrAbort(3 * rh->atmos.Nspace * sizeof(double));
 	} else {
 		sc->chip   = NULL;
 		sc->chip_c = NULL;
 	}
 
 	if (rh->atmos.moving || rh->atmos.Stokes) {
-		sc->chi_ai = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-		sc->eta_ai = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-		sc->sca_ai = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+		sc->chi_ai = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+		sc->eta_ai = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+		sc->sca_ai = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 	} else {
 		sc->chi_ai = sc->chi_c;
 		sc->eta_ai = sc->eta_c;
 		sc->sca_ai = sc->sca_c;
 	}
-	sc->Bnu = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	sc->Bnu = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	sc->passivecache = passiveBBCacheCreate();
-	sc->pending      = (int *) malloc(2 * rh->atmos.Nrays * sizeof(int));
+	sc->pending      = (int *) mallocOrAbort(2 * rh->atmos.Nrays * sizeof(int));
 	sc->Npending     = 0;
 
 	return sc;
@@ -721,7 +721,7 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 												  " of wavelengths, at least 2 (read \"%.40s\")",
 				  rh->input.fudgeData, inputLine);
 		}
-		lambda_fudge = (double *) malloc(Nfudge * sizeof(double));
+		lambda_fudge = (double *) mallocOrAbort(Nfudge * sizeof(double));
 		fudge        = matrix_double(rh, 3, Nfudge);
 		for (n = 0; n < Nfudge; n++) {
 			getLine(rh, fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
@@ -785,7 +785,7 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 	/* --- Thomson scattering by free electrons is wavelength independent
 		   in non-relativistic limit so we compute it only once -- ---- */
 
-	thomson = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	thomson = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 	Thomson(rh, thomson);
 
 	/* --- Check whether an atomic model is present for He -- --------- */
@@ -814,7 +814,7 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 
 	free(rh->atmos.backgrflags);
 	free(rh->atmos.backgrrecno);
-	rh->atmos.backgrflags = (flags *) malloc(rh->spectrum.Nspect * sizeof(flags));
+	rh->atmos.backgrflags = (flags *) mallocOrAbort(rh->spectrum.Nspect * sizeof(flags));
 	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
 		rh->atmos.backgrflags[nspect].hasline     = FALSE;
 		rh->atmos.backgrflags[nspect].ispolarized = FALSE;
@@ -825,9 +825,9 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 
 	if (rh->atmos.moving || rh->atmos.Stokes) {
 		rh->atmos.backgrrecno =
-			(int *) malloc(2 * rh->spectrum.Nspect * rh->atmos.Nrays * sizeof(int));
+			(int *) mallocOrAbort(2 * rh->spectrum.Nspect * rh->atmos.Nrays * sizeof(int));
 	} else
-		rh->atmos.backgrrecno = (int *) malloc(rh->spectrum.Nspect * sizeof(int));
+		rh->atmos.backgrrecno = (int *) mallocOrAbort(rh->spectrum.Nspect * sizeof(int));
 
 	/* --- Open output file for background opacity, emissivity,
 		   scattering. The values are stored as float (M-1); truncate,
@@ -879,7 +879,7 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 	if (chunk > 32) chunk = 32;
 	if (chunk < 1) chunk = 1;
 
-	job.scratch      = (BackgroundScratch **) malloc(Nworker * sizeof(BackgroundScratch *));
+	job.scratch      = (BackgroundScratch **) mallocOrAbort(Nworker * sizeof(BackgroundScratch *));
 	job.do_fudge     = do_fudge;
 	job.Nfudge       = Nfudge;
 	job.lambda_fudge = lambda_fudge;

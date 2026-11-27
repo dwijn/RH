@@ -192,7 +192,7 @@ bool_t xdr_adamp(RHState *rh, XDR *xdrs, Atom *atom)
 	double     *adamp;
 	AtomicLine *line;
 
-	adamp = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	adamp = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	for (kr = 0; kr < atom->Nline; kr++) {
 		line = atom->line + kr;

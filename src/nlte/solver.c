@@ -74,13 +74,13 @@
 static void addBlock(RHState *rh, const char *name, double *data, long N,
 					 enum BlockKind kind, void *owner)
 {
-	rh->solver.blocks = (StateBlock *) realloc(rh->solver.blocks, (rh->solver.Nblocks + 1) * sizeof(StateBlock));
+	rh->solver.blocks = (StateBlock *) reallocOrAbort(rh->solver.blocks, (rh->solver.Nblocks + 1) * sizeof(StateBlock));
 	snprintf(rh->solver.blocks[rh->solver.Nblocks].name, MAX_MESSAGE_LENGTH, "%s", name);
 	rh->solver.blocks[rh->solver.Nblocks].data    = data;
 	rh->solver.blocks[rh->solver.Nblocks].N       = N;
 	rh->solver.blocks[rh->solver.Nblocks].kind    = kind;
 	rh->solver.blocks[rh->solver.Nblocks].owner   = owner;
-	rh->solver.blockStart                         = (long *) realloc(rh->solver.blockStart, (rh->solver.Nblocks + 2) * sizeof(long));
+	rh->solver.blockStart                         = (long *) reallocOrAbort(rh->solver.blockStart, (rh->solver.Nblocks + 2) * sizeof(long));
 	rh->solver.blockStart[0]                      = 0;
 	rh->solver.blockStart[rh->solver.Nblocks + 1] = rh->solver.blockStart[rh->solver.Nblocks] + N;
 	rh->solver.Nblocks++;
@@ -364,7 +364,7 @@ static double prdSubIterations(RHState *rh, int Nsub)
 				if (!line->PRD) continue;
 
 				N   = PRDRhoSize(rh, line);
-				old = (double *) realloc(old, N * sizeof(double));
+				old = (double *) reallocOrAbort(old, N * sizeof(double));
 				memcpy(old, line->rho_prd[0], N * sizeof(double));
 
 				if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
@@ -524,8 +524,8 @@ void iterateFixedPoint(RHState *rh, int NmaxIter, double iterLimit)
 	Molecule *molecule;
 
 	stateInit(rh);
-	x     = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	saved = (double *) malloc(rhoNeSize(rh) * sizeof(double) + 1);
+	x     = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	saved = (double *) mallocOrAbort(rhoNeSize(rh) * sizeof(double) + 1);
 	resHistReset(rh);
 
 	Message(rh, "\n -- SOLVER = FIXED_POINT: x <- G(x), %ld unknowns;"
@@ -818,9 +818,9 @@ static double *setupVariables(RHState *rh, enum solver_variables kind,
 	rh->solver.offJ = -1;
 	for (n = 0; n < rh->solver.Nblocks; n++)
 		if (rh->solver.blocks[n].kind == BLOCK_J) rh->solver.offJ = rh->solver.blockStart[n];
-	rh->solver.packBlock    = (int *) realloc(rh->solver.packBlock, rh->solver.Nblocks * sizeof(int));
-	rh->solver.carryBlock   = (int *) realloc(rh->solver.carryBlock, rh->solver.Nblocks * sizeof(int));
-	rh->solver.packStart    = (long *) realloc(rh->solver.packStart, (rh->solver.Nblocks + 1) * sizeof(long));
+	rh->solver.packBlock    = (int *) reallocOrAbort(rh->solver.packBlock, rh->solver.Nblocks * sizeof(int));
+	rh->solver.carryBlock   = (int *) reallocOrAbort(rh->solver.carryBlock, rh->solver.Nblocks * sizeof(int));
+	rh->solver.packStart    = (long *) reallocOrAbort(rh->solver.packStart, (rh->solver.Nblocks + 1) * sizeof(long));
 	rh->solver.Npack        = 0;
 	rh->solver.Ncarry       = 0;
 	rh->solver.packStart[0] = 0;
@@ -835,7 +835,7 @@ static double *setupVariables(RHState *rh, enum solver_variables kind,
 	}
 	rh->solver.Npacked = rh->solver.packStart[rh->solver.Npack];
 
-	w = (double *) malloc(MAX(rh->solver.Npacked, 1) * sizeof(double));
+	w = (double *) mallocOrAbort(MAX(rh->solver.Npacked, 1) * sizeof(double));
 	for (n = 0; n < rh->solver.Npack; n++)
 		for (i = rh->solver.packStart[n]; i < rh->solver.packStart[n + 1]; i++)
 			w[i] = 1.0 / sqrt((double) rh->solver.blocks[rh->solver.packBlock[n]].N);
@@ -843,7 +843,7 @@ static double *setupVariables(RHState *rh, enum solver_variables kind,
 	rh->solver.varKind = kind;
 	stateGather(rh, x);
 	if (kind == VARIABLES_RELATIVE) {
-		rh->solver.varScale = (double *) realloc(rh->solver.varScale, MAX(rh->solver.Npacked, 1) * sizeof(double));
+		rh->solver.varScale = (double *) reallocOrAbort(rh->solver.varScale, MAX(rh->solver.Npacked, 1) * sizeof(double));
 		setVarScale(rh, x);
 	}
 	return w;
@@ -1084,9 +1084,9 @@ static double errorEstimate(RHState *rh, ErrorTest *t, const double *gx)
 		   terms of G(x): D_j = log(y_(j+1) / G(x)) - log(y_j / G(x)).
 		   Returns the estimated error of G(x), or -1 -- ------------- */
 
-	y  = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	gy = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	for (j = 0; j < ERROR_STEPS; j++) D[j] = (double *) malloc(N * sizeof(double));
+	y  = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	gy = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	for (j = 0; j < ERROR_STEPS; j++) D[j] = (double *) mallocOrAbort(N * sizeof(double));
 
 	memcpy(y, gx, rh->solver.Nstate * sizeof(double));
 	for (j = 0; j < ERROR_STEPS && Gok; j++) {
@@ -1144,7 +1144,7 @@ static bool_t errorTestStop(RHState *rh, ErrorTest *t, int niter,
 
 		/* --- What G sets besides the state, that of G(x) -- -------- */
 
-		gy = (double *) malloc(rh->solver.Nstate * sizeof(double));
+		gy = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
 		G_eval(rh, x, gy);
 		t->Geval++;
 		free(gy);
@@ -1251,18 +1251,18 @@ void iterateAnderson(RHState *rh, int NmaxIter, double iterLimit)
 		   the variables and the history cover the extrapolated blocks
 		   only (ANDERSON_EXTRAPOLATE, S-11) --         -------------- */
 
-	x      = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	gx     = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	gacc   = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	x      = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	gx     = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	gacc   = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
 	w      = setupVariables(rh, rh->input.Anderson_variables, rh->input.Anderson_extrapolate, x);
-	u      = (double *) malloc(rh->solver.Npacked * sizeof(double));
-	gu     = (double *) malloc(rh->solver.Npacked * sizeof(double));
-	un     = (double *) malloc(rh->solver.Npacked * sizeof(double));
-	valid  = (unsigned char *) malloc(rh->solver.Npacked);
-	validg = (unsigned char *) malloc(rh->solver.Npacked);
+	u      = (double *) mallocOrAbort(rh->solver.Npacked * sizeof(double));
+	gu     = (double *) mallocOrAbort(rh->solver.Npacked * sizeof(double));
+	un     = (double *) mallocOrAbort(rh->solver.Npacked * sizeof(double));
+	valid  = (unsigned char *) mallocOrAbort(rh->solver.Npacked);
+	validg = (unsigned char *) mallocOrAbort(rh->solver.Npacked);
 	Nsolve = (rh->input.Anderson_coefficients == ANDERSON_PER_BLOCK) ? rh->solver.Npack : 1;
-	gamma  = (double *) calloc((size_t) Nsolve * (m > 0 ? m : 1), sizeof(double));
-	info   = (AndersonSolve *) calloc(Nsolve, sizeof(AndersonSolve));
+	gamma  = (double *) callocOrAbort((size_t) Nsolve * (m > 0 ? m : 1), sizeof(double));
+	info   = (AndersonSolve *) callocOrAbort(Nsolve, sizeof(AndersonSolve));
 	a      = andersonInit(rh->solver.Npacked, m);
 
 	opt.Nblock    = rh->solver.Npack;
@@ -1596,22 +1596,22 @@ void iterateNewton(RHState *rh, int NmaxIter, double iterLimit)
 	Gmres           *gm;
 
 	stateInit(rh);
-	x       = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	gx      = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	u       = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	gu      = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	r       = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	d       = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	xt      = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	gt      = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	ut      = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	gut     = (double *) malloc(rh->solver.Nstate * sizeof(double));
-	rt      = (double *) malloc(rh->solver.Nstate * sizeof(double));
+	x       = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	gx      = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	u       = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	gu      = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	r       = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	d       = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	xt      = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	gt      = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	ut      = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	gut     = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
+	rt      = (double *) mallocOrAbort(rh->solver.Nstate * sizeof(double));
 	w       = setupVariables(rh, rh->input.Newton_variables, EXTRAPOLATE_ALL, x);
-	valid   = (unsigned char *) malloc(rh->solver.Nstate);
-	validg  = (unsigned char *) malloc(rh->solver.Nstate);
-	validt  = (unsigned char *) malloc(rh->solver.Nstate);
-	validgt = (unsigned char *) malloc(rh->solver.Nstate);
+	valid   = (unsigned char *) mallocOrAbort(rh->solver.Nstate);
+	validg  = (unsigned char *) mallocOrAbort(rh->solver.Nstate);
+	validt  = (unsigned char *) mallocOrAbort(rh->solver.Nstate);
+	validgt = (unsigned char *) mallocOrAbort(rh->solver.Nstate);
 	gm      = gmresInit(rh->solver.Nstate, k);
 
 	/* --- The probes of fdProduct use the trial buffers: they are

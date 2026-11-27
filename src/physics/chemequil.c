@@ -316,13 +316,13 @@ static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, boo
 	/* --- Collect pointers to elements that can be bound in molecules. */
 
 	Nnuclei = 0;
-	nuclei  = (Element **) malloc(rh->atmos.Nelem * sizeof(Element *));
+	nuclei  = (Element **) mallocOrAbort(rh->atmos.Nelem * sizeof(Element *));
 	for (i = 0; i < rh->atmos.Nelem; i++) {
 		if (rh->atmos.elements[i].Nmolecule > 0) {
 			nuclei[Nnuclei++] = &rh->atmos.elements[i];
 		}
 	}
-	nuclei = (Element **) realloc(nuclei, Nnuclei * sizeof(Element *));
+	nuclei = (Element **) reallocOrAbort(nuclei, Nnuclei * sizeof(Element *));
 
 	/* --- Check that first Nucleus is hydrogen --       -------------- */
 
@@ -344,17 +344,17 @@ static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, boo
 			Nmaxstage = MAX(Nmaxstage, nuclei[j]->Nstage);
 	}
 	if (Nmaxstage) {
-		fjk  = (double *) malloc(Nmaxstage * sizeof(double));
-		dfjk = (double *) malloc(Nmaxstage * sizeof(double));
+		fjk  = (double *) mallocOrAbort(Nmaxstage * sizeof(double));
+		dfjk = (double *) mallocOrAbort(Nmaxstage * sizeof(double));
 	}
 
 	/* --- Quantity nucl_index[i][j] stores the index (in array nuclei)
 		   of the jth element bound in molecule i --     -------------- */
 
-	nucl_index = (int **) malloc(rh->atmos.Nmolecule * sizeof(int *));
+	nucl_index = (int **) mallocOrAbort(rh->atmos.Nmolecule * sizeof(int *));
 	for (i = 0; i < rh->atmos.Nmolecule; i++) {
 		molecule      = &rh->atmos.molecules[i];
-		nucl_index[i] = (int *) malloc(molecule->Nelement * sizeof(int));
+		nucl_index[i] = (int *) mallocOrAbort(molecule->Nelement * sizeof(int));
 		for (j = 0; j < molecule->Nelement; j++) {
 			for (nu = 0; nu < Nnuclei; nu++) {
 				if (nuclei[nu] == &rh->atmos.elements[molecule->pt_index[j]]) {
@@ -371,9 +371,9 @@ static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, boo
 	/* --- Allocate temporary storage space.
 		   Quantities for the Newton Raphson --          -------------- */
 
-	n = (double *) calloc(Nequation, sizeof(double));
-	a = (double *) calloc(Nequation, sizeof(double));
-	u = (double *) calloc(Nnuclei, sizeof(double));
+	n = (double *) callocOrAbort(Nequation, sizeof(double));
+	a = (double *) callocOrAbort(Nequation, sizeof(double));
+	u = (double *) callocOrAbort(Nnuclei, sizeof(double));
 
 	/* --- Species of the log-density solver: the free nuclei, H- and
 		   the molecules, with their stoichiometry (N-61) -- -------- */
@@ -382,12 +382,12 @@ static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, boo
 	cs.Ns  = Nnuclei + 1 + rh->atmos.Nmolecule;
 	cs.nu  = matrix_double(rh, cs.Ns, Nnuclei);
 	cs.H   = matrix_double(rh, Nnuclei, Nnuclei);
-	cs.lnc = (double *) malloc(cs.Ns * sizeof(double));
-	cs.n   = (double *) malloc(cs.Ns * sizeof(double));
-	cs.g   = (double *) malloc(Nnuclei * sizeof(double));
-	cs.du  = (double *) malloc(Nnuclei * sizeof(double));
-	cs.ut  = (double *) malloc(Nnuclei * sizeof(double));
-	cs.sc  = (double *) malloc(Nnuclei * sizeof(double));
+	cs.lnc = (double *) mallocOrAbort(cs.Ns * sizeof(double));
+	cs.n   = (double *) mallocOrAbort(cs.Ns * sizeof(double));
+	cs.g   = (double *) mallocOrAbort(Nnuclei * sizeof(double));
+	cs.du  = (double *) mallocOrAbort(Nnuclei * sizeof(double));
+	cs.ut  = (double *) mallocOrAbort(Nnuclei * sizeof(double));
+	cs.sc  = (double *) mallocOrAbort(Nnuclei * sizeof(double));
 	for (s = 0; s < cs.Ns; s++)
 		for (i = 0; i < Nnuclei; i++) cs.nu[s][i] = 0.0;
 	for (i = 0; i < Nnuclei; i++) cs.nu[i][i] = 1.0;
@@ -401,8 +401,8 @@ static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, boo
 	/* --- Equilibrium constant for each molecule, and neutral
 		   fraction for each nucleus --                  -------------- */
 
-	Phi = (double *) malloc(rh->atmos.Nmolecule * sizeof(double));
-	fn0 = (double *) malloc(Nnuclei * sizeof(double));
+	Phi = (double *) mallocOrAbort(rh->atmos.Nmolecule * sizeof(double));
+	fn0 = (double *) mallocOrAbort(Nnuclei * sizeof(double));
 
 	/* --- Go through spatial grid and solve (local) equations -- ----- */
 

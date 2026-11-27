@@ -109,19 +109,19 @@ int main(int argc, char *argv[])
 
 	getLine(rh, fp_flow, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 	Nread      = sscanf(strtok(inputLine, " "), "%d", &Nspect);
-	wave_index = (int *) malloc(Nspect * sizeof(int));
+	wave_index = (int *) mallocOrAbort(Nspect * sizeof(int));
 	for (n = 0; n < Nspect; n++)
 		Nread += sscanf(strtok(NULL, " "), "%d", wave_index + n);
 	checkNread(rh, Nread, Nspect + 1, argv[0], checkPoint = 2);
 	fclose(fp_flow);
 
-	I   = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	Psi = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	chi = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	S   = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	I   = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	Psi = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	chi = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	S   = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
-	Fx = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	Fz = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	Fx = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
+	Fz = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	/* --- Solve radiative transfer equation at specified wavelengths - */
 
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 		alloc_as(rh, wave_index[n], crosscoupling = FALSE);
 
 		if (rh->input.limit_memory) {
-			J = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+			J = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 			readJlambda(rh, wave_index[n], J);
 		} else {
 			J = rh->spectrum.J[wave_index[n]];

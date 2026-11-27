@@ -68,7 +68,7 @@ void COcollisions(RHState *rh, struct Molecule *molecule)
 	C_0 = KBOLTZMANN / ATM_TO_PA;
 
 	hcomega_k = HPLANCK * CLIGHT * OMEGA0 / KBOLTZMANN;
-	beta      = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	beta      = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 	for (k = 0; k < rh->atmos.Nspace; k++)
 		beta[k] = hcomega_k / rh->atmos.T[k];
 
@@ -79,7 +79,7 @@ void COcollisions(RHState *rh, struct Molecule *molecule)
 
 	   --                                            -------------- */
 
-	molecule->C_ul = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+	molecule->C_ul = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		if (molecule->n[k]) {

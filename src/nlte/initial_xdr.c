@@ -175,7 +175,7 @@ void initSolution(RHState *rh)
 	}
 	if (rh->input.limit_memory) {
 		if (oflag & O_CREAT) {
-			J = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+			J = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 
 			/* --- Initialize J file with zeroes --          -------------- */
 
@@ -186,7 +186,7 @@ void initSolution(RHState *rh)
 			free(J);
 
 			if (rh->input.backgr_pol) {
-				J20 = (double *) malloc(rh->atmos.Nspace * sizeof(double));
+				J20 = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));
 				for (k = 0; k < rh->atmos.Nspace; k++) J20[k] = 0.0;
 				for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
 					writeJ20lambda(rh, nspect, J20);
@@ -270,7 +270,7 @@ void initSolution(RHState *rh)
 			   of intensity Imu in file spectrum.fd_Imu at wavelength
 			   corresponding to nspect. --                 -------------- */
 
-		rh->spectrum.PRDindex = (int *) malloc(rh->spectrum.Nspect * sizeof(int));
+		rh->spectrum.PRDindex = (int *) mallocOrAbort(rh->spectrum.Nspect * sizeof(int));
 		index                 = 0;
 		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
 			if (containsPRDline(rh, &rh->spectrum.as[nspect])) {
@@ -284,7 +284,7 @@ void initSolution(RHState *rh)
 		/* --- Which wavelengths the PRD sub-iterations re-solve, and the
 			   rows of Jgas_fixed (N-27) --                  -------------- */
 
-		char *isPRD = (char *) malloc(rh->spectrum.Nspect);
+		char *isPRD = (char *) mallocOrAbort(rh->spectrum.Nspect);
 
 		if (isPRD == NULL) Error(rh, ERROR_LEVEL_2, routineName, "Out of memory");
 
