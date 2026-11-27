@@ -29,6 +29,7 @@
 #include "state.h"
 
 typedef struct {
+	RHState      *rh;
 	ParallelRange work;
 	void         *arg;
 	int           begin, end, nt;
@@ -38,7 +39,7 @@ static void *runChunk(void *argument)
 {
 	Chunk *c = (Chunk *) argument;
 
-	c->work(c->begin, c->end, c->nt, c->arg);
+	c->work(c->rh, c->begin, c->end, c->nt, c->arg);
 	return NULL;
 }
 
@@ -51,7 +52,7 @@ void parallelFor(int N, int nthreads, ParallelRange work, void *arg)
 
 	if (nthreads > N) nthreads = N;
 	if (nthreads <= 1) {
-		work(0, N, 0, arg);
+		work(rh, 0, N, 0, arg);
 		return;
 	}
 
@@ -62,6 +63,7 @@ void parallelFor(int N, int nthreads, ParallelRange work, void *arg)
 	started = (bool_t *) calloc(Nchunk, sizeof(bool_t));
 
 	for (nt = 0; nt < Nchunk; nt++) {
+		chunk[nt].rh    = rh;
 		chunk[nt].work  = work;
 		chunk[nt].arg   = arg;
 		chunk[nt].nt    = nt;
@@ -91,6 +93,7 @@ void parallelFor(int N, int nthreads, ParallelRange work, void *arg)
 /* ------- begin -------------------------- parallelForDynamic.c ---- */
 
 typedef struct {
+	RHState      *rh;
 	ParallelRange work;
 	void         *arg;
 	int           N, chunk;
@@ -115,7 +118,7 @@ static void *runDynamic(void *argument)
 		long long end = begin + job->chunk;
 
 		if (end > job->N) end = job->N;
-		job->work((int) begin, (int) end, w->nt, job->arg);
+		job->work(job->rh, (int) begin, (int) end, w->nt, job->arg);
 	}
 	return NULL;
 }
@@ -133,10 +136,11 @@ void parallelForDynamic(int N, int chunk, int nthreads,
 	Nchunk = (int) (((long long) N + chunk - 1) / chunk);
 	if (nthreads > Nchunk) nthreads = Nchunk;
 	if (nthreads <= 1) {
-		work(0, N, 0, arg);
+		work(rh, 0, N, 0, arg);
 		return;
 	}
 
+	job.rh    = rh;
 	job.work  = work;
 	job.arg   = arg;
 	job.N     = N;

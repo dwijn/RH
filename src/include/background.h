@@ -162,8 +162,8 @@ void   Thomson(double *chi);
 bool_t Metal_bf(double lambda, int Nmetal, Atom *metals,
 				double *chi, double *eta);
 void   metalPrepare(void);
-bool_t OH_bf_opac(double lambda, double *chi, double *eta);
-bool_t CH_bf_opac(double lambda, double *chi, double *eta);
+bool_t OH_bf_opac(RHState *rh, double lambda, double *chi, double *eta);
+bool_t CH_bf_opac(RHState *rh, double lambda, double *chi, double *eta);
 
 #endif /* !__BACKGROUND_H__ */
 

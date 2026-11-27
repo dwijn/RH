@@ -1492,6 +1492,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	   steps. --                                       -------------- */
 
 typedef struct {
+	RHState             *rh;
 	const double        *u, *r, *x, *w; /* base point: u, R(u), x */
 	const unsigned char *mask;          /* entries in the step */
 	double              *up, *xp, *gp, *gup, h;
@@ -1503,7 +1504,8 @@ static void fdProduct(void *vctx, const double *v, double *y)
 {
 	register long i;
 
-	FDContext *c = (FDContext *) vctx;
+	FDContext *c  = (FDContext *) vctx;
+	RHState   *rh = c->rh;
 	double     vnorm, eps;
 
 	/* --- y = (R(u + eps v) - R(u)) / eps, eps = h / ||v||_W: one G
@@ -1615,6 +1617,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	/* --- The probes of fdProduct use the trial buffers: they are
 		   never alive at the same time --              -------------- */
 
+	ctx.rh        = rh;
 	ctx.u         = u;
 	ctx.r         = r;
 	ctx.x         = x;

@@ -331,7 +331,7 @@ static void prdAbsGrid(Atom *atom, AtomicLine *XRDline, int k, double *q_abs)
 
 /* ------- begin -------------------------- prdBlockSizes.c --------- */
 
-static void prdBlockSizes(int kbeg, int kend, int nt, void *arg)
+static void prdBlockSizes(RHState *rh, int kbeg, int kend, int nt, void *arg)
 {
 	PRDjob     *job     = (PRDjob *) arg;
 	AtomicLine *PRDline = job->PRDline, *XRDline = job->XRDline;
@@ -339,6 +339,7 @@ static void prdBlockSizes(int kbeg, int kend, int nt, void *arg)
 	long        n;
 	double      q_emit, q0, qN, *q_abs;
 
+	(void) rh;
 	(void) nt;
 
 	q_abs = (double *) malloc(XRDline->Nlambda * sizeof(double));
@@ -359,7 +360,7 @@ static void prdBlockSizes(int kbeg, int kend, int nt, void *arg)
 
 /* ------- begin -------------------------- prdIntegrate.c ---------- */
 
-static void prdIntegrate(int kbeg, int kend, int nt, void *arg)
+static void prdIntegrate(RHState *rh, int kbeg, int kend, int nt, void *arg)
 {
 	const char routineName[] = "PRDScatter";
 
@@ -611,7 +612,7 @@ static void prdAngleAbsGrid(PRDAngleJob *job, int k, int d, double *v_abs)
 	}
 }
 
-static void prdAngleBlockSizes(int kbeg, int kend, int nt, void *arg)
+static void prdAngleBlockSizes(RHState *rh, int kbeg, int kend, int nt, void *arg)
 {
 	PRDAngleJob *job  = (PRDAngleJob *) arg;
 	AtomicLine  *line = job->PRDline;
@@ -641,7 +642,7 @@ static void prdAngleBlockSizes(int kbeg, int kend, int nt, void *arg)
 	free(v_abs);
 }
 
-static void prdAngleIntegrate(int kbeg, int kend, int nt, void *arg)
+static void prdAngleIntegrate(RHState *rh, int kbeg, int kend, int nt, void *arg)
 {
 	const char routineName[] = "PRDAngleScatter";
 

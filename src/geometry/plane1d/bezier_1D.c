@@ -250,16 +250,16 @@ static void steffenCoef(double odx, double dx, double yu, double y0,
 
 /* ------- begin ----------------------- Piecewise_Bezier3_1D.c ----- */
 
-void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs,
+void Piecewise_Bezier3_1D(RHState *rh, int nspect, int mu, bool_t to_obs,
 						  double *chi, double *S, double *I, double *Psi)
 {
-	Piecewise_Bezier3_1D_tri(nspect, mu, to_obs, chi, S, I, Psi, NULL);
+	Piecewise_Bezier3_1D_tri(rh, nspect, mu, to_obs, chi, S, I, Psi, NULL);
 }
 /* ------- end ------------------------- Piecewise_Bezier3_1D.c ----- */
 
 /* ------- begin ----------------------- Piecewise_Bezier3_1D_tri.c - */
 
-void Piecewise_Bezier3_1D_tri(int nspect, int mu, bool_t to_obs,
+void Piecewise_Bezier3_1D_tri(RHState *rh, int nspect, int mu, bool_t to_obs,
 							  double *chi, double *S, double *I, double *Psi,
 							  double *Tri)
 {

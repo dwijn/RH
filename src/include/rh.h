@@ -21,6 +21,11 @@
 #include <rpc/types.h>
 #include <pthread.h>
 
+/* --- The state of a run (state.h); a parameter of most functions
+	   (Q-49) --                                       -------------- */
+
+typedef struct RHState RHState;
+
 /* --- SPHERICAL_SYMMETRIC is no longer a geometry (rhsphere was
 	   retired in Q-43); it keeps its value because geometry.out
 	   stores the topology as a number (python/rhanalyze, idl) -- */

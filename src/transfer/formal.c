@@ -47,7 +47,7 @@ typedef struct {
 	ActiveSet *as;
 } BgCtx;
 
-static void bgSweep(void *ctx, const double *u, double *J, double *A,
+static void bgSweep(RHState *rh, void *ctx, const double *u, double *J, double *A,
 					double *albedo)
 {
 	register int k, mu;
@@ -63,7 +63,7 @@ static void bgSweep(void *ctx, const double *u, double *J, double *A,
 	if (albedo)
 		for (k = 0; k < Nspace; k++) albedo[k] = 0.0;
 	for (mu = 0; mu < rh->atmos.Nrays; mu++) {
-		wmu = 0.5 * geometryOps.wmu(mu);
+		wmu = 0.5 * geometryOps.wmu(rh, mu);
 		for (to_obs = 0; to_obs <= 1; to_obs++) {
 			if (c->angle_dep) {
 				initialize = (mu == 0 && to_obs == 0);
@@ -78,7 +78,7 @@ static void bgSweep(void *ctx, const double *u, double *J, double *A,
 					c->S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * u[k]) /
 							  c->chi[k];
 			}
-			geometryOps.solve(c->nspect, mu, to_obs, c->chi, c->S, c->I, NULL,
+			geometryOps.solve(rh, c->nspect, mu, to_obs, c->chi, c->S, c->I, NULL,
 							  c->Tri, TRUE);
 			for (k = 0; k < Nspace; k++) J[k] += wmu * c->I[k];
 			geometryOps.bg_add_operator(Nspace, to_obs, wmu, c->Tri, as->sca_c,
@@ -106,8 +106,8 @@ static bool_t linearChoice(int nspect, bool_t *bg, double **Tri,
 {
 	bool_t lin;
 
-	if (!geometryOps.bg_linear_fallback()) return FALSE;
-	lin = bgScatterLinear(nspect, (*bg) ? geometryOps.bg_max_albedo(as) : -1.0);
+	if (!geometryOps.bg_linear_fallback(rh)) return FALSE;
+	lin = bgScatterLinear(nspect, (*bg) ? geometryOps.bg_max_albedo(rh, as) : -1.0);
 	if (!lin) {
 		*bg  = FALSE;
 		*Tri = NULL;
@@ -246,7 +246,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 		bgc.as         = as;
 		pending        = bgScatterPending(nspect);
 	}
-	if (bg && angle_dep && geometryOps.bg_linear_fallback()) {
+	if (bg && angle_dep && geometryOps.bg_linear_fallback(rh)) {
 
 		/* --- With S_BEZIER3, whether this wavelength is solved and
 			   iterated linear (N-52), from the opacities of the first
@@ -281,9 +281,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 	if (angle_dep) {
 		for (mu = 0; mu < Nrays; mu++) {
-			wmu = 0.5 * geometryOps.wmu(mu);
+			wmu = 0.5 * geometryOps.wmu(rh, mu);
 			if (rh->input.backgr_pol) {
-				musq     = SQ(geometryOps.muz(mu));
+				musq     = SQ(geometryOps.muz(rh, mu));
 				threemu1 = TWOSQRTTWO * (3.0 * musq - 1.0);
 				threemu2 = (3.0 * TWOSQRTTWO) * (musq - 1.0);
 			}
@@ -302,7 +302,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 					chi[k] = as->chi[k] + as->chi_c[k];
 					S[k]   = as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jsrc[k];
 				}
-				if (geometryOps.check_tau(nspect, mu, to_obs, chi, quad_ray))
+				if (geometryOps.check_tau(rh, nspect, mu, to_obs, chi, quad_ray))
 					goto cleanup;
 				if (rh->input.backgr_pol) {
 					for (k = 0; k < Nspace; k++) {
@@ -337,7 +337,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 					}
 					/* --- Polarized transfer --                 -------------- */
 
-					geometryOps.solve_stokes(nspect, mu, to_obs, chi, Spol, Ipol, Psi);
+					geometryOps.solve_stokes(rh, nspect, mu, to_obs, chi, Spol, Ipol, Psi);
 				} else {
 
 					for (k = 0; k < Nspace; k++)
@@ -345,7 +345,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 					/* --- Intensity only --                     -------------- */
 
-					geometryOps.solve(nspect, mu, to_obs, chi, S, I, Psi, Tri, lin);
+					geometryOps.solve(rh, nspect, mu, to_obs, chi, S, I, Psi, Tri, lin);
 				}
 
 				if (Psi) {
@@ -397,7 +397,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 			}
 			/* --- Save emergent intensity --              -------------- */
 
-			geometryOps.emergent(nspect, mu, I, (solveStokes) ? Ipol : NULL);
+			geometryOps.emergent(rh, nspect, mu, I, (solveStokes) ? Ipol : NULL);
 		}
 	} else {
 
@@ -412,8 +412,8 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 
 		for (k = 0; k < Nspace; k++) chi[k] = as->chi[k] + as->chi_c[k];
 		for (mu = 1, muslant = 0; mu < Nrays; mu++) /* the most slanted ray */
-			if (geometryOps.muz(mu) < geometryOps.muz(muslant)) muslant = mu;
-		if (geometryOps.check_tau(nspect, muslant, -1, chi, quad))
+			if (geometryOps.muz(rh, mu) < geometryOps.muz(rh, muslant)) muslant = mu;
+		if (geometryOps.check_tau(rh, nspect, muslant, -1, chi, quad))
 			goto cleanup;
 		if (bg && pending) {
 			Jstar = (double *) malloc(Nspace * sizeof(double));
@@ -424,9 +424,9 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 			S[k] = (as->eta[k] + as->eta_c[k] + as->sca_c[k] * Jsrc[k]) / chi[k];
 
 		for (mu = 0; mu < Nrays; mu++) {
-			wmu = 0.5 * geometryOps.wmu(mu);
+			wmu = 0.5 * geometryOps.wmu(rh, mu);
 			for (to_obs = 0; to_obs <= 1; to_obs++) {
-				geometryOps.solve(nspect, mu, to_obs, chi, S, I, Psi, Tri, lin);
+				geometryOps.solve(rh, nspect, mu, to_obs, chi, S, I, Psi, Tri, lin);
 
 				if (Psi) {
 					for (k = 0; k < Nspace; k++) Psi[k] /= chi[k];
@@ -451,7 +451,7 @@ double Formal(int nspect, bool_t eval_operator, bool_t redistribute)
 					}
 				}
 			}
-			geometryOps.emergent(nspect, mu, I, NULL);
+			geometryOps.emergent(rh, nspect, mu, I, NULL);
 		}
 	}
 	/* --- Write new J for current position in the spectrum -- -------- */

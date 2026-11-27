@@ -64,8 +64,8 @@ static const double ray_mux[NRAYS] = {0.6, -0.6, 0.7, -0.3, 0.0};
 
 #define NX 6
 
-typedef void (*Solver2D)(Geometry *, int, int, bool_t, double *, double *,
-						 double *, double *);
+typedef void (*Solver2D)(RHState *, Geometry *, int, int, bool_t, double *,
+						 double *, double *, double *);
 
 /* --- A periodic slab of Nz layers, logarithmic in optical depth
 	   from 1e-4 to 1e2, unit opacity (height = -tau), columns DX
@@ -196,7 +196,7 @@ static void solve(Solver2D solver, Slab *slab, const double s[NPOLY], int mu,
 		slab->geo.Itop[0][l]    = 0.0;
 		slab->geo.Ibottom[0][l] = Ib;
 	}
-	solver(&slab->geo, 0, mu, to_obs, slab->chi, slab->S, slab->I, Psi);
+	solver(rh, &slab->geo, 0, mu, to_obs, slab->chi, slab->S, slab->I, Psi);
 }
 
 /* --- Errors relative to the exact solution: emergent I+ (top
@@ -367,13 +367,13 @@ static double psi_error(Slab *slab)
 			for (int n = 0; n < Nspace; n++) slab->S[n] = 1.0 + slab->tau[n / NX];
 			for (int l = 0; l < NX; l++)
 				slab->geo.Itop[0][l] = slab->geo.Ibottom[0][l] = 0.0;
-			Piecewise_Linear_2D(&slab->geo, 0, mu, to_obs, slab->chi, slab->S,
+			Piecewise_Linear_2D(rh, &slab->geo, 0, mu, to_obs, slab->chi, slab->S,
 								slab->I, slab->Psi);
 
 			for (int n = 0; n < Nspace; n += 7) {
 				memset(slab->S1, 0, Nspace * sizeof(double));
 				slab->S1[n] = 1.0;
-				Piecewise_Linear_2D(&slab->geo, 0, mu, to_obs, slab->chi,
+				Piecewise_Linear_2D(rh, &slab->geo, 0, mu, to_obs, slab->chi,
 									slab->S1, slab->I, NULL);
 				if (slab->Psi[n] == 0.0 && slab->I[n] == 0.0) continue;
 				err = MAX(err, fabs(slab->Psi[n] - slab->I[n]) /
@@ -431,7 +431,7 @@ static void check_psi_bound(bool_t verbose)
 				for (int to_obs = 0; to_obs <= 1; to_obs++) {
 					for (int l = 0; l < NX; l++)
 						slab->geo.Itop[0][l] = slab->geo.Ibottom[0][l] = 0.0;
-					Piecewise_Bezier3_2D(&slab->geo, 0, mu, to_obs, slab->chi,
+					Piecewise_Bezier3_2D(rh, &slab->geo, 0, mu, to_obs, slab->chi,
 										 slab->S, slab->I, slab->Psi);
 					for (int n = 0; n < Nspace; n++) {
 						if (slab->I[n] <= 0.0) continue;

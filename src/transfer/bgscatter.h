@@ -15,8 +15,8 @@
 	   dJ_k / du_k-1+i (the angle sum of w (dI_k/dS_j) sca_c,j /
 	   chi_j), without side effects on rates or output -- ---- */
 
-typedef void (*BgSweep)(void *ctx, const double *u, double *J, double *A,
-						double *albedo);
+typedef void (*BgSweep)(RHState *rh, void *ctx, const double *u, double *J,
+						double *A, double *albedo);
 
 /* --- Per-sweep totals over all wavelengths (main thread, between
 	   sweeps) --                                      -------------- */

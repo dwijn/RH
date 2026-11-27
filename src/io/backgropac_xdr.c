@@ -161,11 +161,11 @@ void backgrOpac(int Nlambda, double *lambda)
 
 		/* --- Bound-free opacities from OH and CH molecules -- --------- */
 
-		if (OH_bf_opac(lambda[nspect], chi, eta)) {
+		if (OH_bf_opac(rh, lambda[nspect], chi, eta)) {
 			write_contrib_xdr(&xdrs, "OH_BF", type = ABSORPTION,
 							  rh->atmos.Nspace, chi);
 		}
-		if (CH_bf_opac(lambda[nspect], chi, eta)) {
+		if (CH_bf_opac(rh, lambda[nspect], chi, eta)) {
 			write_contrib_xdr(&xdrs, "CH_BF", type = ABSORPTION,
 							  rh->atmos.Nspace, chi);
 		}

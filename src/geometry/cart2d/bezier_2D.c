@@ -252,7 +252,7 @@ void Piece_Stokes_Bezier3_2D(Geometry *geometry, int nspect, int mu,
 
 /* ------- begin -------------------------- Piecewise_Bezier3_2D.c -- */
 
-void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
+void Piecewise_Bezier3_2D(RHState *rh, Geometry *geometry, int nspect, int mu,
 						  bool_t to_observer, double *chi, double *S,
 						  double *I, double *Psi)
 {

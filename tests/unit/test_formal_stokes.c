@@ -57,7 +57,7 @@
 #include "stokes_exact.h"
 #include "state.h"
 
-void Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs, double *chi,
+void Piecewise_Bezier3_1D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 						  double *S, double *I, double *Psi);
 void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs, double *chi,
 							 double **S, double **I, double *Psi);
@@ -196,7 +196,7 @@ static void check_unpolarized(bool_t verbose)
 	for (int mu = 0; mu < NMU; mu++)
 		for (int to_obs = 0; to_obs <= 1; to_obs++) {
 			Piece_Stokes_Bezier3_1D(0, mu, to_obs, slab.chi, slab.S, slab.I, NULL);
-			Piecewise_Bezier3_1D(0, mu, to_obs, slab.chi, slab.S[0], slab.Is, NULL);
+			Piecewise_Bezier3_1D(rh, 0, mu, to_obs, slab.chi, slab.S[0], slab.Is, NULL);
 			for (int k = 0; k < slab.Ndep; k++) {
 				dI = MAX(dI, fabs(slab.I[0][k] - slab.Is[k]) / MAX(fabs(slab.Is[k]), 1e-300));
 				for (int n = 1; n < 4; n++) dQUV = MAX(dQUV, fabs(slab.I[n][k]));

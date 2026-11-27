@@ -93,7 +93,7 @@ void parse(int argc, char *argv[], int Noption, Option *theOptions)
 
 	for (nopt = 1; nopt < Noption; nopt++) {
 		if (theOptions[nopt].pointer != NULL)
-			(*theOptions[nopt].setValue)(theOptions[nopt].value,
+			(*theOptions[nopt].setValue)(rh, theOptions[nopt].value,
 										 theOptions[nopt].pointer);
 	}
 

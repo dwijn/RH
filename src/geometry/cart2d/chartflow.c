@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
                                 as->sca_c[k] * J[k]) /
 							   chi[k];
 					}
-					Piecewise_Bezier3_2D(rh->geometry, wave_index[n], mu, to_obs,
+					Piecewise_Bezier3_2D(rh, rh->geometry, wave_index[n], mu, to_obs,
 										 chi, S, I, Psi);
 
 					if (to_obs) {
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
 				wmux = rh->geometry->mux[mu] * rh->geometry->wmu[mu];
 				wmuz = rh->geometry->muz[mu] * rh->geometry->wmu[mu];
 				for (to_obs = 0; to_obs <= 1; to_obs++) {
-					Piecewise_Bezier3_2D(rh->geometry, wave_index[n], mu,
+					Piecewise_Bezier3_2D(rh, rh->geometry, wave_index[n], mu,
 										 to_obs, chi, S, I, Psi);
 
 					if (to_obs) {

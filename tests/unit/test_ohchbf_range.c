@@ -52,13 +52,13 @@ int main(void)
 	rh->atmos.T      = (double *) T;
 
 	for (m = 0; m < 2; m++) {
-		bool_t (*bf)(double, double *, double *) = m ? CH_bf_opac : OH_bf_opac;
-		const char *name                         = m ? "CH" : "OH";
+		bool_t (*bf)(RHState *, double, double *, double *) = m ? CH_bf_opac : OH_bf_opac;
+		const char *name                                    = m ? "CH" : "OH";
 
 		for (lambda = 120.0; lambda < 560.0; lambda += 37.0) {
 			double hnu = HPLANCK * CLIGHT / (lambda * NM_TO_M);
 
-			if (!bf(lambda, chi, eta)) continue;
+			if (!bf(rh, lambda, chi, eta)) continue;
 			for (k = 0; k < NT; k++) {
 				double stim = exp(-hnu / (KBOLTZMANN * T[k]));
 				kap[k]      = chi[k] / (n[k] * (1.0 - stim));
@@ -83,8 +83,8 @@ int main(void)
 		}
 		/* --- Outside the energy range: no opacity, returns FALSE -- */
 
-		CHECK(!bf(m ? 20000.0 : 700.0, chi, eta), "%s: lambda below/above the energy range", name);
-		CHECK(!bf(60.0, chi, eta), "%s: lambda 60 nm is above 15 eV", name);
+		CHECK(!bf(rh, m ? 20000.0 : 700.0, chi, eta), "%s: lambda below/above the energy range", name);
+		CHECK(!bf(rh, 60.0, chi, eta), "%s: lambda 60 nm is above 15 eV", name);
 	}
 	return check_summary("test_ohchbf_range");
 }

@@ -5,9 +5,11 @@
 #define __RH_PARALLEL_H__
 
 /* --- Work on the half-open range [begin, end) of items. nt is the
-	   index of the worker, in 0..nthreads-1.  --      -------------- */
+	   index of the worker, in 0..nthreads-1; rh is the state of the
+	   caller of parallelFor --                         -------------- */
 
-typedef void (*ParallelRange)(int begin, int end, int nt, void *arg);
+typedef void (*ParallelRange)(RHState *rh, int begin, int end, int nt,
+							  void *arg);
 
 void parallelFor(int N, int nthreads, ParallelRange work, void *arg);
 void parallelForDynamic(int N, int chunk, int nthreads,

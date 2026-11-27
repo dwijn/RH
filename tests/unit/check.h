@@ -22,6 +22,12 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+/* --- The state of the unit tests (globals.c), which they pass to the
+	   library (Q-49) --                               -------------- */
+
+typedef struct RHState RHState;
+extern RHState *const  rh;
+
 static int check_count, check_failed;
 
 /* --- Print at most this many failures; the count includes all -- */

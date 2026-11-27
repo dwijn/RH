@@ -50,7 +50,7 @@
 
 /* ------- begin -------------------------- Piecewise_Linear_2D.c --- */
 
-void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
+void Piecewise_Linear_2D(RHState *rh, Geometry *geometry, int nspect, int mu,
 						 bool_t to_observer, double *chi, double *S,
 						 double *I, double *Psi)
 {

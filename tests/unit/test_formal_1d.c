@@ -35,9 +35,9 @@
 
 /* --- The solvers under test (src/geometry/plane1d/) -- ---------- */
 
-void   Piecewise_Linear_1D(int nspect, int mu, bool_t to_obs, double *chi,
+void   Piecewise_Linear_1D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 						   double *S, double *I, double *Psi);
-void   Piecewise_Bezier3_1D(int nspect, int mu, bool_t to_obs, double *chi,
+void   Piecewise_Bezier3_1D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 							double *S, double *I, double *Psi);
 double Feautrier(int nspect, int mu, double *chi, double *S,
 				 enum FeautrierOrder F_order, double *P, double *Psi);
@@ -138,13 +138,13 @@ static void accumulate(Errors *e, const double *got, const double *want,
 	}
 }
 
-typedef void (*ShortChar)(int, int, bool_t, double *, double *, double *,
-						  double *);
+typedef void (*ShortChar)(RHState *, int, int, bool_t, double *, double *,
+						  double *, double *);
 
 static void sc_errors(Errors *e, ShortChar solver, Slab *slab,
 					  const double s[NPOLY], int mu, bool_t to_obs)
 {
-	solver(0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
+	solver(rh, 0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
 	for (int k = 0; k < slab->Ndep; k++)
 		slab->dI[k] = I_exact(s, slab->tau[k], slab->tau[0], mus[mu], to_obs);
 	accumulate(e, slab->I, slab->dI, slab->Ndep);
@@ -311,7 +311,7 @@ static double psi_error(const Method *m, Slab *slab, int mu, bool_t to_obs)
 	double *S1 = malloc(slab->Ndep * sizeof(double));
 
 	if (m->solver)
-		m->solver(0, mu, to_obs, slab->chi, slab->S, slab->I, Psi);
+		m->solver(rh, 0, mu, to_obs, slab->chi, slab->S, slab->I, Psi);
 	else
 		Feautrier(0, mu, slab->chi, slab->S, m->order, slab->P, Psi);
 
@@ -321,10 +321,10 @@ static double psi_error(const Method *m, Slab *slab, int mu, bool_t to_obs)
 		if (m->solver == Piecewise_Bezier3_1D) {
 			double dS = 1.0e-6 * slab->S[k], I0;
 
-			m->solver(0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
+			m->solver(rh, 0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
 			I0 = slab->I[k];
 			slab->S[k] += dS;
-			m->solver(0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
+			m->solver(rh, 0, mu, to_obs, slab->chi, slab->S, slab->I, NULL);
 			slab->S[k] -= dS;
 			dIdS = (slab->I[k] - I0) / dS;
 		} else {
@@ -334,7 +334,7 @@ static double psi_error(const Method *m, Slab *slab, int mu, bool_t to_obs)
 				S1[l] = (l == k) ? 1.0 : 0.0;
 			rh->geometry->Itop[0][mu] = rh->geometry->Ibottom[0][mu] = 0.0;
 			if (m->solver) {
-				m->solver(0, mu, to_obs, slab->chi, S1, slab->I, NULL);
+				m->solver(rh, 0, mu, to_obs, slab->chi, S1, slab->I, NULL);
 				dIdS = slab->I[k];
 			} else {
 				Feautrier(0, mu, slab->chi, S1, m->order, slab->P, NULL);
@@ -390,7 +390,7 @@ static double psi_excess(Slab *slab)
 	rh->geometry->vboundary[BOTTOM] = ZERO;
 	for (int mu = 0; mu < NMU; mu++) {
 		for (int to_obs = 0; to_obs <= 1; to_obs++) {
-			Piecewise_Bezier3_1D(0, mu, to_obs, slab->chi, slab->S, slab->I,
+			Piecewise_Bezier3_1D(rh, 0, mu, to_obs, slab->chi, slab->S, slab->I,
 								 slab->Psi);
 			for (int k = 0; k < slab->Ndep; k++) {
 				if (slab->I[k] <= 0.0) continue;

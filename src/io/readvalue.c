@@ -19,10 +19,12 @@
 		   enum keywordtype type;      -- One of three types:
 										  KEYWORD_REQUIRED, KEYWORD_DEFAULT,
 										  and KEYWORD_OPTIONAL.
-		   void *pointer, (*setValue)(char *value, void *pointer);
+		   void *pointer, (*setValue)(RHState *rh, char *value,
+									   void *pointer);
 									   -- pointer to function of type void
-										  accepting pointer to string value
-										  and pointer to actual value.
+										  accepting the state, pointer to
+										  string value and pointer to
+										  actual value.
 		 };
 
 	   Keywords with KEYWORD_REQUIRED required always have to be set;
@@ -103,7 +105,7 @@ void readValues(FILE *fp_keyword, int Nkeyword, Keyword *theKeywords)
 			Error(rh, ERROR_LEVEL_2, routineName, "Missing input value for required keyword %s",
 				  theKeywords[n].keyword);
 		}
-		(*theKeywords[n].setValue)(theKeywords[n].value, theKeywords[n].pointer);
+		(*theKeywords[n].setValue)(rh, theKeywords[n].value, theKeywords[n].pointer);
 	}
 }
 /* ------- end ---------------------------- readValues.c ------------ */
@@ -144,45 +146,49 @@ void showValues(int Nkeyword, Keyword *theKeywords)
 
 /* ------- begin -------------------------- setcharValue.c ---------- */
 
-void setcharValue(char *value, void *pointer)
+void setcharValue(RHState *rh, char *value, void *pointer)
 {
+	(void) rh;
 	strcpy((char *) pointer, value);
 }
 /* ------- end ---------------------------- setcharValue.c ---------- */
 
 /* ------- begin -------------------------- setintValue.c ----------- */
 
-void setintValue(char *value, void *pointer)
+void setintValue(RHState *rh, char *value, void *pointer)
 {
 	int intvalue = atoi(value);
 
+	(void) rh;
 	memcpy(pointer, &intvalue, sizeof(int));
 }
 /* ------- end ---------------------------- setintValue.c ----------- */
 
 /* ------- begin -------------------------- setdoubleValue.c -------- */
 
-void setdoubleValue(char *value, void *pointer)
+void setdoubleValue(RHState *rh, char *value, void *pointer)
 {
 	double doublevalue = atof(value);
 
+	(void) rh;
 	memcpy(pointer, &doublevalue, sizeof(double));
 }
 /* ------- end ---------------------------- setdoubleValue.c -------- */
 
 /* ------- begin -------------------------- setboolValue.c ---------- */
 
-void setboolValue(char *value, void *pointer)
+void setboolValue(RHState *rh, char *value, void *pointer)
 {
 	bool_t boolvalue = (strstr(value, "TRUE")) ? TRUE : FALSE;
 
+	(void) rh;
 	memcpy(pointer, &boolvalue, sizeof(bool_t));
 }
 /* ------- end ---------------------------- setboolValue.c ---------- */
 
 /* ------- begin -------------------------- setAngleSet.c ----------- */
 
-void setAngleSet(char *value, void *pointer)
+void setAngleSet(RHState *rh, char *value, void *pointer)
 {
 	int      Ninclination, Nazimuth;
 	AngleSet angleSet;
@@ -250,7 +256,7 @@ void initAngleSet(AngleSet *angleSet)
 
 /* ------- begin -------------------------- setStokesMode.c --------- */
 
-void setStokesMode(char *value, void *pointer)
+void setStokesMode(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setStokesMode";
 
@@ -271,7 +277,7 @@ void setStokesMode(char *value, void *pointer)
 
 /* ------- begin -------------------------- setThreadValue.c -------- */
 
-void setThreadValue(char *value, void *pointer)
+void setThreadValue(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setThreadValue";
 
@@ -319,7 +325,7 @@ void setThreadValue(char *value, void *pointer)
 
 /* ------- begin -------------------------- setInterpolate_2D.c ----- */
 
-void setInterpolate_2D(char *value, void *pointer)
+void setInterpolate_2D(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setInterpolate_2D";
 
@@ -340,7 +346,7 @@ void setInterpolate_2D(char *value, void *pointer)
 
 /* ------- begin -------------------------- setInterpolate_3D.c ----- */
 
-void setInterpolate_3D(char *value, void *pointer)
+void setInterpolate_3D(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setInterpolate_3D";
 
@@ -359,7 +365,7 @@ void setInterpolate_3D(char *value, void *pointer)
 
 /* ------- begin -------------------------- set_S_Interpolation.c --- */
 
-void set_S_Interpolation(char *value, void *pointer)
+void set_S_Interpolation(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "set_S_Interpolation";
 
@@ -383,7 +389,7 @@ void set_S_Interpolation(char *value, void *pointer)
 
 /* ------- begin ------------------ set_S_interpolation_longchar.c --- */
 
-void set_S_interpolation_longchar(char *value, void *pointer)
+void set_S_interpolation_longchar(RHState *rh, char *value, void *pointer)
 {
 	/* --- Integration of S along the long characteristics of the 2-D
 		   and 3-D unpolarized formal solution (N-39): S_LINEAR or
@@ -409,7 +415,7 @@ void set_S_interpolation_longchar(char *value, void *pointer)
 
 /* ------- begin ------------------- set_S_interpolation_stokes.c --- */
 
-void set_S_interpolation_stokes(char *value, void *pointer)
+void set_S_interpolation_stokes(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "set_S_interpolation_stokes";
 
@@ -430,7 +436,7 @@ void set_S_interpolation_stokes(char *value, void *pointer)
 
 /* ------- begin ------------------- setPRDangle.c ------------------ */
 
-void setPRDangle(char *value, void *pointer)
+void setPRDangle(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setPRDangle";
 
@@ -451,7 +457,7 @@ void setPRDangle(char *value, void *pointer)
 
 /* ------- begin -------------------------- setstartValue.c --------- */
 
-void setstartValue(char *value, void *pointer)
+void setstartValue(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setStartValue";
 
@@ -471,7 +477,7 @@ void setstartValue(char *value, void *pointer)
 
 /* ------- begin -------------------------- setnesolution.c --------- */
 
-void setnesolution(char *value, void *pointer)
+void setnesolution(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setnesolution";
 
@@ -493,7 +499,7 @@ void setnesolution(char *value, void *pointer)
 
 /* ------- begin -------------------------- setsolver.c ------------- */
 
-void setsolver(char *value, void *pointer)
+void setsolver(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setsolver";
 
@@ -537,7 +543,7 @@ const char *solverName(enum solver_type solver)
 
 /* ------- begin -------------------------- setSolverVariables.c ---- */
 
-void setSolverVariables(char *value, void *pointer)
+void setSolverVariables(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setSolverVariables";
 
@@ -560,7 +566,7 @@ void setSolverVariables(char *value, void *pointer)
 
 /* ------- begin -------------------------- setAndersonCoefficients.c */
 
-void setAndersonCoefficients(char *value, void *pointer)
+void setAndersonCoefficients(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setAndersonCoefficients";
 
@@ -581,7 +587,7 @@ void setAndersonCoefficients(char *value, void *pointer)
 
 /* ------- begin -------------------------- setBgOperator.c --------- */
 
-void setBgOperator(char *value, void *pointer)
+void setBgOperator(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setBgOperator";
 
@@ -602,7 +608,7 @@ void setBgOperator(char *value, void *pointer)
 
 /* ------- begin -------------------------- setAndersonExtrapolate.c - */
 
-void setAndersonExtrapolate(char *value, void *pointer)
+void setAndersonExtrapolate(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setAndersonExtrapolate";
 

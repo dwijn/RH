@@ -487,11 +487,6 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 	   enough. Pooling per wavelength would grow memory as
 	   Nspect * Nspace.  --                            -------------- */
 
-static void init_as_pool(void)
-{
-	rh->opacity.as_pool = (AsPool *) calloc(rh->input.Nthreads, sizeof(AsPool));
-}
-
 void alloc_as(int nspect, bool_t crosscoupling)
 {
 	register int nact;
@@ -505,7 +500,10 @@ void alloc_as(int nspect, bool_t crosscoupling)
 	as = &rh->spectrum.as[nspect];
 	nt = nspect % rh->input.Nthreads;
 
-	pthread_once(&rh->opacity.as_pool_once, init_as_pool);
+	pthread_mutex_lock(&rh->opacity.as_pool_lock);
+	if (rh->opacity.as_pool == NULL)
+		rh->opacity.as_pool = (AsPool *) calloc(rh->input.Nthreads, sizeof(AsPool));
+	pthread_mutex_unlock(&rh->opacity.as_pool_lock);
 	pool = &rh->opacity.as_pool[nt];
 
 	/* --- Space for background opacities and emissivity. The pooled

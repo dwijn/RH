@@ -91,11 +91,11 @@ typedef struct {
 } AsPool;
 
 typedef struct {
-	AsPool        *as_pool; /* input.Nthreads slots, made at first use */
-	pthread_once_t as_pool_once;
+	AsPool         *as_pool; /* input.Nthreads slots, made at first use */
+	pthread_mutex_t as_pool_lock;
 } OpacityState;
 
-#define OPACITY_STATE_INIT {.as_pool_once = PTHREAD_ONCE_INIT}
+#define OPACITY_STATE_INIT {.as_pool_lock = PTHREAD_MUTEX_INITIALIZER}
 void initSpectrum(void);
 void Opacity(int nspect, int mu, bool_t top_to_bottom, bool_t activate);
 void Planck(int Nspace, double *T, double lambda0, double *Bnu);

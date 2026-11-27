@@ -34,8 +34,10 @@
 
 /* ------- begin -------------------------- bgSupported.c ----------- */
 
-static const char *bgSupported(void)
+static const char *bgSupported(RHState *rh)
 {
+	(void) rh;
+
 	/* --- The background scattering iteration (N-51) is not done in
 		   2-D and 3-D (N-68) -- --                    -------------- */
 
@@ -43,8 +45,9 @@ static const char *bgSupported(void)
 }
 /* ------- end ---------------------------- bgSupported.c ----------- */
 
-static bool_t bgLinearFallback(void)
+static bool_t bgLinearFallback(RHState *rh)
 {
+	(void) rh;
 	return FALSE;
 }
 
@@ -53,7 +56,7 @@ static bool_t bgLinearFallback(void)
 /* --- Unpolarized short characteristics along ray mu; no tridiagonal
 	   operator and no linear fallback (Tri and lin are never set) -- */
 
-static void solve_2D(int nspect, int mu, bool_t to_obs, double *chi,
+static void solve_2D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 					 double *S, double *I, double *Psi, double *Tri,
 					 bool_t lin)
 {
@@ -62,9 +65,9 @@ static void solve_2D(int nspect, int mu, bool_t to_obs, double *chi,
 	(void) Tri;
 	(void) lin;
 	if (rh->input.S_interpolation == S_LINEAR) {
-		Piecewise_Linear_2D(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
+		Piecewise_Linear_2D(rh, rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
 	} else if (rh->input.S_interpolation == S_BEZIER3) {
-		Piecewise_Bezier3_2D(rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
+		Piecewise_Bezier3_2D(rh, rh->geometry, nspect, mu, to_obs, chi, S, I, Psi);
 	} else {
 		Error(rh, ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
 			  rh->input.S_interpolation);
@@ -74,7 +77,7 @@ static void solve_2D(int nspect, int mu, bool_t to_obs, double *chi,
 
 /* ------- begin -------------------------- solveStokes_2D.c -------- */
 
-static void solveStokes_2D(int nspect, int mu, bool_t to_obs, double *chi,
+static void solveStokes_2D(RHState *rh, int nspect, int mu, bool_t to_obs, double *chi,
 						   double **S, double **I, double *Psi)
 {
 	const char routineName[] = "solveStokes_2D";
@@ -90,7 +93,7 @@ static void solveStokes_2D(int nspect, int mu, bool_t to_obs, double *chi,
 
 /* ------- begin -------------------------- checkTau_2D.c ----------- */
 
-static bool_t checkTau_2D(int nspect, int mu, int to_obs, const double *chi,
+static bool_t checkTau_2D(RHState *rh, int nspect, int mu, int to_obs, const double *chi,
 						  enum negtau_quadrature quad)
 {
 	return negTauColumns(nspect, mu, to_obs, rh->geometry->Nz, rh->geometry->Nx, chi,
@@ -102,7 +105,7 @@ static bool_t checkTau_2D(int nspect, int mu, int to_obs, const double *chi,
 
 /* --- The emergent intensity of ray mu at the top of each column -- */
 
-static void emergent_2D(int nspect, int mu, const double *I, double **Ipol)
+static void emergent_2D(RHState *rh, int nspect, int mu, const double *I, double **Ipol)
 {
 	register int l;
 
@@ -120,11 +123,11 @@ static void emergent_2D(int nspect, int mu, const double *I, double **Ipol)
 }
 /* ------- end ---------------------------- emergent_2D.c ----------- */
 
-static double muz_2D(int mu)
+static double muz_2D(RHState *rh, int mu)
 {
 	return rh->geometry->muz[mu];
 }
-static double wmu_2D(int mu)
+static double wmu_2D(RHState *rh, int mu)
 {
 	return rh->geometry->wmu[mu];
 }

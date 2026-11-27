@@ -226,7 +226,7 @@ double SolveLong(LongChar *lc, int local, double *chi, double *S,
 double Feautrier(int nspect, int lx, double *chi, double *S,
 				 enum FeautrierOrder order, double *P, double *Psi);
 
-void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
+void Piecewise_Linear_2D(RHState *rh, Geometry *geometry, int nspect, int mu,
 						 bool_t to_observer, double *chi, double *S,
 						 double *I, double *Psi);
 void Piecewise_Bezier_2D(Geometry *geometry, int nspect, int mu,
@@ -242,7 +242,7 @@ void SolveLongStokes(StokesGrid *sg, LongChar *lc, int local, double *I_uw);
 
 /* --- Prototypes for cubic Bezier solvers --          -------------- */
 
-void Piecewise_Bezier3_2D(Geometry *geometry, int nspect, int mu,
+void Piecewise_Bezier3_2D(RHState *rh, Geometry *geometry, int nspect, int mu,
 						  bool_t to_observer, double *chi, double *S,
 						  double *I, double *Psi);
 

@@ -148,7 +148,7 @@ void bgScatterSetup(void)
 		   warning if BACKGROUND_N_MAX_ITER was set -- -------------- */
 
 	if (rh->input.bg_NmaxIter == 0) return;
-	if ((why = geometryOps.bg_supported()) != NULL) {
+	if ((why = geometryOps.bg_supported(rh)) != NULL) {
 		if (rh->input.bg_NmaxIter_set) {
 			Warning(rh, routineName, "BACKGROUND_N_MAX_ITER = %d is ignored: %s.\n"
 									 " The background scattering is lambda iterated.",
@@ -172,7 +172,7 @@ void bgScatterSetup(void)
 		rh->bgscatter.kappa = (float *) calloc(rh->spectrum.Nspect, sizeof(float));
 	}
 
-	if (geometryOps.bg_linear_fallback() && rh->bgscatter.linear == NULL) {
+	if (geometryOps.bg_linear_fallback(rh) && rh->bgscatter.linear == NULL) {
 		rh->bgscatter.linear = (unsigned char *) calloc(rh->spectrum.Nspect, 1);
 		Message(rh, "  with S_INTERPOLATION = S_BEZIER3: wavelengths whose albedo"
 					" exceeds BACKGROUND_LINEAR_ALBEDO = %.2f\n  below vertical"
@@ -533,7 +533,7 @@ int bgScatterIterate(int Nspace, const double *Jdag, const double *Jfs,
 			memcpy(un, g, Nspace * sizeof(double));
 		memcpy(u, un, Nspace * sizeof(double));
 
-		sweep(ctx, u, Jn, An, NULL);
+		sweep(rh, ctx, u, Jn, An, NULL);
 		precondStep(Nspace, u, Jn, An, g, work);
 		niter++;
 		r = relChange(Nspace, u, g);
@@ -593,7 +593,7 @@ void bgScatterBefore(int nspect, int Nspace, const double *Jdag,
 	Jfs    = (double *) malloc(5 * Nspace * sizeof(double));
 	A      = Jfs + Nspace;
 	albedo = A + 3 * Nspace;
-	sweep(ctx, Jdag, Jfs, A, albedo);
+	sweep(rh, ctx, Jdag, Jfs, A, albedo);
 	niter                       = bgScatterIterate(Nspace, Jdag, Jfs, A, albedo, Jstar, &kap,
 												   sweep, ctx);
 	rh->bgscatter.kappa[nspect] = (float) kap;

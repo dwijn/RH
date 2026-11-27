@@ -253,7 +253,7 @@ static int reserveRecords(BackgroundJob *job, int nspect)
 	return (int) recno;
 }
 
-static void backgroundRange(int begin, int end, int nt, void *arg)
+static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
 {
 	const char   routineName[] = "backgroundRange";
 	register int k, nspect, n, mu, to_obs;
@@ -320,13 +320,13 @@ static void backgroundRange(int begin, int end, int nt, void *arg)
 		}
 		/* --- Opacities from bound-free transitions in OH and CH -- ---- */
 
-		if (OH_bf_opac(wavelength, chi, eta)) {
+		if (OH_bf_opac(rh, wavelength, chi, eta)) {
 			for (k = 0; k < rh->atmos.Nspace; k++) {
 				chi_ai[k] += chi[k];
 				eta_ai[k] += eta[k];
 			}
 		}
-		if (CH_bf_opac(wavelength, chi, eta)) {
+		if (CH_bf_opac(rh, wavelength, chi, eta)) {
 			for (k = 0; k < rh->atmos.Nspace; k++) {
 				chi_ai[k] += chi[k];
 				eta_ai[k] += eta[k];

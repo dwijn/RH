@@ -27,9 +27,10 @@
 #include "state.h"
 
 typedef struct {
-	bool_t eval_operator, redistribute;
-	int    nt, Nthreads, lambda_max;
-	double dJmax;
+	RHState *rh;
+	bool_t   eval_operator, redistribute;
+	int      nt, Nthreads, lambda_max;
+	double   dJmax;
 } threadinfo;
 
 /* --- Function prototypes --                          -------------- */
@@ -376,6 +377,7 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 		thread_id = (pthread_t *) malloc(rh->input.Nthreads * sizeof(pthread_t));
 
 		for (nt = 0; nt < rh->input.Nthreads; nt++) {
+			ti[nt].rh            = rh;
 			ti[nt].eval_operator = eval_operator;
 			ti[nt].redistribute  = redistribute;
 			ti[nt].nt            = nt;
@@ -472,6 +474,7 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 void *Formal_pthread(void *argument)
 {
 	threadinfo *ti = (threadinfo *) argument;
+	RHState    *rh = ti->rh;
 	int         nspect;
 	double      dJ;
 

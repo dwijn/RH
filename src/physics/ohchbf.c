@@ -51,7 +51,7 @@
 #define NTOH 15
 #define NEOH 130
 
-bool_t OH_bf_opac(double lambda, double *chi, double *eta)
+bool_t OH_bf_opac(RHState *rh, double lambda, double *chi, double *eta)
 {
 	register int k;
 
@@ -383,7 +383,7 @@ bool_t OH_bf_opac(double lambda, double *chi, double *eta)
 #define NTCH 15
 #define NECH 105
 
-bool_t CH_bf_opac(double lambda, double *chi, double *eta)
+bool_t CH_bf_opac(RHState *rh, double lambda, double *chi, double *eta)
 {
 	register int k;
 

@@ -79,7 +79,7 @@ typedef struct {
 	bool_t      polarized;
 } ProfileJob;
 
-static void profileWorker(int kbeg, int kend, int nt, void *arg)
+static void profileWorker(RHState *rh, int kbeg, int kend, int nt, void *arg)
 {
 	ProfileJob *job   = (ProfileJob *) arg;
 	AtomicLine *line  = job->line;
