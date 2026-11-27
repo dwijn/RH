@@ -78,8 +78,6 @@ typedef struct RHState {
 								   .negtau    = NEGTAU_STATE_INIT,    \
 								   .opacity   = OPACITY_STATE_INIT}
 
-extern RHState *const rh;
-
 #endif /* !__STATE_H__ */
 
 /* ------- end ---------------------------- state.h ----------------- */

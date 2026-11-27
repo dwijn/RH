@@ -38,14 +38,41 @@ enum errorlevel { MESSAGE,
 #define RH_EXIT_NOT_CONVERGED 1
 #define RH_EXIT_FATAL         70
 
-/* --- Associated function prototypes --               -------------- */
+/* --- Messages, warnings and fatal errors (Q-48, Q-49):
 
-void ErrorMessage(enum errorlevel level, const char *routineName,
-				  const char *format, ...)
-	__attribute__((format(printf, 3, 4)));
-_Noreturn void ErrorExit(enum errorlevel level, const char *routineName,
-						 const char *format, ...)
-	__attribute__((format(printf, 3, 4)));
+	   Message(rh, format, ...)                a message, unless the
+												   command line asks for quiet
+	   Warning(rh, routine, format, ...)       a warning
+	   Error(rh, level, routine, format, ...)  a fatal error, level
+												   ERROR_LEVEL_1 or _2: prints
+												   the message and exits with
+												   status RH_EXIT_FATAL (until
+												   errors return, Q-51)
+
+	   The format is a printf format, which the compiler checks against
+	   the arguments. Message and Warning are macros over Log(), the one
+	   function that writes messages and warnings (from phase 6 it hands
+	   them to the caller's callback). Macros and not inline functions:
+	   C cannot pass `...` on, and gcc and clang never inline a function
+	   with a variable argument list. --               -------------- */
+
+typedef struct RHState RHState;
+
+void           Log(RHState *rh, enum errorlevel level, const char *routineName,
+				   const char *format, ...) __attribute__((format(printf, 4, 5)));
+_Noreturn void Error(RHState *rh, enum errorlevel level,
+					 const char *routineName, const char *format, ...)
+	__attribute__((format(printf, 4, 5)));
+
+#define Message(rh, ...) Log((rh), MESSAGE, NULL, __VA_ARGS__)
+#define Warning(rh, routineName, ...) \
+	Log((rh), WARNING, (routineName), __VA_ARGS__)
+
+/* --- The one instance of the state, until every function that uses
+	   it is passed it (Q-49) --                       -------------- */
+
+extern RHState *const rh;
+
 void SetExitFlag(int flag);
 int  ExitStatus(void);
 
@@ -55,20 +82,6 @@ int  ExitStatus(void);
 typedef struct {
 	int exitFlags;
 } ErrorState;
-
-/* --- Error(level, routineName, format, ...): print a message
-	   (MESSAGE) or warning (WARNING) and return, or print an error
-	   (ERROR_LEVEL_1, ERROR_LEVEL_2) and exit with status
-	   RH_EXIT_FATAL. The message is formatted as by printf, and the
-	   compiler checks the format against the arguments (Q-48; before,
-	   the caller formatted it into the global messageStr). A macro,
-	   so that the compiler sees which branch a constant level takes
-	   and knows that the error levels do not return.
-	   --                                              -------------- */
-
-#define Error(level, routineName, ...)                                         \
-	((level) >= ERROR_LEVEL_1 ? ErrorExit((level), (routineName), __VA_ARGS__) \
-							  : ErrorMessage((level), (routineName), __VA_ARGS__))
 
 #endif /* !__ERROR_H__ */
 

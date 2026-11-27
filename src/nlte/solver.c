@@ -231,7 +231,7 @@ static void resHistAdd(double r)
 	rh->solver.resHist[rh->solver.NresHist++] = r;
 }
 
-static void printContraction(const char *routineName)
+static void printContraction(void)
 {
 	int    m;
 	double lambda, rlast;
@@ -245,21 +245,21 @@ static void printContraction(const char *routineName)
 	m = rh->solver.NresHist - 1;
 	if (m < 2 || !(rh->solver.resHist[0] > 0.0) || !(rh->solver.resHist[rh->solver.NresHist - 1] >= 0.0) ||
 		!isfinite(rh->solver.resHist[0]) || !isfinite(rh->solver.resHist[rh->solver.NresHist - 1])) {
-		Error(MESSAGE, routineName, " -- Estimated contraction: no estimate (fewer than 4"
-									" iterations, or no residual to compare)\n");
+		Error(MESSAGE, NULL, " -- Estimated contraction: no estimate (fewer than 4"
+							 " iterations, or no residual to compare)\n");
 		return;
 	}
 	rlast  = rh->solver.resHist[rh->solver.NresHist - 1];
 	lambda = pow(rlast / rh->solver.resHist[0], 1.0 / m);
 	if (!(lambda < 1.0)) {
-		Error(MESSAGE, routineName, " -- Estimated contraction: no estimate (the residual"
-									" did not decrease over the last %d iterations)\n",
+		Error(MESSAGE, NULL, " -- Estimated contraction: no estimate (the residual"
+							 " did not decrease over the last %d iterations)\n",
 			  m);
 		return;
 	}
-	Error(MESSAGE, routineName, " -- Estimated contraction %.3f per iteration (last %d"
-								" iterations); the error of the populations may be up to"
-								" about %.1E (residual / (1 - contraction))\n",
+	Error(MESSAGE, NULL, " -- Estimated contraction %.3f per iteration (last %d"
+						 " iterations); the error of the populations may be up to"
+						 " about %.1E (residual / (1 - contraction))\n",
 		  lambda, m, rlast / (1.0 - lambda));
 }
 /* ------- end ---------------------------- residualHistory.c ------- */
@@ -626,7 +626,7 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	/* --- With Ng the residuals are those of accelerated iterates:
 		   no estimate, as for ANDERSON and NEWTON_KRYLOV --  ------- */
 
-	if (rh->input.Ngorder == 0) printContraction(routineName);
+	if (rh->input.Ngorder == 0) printContraction();
 	Error(MESSAGE, routineName, " -- G evaluations: %ld\n", rh->solver.Gcount);
 
 	/* --- With ne in the state: the background of the final state, for
@@ -924,7 +924,7 @@ static void logSolve(int Nsolve, bool_t per_block, const AndersonSolve *info,
 
 /* ------- begin -------------------------- printChange.c ----------- */
 
-static double printChange(const char *routineName, int niter, const double *x,
+static double printChange(int niter, const double *x,
 						  const double *gx)
 {
 	register int n;
@@ -935,7 +935,7 @@ static double printChange(const char *routineName, int niter, const double *x,
 		   definition on (x, G(x)), in the format of the other
 		   solvers. Returns the largest --            -------------- */
 
-	Error(MESSAGE, routineName, "\n -- Iteration %3d\n", niter);
+	Error(MESSAGE, NULL, "\n -- Iteration %3d\n", niter);
 	for (n = 0; n < rh->solver.Nblocks; n++) {
 		if (rh->solver.blocks[n].kind != BLOCK_ATOM && rh->solver.blocks[n].kind != BLOCK_MOLECULE)
 			continue;
@@ -1013,7 +1013,7 @@ static long errorSize(void)
 	return N;
 }
 
-static void errorTestInit(ErrorTest *t, const char *routineName)
+static void errorTestInit(ErrorTest *t)
 {
 	t->limit     = rh->input.errorLimit;
 	t->target    = rh->input.errorLimit;
@@ -1023,9 +1023,9 @@ static void errorTestInit(ErrorTest *t, const char *routineName)
 	t->Geval     = 0;
 	if (t->limit <= 0.0) return;
 
-	Error(MESSAGE, routineName, " -- ERROR_LIMIT = %.2E: the run stops when the estimated error"
-								" of the\n    populations, rho, ne and J is below it%s; each"
-								" estimate takes %d plain G\n    steps (memory %.1f MB)\n",
+	Error(MESSAGE, NULL, " -- ERROR_LIMIT = %.2E: the run stops when the estimated error"
+						 " of the\n    populations, rho, ne and J is below it%s; each"
+						 " estimate takes %d plain G\n    steps (memory %.1f MB)\n",
 		  t->limit,
 		  (rh->input.iterLimit_set) ? " and the residual of the populations below"
 									  " ITER_LIMIT"
@@ -1123,7 +1123,7 @@ static double errorEstimate(ErrorTest *t, const double *gx)
 	   populations: below ITER_LIMIT, and with ERROR_LIMIT an estimated
 	   error below it -- ------------------------------------------ */
 
-static bool_t errorTestStop(ErrorTest *t, const char *routineName, int niter,
+static bool_t errorTestStop(ErrorTest *t, int niter,
 							const double *x, const double *gx, double dpopsmax,
 							double iterLimit)
 {
@@ -1138,8 +1138,8 @@ static bool_t errorTestStop(ErrorTest *t, const char *routineName, int niter,
 	t->residual = r;
 	t->estimate = e;
 	if (e >= 0.0 && e < t->limit) {
-		Error(MESSAGE, routineName, " -- Iteration %d: residual %.2E, estimated error %.2E <"
-									" ERROR_LIMIT\n",
+		Error(MESSAGE, NULL, " -- Iteration %d: residual %.2E, estimated error %.2E <"
+							 " ERROR_LIMIT\n",
 			  niter, r, e);
 
 		/* --- What G sets besides the state, that of G(x) -- -------- */
@@ -1152,12 +1152,12 @@ static bool_t errorTestStop(ErrorTest *t, const char *routineName, int niter,
 	}
 	t->target = (e > 0.0) ? MIN(0.8 * r * t->limit / e, 0.8 * r) : 0.5 * r;
 	if (e >= 0.0)
-		Error(MESSAGE, routineName,
+		Error(MESSAGE, NULL,
 			  " -- Iteration %d: residual %.2E, estimated error %.2E >="
 			  " ERROR_LIMIT;\n    next estimate at residual %.2E\n",
 			  niter, r, e, t->target);
 	else
-		Error(MESSAGE, routineName,
+		Error(MESSAGE, NULL,
 			  " -- Iteration %d: residual %.2E, no error estimate (a plain"
 			  " step failed,\n    or no finite limit); next estimate at"
 			  " residual %.2E\n",
@@ -1202,10 +1202,10 @@ static void errorTestLimits(const ErrorTest *t, char *s, size_t n, double dpopsm
 				 dpopsmax, est, t->limit);
 }
 
-static void errorTestSummary(const ErrorTest *t, const char *routineName)
+static void errorTestSummary(const ErrorTest *t)
 {
 	if (t->limit <= 0.0) return;
-	Error(MESSAGE, routineName, " -- ERROR_LIMIT: %d error estimate%s, %ld G evaluations\n",
+	Error(MESSAGE, NULL, " -- ERROR_LIMIT: %d error estimate%s, %ld G evaluations\n",
 		  t->Nestimate, (t->Nestimate == 1) ? "" : "s", t->Geval);
 }
 /* ------- end ---------------------------- errorTest.c ------------- */
@@ -1323,7 +1323,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		strcat(line, "\n");
 		Error(MESSAGE, NULL, "%s", line);
 	}
-	errorTestInit(&et, routineName);
+	errorTestInit(&et);
 
 	niter = 1;
 	while (niter <= NmaxIter) {
@@ -1364,8 +1364,8 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			continue;
 		}
 
-		dpopsmax = printChange(routineName, niter, x, gx);
-		if (errorTestStop(&et, routineName, niter, x, gx, dpopsmax, iterLimit))
+		dpopsmax = printChange(niter, x, gx);
+		if (errorTestStop(&et, niter, x, gx, dpopsmax, iterLimit))
 			converged = TRUE;
 		snprintf(line, sizeof(line), "Total Iteration %3d", niter);
 		getCPU(2, TIME_POLL, line);
@@ -1450,7 +1450,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 								" rejected %ld; guard: damped %ld, plain %ld; columns dropped %ld\n",
 		  rh->solver.Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
 		  a->Ndropped);
-	errorTestSummary(&et, routineName);
+	errorTestSummary(&et);
 	if (Nbadtrial > 0) {
 		Error(MESSAGE, routineName, " -- Anderson: %ld of the rejected points were invalid trial points"
 									" (negative total opacity, negative populations or non-positive PRD rho;"
@@ -1647,7 +1647,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 		  ((k + 1.0 + 12 + (rh->solver.varKind == VARIABLES_RELATIVE)) * sizeof(double) + 4) *
 			  rh->solver.Nstate / 1.0E6);
 
-	errorTestInit(&et, routineName);
+	errorTestInit(&et);
 
 	/* --- The first base point --                     -------------- */
 
@@ -1657,8 +1657,8 @@ void iterateNewton(int NmaxIter, double iterLimit)
 
 	niter = 1;
 	for (;;) {
-		dpopsmax = printChange(routineName, niter, x, gx);
-		if (errorTestStop(&et, routineName, niter, x, gx, dpopsmax, iterLimit)) {
+		dpopsmax = printChange(niter, x, gx);
+		if (errorTestStop(&et, niter, x, gx, dpopsmax, iterLimit)) {
 			converged = TRUE;
 			break;
 		}
@@ -1839,7 +1839,7 @@ void iterateNewton(int NmaxIter, double iterLimit)
 								" guard halvings %ld; invalid probe entries %ld; restoring %ld\n",
 		  Neval, Nsteps, Nbase, Nkrylov, Nline, Nlost, Nplain, Nguard,
 		  ctx.Ninvalid, Nrestore);
-	errorTestSummary(&et, routineName);
+	errorTestSummary(&et);
 	if (ctx.Nbadtrial > 0) {
 		Error(MESSAGE, routineName, " -- Newton: %ld Jacobian probes were invalid trial points (negative"
 									" total opacity, populations or PRD rho, N-40, N-8, N-4) and gave a zero product\n",

@@ -6,8 +6,8 @@
 
 	   --------------------------                      ----------RH-- */
 
-/* --- Messages and warnings (ErrorMessage), and errors that end the
-	   run (ErrorExit). Code calls them through Error() in error.h --
+/* --- Messages and warnings (Log, through the macros Message and
+	   Warning of error.h), and errors that end the run (Error) --
 													   -------------- */
 
 #include <stdarg.h>
@@ -56,13 +56,15 @@ static void freeMessage(char *text, char *buf)
 }
 /* ------- end ---------------------------- formatMessage.c --------- */
 
-/* ------- begin -------------------------- ErrorMessage.c ---------- */
+/* ------- begin -------------------------- Log.c ------------------- */
 
-/* --- Each message is written with one call, so that the messages of
-	   threads do not mix --                           -------------- */
+/* --- A message (MESSAGE) or a warning (WARNING); an error level is
+	   reported as an error, without ending the run (fatal errors go
+	   through Error). Each message is written with one call, so that
+	   the messages of threads do not mix --           -------------- */
 
-void ErrorMessage(enum errorlevel level, const char *routineName,
-				  const char *format, ...)
+void Log(RHState *rh, enum errorlevel level, const char *routineName,
+		 const char *format, ...)
 {
 	char    buf[MAX_MESSAGE_LENGTH], *text;
 	va_list ap;
@@ -73,18 +75,22 @@ void ErrorMessage(enum errorlevel level, const char *routineName,
 			vfprintf(rh->commandline.logfile, format, ap);
 	} else {
 		text = formatMessage(buf, sizeof(buf), format, ap);
-		fprintf(rh->commandline.logfile, "\n-WARNING in routine %s\n %s\n",
-				routineName, text);
+		fprintf(rh->commandline.logfile, "\n-%s in routine %s\n %s\n",
+				(level == WARNING) ? "WARNING" : "ERROR", routineName, text);
 		freeMessage(text, buf);
 	}
 	va_end(ap);
 }
-/* ------- end ---------------------------- ErrorMessage.c ---------- */
+/* ------- end ---------------------------- Log.c ------------------- */
 
-/* ------- begin -------------------------- ErrorExit.c ------------- */
+/* ------- begin -------------------------- Error.c ----------------- */
 
-void ErrorExit(enum errorlevel level, const char *routineName,
-			   const char *format, ...)
+/* --- A fatal error: the message to the log file and to stderr, and
+	   exit with status RH_EXIT_FATAL. ERROR_LEVEL_1 and _2 end the run
+	   alike (Q-16) --                                 -------------- */
+
+void Error(RHState *rh, enum errorlevel level, const char *routineName,
+		   const char *format, ...)
 {
 	char    buf[MAX_MESSAGE_LENGTH], *text;
 	va_list ap;
@@ -104,7 +110,7 @@ void ErrorExit(enum errorlevel level, const char *routineName,
 	(void) level;
 	exit(RH_EXIT_FATAL);
 }
-/* ------- end ---------------------------- ErrorExit.c ------------- */
+/* ------- end ---------------------------- Error.c ----------------- */
 
 /* ------- begin -------------------------- ExitStatus.c ------------ */
 
