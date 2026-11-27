@@ -26,7 +26,7 @@ void        NgFree(RHState *rh, struct Ng *Ngs);
 struct Ng  *NgInit(RHState *rh, int N, int Ndelay, int Norder, int Nperiod,
 				   double *solution);
 double      MaxChange(RHState *rh, struct Ng *Ngs, char *text, bool_t quiet);
-const char *NgStatus(struct Ng *Ngs, bool_t accel);
+const char *NgStatus(const struct Ng *Ngs, bool_t accel, char *buf, size_t size);
 
 #endif /* !__ACCELERATE_H__ */
 

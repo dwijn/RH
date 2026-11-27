@@ -45,13 +45,12 @@
 
 double PRDDamp(RHState *rh, AtomicLine *line, const double *old, long N)
 {
-	const double  w   = rh->input.PRD_damping;
-	double       *rho = line->rho_prd[0], dmax = 0.0;
-	static bool_t told = FALSE;
+	const double w   = rh->input.PRD_damping;
+	double      *rho = line->rho_prd[0], dmax = 0.0;
 
-	if (!told) {
+	if (!rh->redistribute.dampingNoted) {
 		Message(rh, " PRD sub-iterations: PRD_DAMPING = %g\n", w);
-		told = TRUE;
+		rh->redistribute.dampingNoted = TRUE;
 	}
 	if (old == NULL) return 0.0;
 	for (long k = 0; k < N; k++) {
@@ -71,7 +70,7 @@ void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 	const char   routineName[] = "Redistribute";
 	register int kr, nact;
 
-	char        label[MAX_MESSAGE_LENGTH];
+	char        label[MAX_MESSAGE_LENGTH], status[MAX_MESSAGE_LENGTH];
 	bool_t      quiet, accel, eval_operator, redistribute;
 	int         niter, Nlamu;
 	long        NlamuL;
@@ -151,7 +150,7 @@ void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 									 : dres;
 						fprintf(rh->commandline.logfile, "%s delta = %6.4E", label, drho);
 					}
-					Message(rh, "%s", NgStatus(line->Ng_prd, accel));
+					Message(rh, "%s", NgStatus(line->Ng_prd, accel, status, sizeof(status)));
 
 					drhomax = MAX(drho, drhomax);
 				}

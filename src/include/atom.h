@@ -325,6 +325,13 @@ void   writeMolPops(RHState *rh, Molecule *molecule);
 
 /* --- Redistribution function --                      -------------- */
 
+/* --- rh->redistribute (redistribute.c): whether the PRD_DAMPING note
+	   is in the log, once per run --                  -------------- */
+
+typedef struct {
+	bool_t dampingNoted;
+} RedistributeState;
+
 double GII(double adamp, double waveRatio, double q_emit, double q_abs);
 double RII(RHState *rh, double v_emit, double v_abs, double adamp, int mu1, int mu2);
 void   Redistribute(RHState *rh, int NmaxIter, double iterLimit);
