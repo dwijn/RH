@@ -22,6 +22,7 @@
 	   --                                              -------------- */
 
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -131,13 +132,17 @@ static rh_status outer(bool_t fail)
 
 #define NTHREADS 8
 
-static pthread_barrier_t barrier;
+/* --- The threads wait until all have started, then fail together
+	   (a spin on a counter: macOS has no pthread barriers) -- ------ */
+
+static atomic_int started;
 
 static void *failAtOnce(void *arg)
 {
 	int t = *(int *) arg;
 
-	pthread_barrier_wait(&barrier);
+	atomic_fetch_add(&started, 1);
+	while (atomic_load(&started) < NTHREADS);
 	Fail(rh, (rh_status) (RH_E_INPUT + t % 4), "failAtOnce", "thread %d code %d",
 		 t, RH_E_INPUT + t % 4);
 	return NULL;
@@ -231,13 +236,12 @@ int main(void)
 		pthread_t thread[NTHREADS];
 		int       id[NTHREADS], t, code;
 
-		pthread_barrier_init(&barrier, NULL, NTHREADS);
+		atomic_store(&started, 0);
 		for (t = 0; t < NTHREADS; t++) {
 			id[t] = t;
 			pthread_create(&thread[t], NULL, failAtOnce, &id[t]);
 		}
 		for (t = 0; t < NTHREADS; t++) pthread_join(thread[t], NULL);
-		pthread_barrier_destroy(&barrier);
 
 		CHECK(Failed(rh) && rh->error.message &&
 				  sscanf(rh->error.message, "thread %d code %d", &t, &code) == 2 &&
