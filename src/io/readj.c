@@ -60,7 +60,7 @@ void readJlambda(int nspect, double *J)
 	result &= (pread_rh(rh->spectrum.fd_J, J, recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -82,7 +82,7 @@ void writeJlambda(int nspect, double *J)
 	result &= (pwrite_rh(rh->spectrum.fd_J, J, recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -99,11 +99,11 @@ void readJgas(double **Jgas)
 
 	recordsize = (size_t) rh->atmos.Nspace * rh->spectrum.Nspect;
 	if ((fp = fopen("Jgas.dat", "r")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Cannot open Jgas.dat for reading (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Cannot open Jgas.dat for reading (%s)",
 			  strerror(errno));
 	}
 	if (fread(&(Jgas[0][0]), sizeof(double), recordsize, fp) != recordsize) {
-		Error(ERROR_LEVEL_2, routineName, "Error reading Jgas.dat (%zu values expected)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error reading Jgas.dat (%zu values expected)",
 			  recordsize);
 	}
 
@@ -122,11 +122,11 @@ void writeJgas(double **Jgas)
 
 	recordsize = (size_t) rh->atmos.Nspace * rh->spectrum.Nspect;
 	if ((fp = fopen("Jgas.dat", "w")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Cannot open Jgas.dat for writing (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Cannot open Jgas.dat for writing (%s)",
 			  strerror(errno));
 	}
 	if (fwrite(&(Jgas[0][0]), sizeof(double), recordsize, fp) != recordsize) {
-		Error(ERROR_LEVEL_2, routineName, "Error writing Jgas.dat (%zu values expected)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error writing Jgas.dat (%zu values expected)",
 			  recordsize);
 	}
 
@@ -151,7 +151,7 @@ void readJ20lambda(int nspect, double *J20)
 						recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -174,7 +174,7 @@ void writeJ20lambda(int nspect, double *J20)
 						 recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -201,7 +201,7 @@ void readImu(int nspect, int mu, bool_t to_obs, double *I)
 						recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error reading file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -228,7 +228,7 @@ void writeImu(int nspect, int mu, bool_t to_obs, double *I)
 						 recordsize, offset) == recordsize);
 
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Error writing file: offset = %lld, recordsize = %zu (%s)",
 			  (long long) offset, recordsize, strerror(errno));
 	}
 }
@@ -259,8 +259,8 @@ void mapBackground(void)
 
 	p = mmap(NULL, (size_t) st.st_size, PROT_READ, MAP_SHARED, rh->atmos.fd_background, 0);
 	if (p == MAP_FAILED) {
-		Error(WARNING, "mapBackground", "Cannot map the background file (%s); reading it with pread",
-			  strerror(errno));
+		Warning(rh, "mapBackground", "Cannot map the background file (%s); reading it with pread",
+				strerror(errno));
 		return;
 	}
 	bg_map    = (const char *) p;
@@ -291,7 +291,7 @@ static float *backgroundBuffer(void)
 	if (rh->atmos.backgrbytes == sizeof(float) && bg_map == NULL) {
 		buffer = (float *) malloc(4 * (size_t) rh->atmos.Nspace * sizeof(float));
 		if (buffer == NULL)
-			Error(ERROR_LEVEL_2, "backgroundBuffer", "Out of memory");
+			Error(rh, ERROR_LEVEL_2, "backgroundBuffer", "Out of memory");
 	}
 	return buffer;
 }
@@ -351,16 +351,16 @@ static bool_t backgroundIO(double *values, int Nrec, off_t recordno,
 		else
 			return (pread_rh(rh->atmos.fd_background, values, count, offset) == count);
 	} else if (rh->atmos.backgrbytes != sizeof(float) || buffer == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unknown format of the background file: %d bytes"
-										  " per value, emissivity scale 2^%d",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unknown format of the background file: %d bytes"
+											  " per value, emissivity scale 2^%d",
 			  rh->atmos.backgrbytes, rh->atmos.backgretaexp);
 	}
 	if (write_it) {
 		for (n = 0; n < Nvalues; n++) {
 			v = values[n] * scale;
 			if (fabs(v) > FLT_MAX && isfinite(v)) {
-				Error(ERROR_LEVEL_2, routineName, "Background %s %.3e out of the range of"
-												  " the (single-precision) background file",
+				Error(rh, ERROR_LEVEL_2, routineName, "Background %s %.3e out of the range of"
+													  " the (single-precision) background file",
 					  (emissivity) ? "emissivity" : "opacity", values[n]);
 			}
 			buffer[n] = (float) v;
@@ -434,7 +434,7 @@ void readBackground(int nspect, int mu, bool_t to_obs)
 
 	/* --- Exit if reading is unsuccessful --            -------------- */
 
-	if (!result) Error(ERROR_LEVEL_2, routineName, "Error reading file");
+	if (!result) Error(rh, ERROR_LEVEL_2, routineName, "Error reading file");
 }
 /* ------- end ---------------------------- readBackground.c -------- */
 
@@ -514,10 +514,10 @@ int writeBackground(int nspect, int mu, bool_t to_obs,
 	free(buffer);
 
 	if (!result)
-		Error(ERROR_LEVEL_2, routineName, "Error writing file");
+		Error(rh, ERROR_LEVEL_2, routineName, "Error writing file");
 
 	if (Nwrite != backgroundRecords(nspect))
-		Error(ERROR_LEVEL_2, routineName,
+		Error(rh, ERROR_LEVEL_2, routineName,
 			  "Number of records written differs from backgroundRecords");
 
 	/* --- Return the number of written records --       -------------- */
@@ -559,7 +559,7 @@ void readProfile(AtomicLine *line, int lamu, float *phi)
 	result &= (pread_rh(line->fd_profile, phi, recordsize, offset) ==
 			   recordsize);
 
-	if (!result) Error(ERROR_LEVEL_2, routineName, "Error reading file");
+	if (!result) Error(rh, ERROR_LEVEL_2, routineName, "Error reading file");
 }
 /* ------- end ---------------------------- readProfile.c ----------- */
 
@@ -588,7 +588,7 @@ void writeProfile(AtomicLine *line, int lamu, float *phi)
 	result &= (pwrite_rh(line->fd_profile, phi, recordsize, offset) ==
 			   recordsize);
 
-	if (!result) Error(ERROR_LEVEL_2, routineName, "Error writing file");
+	if (!result) Error(rh, ERROR_LEVEL_2, routineName, "Error writing file");
 }
 /* ------- end ---------------------------- writeProfile.c ---------- */
 
@@ -663,7 +663,7 @@ void initJgasLocks(void)
 	rh->spectrum.Jgas_lock =
 		(pthread_mutex_t *) malloc(rh->spectrum.Nspect * sizeof(pthread_mutex_t));
 	if (rh->spectrum.Jgas_lock == NULL)
-		Error(ERROR_LEVEL_2, "initJgasLocks", "Out of memory");
+		Error(rh, ERROR_LEVEL_2, "initJgasLocks", "Out of memory");
 	for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
 		pthread_mutex_init(&rh->spectrum.Jgas_lock[nspect], NULL);
 }
@@ -716,7 +716,7 @@ void initJgasRows(const char *isPRD)
 	rh->spectrum.Jgas_fixed = NULL;
 	rh->spectrum.NJgasFixed = 0;
 	rh->spectrum.PRDrow     = (int *) malloc(rh->spectrum.Nspect * sizeof(int));
-	if (rh->spectrum.PRDrow == NULL) Error(ERROR_LEVEL_2, "initJgasRows", "Out of memory");
+	if (rh->spectrum.PRDrow == NULL) Error(rh, ERROR_LEVEL_2, "initJgasRows", "Out of memory");
 	for (mu = 0; mu < rh->atmos.Nrays; mu++)
 		for (k = 0; k < rh->atmos.Nspace; k++)
 			vmax = MAX(vmax, fabs(rh->spectrum.v_los[mu][k]));
@@ -725,7 +725,7 @@ void initJgasRows(const char *isPRD)
 	shift_hi = 1.0 + vmax / CLIGHT;
 
 	reach = (char *) calloc(rh->spectrum.Nspect, 1);
-	if (reach == NULL) Error(ERROR_LEVEL_2, "initJgasRows", "Out of memory");
+	if (reach == NULL) Error(rh, ERROR_LEVEL_2, "initJgasRows", "Out of memory");
 	if (moving) {
 		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
 			if (isPRD[nspect]) continue;
@@ -752,7 +752,7 @@ static double *jgasRow(int src, int row)
 
 			/* --- Called by worker threads, never with a lock held -- */
 
-			Error(ERROR_LEVEL_2, "jgasRow",
+			Error(rh, ERROR_LEVEL_2, "jgasRow",
 				  "Wavelength %d (%g nm) without PRD line gives to wavelength %d (%g nm) "
 				  "with PRD line, which the reach computed at the start excludes",
 				  src, rh->spectrum.lambda[src], row, rh->spectrum.lambda[row]);
@@ -876,7 +876,7 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 			free(jgas_br);
 			jgas_br  = (PRDhBracket *) malloc(Nspace * sizeof(PRDhBracket));
 			jgas_brN = Nspace;
-			if (jgas_br == NULL) Error(ERROR_LEVEL_2, "addJgasRay", "Out of memory");
+			if (jgas_br == NULL) Error(rh, ERROR_LEVEL_2, "addJgasRay", "Out of memory");
 		}
 		for (k = 0; k < Nspace; k++)
 			prdhBracket(nspect, prdhShift(mu, to_obs, k), &jgas_br[k]);
@@ -907,7 +907,7 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 
 		double **rowp = (double **) calloc(Nrow, sizeof(double *));
 
-		if (rowp == NULL) Error(ERROR_LEVEL_2, "addJgasRay", "Out of memory");
+		if (rowp == NULL) Error(rh, ERROR_LEVEL_2, "addJgasRay", "Out of memory");
 		for (k = 0; k < Nspace; k++) {
 			n1 = jgasLast(lamuk0, k);
 			for (n = jgasFirst(lamuk0, k); n < n1; n++) {
@@ -927,7 +927,7 @@ void addJgasRay(int nspect, int mu, int to_obs, double wmu, double *I)
 		jgas_used    = (char *) malloc(Nrow);
 		jgas_bufrows = Nrow;
 		if (jgas_buf == NULL || jgas_used == NULL)
-			Error(ERROR_LEVEL_2, "addJgasRay", "Out of memory");
+			Error(rh, ERROR_LEVEL_2, "addJgasRay", "Out of memory");
 	}
 	memset(jgas_used, 0, Nrow);
 

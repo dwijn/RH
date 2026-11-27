@@ -112,8 +112,8 @@ void LTEpops(Atom *atom, bool_t Debeye)
 
 	for (k = 0; k < Nspace; k++) {
 		if (rh->atmos.ne[k] <= 0.0) {
-			Error(ERROR_LEVEL_2, "LTEpops", "Electron density must be positive for LTE populations "
-											"(atom %s, ne[%d] = %g)\n",
+			Error(rh, ERROR_LEVEL_2, "LTEpops", "Electron density must be positive for LTE populations "
+												"(atom %s, ne[%d] = %g)\n",
 				  atom->ID, k, rh->atmos.ne[k]);
 		}
 		if (Debeye) dEion = c2 * sqrt(rh->atmos.ne[k] / rh->atmos.T[k]);
@@ -160,8 +160,8 @@ void LTEpops_elem(Element *element)
 
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		if (rh->atmos.ne[k] <= 0.0) {
-			Error(ERROR_LEVEL_2, "LTEpops_elem", "Electron density must be positive for LTE populations "
-												 "(element %s, ne[%d] = %g)\n",
+			Error(rh, ERROR_LEVEL_2, "LTEpops_elem", "Electron density must be positive for LTE populations "
+													 "(element %s, ne[%d] = %g)\n",
 				  element->ID, k, rh->atmos.ne[k]);
 		}
 		/* --- ln(CT_ne) of the Saha equation; n[i] holds ln(n_i/n_0) -- */
@@ -219,7 +219,7 @@ void LTEmolecule(Molecule *molecule)
 	MolecularLine *mrt;
 
 	if (!molecule->active) {
-		Error(ERROR_LEVEL_2, "LTEmolecule", "Molecule must be active: %s\n", molecule->ID);
+		Error(rh, ERROR_LEVEL_2, "LTEmolecule", "Molecule must be active: %s\n", molecule->ID);
 	}
 	/* --- Fill energy matrix --                         -------------- */
 
@@ -279,7 +279,7 @@ void SetLTEQuantities(void)
 				   collisional data first --                 -------------- */
 
 			if (fseek(atom->fp_input, atom->offset_coll, SEEK_SET) != 0) {
-				Error(ERROR_LEVEL_2, "SetLTEQuantities", "Cannot rewind to the collisional data of atom %s",
+				Error(rh, ERROR_LEVEL_2, "SetLTEQuantities", "Cannot rewind to the collisional data of atom %s",
 					  atom->ID);
 			}
 			CollisionRate(atom, atom->fp_input);

@@ -38,7 +38,7 @@ bool_t writeFlux(char *fileName)
 	/* --- Write the radiative flux in the z-direction -- ------------ */
 
 	if ((fp_flux = fopen(fileName, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", fileName);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", fileName);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp_flux, XDR_ENCODE);

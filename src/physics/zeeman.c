@@ -45,7 +45,7 @@ bool_t determinate(char *label, double g, int *n, double *S, int *L,
 	if (ptr > multiplet)
 		*(ptr + 1) = '\0';
 	else {
-		Error(WARNING, routineName, "Cannot determine parity of atomic level %s", label);
+		Warning(rh, routineName, "Cannot determine parity of atomic level %s", label);
 		return FALSE;
 	}
 
@@ -209,7 +209,7 @@ double ZeemanStrength(double Ju, double Mu, double Jl, double Ml)
 		break;
 
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
+		Error(rh, ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
 	}
 	return s;
 }
@@ -280,7 +280,7 @@ void Zeeman(AtomicLine *line)
 			/* --- readAtom only marks a line polarizable when both
 				   labels can be parsed, so this cannot happen -- ------- */
 
-			Error(ERROR_LEVEL_2, "Zeeman", "Atom %s: no quantum numbers for line %d -> %d",
+			Error(rh, ERROR_LEVEL_2, "Zeeman", "Atom %s: no quantum numbers for line %d -> %d",
 				  atom->ID, line->j, line->i);
 		}
 
@@ -439,7 +439,7 @@ int getOrbital(char orbit)
 	case 'W': L = 18; break;
 	case 'X': L = 19; break;
 	default:
-		Error(WARNING, routineName, "Invalid orbital: %c", orbit);
+		Warning(rh, routineName, "Invalid orbital: %c", orbit);
 	}
 	return L;
 }

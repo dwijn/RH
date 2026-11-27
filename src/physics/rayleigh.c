@@ -43,7 +43,7 @@ bool_t Rayleigh(double lambda, Atom *atom, double *scatt)
 	AtomicLine *line;
 
 	if (atom->stage[0] != 0) {
-		Error(ERROR_LEVEL_2, routineName, "Lowest level of atom is not from neutral stage: %s",
+		Error(rh, ERROR_LEVEL_2, routineName, "Lowest level of atom is not from neutral stage: %s",
 			  atom->label[0]);
 	}
 	/* --- Find the red limit of the shortest wavelength b-b transition

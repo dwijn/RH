@@ -162,8 +162,8 @@ bool_t Metal_bf(double lambda, int Nmetal, struct Atom *metals,
 								   Gaunt_bf(lambda, n_eff, Z) / gbf_0;
 					} else {
 						if (continuum->bftable.x == NULL) {
-							Error(ERROR_LEVEL_2, routineName, "Cross-section table not set up "
-															  "(call metalPrepare first)");
+							Error(rh, ERROR_LEVEL_2, routineName, "Cross-section table not set up "
+																  "(call metalPrepare first)");
 						}
 						pchipTableEval(&continuum->bftable, 1, &lambda, &alpha_la);
 					}
@@ -291,7 +291,7 @@ flags passive_bb(PassiveBBCache *cache, double lambda, int nspect, int mu,
 					}
 					if (add_to_list) {
 						if (*Nlist == N_MAX_METAL_OVERLAP) {
-							Error(ERROR_LEVEL_2, routineName, "Too many overlapping transitions");
+							Error(rh, ERROR_LEVEL_2, routineName, "Too many overlapping transitions");
 						}
 						/* --- Create a new entry in the list -- -------------- */
 

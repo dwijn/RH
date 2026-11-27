@@ -92,15 +92,15 @@ double zeroPointAtUnityTau(const char *routineName, const char *atmosID,
 
 	switch (heightAtUnityTau(N, tau_ref, z, &z1)) {
 	case TAU_NOT_INCREASING:
-		Error(ERROR_LEVEL_2, routineName, "Atmosphere %s: reference optical depth tau_ref is not "
-										  "strictly increasing with depth index; cannot set the "
-										  "zero of the height scale at tau_ref = 1",
+		Error(rh, ERROR_LEVEL_2, routineName, "Atmosphere %s: reference optical depth tau_ref is not "
+											  "strictly increasing with depth index; cannot set the "
+											  "zero of the height scale at tau_ref = 1",
 			  atmosID);
 		break;
 	case TAU_NOT_BRACKETED:
-		Error(ERROR_LEVEL_2, routineName, "Atmosphere %s: tau_ref = 1 lies outside the atmosphere "
-										  "(tau_ref from %g to %g); cannot set the zero of the height "
-										  "scale. Use a GEOMETRIC scale or extend the atmosphere",
+		Error(rh, ERROR_LEVEL_2, routineName, "Atmosphere %s: tau_ref = 1 lies outside the atmosphere "
+											  "(tau_ref from %g to %g); cannot set the zero of the height "
+											  "scale. Use a GEOMETRIC scale or extend the atmosphere",
 			  atmosID, tau_ref[0], tau_ref[N - 1]);
 		break;
 	default: break;

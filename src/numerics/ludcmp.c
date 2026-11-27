@@ -101,7 +101,7 @@ void LUdecomp(int N, double **A, int *index, double *d)
 		for (j = 0; j < N; j++)
 			if ((temp = fabs(A[i][j])) > big) big = temp;
 		if (big == 0.0) {
-			Error(ERROR_LEVEL_2, "LUdecomp", "Singular matrix");
+			Error(rh, ERROR_LEVEL_2, "LUdecomp", "Singular matrix");
 		}
 		vv[i] = 1.0 / big;
 	}

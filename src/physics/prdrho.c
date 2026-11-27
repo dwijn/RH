@@ -82,7 +82,7 @@ bool_t PRDRhoCheck(const Atom *atom, int kr)
 		negTauInvalid(what);
 		return FALSE;
 	}
-	Error(ERROR_LEVEL_2, routineName, "\n  %s", what);
+	Error(rh, ERROR_LEVEL_2, routineName, "\n  %s", what);
 	return FALSE;
 }
 /* ------- end ---------------------------- PRDRhoCheck.c ----------- */

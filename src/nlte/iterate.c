@@ -66,8 +66,8 @@ void Iterate(int NmaxIter, double iterLimit)
 		workPhase(WORK_FINAL);
 		return;
 	}
-	Error(MESSAGE, "Iterate", " -- SOLVER = %s%s\n", solverName(rh->input.solver),
-		  rh->input.solver_default ? " (the default)" : "");
+	Message(rh, " -- SOLVER = %s%s\n", solverName(rh->input.solver),
+			rh->input.solver_default ? " (the default)" : "");
 
 	getCPU(1, TIME_START, NULL);
 	workPhase(WORK_ITERATE);
@@ -166,7 +166,7 @@ static void iterateNg(int NmaxIter, double iterLimit)
 
 		/* --- Solve statistical equilibrium equations --  -------------- */
 
-		Error(MESSAGE, routineName, "\n -- Iteration %3d\n", niter);
+		Message(rh, "\n -- Iteration %3d\n", niter);
 		dpopsmax = updatePopulations(niter);
 
 		if (rh->atmos.NPRDactive > 0) {
@@ -226,8 +226,8 @@ static void iterateNg(int NmaxIter, double iterLimit)
 
 		if (rh->atmos.hydrostatic) {
 			if (!rh->atmos.atoms[0].active) {
-				Error(ERROR_LEVEL_2, routineName, "Can only perform hydrostatic equilibrium"
-												  " for hydrogen active");
+				Error(rh, ERROR_LEVEL_2, routineName, "Can only perform hydrostatic equilibrium"
+													  " for hydrogen active");
 			}
 
 			/* --- After the last iteration of a run that did not converge
@@ -247,19 +247,19 @@ static void iterateNg(int NmaxIter, double iterLimit)
 		   this output is not a converged solution --   -------------- */
 
 	if (converged) {
-		Error(MESSAGE, routineName, "\n -- Converged in %d iterations: max change"
-									" %.4E < ITER_LIMIT = %.4E\n",
-			  niter, dpopsmax, iterLimit);
+		Message(rh, "\n -- Converged in %d iterations: max change"
+					" %.4E < ITER_LIMIT = %.4E\n",
+				niter, dpopsmax, iterLimit);
 	} else if (stopped) {
-		Error(WARNING, routineName, "Stopped on request (STOP_RH) after %d iterations:"
-									" NOT CONVERGED.\n The output is not a converged solution",
-			  niter - 1);
+		Warning(rh, routineName, "Stopped on request (STOP_RH) after %d iterations:"
+								 " NOT CONVERGED.\n The output is not a converged solution",
+				niter - 1);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	} else {
-		Error(WARNING, routineName, "NOT CONVERGED after %d iterations: max change"
-									" %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"
-									" solution; increase N_MAX_ITER or see what limits convergence",
-			  niter - 1, dpopsmax, iterLimit);
+		Warning(rh, routineName, "NOT CONVERGED after %d iterations: max change"
+								 " %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"
+								 " solution; increase N_MAX_ITER or see what limits convergence",
+				niter - 1, dpopsmax, iterLimit);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	}
 
@@ -386,8 +386,8 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 
 				/* --- Could not start the thread: do its slice here --- ---- */
 
-				Error(WARNING, "solveSpectrum",
-					  "Could not create a thread, running its share in the caller");
+				Warning(rh, "solveSpectrum",
+						"Could not create a thread, running its share in the caller");
 				Formal_pthread(&ti[nt]);
 				thread_id[nt] = 0;
 			}
@@ -437,8 +437,8 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 
 	negTauStop();
 
-	Error(MESSAGE, NULL, " Spectrum max delta J = %6.4E (lambda#: %d)\n",
-		  dJmax, lambda_max);
+	Message(rh, " Spectrum max delta J = %6.4E (lambda#: %d)\n",
+			dJmax, lambda_max);
 
 	/* --- The background scattering iteration of the sweep (N-51) -- */
 
@@ -447,14 +447,14 @@ double solveSpectrum(bool_t eval_operator, bool_t redistribute)
 
 		bgScatterStats(&bs, TRUE);
 		if (bs.Niterated > 0) {
-			Error(MESSAGE, NULL, "  Background scattering: %ld wavelengths iterated,"
-								 " %ld solves%s%s",
-				  bs.Niterated, bs.Nsweeps, linearNote(&bs),
-				  (bs.Nunconverged > 0) ? "" : "\n");
+			Message(rh, "  Background scattering: %ld wavelengths iterated,"
+						" %ld solves%s%s",
+					bs.Niterated, bs.Nsweeps, linearNote(&bs),
+					(bs.Nunconverged > 0) ? "" : "\n");
 			if (bs.Nunconverged > 0) {
-				Error(MESSAGE, NULL, "; %ld not converged at BACKGROUND_N_MAX_ITER"
-									 " (estimated error up to %.2E)\n",
-					  bs.Nunconverged, bs.rmax);
+				Message(rh, "; %ld not converged at BACKGROUND_N_MAX_ITER"
+							" (estimated error up to %.2E)\n",
+						bs.Nunconverged, bs.rmax);
 			}
 			workBgScatter(bs.Nsweeps);
 		}

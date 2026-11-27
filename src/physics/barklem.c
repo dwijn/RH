@@ -68,7 +68,7 @@ bool_t determinate_abo(char *label, int *l)
 	if (ptr > multiplet)
 		*(ptr + 1) = '\0';
 	else {
-		Error(WARNING, routineName, "Cannot determine parity of atomic level %s", label);
+		Warning(rh, routineName, "Cannot determine parity of atomic level %s", label);
 		return FALSE;
 	}
 
@@ -130,7 +130,7 @@ bool_t readBarklemTable(enum Barklemtype type, Barklemstruct *bs)
 	}
 
 	if ((fp_Barklem = fopen(filename, "r")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open input file %s", filename);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open input file %s", filename);
 		return FALSE;
 	}
 
@@ -148,7 +148,7 @@ bool_t readBarklemTable(enum Barklemtype type, Barklemstruct *bs)
 	for (n = 0; n < 3; n++) {
 		charptr = fgets(inputLine, MAX_LINE_SIZE, fp_Barklem);
 		if (charptr == NULL) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to read header of Barklem table %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read header of Barklem table %s",
 				  filename);
 		}
 	}
@@ -157,14 +157,14 @@ bool_t readBarklemTable(enum Barklemtype type, Barklemstruct *bs)
 		for (j = 0; j < bs->N2; j++) {
 			nread = fscanf(fp_Barklem, "%lf", &bs->cross[i][j]);
 			if (nread != 1) {
-				Error(ERROR_LEVEL_2, routineName, "Unable to read cross[%d][%d] from Barklem table %s",
+				Error(rh, ERROR_LEVEL_2, routineName, "Unable to read cross[%d][%d] from Barklem table %s",
 					  i, j, filename);
 			}
 		}
 	for (n = 0; n < 2; n++) {
 		charptr = fgets(inputLine, MAX_LINE_SIZE, fp_Barklem);
 		if (charptr == NULL) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to read header of Barklem table %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read header of Barklem table %s",
 				  filename);
 		}
 	}
@@ -173,7 +173,7 @@ bool_t readBarklemTable(enum Barklemtype type, Barklemstruct *bs)
 		for (j = 0; j < bs->N2; j++) {
 			nread = fscanf(fp_Barklem, "%lf", &bs->alpha[i][j]);
 			if (nread != 1) {
-				Error(ERROR_LEVEL_2, routineName, "Unable to read alpha[%d][%d] from Barklem table %s",
+				Error(rh, ERROR_LEVEL_2, routineName, "Unable to read alpha[%d][%d] from Barklem table %s",
 					  i, j, filename);
 			}
 		}

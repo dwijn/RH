@@ -41,14 +41,14 @@ void writeAtom(struct Atom *atom)
 	sprintf(atomoutfile, (atom->ID[1] == ' ') ? "atom.%.1s.out" : "atom.%.2s.out", atom->ID);
 
 	if ((fp_out = fopen(atomoutfile, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s",
 			  atomoutfile);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
 	if (!xdr_atom(&xdrs, atom)) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to write to output file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to write to output file %s",
 			  atomoutfile);
 	}
 	xdr_destroy(&xdrs);

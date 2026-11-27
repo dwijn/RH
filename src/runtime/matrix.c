@@ -31,7 +31,7 @@ static void checkAlloc(const char *routineName, void *theMatrix, void *Matrix,
 {
 	if ((theMatrix == NULL && (size_t) Nrow * Ncol > 0) ||
 		(Matrix == NULL && Nrow > 0)) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to allocate a %d x %d matrix", Nrow, Ncol);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to allocate a %d x %d matrix", Nrow, Ncol);
 	}
 }
 /* ------- end ---------------------------- checkAlloc.c ------------ */
@@ -120,7 +120,7 @@ void freeMatrix(void **matrix)
 	const char routineName[] = "freeMatrix";
 
 	if (matrix == NULL || matrix[0] == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Trying to free NULL pointer");
+		Error(rh, ERROR_LEVEL_2, routineName, "Trying to free NULL pointer");
 	} else {
 		/* --- Free the memory allocated for matrix matrix -- ----------- */
 

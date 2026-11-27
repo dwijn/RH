@@ -47,7 +47,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 	/* --- Open the data file for current model atom --  -------------- */
 
 	if ((atomFile = fopen(atomFileName, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s", atomFileName);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s", atomFileName);
 	}
 	/* --- Read atom ID and convert to uppercase --      -------------- */
 
@@ -67,7 +67,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 		}
 	}
 	if (!match) {
-		Error(ERROR_LEVEL_2, routineName, "Found no matching element for %s", atom->ID);
+		Error(rh, ERROR_LEVEL_2, routineName, "Found no matching element for %s", atom->ID);
 	}
 	/* --- Get Number of levels, lines fixed transitions, and continua  */
 
@@ -98,7 +98,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 		atom->E[i] *= (HPLANCK * CLIGHT) / CM_TO_M;
 	}
 	if (atom->stage[Nlevel - 1] != (atom->stage[Nlevel - 2] + 1)) {
-		Error(ERROR_LEVEL_2, routineName, "Found no overlying continuum for atom %s", atom->ID);
+		Error(rh, ERROR_LEVEL_2, routineName, "Found no overlying continuum for atom %s", atom->ID);
 	}
 
 	C = 2 * PI * (Q_ELECTRON / EPSILON_0) * (Q_ELECTRON / M_ELECTRON) / CLIGHT;
@@ -131,7 +131,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 
 		if (!strstr(shapeStr, "PRD") &&
 			!strstr(shapeStr, "VOIGT") && !strstr(shapeStr, "GAUSS")) {
-			Error(ERROR_LEVEL_2, routineName, "Invalid value for line-shape string: %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for line-shape string: %s",
 				  shapeStr);
 		}
 		if (strstr(shapeStr, "PRD")) {
@@ -191,14 +191,14 @@ void rawAtom(Atom *atom, char *atomFileName)
 			}
 			for (la = 1; la < continuum->Nlambda; la++) {
 				if (continuum->lambda[la] < continuum->lambda[la - 1]) {
-					Error(ERROR_LEVEL_2, routineName, "Continuum %d does not have monotonous wavelengths",
+					Error(rh, ERROR_LEVEL_2, routineName, "Continuum %d does not have monotonous wavelengths",
 						  kr - Nline);
 				}
 			}
 		} else {
 			continuum->hydrogenic = TRUE;
 			if (lambdamin >= continuum->lambda0) {
-				Error(ERROR_LEVEL_2, routineName, "Minimum wavelength for continuum %d too long", kr - Nline);
+				Error(rh, ERROR_LEVEL_2, routineName, "Minimum wavelength for continuum %d too long", kr - Nline);
 			}
 			dlamb                = (continuum->lambda0 - lambdamin) / (continuum->Nlambda - 1);
 			continuum->lambda[0] = lambdamin;
@@ -228,15 +228,15 @@ void rawAtom(Atom *atom, char *atomFileName)
 			for (kr = 0; kr < Nline; kr++) {
 				line = atom->line + kr;
 				if (line->i == i && line->j == j) {
-					Error(ERROR_LEVEL_2, routineName, "Fixed transition j = %d, i = %d duplicates active line",
+					Error(rh, ERROR_LEVEL_2, routineName, "Fixed transition j = %d, i = %d duplicates active line",
 						  j, i);
 				}
 			}
 			for (kr = 0; kr < Ncont; kr++) {
 				continuum = atom->continuum + kr;
 				if (continuum->i == i && continuum->j == j) {
-					Error(ERROR_LEVEL_2, routineName, "Fixed transition j = %d,  i = %d"
-													  " duplicates active continuum",
+					Error(rh, ERROR_LEVEL_2, routineName, "Fixed transition j = %d,  i = %d"
+														  " duplicates active continuum",
 						  j, i);
 				}
 			}
@@ -255,7 +255,7 @@ void rawAtom(Atom *atom, char *atomFileName)
 			else if (strstr(optionStr, "TRAD_CHROMOSPHERIC"))
 				fixed->option = TRAD_CHROMOSPHERIC;
 			else {
-				Error(ERROR_LEVEL_2, routineName, "Inavlid value for TRAD option: %s", optionStr);
+				Error(rh, ERROR_LEVEL_2, routineName, "Inavlid value for TRAD option: %s", optionStr);
 			}
 		}
 	}

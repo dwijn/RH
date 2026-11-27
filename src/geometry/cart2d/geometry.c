@@ -353,7 +353,7 @@ void fillMesh(Geometry *geometry)
 		}
 	}
 
-	Error(MESSAGE, NULL, "\n-Used %d Long Characteristics\n\n", Nlongchar);
+	Message(rh, "\n-Used %d Long Characteristics\n\n", Nlongchar);
 	getCPU(2, TIME_POLL, "Geometry");
 }
 /* ------- end ---------------------------- fillMesh.c -------------- */
@@ -410,11 +410,11 @@ void setStencil(Geometry *geometry, Stencil *stencil,
 		   did with its choice of triplet -- -------------- */
 
 	if (fraction < 0.0) {
-		Error(ERROR_LEVEL_2, routineName,
+		Error(rh, ERROR_LEVEL_2, routineName,
 			  "Fractional index for interpolation should be > 0.0\n");
 	}
 	if (direction != UPWIND && direction != DOWNWIND)
-		Error(ERROR_LEVEL_2, routineName, "Invalid direction index for Stencil");
+		Error(rh, ERROR_LEVEL_2, routineName, "Invalid direction index for Stencil");
 
 	stencil->intersect[direction] = intersect;
 	stencil->ds[direction]        = ds;
@@ -446,7 +446,7 @@ void setStencil(Geometry *geometry, Stencil *stencil,
 			h[n] = (p[n] < 0 || p[n + 1] < 0) ? 0.0 : geometry->dz[p[n]];
 	}
 	if (p[1] < 0 || p[2] < 0 || h[1] <= 0.0)
-		Error(ERROR_LEVEL_2, routineName, "Interpolation interval outside the grid");
+		Error(rh, ERROR_LEVEL_2, routineName, "Interpolation interval outside the grid");
 	setStencilWeights(stencil, direction, h);
 }
 /* ------- end ---------------------------- setStencil.c ------------ */

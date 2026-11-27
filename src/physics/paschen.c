@@ -161,7 +161,7 @@ void tqli(double *d, double *e, int N, double **z)
 
 			if (m != l) {
 				if (iter++ == N_MAX_ITER_TQLI) {
-					Error(ERROR_LEVEL_2, routineName, "  Too many iterations in tqli: %d\n", iter - 1);
+					Error(rh, ERROR_LEVEL_2, routineName, "  Too many iterations in tqli: %d\n", iter - 1);
 				}
 
 				g = (d[l + 1] - d[l]) / (2.0 * e[l]);

@@ -209,8 +209,8 @@ static void prdWindowFlush(PRDWindow *w, const char *routineName)
 	N = (w->kstart[w->kwin_end - 1] - w->kstart[w->kwin_start]) / sizeof(prdw_t) +
 		w->blocksize[w->kwin_end - 1];
 	if (!prdFileIO(w->fd, w->win, N, w->kstart[w->kwin_start], TRUE)) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to write the redistribution weights of locations %d to %d"
-										  " to %s",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to write the redistribution weights of locations %d to %d"
+											  " to %s",
 			  w->kwin_start, w->kwin_end - 1, w->name);
 	}
 }
@@ -244,11 +244,11 @@ static prdw_t *prdWindowBlock(PRDWindow *w, int k, const char *routineName)
 		if (N > w->cap) {
 			w->cap = MAX(N, PRD_IO_WINDOW / sizeof(prdw_t));
 			w->win = (prdw_t *) realloc(w->win, w->cap * sizeof(prdw_t));
-			if (w->win == NULL) Error(ERROR_LEVEL_2, routineName, "Out of memory");
+			if (w->win == NULL) Error(rh, ERROR_LEVEL_2, routineName, "Out of memory");
 		}
 		if (!w->initialize && !prdFileIO(w->fd, w->win, N, w->kstart[k], FALSE)) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to read the redistribution weights of locations %d to %d"
-											  " from %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read the redistribution weights of locations %d to %d"
+												  " from %s",
 				  k, w->kwin_end - 1, w->name);
 		}
 	}
@@ -266,8 +266,8 @@ static void prdWindowClose(PRDWindow *w, const char *routineName)
 
 static void prdBlockError(const char *routineName, int k, long n, long size)
 {
-	Error(ERROR_LEVEL_2, routineName, "Inconsistent block of redistribution weights at"
-									  " location %d: %ld instead of %ld",
+	Error(rh, ERROR_LEVEL_2, routineName, "Inconsistent block of redistribution weights at"
+										  " location %d: %ld instead of %ld",
 		  k, n, size);
 }
 
@@ -294,7 +294,7 @@ static bool_t prdOpenFile(AtomicLine *PRDline, const char *routineName)
 	if (PRDline->fp_GII != NULL) return FALSE;
 	prdFileName(PRDline, filename);
 	if ((PRDline->fp_GII = fopen(filename, "w+")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to open temporary file %s", filename);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open temporary file %s", filename);
 	}
 	return TRUE;
 }
@@ -471,7 +471,7 @@ void PRDScatter(AtomicLine *PRDline)
 
 	atom = PRDline->atom;
 	if (!PRDline->PRD) {
-		Error(ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
+		Error(rh, ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
 			  PRDline->j, PRDline->i, atom->ID);
 	}
 	getCPU(3, TIME_START, NULL);
@@ -756,7 +756,7 @@ void PRDAngleScatter(AtomicLine *PRDline)
 	atom = PRDline->atom;
 
 	if (!PRDline->PRD) {
-		Error(ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
+		Error(rh, ERROR_LEVEL_2, routineName, "Line %d -> %d of %2s is not a PRD line",
 			  PRDline->j, PRDline->i, atom->ID);
 	}
 	getCPU(3, TIME_START, NULL);
@@ -809,7 +809,7 @@ void PRDAngleScatter(AtomicLine *PRDline)
 	job.Iall = (double *) malloc((size_t) job.Ndir * PRDline->Nlambda * rh->atmos.Nspace *
 								 sizeof(double));
 	Irow     = (double *) malloc(rh->atmos.Nspace * sizeof(double));
-	if (job.Iall == NULL || Irow == NULL) Error(ERROR_LEVEL_2, routineName, "Out of memory");
+	if (job.Iall == NULL || Irow == NULL) Error(rh, ERROR_LEVEL_2, routineName, "Out of memory");
 	for (d = 0; d < job.Ndir; d++)
 		for (lap = 0; lap < PRDline->Nlambda; lap++) {
 			readImu(PRDline->Nblue + lap, d / 2, d % 2, Irow);

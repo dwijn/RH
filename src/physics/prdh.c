@@ -202,7 +202,7 @@ void initPRDhTables(void)
 	Nlamuk          = 2L * rh->atmos.Nrays * rh->spectrum.Nspect * rh->atmos.Nspace;
 	rh->spectrum.nc = (long *) malloc(Nlamuk * sizeof(long));
 	if (rh->spectrum.nc == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to allocate the hybrid PRD interpolation table (%ld points)", Nlamuk);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to allocate the hybrid PRD interpolation table (%ld points)", Nlamuk);
 	}
 	Ncoef = 0;
 	for (la = 0; la < rh->spectrum.Nspect; la++) {
@@ -219,8 +219,8 @@ void initPRDhTables(void)
 	rh->spectrum.iprdh = (int *) malloc(MAX(Ncoef, 1) * sizeof(int));
 	rh->spectrum.cprdh = (double *) malloc(MAX(Ncoef, 1) * sizeof(double));
 	if (rh->spectrum.iprdh == NULL || rh->spectrum.cprdh == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to allocate the hybrid PRD interpolation table"
-										  " (%ld points, %ld coefficients)",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to allocate the hybrid PRD interpolation table"
+											  " (%ld points, %ld coefficients)",
 			  Nlamuk, Ncoef);
 	}
 	for (la = 0; la < rh->spectrum.Nspect; la++) {

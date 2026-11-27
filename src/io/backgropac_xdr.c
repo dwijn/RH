@@ -74,10 +74,10 @@ void backgrOpac(int Nlambda, double *lambda)
 			   missing UV backround line haze --           -------------- */
 
 		if ((fp_fudge = fopen(rh->input.fudgeData, "r")) == NULL) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s", rh->input.fudgeData);
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s", rh->input.fudgeData);
 		}
-		Error(MESSAGE, routineName, "\n-Fudging background opacities with file\n  %s\n\n",
-			  rh->input.fudgeData);
+		Message(rh, "\n-Fudging background opacities with file\n  %s\n\n",
+				rh->input.fudgeData);
 
 		getLine(fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		sscanf(inputLine, "%d", &Nfudge);
@@ -117,7 +117,7 @@ void backgrOpac(int Nlambda, double *lambda)
 				(int) log10(lambda[nspect]) + 5);
 		sprintf(contribution_out, format, lambda[nspect]);
 		if ((fp_out = fopen(contribution_out, "w")) == NULL) {
-			Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+			Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s",
 				  contribution_out);
 			return;
 		}

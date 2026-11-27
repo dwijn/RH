@@ -41,7 +41,7 @@ int getLine(FILE *inputFile, char *commentChar, char *line,
 	}
 	if (linePtr == NULL) {
 		if (exit_on_EOF) {
-			Error(ERROR_LEVEL_2, routineName, "Reached end of input file before all data was read");
+			Error(rh, ERROR_LEVEL_2, routineName, "Reached end of input file before all data was read");
 		} else
 			return EOF;
 	} else
@@ -59,8 +59,8 @@ void checkNread(int Nread, int Nrequired, const char *routineName,
 		   error otherwise --                           --------------- */
 
 	if (Nread < Nrequired) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to read input file\n"
-										  " At checkpoint %d. Needed at least %d, read %d item%s",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read input file\n"
+											  " At checkpoint %d. Needed at least %d, read %d item%s",
 			  checkPoint, Nrequired, Nread, (Nread > 1) ? "s" : "");
 	}
 }

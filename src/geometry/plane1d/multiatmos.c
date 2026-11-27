@@ -64,10 +64,10 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 	/* --- Open the input file for model atmosphere in MULTI format - - */
 
 	if ((atmos->fp_atmos = fopen(rh->input.atmos_input, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to open inputfile %s", rh->input.atmos_input);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open inputfile %s", rh->input.atmos_input);
 	} else {
-		Error(MESSAGE, NULL, "\n -- reading input file: %s\n\n",
-			  rh->input.atmos_input);
+		Message(rh, "\n -- reading input file: %s\n\n",
+				rh->input.atmos_input);
 	}
 
 	atmos->NHydr = N_HYDROGEN_MULTI;
@@ -154,7 +154,7 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 		for (k = 0; k < Ndep; k++) geometry->height[k] = dscale[k] * KM_TO_M;
 		break;
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Unknown depth scale string in file %s: %s",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unknown depth scale string in file %s: %s",
 			  rh->input.atmos_input, scaleStr);
 	}
 	free(dscale);
@@ -193,7 +193,7 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 		checkNread(Nread, Nrequired = 6, routineName, checkPoint = 3);
 	}
 	if (k > 0 && k < Ndep) {
-		Error(ERROR_LEVEL_2, routineName, "Reached end of input file %s before all data was read",
+		Error(rh, ERROR_LEVEL_2, routineName, "Reached end of input file %s before all data was read",
 			  rh->input.atmos_input);
 	} else if (k == 0) {
 
@@ -201,8 +201,8 @@ void MULTIatmos(Atmosphere *atmos, Geometry *geometry)
 			   like MULTI does --                          -------------- */
 
 		if (geometry->scale != COLUMN_MASS) {
-			Error(ERROR_LEVEL_2, routineName, "Height scale should be COLUMNMASS when nH not supplied: "
-											  "File %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Height scale should be COLUMNMASS when nH not supplied: "
+												  "File %s",
 				  rh->input.atmos_input);
 		}
 		atmos->nHtot = (double *) calloc(Ndep, sizeof(double));
@@ -331,15 +331,15 @@ void getBoundary(Geometry *geometry)
 	case THERMALIZED: break;
 	case IRRADIATED:
 
-		Error(MESSAGE, NULL, "\n -- reading irradiance input file: %s\n\n",
-			  rh->input.Itop);
+		Message(rh, "\n -- reading irradiance input file: %s\n\n",
+				rh->input.Itop);
 
 		geometry->Itop = matrix_double(rh->spectrum.Nspect, geometry->Nrays);
 
 		/* --- Open input file for irradiation at TOP --     -------------- */
 
 		if ((fp_Itop = fopen(rh->input.Itop, "r")) == NULL) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to open inputfile %s", rh->input.Itop);
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open inputfile %s", rh->input.Itop);
 		}
 		xdrstdio_create(&xdrs, fp_Itop, XDR_DECODE);
 
@@ -347,7 +347,7 @@ void getBoundary(Geometry *geometry)
 							 rh->spectrum.Nspect * geometry->Nrays,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to read irradiation data at TOP of atmosphere");
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read irradiation data at TOP of atmosphere");
 		}
 		xdr_destroy(&xdrs);
 		fclose(fp_Itop);
@@ -355,7 +355,7 @@ void getBoundary(Geometry *geometry)
 	case REFLECTIVE:
 		break;
 	default:
-		Error(ERROR_LEVEL_2, routineName,
+		Error(rh, ERROR_LEVEL_2, routineName,
 			  "Invalid boundary condition at the TOP of atmosphere");
 	}
 
@@ -367,13 +367,13 @@ void getBoundary(Geometry *geometry)
 
 		/* --- Infalling intensities at BOTTOM should be read here -- --- */
 
-		Error(ERROR_LEVEL_1, routineName,
+		Error(rh, ERROR_LEVEL_1, routineName,
 			  "Boundary condition IRRADIATED at BOTTOM not yet implemented");
 		break;
 	case REFLECTIVE:
 		break;
 	default:
-		Error(ERROR_LEVEL_2, routineName,
+		Error(rh, ERROR_LEVEL_2, routineName,
 			  "Invalid boundary condition at the BOTTOM of atmosphere");
 	}
 }

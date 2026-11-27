@@ -87,8 +87,7 @@ void distribute_nH()
 
 	if (rh->atmos.H_LTE) {
 		rh->atmos.H->NLTEpops = FALSE;
-		Error(MESSAGE, routineName,
-			  "\nUsing LTE hydrogen populations for background opacities\n\n");
+		Message(rh, "\nUsing LTE hydrogen populations for background opacities\n\n");
 
 		/* --- To save memory space let atmos.H->n point to LTE populations
 			   atmos.H->nstar --                           -------------- */
@@ -125,9 +124,9 @@ void distribute_nH()
 				for (k = 0; k < Nspace; k++)
 					rh->atmos.H->n[i][k] = g_i * rh->atmos.nH[iq][k];
 			} else {
-				Error(WARNING, routineName, "Too many hydrogen levels (level n = %d)\n"
-											" Background opacity additional levels set to zero%s",
-					  quantumNo[i], (i == rh->atmos.H->Nlevel - 2) ? "\n\n" : "");
+				Warning(rh, routineName, "Too many hydrogen levels (level n = %d)\n"
+										 " Background opacity additional levels set to zero%s",
+						quantumNo[i], (i == rh->atmos.H->Nlevel - 2) ? "\n\n" : "");
 			}
 		}
 		free(quantumNo);
@@ -447,16 +446,16 @@ double Gaunt_ff(double lambda, int charge, double T)
 	double     x, y, wg[4], wu[4], sum = 0.0;
 
 	if (gff_lng == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "free-free Gaunt factor table not read "
-										  "(call hydrogenPrepare first)");
+		Error(rh, ERROR_LEVEL_2, routineName, "free-free Gaunt factor table not read "
+											  "(call hydrogenPrepare first)");
 	}
 	x = (log10(SQ(charge) * E_RYDBERG / (KBOLTZMANN * T)) - gff_lg0) / gff_step;
 	y = (log10(HPLANCK * CLIGHT / (lambda * NM_TO_M * KBOLTZMANN * T)) -
 		 gff_lu0) /
 		gff_step;
 	if (!(x >= 0.0 && x <= gff_Ng - 1 && y >= 0.0 && y <= gff_Nu - 1)) {
-		Error(ERROR_LEVEL_2, routineName, "lambda = %g nm, T = %g K, Z = %d outside the free-free "
-										  "Gaunt factor table",
+		Error(rh, ERROR_LEVEL_2, routineName, "lambda = %g nm, T = %g K, Z = %d outside the free-free "
+											  "Gaunt factor table",
 			  lambda, T, charge);
 	}
 	i0 = gff_stencil(x, gff_Ng, wg);
@@ -734,8 +733,8 @@ bool_t Hminus_bf(double lambda, double *chi, double *eta)
 	if (lambda <= 0.0 || lambda >= HMBF_LAMBDA0) return FALSE;
 
 	if (Hmbf_lambda == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "H-minus bound-free table not read "
-										  "(call hydrogenPrepare first)");
+		Error(rh, ERROR_LEVEL_2, routineName, "H-minus bound-free table not read "
+											  "(call hydrogenPrepare first)");
 	}
 	alpha_bf = Hminus_bf_sigma(lambda);
 
@@ -1018,17 +1017,17 @@ bool_t H2minus_ff(double lambda, double *chi)
 	double pe, lambda_index, kappa, *nH2, scale = 1.0;
 
 	if (rh->hydrogen.H2mff_theta_index == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Index table not set up "
-										  "(call hydrogenPrepare first)");
+		Error(rh, ERROR_LEVEL_2, routineName, "Index table not set up "
+											  "(call hydrogenPrepare first)");
 	}
 
 	if (lambda >= lambdaFF[NFF_H2 - 1]) {
 		lambda_index = NFF_H2 - 1;
 		scale        = SQ(lambda / lambdaFF[NFF_H2 - 1]);
 		if (lambda > lambdaFF[NFF_H2 - 1] && !atomic_flag_test_and_set(&H2mff_beyond_told)) {
-			Error(WARNING, routineName, "H2- free-free table ends at %.1f nm: kappa extended as lambda^2 "
-										"beyond it (first at %.1f nm; message once per run)",
-				  lambdaFF[NFF_H2 - 1], lambda);
+			Warning(rh, routineName, "H2- free-free table ends at %.1f nm: kappa extended as lambda^2 "
+									 "beyond it (first at %.1f nm; message once per run)",
+					lambdaFF[NFF_H2 - 1], lambda);
 		}
 	} else {
 		Hunt(NFF_H2, lambdaFF, lambda, &index);
@@ -1150,16 +1149,16 @@ bool_t H2plus_ff(double lambda, double *chi)
 	double lambda_index, kappa, *np;
 
 	if (rh->hydrogen.H2pff_temp_index == NULL) {
-		Error(ERROR_LEVEL_2, routineName, "Index table not set up "
-										  "(call hydrogenPrepare first)");
+		Error(rh, ERROR_LEVEL_2, routineName, "Index table not set up "
+											  "(call hydrogenPrepare first)");
 	}
 
 	if (lambda >= lambdaFF[NFF_H2P - 1]) {
 		lambda_index = NFF_H2P - 1;
 		if (lambda > lambdaFF[NFF_H2P - 1] && !atomic_flag_test_and_set(&H2pff_beyond_told)) {
-			Error(WARNING, routineName, "H2+ free-free table ends at %.1f nm: last column held beyond it "
-										"(first at %.1f nm; message once per run)",
-				  lambdaFF[NFF_H2P - 1], lambda);
+			Warning(rh, routineName, "H2+ free-free table ends at %.1f nm: last column held beyond it "
+									 "(first at %.1f nm; message once per run)",
+					lambdaFF[NFF_H2P - 1], lambda);
 		}
 	} else {
 		Hunt(NFF_H2P, lambdaFF, lambda, &index);
@@ -1291,18 +1290,18 @@ void hydrogenPrepare(void)
 
 	if (gff_lng == NULL &&
 		Gaunt_ff_readTable(rh->input.GauntFfData, msg, MAX_MESSAGE_LENGTH) != 0)
-		Error(ERROR_LEVEL_2, routineName, "%s", msg);
+		Error(rh, ERROR_LEVEL_2, routineName, "%s", msg);
 	if (Hmbf_lambda == NULL) {
 		if (Hminus_bf_readTable(rh->input.HminusBfData, msg,
 								MAX_MESSAGE_LENGTH) != 0)
-			Error(ERROR_LEVEL_2, routineName, "%s", msg);
+			Error(rh, ERROR_LEVEL_2, routineName, "%s", msg);
 		Hminus_bf_joins(&short_ratio, &long_ratio);
 		if (fabs(short_ratio - 1.0) > HMBF_JOIN_WARN ||
 			fabs(long_ratio - 1.0) > HMBF_JOIN_WARN) {
-			Error(WARNING, routineName, "H-minus bound-free table %s does not join its fits: "
-										"fit/table = %.4f at %.2f nm, %.4f at %.2f nm",
-				  rh->input.HminusBfData, short_ratio, Hmbf_lambda[0], long_ratio,
-				  Hmbf_lambda[Hmbf_N - 1]);
+			Warning(rh, routineName, "H-minus bound-free table %s does not join its fits: "
+									 "fit/table = %.4f at %.2f nm, %.4f at %.2f nm",
+					rh->input.HminusBfData, short_ratio, Hmbf_lambda[0], long_ratio,
+					Hmbf_lambda[Hmbf_N - 1]);
 		}
 	}
 	H2minus_ff_prepare();

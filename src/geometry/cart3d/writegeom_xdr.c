@@ -38,7 +38,7 @@ void writeGeometry(Geometry *geometry)
 	if (!strcmp(rh->input.geometry_output, "none")) return;
 
 	if ((fp_out = fopen(rh->input.geometry_output, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s",
 			  rh->input.geometry_output);
 		return;
 	}
@@ -70,7 +70,7 @@ void writeGeometry(Geometry *geometry)
 	result &= xdr_vector(&xdrs, (char *) geometry->vz, Nspace,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to write geometry to file %s", rh->input.geometry_output);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to write geometry to file %s", rh->input.geometry_output);
 	}
 
 	xdr_destroy(&xdrs);

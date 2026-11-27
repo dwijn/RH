@@ -327,8 +327,8 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	/* --- Check that first Nucleus is hydrogen --       -------------- */
 
 	if (!strstr(nuclei[0]->ID, "H ")) {
-		Error(ERROR_LEVEL_2, routineName, "First nucleus must be H not %s "
-										  "(check H2.molecule)",
+		Error(rh, ERROR_LEVEL_2, routineName, "First nucleus must be H not %s "
+											  "(check H2.molecule)",
 			  nuclei[0]->ID);
 	}
 
@@ -336,8 +336,8 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 	for (j = 0; j < Nnuclei; j++) {
 		if (nuclei[j]->model != NULL) {
 			if (nuclei[j]->model->stage[0] > 0) {
-				Error(ERROR_LEVEL_2, routineName, "Model for element %s does not have a neutral stage\n"
-												  " needed for molecular formation\n",
+				Error(rh, ERROR_LEVEL_2, routineName, "Model for element %s does not have a neutral stage\n"
+													  " needed for molecular formation\n",
 					  nuclei[j]->ID);
 			}
 		} else
@@ -495,7 +495,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 			if (negTauInTrial()) {
 				negTauInvalid(msg + 3);
 			} else
-				Error(ERROR_LEVEL_2, routineName, "%s", msg);
+				Error(rh, ERROR_LEVEL_2, routineName, "%s", msg);
 		}
 		for (i = 0; i < Nnuclei; i++) n[i] = cs.n[i];
 		for (i = 0; i < rh->atmos.Nmolecule; i++) n[Nnuclei + i] = cs.n[Nnuclei + 1 + i];
@@ -541,7 +541,7 @@ static void chemicalEquilibrium(int NmaxIter, double iterLimit, bool_t ofState)
 						(i == nuclei[nu]->Nmolecule - 1) ? "\n\n" : ", ");
 				snprintf(msg + strlen(msg), sizeof(msg) - strlen(msg), "%s", tmpStr);
 			}
-			Error(MESSAGE, routineName, "%s", msg);
+			Message(rh, "%s", msg);
 		}
 	}
 
@@ -632,8 +632,8 @@ double partfunction(struct Molecule *molecule, double T)
 	case TSUJI_73:
 		break;
 	default:
-		Error(ERROR_LEVEL_2, "partfunction", "Unknown method for calculation of partition function\n"
-											 "for molecule %s: %d",
+		Error(rh, ERROR_LEVEL_2, "partfunction", "Unknown method for calculation of partition function\n"
+												 "for molecule %s: %d",
 			  molecule->ID, molecule->fit);
 	}
 	return pf;
@@ -691,8 +691,8 @@ static double lnEquilConstant(struct Molecule *molecule, double T)
 		break;
 
 	default:
-		Error(ERROR_LEVEL_2, "lnEquilConstant", "Unknown method for calculation of equilibrium constant\n"
-												"for molecule %s: %d",
+		Error(rh, ERROR_LEVEL_2, "lnEquilConstant", "Unknown method for calculation of equilibrium constant\n"
+													"for molecule %s: %d",
 			  molecule->ID, molecule->fit);
 	}
 	return lneqc;
@@ -798,8 +798,8 @@ double equilconstant(struct Molecule *molecule, double T)
 		break;
 
 	default:
-		Error(ERROR_LEVEL_2, "equilconstant", "Unknown method for calculation of equilibrium constant\n"
-											  "for molecule %s: %d",
+		Error(rh, ERROR_LEVEL_2, "equilconstant", "Unknown method for calculation of equilibrium constant\n"
+												  "for molecule %s: %d",
 			  molecule->ID, molecule->fit);
 	}
 

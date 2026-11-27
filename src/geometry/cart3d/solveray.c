@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
 	/* --- Read direction cosines for ray --             -------------- */
 
 	if ((fp_ray = fopen(RAY_DOT_INPUT, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", RAY_DOT_INPUT);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", RAY_DOT_INPUT);
 	}
 
 	getLine(fp_ray, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
@@ -88,10 +88,10 @@ int main(int argc, char *argv[])
 	checkNread(Nread, Nrequired = 2, argv[0], checkPoint = 1);
 
 	if (mux <= -1.0 || mux >= 1.0) {
-		Error(ERROR_LEVEL_2, argv[0], "Value of mux = %f does not lie in interval <-1.0, 1.0>\n", mux);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Value of mux = %f does not lie in interval <-1.0, 1.0>\n", mux);
 	}
 	if (muy <= -1.0 || muy >= 1.0) {
-		Error(ERROR_LEVEL_2, argv[0], "Value of muy = %f does not lie in interval <-1.0, 1.0>\n", muy);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Value of muy = %f does not lie in interval <-1.0, 1.0>\n", muy);
 	}
 
 	/* --- The third cosine follows from the first two. Rays point
@@ -102,8 +102,8 @@ int main(int argc, char *argv[])
 
 	sumsq = SQ(mux) + SQ(muy);
 	if (sumsq >= 1.0) {
-		Error(ERROR_LEVEL_2, argv[0], "mux = %.12g and muy = %.12g leave no upward component: "
-									  "mux^2 + muy^2 = %.12g is not below 1\n",
+		Error(rh, ERROR_LEVEL_2, argv[0], "mux = %.12g and muy = %.12g leave no upward component: "
+										  "mux^2 + muy^2 = %.12g is not below 1\n",
 			  mux, muy, sumsq);
 	}
 	muz = sqrt(1.0 - sumsq);
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
 
 		if ((rh->atmos.fd_background =
 				 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s",
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s",
 				  rh->input.background_File);
 		}
 		readBRS();
@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
 	if (muy < 0.0) format[16] = '5';
 	sprintf(rayFileName, format, mux, muy);
 	if ((fp_out = fopen(rayFileName, "w")) == NULL) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open output file %s", rayFileName);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open output file %s", rayFileName);
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 						 rh->spectrum.Nspect * rh->geometry->Nplane,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to write spectrum to file %s", rayFileName);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write spectrum to file %s", rayFileName);
 	}
 
 	/* --- Read wavelength indices for which chi and S are to be
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
 	}
 	result = xdr_int(&xdrs, &Nspect);
 	if (!result) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to write number of wavelengths to file %s", rayFileName);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write number of wavelengths to file %s", rayFileName);
 	}
 
 	/* --- Go through the list of wavelengths --         -------------- */
@@ -209,13 +209,13 @@ int main(int argc, char *argv[])
 
 	for (n = 0; n < Nspect; n++) {
 		if (wave_index[n] < 0 || wave_index[n] >= rh->spectrum.Nspect) {
-			Error(ERROR_LEVEL_2, argv[0], "Illegal value of wave_index[n]: %4d\n"
-										  "Value has to be between 0 and %4d\n",
+			Error(rh, ERROR_LEVEL_2, argv[0], "Illegal value of wave_index[n]: %4d\n"
+											  "Value has to be between 0 and %4d\n",
 				  wave_index[n], rh->spectrum.Nspect);
 			continue;
 		}
-		Error(MESSAGE, NULL, "Processing n = %4d, lambda = %9.3f [nm]\n",
-			  wave_index[n], rh->spectrum.lambda[wave_index[n]]);
+		Message(rh, "Processing n = %4d, lambda = %9.3f [nm]\n",
+				wave_index[n], rh->spectrum.lambda[wave_index[n]]);
 
 		as = &rh->spectrum.as[wave_index[n]];
 		alloc_as(wave_index[n], crosscoupling = FALSE);
@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
 		result &= xdr_vector(&xdrs, (char *) S, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to write chi and S to file %s", rayFileName);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write chi and S to file %s", rayFileName);
 		}
 
 		free_as(wave_index[n], crosscoupling = FALSE);
@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
 							 rh->spectrum.Nspect * rh->geometry->Nplane, sizeof(double),
 							 (xdrproc_t) rh_xdr_double);
 		if (!result) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to write Stokes spectra to file %s", rayFileName);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write Stokes spectra to file %s", rayFileName);
 		}
 	}
 

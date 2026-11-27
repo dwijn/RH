@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 	/* --- Read direction cosine for ray --              -------------- */
 
 	if ((fp_ray = fopen(RAY_INPUT_FILE, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", RAY_INPUT_FILE);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", RAY_INPUT_FILE);
 	}
 
 	getLine(fp_ray, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
 	checkNread(Nread, Nrequired = 1, argv[0], checkPoint = 1);
 
 	if (muz <= 0.0 || muz > 1.0) {
-		Error(ERROR_LEVEL_2, argv[0], "Value of muz = %f does not lie in interval <0.0, 1.0]\n", muz);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Value of muz = %f does not lie in interval <0.0, 1.0]\n", muz);
 	}
 
 	if ((rh->atmos.Stokes && rh->input.StokesMode == FIELD_FREE) ||
@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
 
 		if ((rh->atmos.fd_background =
 				 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s",
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s",
 				  rh->input.background_File);
 		}
 		readBRS();
@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
 
 	sprintf(rayFileName, "spectrum_%4.2f", muz);
 	if ((fp_out = fopen(rayFileName, "w")) == NULL) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open output file %s", rayFileName);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open output file %s", rayFileName);
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
 	result &= xdr_vector(&xdrs, (char *) rh->spectrum.I[0], rh->spectrum.Nspect,
 						 sizeof(double), (xdrproc_t) rh_xdr_double);
 	if (!result) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to write spectrum to file %s", rayFileName);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write spectrum to file %s", rayFileName);
 	}
 
 	/* --- Write ASCII table for special applications -- -------------- */
@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
 	if (!rh->input.xdr_endian) {
 		sprintf(ascFilename, ASCII_SPECTRUM_FILE, muz);
 		if ((fp_out_asc = fopen(ascFilename, "w")) == NULL) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to open output file %s", ascFilename);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open output file %s", ascFilename);
 		}
 		fprintf(fp_out_asc, "%d\n", rh->spectrum.Nspect);
 
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
 	}
 	result = xdr_int(&xdrs, &Nspect);
 	if (!result) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to write number of wavelengths to file %s", rayFileName);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write number of wavelengths to file %s", rayFileName);
 	}
 
 	/* --- Go through the list of wavelengths --         -------------- */
@@ -215,13 +215,13 @@ int main(int argc, char *argv[])
 
 	for (n = 0; n < Nspect; n++) {
 		if (wave_index[n] < 0 || wave_index[n] >= rh->spectrum.Nspect) {
-			Error(ERROR_LEVEL_2, argv[0], "Illegal value of wave_index[n]: %4d\n"
-										  "Value has to be between 0 and %4d\n",
+			Error(rh, ERROR_LEVEL_2, argv[0], "Illegal value of wave_index[n]: %4d\n"
+											  "Value has to be between 0 and %4d\n",
 				  wave_index[n], rh->spectrum.Nspect);
 			continue;
 		}
-		Error(MESSAGE, NULL, "Processing n = %4d, lambda = %9.3f [nm]\n",
-			  wave_index[n], rh->spectrum.lambda[wave_index[n]]);
+		Message(rh, "Processing n = %4d, lambda = %9.3f [nm]\n",
+				wave_index[n], rh->spectrum.lambda[wave_index[n]]);
 
 		as = &rh->spectrum.as[wave_index[n]];
 		alloc_as(wave_index[n], crosscoupling = FALSE);
@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
 		result &= xdr_vector(&xdrs, (char *) S, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to write chi and S to file %s", rayFileName);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write chi and S to file %s", rayFileName);
 		}
 
 		free_as(wave_index[n], crosscoupling = FALSE);
@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
 							 rh->spectrum.Nspect, sizeof(double),
 							 (xdrproc_t) rh_xdr_double);
 		if (!result) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to write Stokes spectra to file %s", rayFileName);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write Stokes spectra to file %s", rayFileName);
 		}
 	}
 

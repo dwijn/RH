@@ -32,8 +32,8 @@ bool_t StopRequested()
 	const char routineName[] = "StopRequested";
 
 	if (access(STOP_REQUEST_FILE, F_OK) == 0) {
-		Error(WARNING, routineName, "Stopping iterations because file %s is present",
-			  STOP_REQUEST_FILE);
+		Warning(rh, routineName, "Stopping iterations because file %s is present",
+				STOP_REQUEST_FILE);
 		return TRUE;
 	} else {
 		return FALSE;

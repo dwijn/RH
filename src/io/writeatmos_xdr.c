@@ -64,7 +64,7 @@ void writeAtmos(Atmosphere *atmos)
 	if (!strcmp(rh->input.atmos_output, "none")) return;
 
 	if ((fp_out = fopen(rh->input.atmos_output, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", rh->input.atmos_output);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", rh->input.atmos_output);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
@@ -106,7 +106,7 @@ void writeAtmos(Atmosphere *atmos)
 	}
 
 	if (!result) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to write proper amount to output file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to write proper amount to output file %s",
 			  rh->input.atmos_output);
 	}
 	xdr_destroy(&xdrs);

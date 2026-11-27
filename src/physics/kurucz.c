@@ -134,7 +134,7 @@ void readKuruczLines(char *inputFile)
 	labelj[RLK_LABEL_LENGTH] = '\0';
 
 	if ((fp_Kurucz = fopen(inputFile, "r")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open input file %s", inputFile);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open input file %s", inputFile);
 		return;
 	}
 	/* --- Go through each of the linelist files listed in input file - */
@@ -142,7 +142,7 @@ void readKuruczLines(char *inputFile)
 	while (getLine(fp_Kurucz, commentChar, listName, FALSE) != EOF) {
 		Nread = sscanf(listName, "%s", filename);
 		if ((fp_linelist = fopen(filename, "r")) == NULL) {
-			Error(ERROR_LEVEL_1, routineName, "Unable to open input file %s", filename);
+			Error(rh, ERROR_LEVEL_1, routineName, "Unable to open input file %s", filename);
 		}
 		/* --- Count the number of lines in this file --   -------------- */
 
@@ -326,8 +326,8 @@ void readKuruczLines(char *inputFile)
 		}
 		fclose(fp_linelist);
 
-		Error(MESSAGE, routineName, "Read %d Kurucz lines from file %s\n",
-			  Nline, listName);
+		Message(rh, "Read %d Kurucz lines from file %s\n",
+				Nline, listName);
 		rh->atmos.Nrlk += Nline;
 	}
 
@@ -983,13 +983,13 @@ bool_t RLKdet_level(char *label, RLK_level *level)
 
 		if (ptr_i == NULL || ptr_f == NULL) {
 			if (ptr_i != NULL && ptr_f == NULL) {
-				Error(ERROR_LEVEL_2, routineName, " Malformed label: missing ending "
-												  "delimiter: %c, label: %s\n",
+				Error(rh, ERROR_LEVEL_2, routineName, " Malformed label: missing ending "
+													  "delimiter: %c, label: %s\n",
 					  delims_f[strchr(delims_i, ptr_i[0]) - delims_i], label);
 			}
 			if (ptr_i == NULL && ptr_f != NULL) {
-				Error(ERROR_LEVEL_2, routineName, " Malformed label: missing beginning "
-												  "delimiter: %c, label: %s\n",
+				Error(rh, ERROR_LEVEL_2, routineName, " Malformed label: missing beginning "
+													  "delimiter: %c, label: %s\n",
 					  delims_i[strchr(delims_f, ptr_f[0]) - delims_f], label);
 			}
 			return FALSE;
@@ -998,7 +998,7 @@ bool_t RLKdet_level(char *label, RLK_level *level)
 
 			/* --- When delimiters are not matching --       -------------- */
 
-			Error(ERROR_LEVEL_2, routineName, " Malformed label: mismatched delimiters: '%c %c', %s\n",
+			Error(rh, ERROR_LEVEL_2, routineName, " Malformed label: mismatched delimiters: '%c %c', %s\n",
 				  ptr_i[0], ptr_f[0], label);
 			return FALSE;
 		}
@@ -1052,7 +1052,7 @@ bool_t RLKdet_level(char *label, RLK_level *level)
 			break;
 		}
 		if (counterror) {
-			Error(ERROR_LEVEL_2, routineName, "Wrong quantum number count: %s: %d\n",
+			Error(rh, ERROR_LEVEL_2, routineName, "Wrong quantum number count: %s: %d\n",
 				  quanta_str, Nread);
 			return FALSE;
 		}
@@ -1163,7 +1163,7 @@ double RLKLande(RLK_level *level)
 		break;
 
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Invalid coupling: %d", level->cpl);
+		Error(rh, ERROR_LEVEL_2, routineName, "Invalid coupling: %d", level->cpl);
 	}
 	return level->gL;
 }
@@ -1190,7 +1190,7 @@ double getJK_K(char Kchar)
 	case 'v': K = 9.5; break;
 	case 'w': K = 10.5; break;
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Invalid Kchar: %c", Kchar);
+		Error(rh, ERROR_LEVEL_2, routineName, "Invalid Kchar: %c", Kchar);
 	}
 	return K;
 }

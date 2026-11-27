@@ -73,7 +73,7 @@ void parse(int argc, char *argv[], int Noption, Option *theOptions)
 					if (theOptions[nopt].value_required) {
 						/* --- An error results if value is not given when required */
 
-						Error(ERROR_LEVEL_2, routineName, "Option %s requires value",
+						Error(rh, ERROR_LEVEL_2, routineName, "Option %s requires value",
 							  theOptions[nopt].name);
 					} else
 						/* --- Options that require no value are assumed to be
@@ -85,7 +85,7 @@ void parse(int argc, char *argv[], int Noption, Option *theOptions)
 		}
 
 		if (!recognized) {
-			Error(WARNING, routineName, "Unknown command line option %s", options[n]);
+			Warning(rh, routineName, "Unknown command line option %s", options[n]);
 		}
 	}
 	/* --- Finally, set the internal options with either the

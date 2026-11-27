@@ -70,12 +70,12 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 					}
 				}
 			} else {
-				Error(ERROR_LEVEL_2, routineName,
+				Error(rh, ERROR_LEVEL_2, routineName,
 					  "Boundary condition THERMALIZED not implemented for TOP");
 			}
 			break;
 		case REFLECTIVE:
-			Error(ERROR_LEVEL_2, routineName,
+			Error(rh, ERROR_LEVEL_2, routineName,
 				  "Boundary condition REFLECTIVE not implemented");
 			break;
 		}
@@ -105,7 +105,7 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 			break;
 
 		case REFLECTIVE:
-			Error(ERROR_LEVEL_2, routineName,
+			Error(rh, ERROR_LEVEL_2, routineName,
 				  "Boundary condition REFLECTIVE not implemented");
 			break;
 		}
@@ -165,7 +165,7 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 						Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
 											 k, kend, l, m, I_uw, chi, S, I, Psi);
 					} else {
-						Error(ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
+						Error(rh, ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
 							  rh->input.S_interpolation);
 					}
 				}
@@ -189,7 +189,7 @@ void ShortChar(Geometry *geometry, int nspect, int mu,
 						Piecewise_Bezier3_3D(geometry, st_uw, st_dw,
 											 k, kend, l, m, I_uw, chi, S, I, Psi);
 					} else {
-						Error(ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
+						Error(rh, ERROR_LEVEL_1, routineName, "Unknown radiation solver: %d",
 							  rh->input.S_interpolation);
 					}
 				}

@@ -139,7 +139,7 @@ void Hydrostatic(int NmaxIter, double iterLimit)
 	(void) iterLimit;
 
 	if (rh->atmos.hydrostatic) {
-		Error(ERROR_LEVEL_2, routineName, "Can only establish hydrostatic equilibrium in 1-D geometry");
+		Error(rh, ERROR_LEVEL_2, routineName, "Can only establish hydrostatic equilibrium in 1-D geometry");
 	}
 }
 /* ------- end ---------------------------- Hydrostatic.c ----------- */

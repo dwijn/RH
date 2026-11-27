@@ -98,8 +98,8 @@ void rowcol(int anr, int *row, int *col)
 			return;
 		}
 	}
-	Error(ERROR_LEVEL_2, "rowcol", "Iso-electronic sequence with %d electrons is outside the six rows"
-								   " of the periodic table that SUMMERS covers",
+	Error(rh, ERROR_LEVEL_2, "rowcol", "Iso-electronic sequence with %d electrons is outside the six rows"
+									   " of the periodic table that SUMMERS covers",
 		  anr);
 }
 /* ------- end ---------------------------- rowcol.c ---------------- */
@@ -436,8 +436,8 @@ double summers(int i, int j, double nne, struct Atom *atom)
 
 	isoseq = iz - atom->stage[i];
 	if (isoseq < 1 || isoseq > 86) {
-		Error(ERROR_LEVEL_2, "summers", "Atom %s, SUMMERS for levels %d and %d: the recombined ion has %d"
-										" electrons; the density factor covers 1 to 86",
+		Error(rh, ERROR_LEVEL_2, "summers", "Atom %s, SUMMERS for levels %d and %d: the recombined ion has %d"
+											" electrons; the density factor covers 1 to 86",
 			  atom->ID, i, j, isoseq);
 	}
 	atomnm(isoseq - 1, &cseq[0]);
@@ -565,7 +565,7 @@ static void checkFiniteValues(const Atom *atom, const char *keyword, int i1,
 					 " coefficient (%g, number %d).\n Fix or remove this record"
 					 " in the atom file",
 					 atom->ID, keyword, i1, i2, v[m], m + 1);
-		Error(ERROR_LEVEL_2, "CollisionRate", "%s", msg);
+		Error(rh, ERROR_LEVEL_2, "CollisionRate", "%s", msg);
 	}
 }
 
@@ -578,7 +578,7 @@ static void rateCheckCoeffError(const Atom *atom, const char *keyword, int i1,
 			 "Atom %s: collision record %.20s %d %d: %.200s (%g).\n Fix or remove this"
 			 " record in the atom file",
 			 atom->ID, keyword, i1, i2, what, value);
-	Error(ERROR_LEVEL_2, "CollisionRate", "%s", msg);
+	Error(rh, ERROR_LEVEL_2, "CollisionRate", "%s", msg);
 }
 
 /* --- A contribution x (s^-1) to C at temperature T: stops when it is
@@ -594,7 +594,7 @@ static double rateChecked(double x, RateCheck *rc, const Atom *atom,
 				 "Atom %s: collision record %.20s %d %d gives a rate that is not"
 				 " finite (%g s^-1) at T = %g K.\n Check its coefficients",
 				 atom->ID, keyword, i1, i2, x, T);
-		Error(ERROR_LEVEL_2, "CollisionRate", "%s", msg);
+		Error(rh, ERROR_LEVEL_2, "CollisionRate", "%s", msg);
 	}
 	if (x < 0.0) {
 		if (rc->Nneg == 0 || x < rc->minVal) {
@@ -628,7 +628,7 @@ static void rateCheckReport(const RateCheck *rc, Atom *atom,
 				 " the coefficients of this record",
 				 atom->ID, keyword, i1, i2, rc->Nneg, Nspace, rc->minVal,
 				 rc->Tneg);
-		Error(WARNING, "CollisionRate", "%s", msg);
+		Warning(rh, "CollisionRate", "%s", msg);
 	}
 	if (rc->Nout > 0 && firstReport(atom, keyword, i1, i2, "range")) {
 		snprintf(msg, sizeof(msg),
@@ -637,7 +637,7 @@ static void rateCheckReport(const RateCheck *rc, Atom *atom,
 				 " (T = %g to %g K)",
 				 atom->ID, keyword, i1, i2, T1, T2, rc->Nout, Nspace,
 				 rc->Tout[0], rc->Tout[1]);
-		Error(WARNING, "CollisionRate", "%s", msg);
+		Warning(rh, "CollisionRate", "%s", msg);
 	}
 }
 /* --- Tables (OMEGA, CE, CI, CP, CH0, CH+, CH) hold their end value
@@ -725,7 +725,7 @@ static void tableRangeReport(const TableRange *tr, Atom *atom, int type, long Ns
 			 atom->ID, tr->Nout, tr->Nrec, tableKeyword[type], tr->Nbelow,
 			 tr->Nabove, tr->Npoints, tr->Nrec * Nspace, tr->Ttab[0], tr->Ttab[1],
 			 tr->Tatm[0], tr->Tatm[1], rule);
-	Error(WARNING, "CollisionRate", "%s", msg);
+	Warning(rh, "CollisionRate", "%s", msg);
 }
 
 /* ------- end ---------------------------- RateCheck.c ----------- */
@@ -806,8 +806,8 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			i1 = atoi(strtok(NULL, " "));
 			i2 = atoi(strtok(NULL, " "));
 			if (Ntemp <= 0) {
-				Error(ERROR_LEVEL_2, routineName, "Atom %s: %s collision data for levels %d %d"
-												  " before any TEMP line",
+				Error(rh, ERROR_LEVEL_2, routineName, "Atom %s: %s collision data for levels %d %d"
+													  " before any TEMP line",
 					  atom->ID, keyword, i1, i2);
 			}
 			Nitem = Ntemp;
@@ -888,8 +888,8 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			Ncoef = atoi(strtok(NULL, " "));
 
 			if (Ncoef < 1) {
-				Error(ERROR_LEVEL_2, routineName, "Atom %s: collision record BADNELL %d %d: the"
-												  " number of coefficients must be positive (%d)",
+				Error(rh, ERROR_LEVEL_2, routineName, "Atom %s: collision record BADNELL %d %d: the"
+													  " number of coefficients must be positive (%d)",
 					  atom->ID, i1, i2, Ncoef);
 			}
 			Nrow  = 2;
@@ -931,9 +931,9 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 				   sumscl * summers + 1 - sumscl between 0 and 1 (N-34) -- */
 
 			if (!(sumscl >= 0.0 && sumscl <= 1.0)) {
-				Error(ERROR_LEVEL_2, routineName, "Atom %s: the scale factor of the density dependence"
-												  " of the dielectronic recombination (SUMMERS) must be"
-												  " between 0 and 1 (%g)",
+				Error(rh, ERROR_LEVEL_2, routineName, "Atom %s: the scale factor of the density dependence"
+													  " of the dielectronic recombination (SUMMERS) must be"
+													  " between 0 and 1 (%g)",
 					  atom->ID, sumscl);
 			}
 
@@ -944,12 +944,12 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 			Nrow = atoi(strtok(NULL, " "));
 
 			if (Nrow < 1) {
-				Error(ERROR_LEVEL_2, routineName, "Atom %s: collision record AR85-CDI %d %d: the"
-												  " number of shells must be positive (%d)",
+				Error(rh, ERROR_LEVEL_2, routineName, "Atom %s: collision record AR85-CDI %d %d: the"
+													  " number of shells must be positive (%d)",
 					  atom->ID, i1, i2, Nrow);
 			}
 			if (Nrow > MSHELL) {
-				Error(ERROR_LEVEL_2, routineName, "Nrow: %i greater than mshell %i",
+				Error(rh, ERROR_LEVEL_2, routineName, "Nrow: %i greater than mshell %i",
 					  Nrow, MSHELL);
 			}
 
@@ -975,11 +975,11 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 		} else if (strstr(keyword, "END")) {
 			break;
 		} else {
-			Error(ERROR_LEVEL_1, routineName, "Unknown keyword: !%s!", keyword);
+			Error(rh, ERROR_LEVEL_1, routineName, "Unknown keyword: !%s!", keyword);
 		}
 
 		if (nitem != Nitem) {
-			Error(ERROR_LEVEL_2, routineName, "\n Read %d, not %d items (keyword = %s)\n",
+			Error(rh, ERROR_LEVEL_2, routineName, "\n Read %d, not %d items (keyword = %s)\n",
 				  nitem, Nitem, keyword);
 		}
 		/* --- Records with formulas: the coefficients must be finite and
@@ -1353,7 +1353,7 @@ void CollisionRate(struct Atom *atom, FILE *fp_atom)
 	}
 
 	if (status == EOF) {
-		Error(ERROR_LEVEL_1, routineName, "Reached end of datafile before all data was read");
+		Error(rh, ERROR_LEVEL_1, routineName, "Reached end of datafile before all data was read");
 	}
 	for (n = 0; n < NTABLE_TYPES; n++)
 		tableRangeReport(&tabrange[n], atom, n, Nspace);

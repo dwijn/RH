@@ -89,7 +89,7 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 			for (n = 1; n < 4; n++) I_upw[n] = 0.0;
 			break;
 		case REFLECTIVE:
-			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+			Error(rh, ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
 				  rh->geometry->vboundary[BOTTOM]);
 		}
 	} else {
@@ -102,7 +102,7 @@ void Piece_Stokes_Bezier3_1D(int nspect, int mu, bool_t to_obs,
 			for (n = 1; n < 4; n++) I_upw[n] = 0.0;
 			break;
 		default:
-			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+			Error(rh, ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
 				  rh->geometry->vboundary[TOP]);
 		}
 	}
@@ -326,7 +326,7 @@ void Piecewise_Bezier3_1D_tri(int nspect, int mu, bool_t to_obs,
 			I_upw = rh->geometry->Ibottom[nspect][mu];
 			break;
 		case REFLECTIVE:
-			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+			Error(rh, ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
 				  rh->geometry->vboundary[BOTTOM]);
 		}
 	} else {
@@ -342,7 +342,7 @@ void Piecewise_Bezier3_1D_tri(int nspect, int mu, bool_t to_obs,
 			I_upw = rh->geometry->Itop[nspect][mu];
 			break;
 		case REFLECTIVE:
-			Error(ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
+			Error(rh, ERROR_LEVEL_2, routineName, "Boundary condition not implemented: %d",
 				  rh->geometry->vboundary[BOTTOM]);
 		}
 	}

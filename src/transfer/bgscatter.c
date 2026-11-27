@@ -150,19 +150,19 @@ void bgScatterSetup(void)
 	if (rh->input.bg_NmaxIter == 0) return;
 	if ((why = geometryOps.bg_supported()) != NULL) {
 		if (rh->input.bg_NmaxIter_set) {
-			Error(WARNING, routineName, "BACKGROUND_N_MAX_ITER = %d is ignored: %s.\n"
-										" The background scattering is lambda iterated.",
-				  rh->input.bg_NmaxIter, why);
+			Warning(rh, routineName, "BACKGROUND_N_MAX_ITER = %d is ignored: %s.\n"
+									 " The background scattering is lambda iterated.",
+					rh->input.bg_NmaxIter, why);
 		}
 		rh->input.bg_NmaxIter = 0;
 		return;
 	}
-	Error(MESSAGE, routineName, " Background scattering iterated at each wavelength (N-51):"
-								" BACKGROUND_OPERATOR = %s,\n  BACKGROUND_ANDERSON_DEPTH = %d,"
-								" BACKGROUND_ITER_LIMIT = %.2E, BACKGROUND_N_MAX_ITER = %d\n",
-		  (rh->input.bg_operator == BG_OPERATOR_TRIDIAGONAL) ? "TRIDIAGONAL"
-															 : "DIAGONAL",
-		  rh->input.bg_depth, rh->input.bg_iterLimit, rh->input.bg_NmaxIter);
+	Message(rh, " Background scattering iterated at each wavelength (N-51):"
+				" BACKGROUND_OPERATOR = %s,\n  BACKGROUND_ANDERSON_DEPTH = %d,"
+				" BACKGROUND_ITER_LIMIT = %.2E, BACKGROUND_N_MAX_ITER = %d\n",
+			(rh->input.bg_operator == BG_OPERATOR_TRIDIAGONAL) ? "TRIDIAGONAL"
+															   : "DIAGONAL",
+			rh->input.bg_depth, rh->input.bg_iterLimit, rh->input.bg_NmaxIter);
 
 	/* --- The first sweep iterates every wavelength first -- ------ */
 
@@ -174,11 +174,11 @@ void bgScatterSetup(void)
 
 	if (geometryOps.bg_linear_fallback() && rh->bgscatter.linear == NULL) {
 		rh->bgscatter.linear = (unsigned char *) calloc(rh->spectrum.Nspect, 1);
-		Error(MESSAGE, routineName, "  with S_INTERPOLATION = S_BEZIER3: wavelengths whose albedo"
-									" exceeds BACKGROUND_LINEAR_ALBEDO = %.2f\n  below vertical"
-									" optical depth BACKGROUND_LINEAR_TAU = %.2f use S_LINEAR"
-									" (N-52)\n",
-			  rh->input.bg_linearAlbedo, rh->input.bg_linearTau);
+		Message(rh, "  with S_INTERPOLATION = S_BEZIER3: wavelengths whose albedo"
+					" exceeds BACKGROUND_LINEAR_ALBEDO = %.2f\n  below vertical"
+					" optical depth BACKGROUND_LINEAR_TAU = %.2f use S_LINEAR"
+					" (N-52)\n",
+				rh->input.bg_linearAlbedo, rh->input.bg_linearTau);
 	}
 }
 /* ------- end ---------------------------- bgScatterSetup.c -------- */

@@ -129,9 +129,8 @@ void SetFPEtraps(void)
 
 void SetFPEtraps(void)
 {
-	Error(MESSAGE, "SetFPEtraps",
-		  "\nFloating-point exception traps are not available on this"
-		  " platform\n");
+	Message(rh, "\nFloating-point exception traps are not available on this"
+				" platform\n");
 }
 
 #endif

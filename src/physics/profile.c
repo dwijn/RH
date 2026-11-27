@@ -307,8 +307,8 @@ void Profile(AtomicLine *line)
 		Larmor = (Q_ELECTRON / (4.0 * PI * M_ELECTRON)) * (line->lambda0 * NM_TO_M);
 
 		Zeeman(line);
-		Error(MESSAGE, routineName, " -- Atom %2s, line %3d -> %3d has %2d Zeeman components\n",
-			  atom->ID, line->j, line->i, line->zm->Ncomponent);
+		Message(rh, " -- Atom %2s, line %3d -> %3d has %2d Zeeman components\n",
+				atom->ID, line->j, line->i, line->zm->Ncomponent);
 	}
 
 	/* --- Initialize permanent storage for line profiles -- ---------- */
@@ -318,7 +318,7 @@ void Profile(AtomicLine *line)
 				line->j, line->i);
 		if ((line->fd_profile =
 				 open(filename, O_RDWR | O_CREAT, PERMISSIONS)) == -1) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to open profile file %s", filename);
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open profile file %s", filename);
 		}
 
 		if (line->polarizable && (rh->input.StokesMode == FULL_STOKES)) {

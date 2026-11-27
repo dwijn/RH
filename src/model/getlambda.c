@@ -48,8 +48,8 @@ void getLambda(AtomicLine *line)
 	/* --- First some sanity checks on qcore and qwing -- ------------- */
 
 	if ((line->qcore <= 0.0) || (line->qwing <= 0.0)) {
-		Error(ERROR_LEVEL_2, routineName, "Either qcore or qwing is negative or zero"
-										  " transition %d->%d",
+		Error(rh, ERROR_LEVEL_2, routineName, "Either qcore or qwing is negative or zero"
+											  " transition %d->%d",
 			  line->j, line->i);
 	}
 	/* --- Create full (instead of half) line profiles in case of:
@@ -81,9 +81,9 @@ void getLambda(AtomicLine *line)
 
 		/* --- In this case use a linear scale out to qwing -- ---------- */
 
-		Error(WARNING, routineName, "Ratio of qwing / (2*qcore) is less than one.\n"
-									" Using linear spacing for transition: %d->%d",
-			  line->j, line->i);
+		Warning(rh, routineName, "Ratio of qwing / (2*qcore) is less than one.\n"
+								 " Using linear spacing for transition: %d->%d",
+				line->j, line->i);
 		beta = 1.0;
 	} else
 		beta = line->qwing / (2.0 * line->qcore);
@@ -108,9 +108,9 @@ void getLambda(AtomicLine *line)
 				  (line->lambda0 * NM_TO_M) * rh->atmos.B_char / rh->atmos.vmicro_char;
 
 		if (qB_char / 2.0 >= line->qcore) {
-			Error(WARNING, routineName, "Characteristic Zeeman splitting qB_char (= %f) >= 2.0*qcore for "
-										"transition %d->%d",
-				  qB_char, line->j, line->i);
+			Warning(rh, routineName, "Characteristic Zeeman splitting qB_char (= %f) >= 2.0*qcore for "
+									 "transition %d->%d",
+					qB_char, line->j, line->i);
 		}
 		Locate(Nlambda, q, qB_char / 2.0, &NB);
 		qB_shift = 2 * q[NB];
@@ -227,9 +227,8 @@ static bool_t blueHalfOverlap(const AtomicLine *line, const double *extra,
 
 int asymmetricBlends(const double *extra, int Nextra)
 {
-	const char routineName[] = "asymmetricBlends";
-	int        n, kr, Nchanged = 0;
-	bool_t     changed;
+	int    n, kr, Nchanged = 0;
+	bool_t changed;
 
 	do {
 		changed = FALSE;
@@ -253,10 +252,10 @@ int asymmetricBlends(const double *extra, int Nextra)
 				free(line->lambda);
 				getLambda(line);
 
-				Error(MESSAGE, routineName, " -- Line %3d -> %3d of atom %2s (%.4f nm): other"
-											" transitions have wavelengths in its blue half;"
-											" full profile (N-55)\n",
-					  line->j, line->i, atom->ID, line->lambda0);
+				Message(rh, " -- Line %3d -> %3d of atom %2s (%.4f nm): other"
+							" transitions have wavelengths in its blue half;"
+							" full profile (N-55)\n",
+						line->j, line->i, atom->ID, line->lambda0);
 				Nchanged++;
 				changed = TRUE;
 			}
@@ -420,7 +419,6 @@ static int mirrorTransition(QuadTransition *T, const SymmetricLine *A, int NA)
 
 int mirrorQuadrature(void)
 {
-	const char     routineName[] = "mirrorQuadrature";
 	int            n, kr, NA = 0, NT = 0, Npair = 0, Nmax = 0, Ngap;
 	SymmetricLine *A;
 	QuadTransition T;
@@ -495,10 +493,10 @@ int mirrorQuadrature(void)
 	free(A);
 
 	if (Npair > 0) {
-		Error(MESSAGE, routineName, " -- %d transitions span the blue half of symmetric lines"
-									" (%d pairs): integrated there with the red half mirrored"
-									" (N-62)\n",
-			  NT, Npair);
+		Message(rh, " -- %d transitions span the blue half of symmetric lines"
+					" (%d pairs): integrated there with the red half mirrored"
+					" (N-62)\n",
+				NT, Npair);
 	}
 	return Npair;
 }

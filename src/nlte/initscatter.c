@@ -61,8 +61,8 @@ void initScatter()
 		   when we are also planning to do main iterations -- --------- */
 
 	if (rh->spectrum.updateJ) {
-		Error(MESSAGE, routineName, " %s: Lambda iterating background scattering...\n\n",
-			  routineName);
+		Message(rh, " %s: Lambda iterating background scattering...\n\n",
+				routineName);
 
 		niter = 0;
 		while (rh->input.NmaxIter && niter < rh->input.NmaxScatter) {

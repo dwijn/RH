@@ -106,7 +106,7 @@ double MolZeemanStr(double Ju, double Mu, double Jl, double Ml)
 		break;
 
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
+		Error(rh, ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
 	}
 	/* --- The strengths are normalized already. --      -------------- */
 
@@ -172,7 +172,7 @@ double MolLande_eff(MolecularLine *mrt)
 		gLl = MolLande_b(mrt->Lambdai, mrt->Si, Nl, Jl);
 		break;
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
 	}
 	switch (mrt->Hundj) {
 	case CASE_A:
@@ -183,7 +183,7 @@ double MolLande_eff(MolecularLine *mrt)
 		gLu = MolLande_b(mrt->Lambdaj, mrt->Sj, Nu, Ju);
 		break;
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
 	}
 
 	for (Ml = -Jl; Ml <= Jl; Ml++) {
@@ -270,7 +270,7 @@ void MolZeeman(MolecularLine *mrt)
 			gLl = MolLande_b(mrt->Lambdai, mrt->Si, Nl, Jl);
 			break;
 		default:
-			Error(ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
+			Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
 		}
 		switch (mrt->Hundj) {
 		case CASE_A:
@@ -281,7 +281,7 @@ void MolZeeman(MolecularLine *mrt)
 			gLu = MolLande_b(mrt->Lambdaj, mrt->Sj, Nu, Ju);
 			break;
 		default:
-			Error(ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
+			Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
 		}
 		/* --- Determine the number of components --       -------------- */
 
@@ -321,9 +321,9 @@ void MolZeeman(MolecularLine *mrt)
 	}
 
 	vacuum_to_air(1, &(mrt->lambda0), &lambda_air);
-	Error(MESSAGE, routineName, " -- %2s line at %9.4f nm has %3d "
-								"Zeeman components, gL_eff = %7.4f\n",
-		  mrt->molecule->ID,
-		  lambda_air, zm->Ncomponent, mrt->g_Lande_eff);
+	Message(rh, " -- %2s line at %9.4f nm has %3d "
+				"Zeeman components, gL_eff = %7.4f\n",
+			mrt->molecule->ID,
+			lambda_air, zm->Ncomponent, mrt->g_Lande_eff);
 }
 /* ------- end ------------------------- MolZeeman.c ---------------- */

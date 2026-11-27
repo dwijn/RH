@@ -71,13 +71,13 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 					}
 				}
 			} else {
-				Error(ERROR_LEVEL_2, routineName,
+				Error(rh, ERROR_LEVEL_2, routineName,
 					  "Boundary condition THERMALIZED not implemented for TOP");
 			}
 			break;
 
 		case REFLECTIVE:
-			Error(ERROR_LEVEL_2, routineName,
+			Error(rh, ERROR_LEVEL_2, routineName,
 				  "Boundary condition REFLECTIVE not implemented");
 			break;
 		}
@@ -112,7 +112,7 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 			break;
 
 		case REFLECTIVE:
-			Error(ERROR_LEVEL_2, routineName,
+			Error(rh, ERROR_LEVEL_2, routineName,
 				  "Boundary condition REFLECTIVE not implemented");
 			break;
 		}
@@ -179,7 +179,7 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 						Piece_Stokes_Bezier3_3D(geometry, st_uw, st_dw, &sg,
 												k, kend, l, m, I_uw, Psi);
 					} else {
-						Error(ERROR_LEVEL_1, routineName, "Unknown polarization solver: %d",
+						Error(rh, ERROR_LEVEL_1, routineName, "Unknown polarization solver: %d",
 							  rh->input.S_interpolation_stokes);
 					}
 				}
@@ -200,7 +200,7 @@ void ShortChar_Stokes(Geometry *geometry, int nspect, int mu,
 						Piece_Stokes_Bezier3_3D(geometry, st_uw, st_dw, &sg,
 												k, kend, l, m, I_uw, Psi);
 					} else {
-						Error(ERROR_LEVEL_1, routineName, "Unknown polarization solver: %d",
+						Error(rh, ERROR_LEVEL_1, routineName, "Unknown polarization solver: %d",
 							  rh->input.S_interpolation_stokes);
 					}
 				}

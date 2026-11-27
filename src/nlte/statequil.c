@@ -163,9 +163,9 @@ static void reportFallback(const char *ID, const SEFallback *fb,
 	default:
 		why[0] = '\0';
 	}
-	Error(MESSAGE, NULL, " %s: rate equations solved with LU at %d of %d"
-						 " locations (first: %s)\n",
-		  ID, fb->Nlu, rh->atmos.Nspace, why);
+	Message(rh, " %s: rate equations solved with LU at %d of %d"
+				" locations (first: %s)\n",
+			ID, fb->Nlu, rh->atmos.Nspace, why);
 }
 /* ------- end ---------------------------- reportFallback.c -------- */
 
@@ -203,7 +203,7 @@ static void badPopulations(const char *ID, const char *level, long Nsolved,
 		negTauInvalid(what);
 		return;
 	}
-	Error(ERROR_LEVEL_2, routineName, "\n  %s", what);
+	Error(rh, ERROR_LEVEL_2, routineName, "\n  %s", what);
 }
 /* ------- end ---------------------------- badPopulations.c ------- */
 
@@ -318,7 +318,7 @@ double updatePopulations(int niter)
 
 		snprintf(label, sizeof(label), " %s,", atom->ID);
 		dpops = MaxChange(atom->Ng_n, label, quiet = FALSE);
-		Error(MESSAGE, NULL, "%s", NgStatus(atom->Ng_n, accel));
+		Message(rh, "%s", NgStatus(atom->Ng_n, accel));
 
 		dpopsmax = MAX(dpops, dpopsmax);
 	}
@@ -332,7 +332,7 @@ double updatePopulations(int niter)
 
 		snprintf(label, sizeof(label), " %s ,", molecule->ID);
 		dpops = MaxChange(molecule->Ng_nv, label, quiet = FALSE);
-		Error(MESSAGE, NULL, "%s", NgStatus(molecule->Ng_nv, accel));
+		Message(rh, "%s", NgStatus(molecule->Ng_nv, accel));
 
 		dpopsmax = MAX(dpops, dpopsmax);
 	}

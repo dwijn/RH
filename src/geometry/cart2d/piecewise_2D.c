@@ -132,12 +132,12 @@ void Piecewise_Linear_2D(Geometry *geometry, int nspect, int mu,
 				local++;
 			}
 		} else {
-			Error(ERROR_LEVEL_2, routineName,
+			Error(rh, ERROR_LEVEL_2, routineName,
 				  "Boundary condition THERMALIZED not implemented for TOP");
 		}
 		break;
 	case REFLECTIVE:
-		Error(ERROR_LEVEL_2, routineName,
+		Error(rh, ERROR_LEVEL_2, routineName,
 			  "Boundary condition REFLECTIVE not implemented");
 		break;
 	}

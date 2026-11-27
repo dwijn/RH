@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
 
 	readInput();
 	if (rh->input.solver != SOLVER_FIXED_POINT) {
-		Error(ERROR_LEVEL_2, "gcheck",
+		Error(rh, ERROR_LEVEL_2, "gcheck",
 			  "gcheck checks the map G of SOLVER = FIXED_POINT: set"
 			  " SOLVER = FIXED_POINT\n in keyword.input, with the"
 			  " keyword settings it requires");

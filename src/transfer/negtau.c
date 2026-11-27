@@ -253,7 +253,7 @@ void negTauInvalid(const char *message)
 		   anywhere else it is a programming error and stops -- ----                                      -------------- */
 
 	if (!rh->negtau.trial) {
-		Error(ERROR_LEVEL_2, "negTauInvalid",
+		Error(rh, ERROR_LEVEL_2, "negTauInvalid",
 			  "called outside a trial evaluation of G (programming error)");
 		return;
 	}
@@ -333,9 +333,9 @@ void negTauStop(void)
 	if (!rh->negtau.detected.found || rh->negtau.trial) return; /* (invalid only in a trial) */
 
 	negTauMessage(what, sizeof(what));
-	Error(ERROR_LEVEL_2, routineName, "\n  %s.\n  The formal solution would overflow there. A negative"
-									  " total opacity\n  comes from a strong inverted line (population"
-									  " inversion) in\n  the current populations (SOLVER.md, trap 5)",
+	Error(rh, ERROR_LEVEL_2, routineName, "\n  %s.\n  The formal solution would overflow there. A negative"
+										  " total opacity\n  comes from a strong inverted line (population"
+										  " inversion) in\n  the current populations (SOLVER.md, trap 5)",
 		  what);
 }
 /* ------- end ---------------------------- negTauStop.c ------------ */

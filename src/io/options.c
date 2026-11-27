@@ -47,7 +47,7 @@ void setOptions(int argc, char *argv[])
 
 	if (strlen(logfileName) > 0) {
 		if ((rh->commandline.logfile = fopen(logfileName, "w")) == NULL) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to open log file %s", logfileName);
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open log file %s", logfileName);
 		}
 		setvbuf(rh->commandline.logfile, NULL, _IOLBF, BUFSIZ);
 	} else

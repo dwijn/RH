@@ -54,7 +54,7 @@ void writeOpacity(void)
 	if (!strcmp(rh->input.opac_output, "none")) return;
 
 	if ((fp_out = fopen(rh->input.opac_output, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s",
 			  rh->input.opac_output);
 		return;
 	}
@@ -120,14 +120,14 @@ void writeOpacity(void)
 		}
 	}
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to write opacities to file %s",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to write opacities to file %s",
 			  rh->input.opac_output);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp_out);
 
 	if ((fp_out = fopen(ASRS_DOT_OUT, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", ASRS_DOT_OUT);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", ASRS_DOT_OUT);
 		return;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
@@ -136,7 +136,7 @@ void writeOpacity(void)
 						 sizeof(int), (xdrproc_t) rh_xdr_int);
 	free(as_rn);
 	if (!result) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to write record numbers to file %s",
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to write record numbers to file %s",
 			  ASRS_DOT_OUT);
 	}
 	xdr_destroy(&xdrs);

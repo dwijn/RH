@@ -44,7 +44,7 @@ void writeSpectrum(Spectrum *spectrum)
 	if (!strcmp(rh->input.spectrum_output, "none")) return;
 
 	if ((fp_spectrum = fopen(rh->input.spectrum_output, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s",
 			  rh->input.spectrum_output);
 		return;
 	}
@@ -92,7 +92,7 @@ void writeSpectrum(Spectrum *spectrum)
 	}
 
 	if (!result) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to write proper amount to output file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to write proper amount to output file %s",
 			  rh->input.spectrum_output);
 	}
 	xdr_destroy(&xdrs);
@@ -103,7 +103,7 @@ void writeSpectrum(Spectrum *spectrum)
 	if (spectrum->updateJ && !rh->input.limit_memory) {
 		if ((spectrum->fd_J =
 				 open(rh->input.JFile, O_WRONLY | O_CREAT, PERMISSIONS)) == -1) {
-			Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", rh->input.JFile);
+			Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", rh->input.JFile);
 			return;
 		}
 		for (nspect = 0; nspect < spectrum->Nspect; nspect++)
@@ -116,7 +116,7 @@ void writeSpectrum(Spectrum *spectrum)
 		if (rh->input.backgr_pol) {
 			if ((spectrum->fd_J20 =
 					 open(J20_DOT_OUT, O_WRONLY | O_CREAT, PERMISSIONS)) == -1) {
-				Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", J20_DOT_OUT);
+				Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", J20_DOT_OUT);
 				return;
 			}
 			for (nspect = 0; nspect < spectrum->Nspect; nspect++)

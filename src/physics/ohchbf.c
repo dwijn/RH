@@ -683,10 +683,10 @@ void OHCH_bf_check(void)
 			Thi = MAX(Thi, rh->atmos.T[k]);
 		}
 		if (Nout > 0) {
-			Error(WARNING, routineName, "%s bound-free opacity: %d of %d depth points have T outside"
-										" the table range [%.0f, %.0f] K\n (atmosphere T = %.0f - %.0f"
-										" K). log(sigma) is held at the value at the nearest edge.",
-				  mol[n]->ID, Nout, rh->atmos.Nspace, OHCH_TMIN, OHCH_TMAX, Tlo, Thi);
+			Warning(rh, routineName, "%s bound-free opacity: %d of %d depth points have T outside"
+									 " the table range [%.0f, %.0f] K\n (atmosphere T = %.0f - %.0f"
+									 " K). log(sigma) is held at the value at the nearest edge.",
+					mol[n]->ID, Nout, rh->atmos.Nspace, OHCH_TMIN, OHCH_TMAX, Tlo, Thi);
 		}
 	}
 }

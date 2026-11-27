@@ -103,7 +103,7 @@ void fillMesh(Geometry *geometry)
 
 	if (geometry->x_boundary != PERIODIC ||
 		geometry->y_boundary != PERIODIC) {
-		Error(ERROR_LEVEL_2, routineName,
+		Error(rh, ERROR_LEVEL_2, routineName,
 			  "Horizontal boundary conditions in x AND y must be PERIODIC");
 	}
 	/* --- Allocate space for interpolation stencils and longchar
@@ -142,8 +142,8 @@ void fillMesh(Geometry *geometry)
 		}
 	}
 	if (geometry->Nlongchar) {
-		Error(MESSAGE, NULL, "\n-Used %d Long Characteristics\n\n",
-			  geometry->Nlongchar);
+		Message(rh, "\n-Used %d Long Characteristics\n\n",
+				geometry->Nlongchar);
 	}
 	getCPU(2, TIME_POLL, "Geometry");
 }
@@ -251,7 +251,7 @@ double calcDistance(double frac1, double frac2, enum intersect plane,
 	case YZ:
 		return sqrt(SQ(dx) + SQ(frac1 * dy) + SQ(frac2 * dz));
 	default:
-		Error(ERROR_LEVEL_2, "calcDistance", "Invalid intersection plane: %d", plane);
+		Error(rh, ERROR_LEVEL_2, "calcDistance", "Invalid intersection plane: %d", plane);
 		return 0.0;
 	}
 }
@@ -524,7 +524,7 @@ void setStencil(Geometry *geometry, int mu, int k, enum direction wind)
 				break;
 
 			case XY:
-				Error(ERROR_LEVEL_2, routineName, "Plane not implemented: %d", vis[n].plane);
+				Error(rh, ERROR_LEVEL_2, routineName, "Plane not implemented: %d", vis[n].plane);
 			}
 
 			if (wind == UPWIND) {

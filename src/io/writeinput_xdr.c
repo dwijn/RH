@@ -40,7 +40,7 @@ void writeInput(void)
 	if (!strcmp(INPUT_DOT_OUT, "none")) return;
 
 	if ((fp_out = fopen(INPUT_DOT_OUT, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s",
 			  INPUT_DOT_OUT);
 		return;
 	}
@@ -69,7 +69,7 @@ void writeInput(void)
 	result &= xdr_bool(&xdrs, &big_endian);
 
 	if (!result) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to write proper amount to output file %s",
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to write proper amount to output file %s",
 			  INPUT_DOT_OUT);
 	}
 	xdr_destroy(&xdrs);

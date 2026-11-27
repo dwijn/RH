@@ -36,12 +36,12 @@ void writeMolecules(char *fileName)
 	if (!strcmp(fileName, "none")) return;
 
 	if ((fp_molecules = fopen(fileName, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, "writeMolecules", "Unable to open output file %s", fileName);
+		Error(rh, ERROR_LEVEL_1, "writeMolecules", "Unable to open output file %s", fileName);
 	}
 	xdrstdio_create(&xdrs, fp_molecules, XDR_ENCODE);
 
 	if (!xdr_molecules(&xdrs, rh->atmos.molecules)) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to write to output file %s", fileName);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to write to output file %s", fileName);
 	}
 
 	xdr_destroy(&xdrs);
@@ -61,12 +61,12 @@ void readMolecules(char *fileName)
 	if (!strcmp(fileName, "none")) return;
 
 	if ((fp_molecules = fopen(fileName, "r")) == NULL) {
-		Error(ERROR_LEVEL_1, "readMolecules", "Unable to open intput file %s", fileName);
+		Error(rh, ERROR_LEVEL_1, "readMolecules", "Unable to open intput file %s", fileName);
 	}
 	xdrstdio_create(&xdrs, fp_molecules, XDR_DECODE);
 
 	if (!xdr_molecules(&xdrs, rh->atmos.molecules)) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to read from input file %s", fileName);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s", fileName);
 	}
 
 	xdr_destroy(&xdrs);

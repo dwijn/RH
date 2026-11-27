@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
 
 	if ((rh->atmos.fd_background =
 			 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s",
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s",
 			  rh->input.background_File);
 	}
 	readBRS();
@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 	/* --- Get wavelength indices for flow field --      -------------- */
 
 	if ((fp_flow = fopen(FLOW_DOT_INPUT, "r")) == NULL) {
-		Error(ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", FLOW_DOT_INPUT);
+		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", FLOW_DOT_INPUT);
 	}
 
 	getLine(fp_flow, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
@@ -129,13 +129,13 @@ int main(int argc, char *argv[])
 
 	for (n = 0; n < Nspect; n++) {
 		if (wave_index[n] < 0 || wave_index[n] >= rh->spectrum.Nspect) {
-			Error(ERROR_LEVEL_2, argv[0], "Illegal value of wave_index[n]: %4d\n"
-										  "Value has to be between 0 and %4d\n",
+			Error(rh, ERROR_LEVEL_2, argv[0], "Illegal value of wave_index[n]: %4d\n"
+											  "Value has to be between 0 and %4d\n",
 				  wave_index[n], rh->spectrum.Nspect);
 			continue;
 		}
-		Error(MESSAGE, NULL, "Processing n = %4d, lambda = %9.3f [nm]\n",
-			  wave_index[n], rh->spectrum.lambda[wave_index[n]]);
+		Message(rh, "Processing n = %4d, lambda = %9.3f [nm]\n",
+				wave_index[n], rh->spectrum.lambda[wave_index[n]]);
 
 		/* --- Retrieve active set of transitions as and read current
 			   mean intensities at wavelength nspect. --   -------------- */
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
 
 		sprintf(chartFileName, "flow_%4.4d", wave_index[n]);
 		if ((fp_out = fopen(chartFileName, "w")) == NULL) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to open output file %s", chartFileName);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open output file %s", chartFileName);
 		}
 		xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);
 
@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
 		result &= xdr_vector(&xdrs, (char *) Fz, rh->atmos.Nspace,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to write flow data to file %s", chartFileName);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to write flow data to file %s", chartFileName);
 		}
 
 		if (rh->input.limit_memory) free(J);

@@ -42,13 +42,13 @@ bool_t writeCollisionRate(Atom *atom)
 	sprintf(ratesfile, (atom->ID[1] == ' ') ? "collrate.%.1s.out" : "collrate.%.2s.out", atom->ID);
 
 	if ((fp_rate = fopen(ratesfile, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", ratesfile);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", ratesfile);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp_rate, XDR_ENCODE);
 
 	if (!xdr_collrate(&xdrs, atom)) {
-		Error(WARNING, routineName, "Unable to write to output file %s", ratesfile);
+		Warning(rh, routineName, "Unable to write to output file %s", ratesfile);
 	}
 
 	xdr_destroy(&xdrs);
@@ -74,13 +74,13 @@ bool_t readCollisionRate(Atom *atom)
 	/* --- Read collision rates --                       -------------- */
 
 	if ((fp_rate = fopen(ratesfile, "r")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open input file %s", ratesfile);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open input file %s", ratesfile);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp_rate, XDR_DECODE);
 
 	if (!xdr_collrate(&xdrs, atom)) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to read from input file %s", ratesfile);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s", ratesfile);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp_rate);

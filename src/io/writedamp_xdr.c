@@ -44,13 +44,13 @@ bool_t writeDamping(Atom *atom)
 	sprintf(dampfile, (atom->ID[1] == ' ') ? "damping.%.1s.out" : "damping.%.2s.out", atom->ID);
 
 	if ((fp_damp = fopen(dampfile, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", dampfile);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", dampfile);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp_damp, XDR_ENCODE);
 
 	if (!xdr_damping(&xdrs, atom)) {
-		Error(WARNING, routineName, "Unable to write to output file %s", dampfile);
+		Warning(rh, routineName, "Unable to write to output file %s", dampfile);
 	}
 
 	xdr_destroy(&xdrs);
@@ -76,13 +76,13 @@ bool_t readDamping(Atom *atom)
 	/* --- Read collision rates --                       -------------- */
 
 	if ((fp_damp = fopen(dampfile, "r")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open input file %s", dampfile);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open input file %s", dampfile);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp_damp, XDR_DECODE);
 
 	if (!xdr_damping(&xdrs, atom)) {
-		Error(ERROR_LEVEL_2, routineName, "Unable to read from input file %s", dampfile);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s", dampfile);
 	}
 	xdr_destroy(&xdrs);
 	fclose(fp_damp);

@@ -180,11 +180,11 @@ static void solveHydrostatic(int NmaxIter, double iterLimit)
 			niter++;
 		}
 		if (dnmax > iterLimit) {
-			Error(WARNING, routineName,
-				  "Hydrostatic equilibrium iteration not converged:\n"
-				  " temperature: %6.1f [K], \n"
-				  " hydrogen density: %9.3E [m^-3],\n dnmax: %9.3E\n",
-				  rh->atmos.T[k], rh->atmos.nHtot[k], dnmax);
+			Warning(rh, routineName,
+					"Hydrostatic equilibrium iteration not converged:\n"
+					" temperature: %6.1f [K], \n"
+					" hydrogen density: %9.3E [m^-3],\n dnmax: %9.3E\n",
+					rh->atmos.T[k], rh->atmos.nHtot[k], dnmax);
 		}
 		/* --- Store results --                            -------------- */
 

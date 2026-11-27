@@ -48,7 +48,7 @@ double E1(double x)
 	double              E1        = 0.0;
 
 	if (x <= 0.0) {
-		Error(ERROR_LEVEL_2, "E1", "Exponential integral E1 of x = %e", x);
+		Error(rh, ERROR_LEVEL_2, "E1", "Exponential integral E1 of x = %e", x);
 	} else if (x > 0.0 && x <= 1.0) {
 		E1 = -log(x) + a53[0] + x * (a53[1] + x * (a53[2] + x * (a53[3] + x * (a53[4] + x * a53[5]))));
 	} else if (x <= X_UNDERFLOW) {
@@ -74,7 +74,7 @@ double E2(double x)
 	double E2 = 0.0, an, b, c, d, delta;
 
 	if (x <= 0.0) {
-		Error(ERROR_LEVEL_2, "E2", "Exponential integral E2 of x = %e", x);
+		Error(rh, ERROR_LEVEL_2, "E2", "Exponential integral E2 of x = %e", x);
 	} else if (x < 1.0) {
 
 		/* --- Use the recurrence relation En+1 = 1/n (exp(-x) - xEn(x))

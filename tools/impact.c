@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
 
 	if (argc >= 3) {
 		if ((fp_out = fopen(argv[2], "w")) == NULL) {
-			Error(ERROR_LEVEL_2, argv[0], "Unable to open output file %s", argv[1]);
+			Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open output file %s", argv[1]);
 		}
 	} else if (argc == 2)
 		fp_out = stdout;
@@ -131,7 +131,7 @@ void quantumNumbers(Atom *atom)
 		if (ptr > multiplet)
 			*(ptr + 1) = '\0';
 		else {
-			Error(ERROR_LEVEL_2, "quantumNumbers", "Unable to determine whether level is even or odd %s",
+			Error(rh, ERROR_LEVEL_2, "quantumNumbers", "Unable to determine whether level is even or odd %s",
 				  atom->label[i]);
 		}
 
@@ -154,7 +154,7 @@ void quantumNumbers(Atom *atom)
 		while ((atom->stage[ic] < atom->stage[i] + 1) && (ic < atom->Nlevel))
 			ic++;
 		if (atom->stage[ic] == atom->stage[i]) {
-			Error(ERROR_LEVEL_2, "quantumNumbers", "Found no overlying continuum for level %s",
+			Error(rh, ERROR_LEVEL_2, "quantumNumbers", "Found no overlying continuum for level %s",
 				  atom->label[i]);
 		} else {
 			Z        = (double) (atom->stage[i] + 1);

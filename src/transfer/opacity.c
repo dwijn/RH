@@ -360,7 +360,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 				break;
 
 			default:
-				Error(ERROR_LEVEL_1, routineName, "Invalid transition type");
+				Error(rh, ERROR_LEVEL_1, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 			/* --- Always calculate total opacity and emissivity of set - - */
@@ -440,7 +440,7 @@ void Opacity(int nspect, int mu, bool_t to_obs, bool_t initialize)
 				break;
 
 			default:
-				Error(ERROR_LEVEL_1, routineName, "Invalid transition type");
+				Error(rh, ERROR_LEVEL_1, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 			/* --- Always calculate total opacity and emissivity of set - - */
@@ -954,8 +954,8 @@ flags MolecularOpacity(double lambda, int nspect, int mu, bool_t to_obs,
 						if (mrt->polarizable) {
 							backgrflags.ispolarized = TRUE;
 							if (mrt->zm == NULL) {
-								Error(ERROR_LEVEL_2, routineName, "Zeeman multiplet not set up "
-																  "(call molecularPrepare first)");
+								Error(rh, ERROR_LEVEL_2, routineName, "Zeeman multiplet not set up "
+																	  "(call molecularPrepare first)");
 							}
 						}
 

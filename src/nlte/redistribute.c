@@ -45,13 +45,12 @@
 
 double PRDDamp(AtomicLine *line, const double *old, long N)
 {
-	const char    routineName[] = "PRDDamp";
-	const double  w             = rh->input.PRD_damping;
+	const double  w   = rh->input.PRD_damping;
 	double       *rho = line->rho_prd[0], dmax = 0.0;
 	static bool_t told = FALSE;
 
 	if (!told) {
-		Error(MESSAGE, routineName, " PRD sub-iterations: PRD_DAMPING = %g\n", w);
+		Message(rh, " PRD sub-iterations: PRD_DAMPING = %g\n", w);
 		told = TRUE;
 	}
 	if (old == NULL) return 0.0;
@@ -90,8 +89,8 @@ void Redistribute(int NmaxIter, double iterLimit)
 			if (line->PRD && line->Ng_prd == NULL) {
 				NlamuL = PRDRhoSize(line);
 				if (NlamuL > INT_MAX) {
-					Error(ERROR_LEVEL_2, routineName, "PRD line %d -> %d: %ld values of rho, too many for"
-													  " the Ng acceleration of the PRD iteration",
+					Error(rh, ERROR_LEVEL_2, routineName, "PRD line %d -> %d: %ld values of rho, too many for"
+														  " the Ng acceleration of the PRD iteration",
 						  line->j, line->i, NlamuL);
 				}
 				Nlamu = (int) NlamuL;
@@ -137,7 +136,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 						   FALSE return would be a bug -- ------------- */
 
 					if (!PRDRhoCheck(atom, kr))
-						Error(ERROR_LEVEL_2, routineName,
+						Error(rh, ERROR_LEVEL_2, routineName,
 							  "rho of a PRD line is invalid in a trial evaluation");
 					snprintf(label, sizeof(label),
 							 "  PRD: iter #%d, atom %s, line %d,",
@@ -152,7 +151,7 @@ void Redistribute(int NmaxIter, double iterLimit)
 									 : dres;
 						fprintf(rh->commandline.logfile, "%s delta = %6.4E", label, drho);
 					}
-					Error(MESSAGE, routineName, "%s", NgStatus(line->Ng_prd, accel));
+					Message(rh, "%s", NgStatus(line->Ng_prd, accel));
 
 					drhomax = MAX(drho, drhomax);
 				}

@@ -245,22 +245,22 @@ static void printContraction(void)
 	m = rh->solver.NresHist - 1;
 	if (m < 2 || !(rh->solver.resHist[0] > 0.0) || !(rh->solver.resHist[rh->solver.NresHist - 1] >= 0.0) ||
 		!isfinite(rh->solver.resHist[0]) || !isfinite(rh->solver.resHist[rh->solver.NresHist - 1])) {
-		Error(MESSAGE, NULL, " -- Estimated contraction: no estimate (fewer than 4"
-							 " iterations, or no residual to compare)\n");
+		Message(rh, " -- Estimated contraction: no estimate (fewer than 4"
+					" iterations, or no residual to compare)\n");
 		return;
 	}
 	rlast  = rh->solver.resHist[rh->solver.NresHist - 1];
 	lambda = pow(rlast / rh->solver.resHist[0], 1.0 / m);
 	if (!(lambda < 1.0)) {
-		Error(MESSAGE, NULL, " -- Estimated contraction: no estimate (the residual"
-							 " did not decrease over the last %d iterations)\n",
-			  m);
+		Message(rh, " -- Estimated contraction: no estimate (the residual"
+					" did not decrease over the last %d iterations)\n",
+				m);
 		return;
 	}
-	Error(MESSAGE, NULL, " -- Estimated contraction %.3f per iteration (last %d"
-						 " iterations); the error of the populations may be up to"
-						 " about %.1E (residual / (1 - contraction))\n",
-		  lambda, m, rlast / (1.0 - lambda));
+	Message(rh, " -- Estimated contraction %.3f per iteration (last %d"
+				" iterations); the error of the populations may be up to"
+				" about %.1E (residual / (1 - contraction))\n",
+			lambda, m, rlast / (1.0 - lambda));
 }
 /* ------- end ---------------------------- residualHistory.c ------- */
 
@@ -320,7 +320,7 @@ static void printRhoNe(const double *x, const double *saved, const double *gx)
 			if (saved) old += rh->solver.blocks[n].N;
 		}
 		if (any) {
-			Error(MESSAGE, NULL, " rho %s: delta = %6.4E\n", atom->ID, dpops);
+			Message(rh, " rho %s: delta = %6.4E\n", atom->ID, dpops);
 		}
 	}
 	old = saved;
@@ -329,7 +329,7 @@ static void printRhoNe(const double *x, const double *saved, const double *gx)
 		if (rh->solver.blocks[n].kind == BLOCK_NE) {
 			dpops = relChange((saved) ? old : x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n],
 							  rh->solver.blocks[n].N);
-			Error(MESSAGE, NULL, " ne: delta = %6.4E\n", dpops);
+			Message(rh, " ne: delta = %6.4E\n", dpops);
 		}
 		if (saved) old += rh->solver.blocks[n].N;
 	}
@@ -372,9 +372,9 @@ static double prdSubIterations(int Nsub)
 				else
 					PRDScatter(line);
 				drho = PRDDamp(line, old, N);
-				Error(MESSAGE, NULL, "  PRD: sub-iteration %d, atom %s, line %d,"
-									 " delta = %6.4E\n",
-					  nsub, atom->ID, kr, drho);
+				Message(rh, "  PRD: sub-iteration %d, atom %s, line %d,"
+							" delta = %6.4E\n",
+						nsub, atom->ID, kr, drho);
 				drhomax = MAX(drho, drhomax);
 
 				/* --- rho <= 0 or not finite: stops the run, or at a
@@ -528,12 +528,12 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	saved = (double *) malloc(rhoNeSize() * sizeof(double) + 1);
 	resHistReset();
 
-	Error(MESSAGE, routineName, "\n -- SOLVER = FIXED_POINT: x <- G(x), %ld unknowns;"
-								" PRD sub-iterations per G: %d;\n    Ng on G: order %d,"
-								" delay %d, period %d%s\n",
-		  rh->solver.Nstate, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
-		  rh->input.Ngorder, rh->input.Ngdelay, rh->input.Ngperiod,
-		  (rh->input.Ngorder > 0) ? "" : " (none: plain G)");
+	Message(rh, "\n -- SOLVER = FIXED_POINT: x <- G(x), %ld unknowns;"
+				" PRD sub-iterations per G: %d;\n    Ng on G: order %d,"
+				" delay %d, period %d%s\n",
+			rh->solver.Nstate, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
+			rh->input.Ngorder, rh->input.Ngdelay, rh->input.Ngperiod,
+			(rh->input.Ngorder > 0) ? "" : " (none: plain G)");
 
 	/* --- Ng histories on the populations, as in the default solver.
 		   With NG_ORDER = 0 they only keep the previous iterate for
@@ -567,14 +567,14 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 		/* --- Change measure (and optional Ng) per atom, printed in
 			   the format of the default solver --        -------------- */
 
-		Error(MESSAGE, routineName, "\n -- Iteration %3d\n", niter);
+		Message(rh, "\n -- Iteration %3d\n", niter);
 		dpopsmax = 0.0;
 		for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 			atom  = rh->atmos.activeatoms[nact];
 			accel = Accelerate(atom->Ng_n, atom->n[0]);
 			snprintf(label, sizeof(label), " %s,", atom->ID);
 			dpops = MaxChange(atom->Ng_n, label, quiet = FALSE);
-			Error(MESSAGE, NULL, "%s", NgStatus(atom->Ng_n, accel));
+			Message(rh, "%s", NgStatus(atom->Ng_n, accel));
 			dpopsmax = MAX(dpops, dpopsmax);
 		}
 		for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
@@ -582,13 +582,13 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 			accel    = Accelerate(molecule->Ng_nv, molecule->nv[0]);
 			snprintf(label, sizeof(label), " %s ,", molecule->ID);
 			dpops = MaxChange(molecule->Ng_nv, label, quiet = FALSE);
-			Error(MESSAGE, NULL, "%s", NgStatus(molecule->Ng_nv, accel));
+			Message(rh, "%s", NgStatus(molecule->Ng_nv, accel));
 			dpopsmax = MAX(dpops, dpopsmax);
 		}
 		if (rh->input.solve_ne == ITERATION) {
-			Error(MESSAGE, NULL, " ne: last Newton step %.2E, chemical"
-								 " equilibrium: last Newton step %.2E\n",
-				  rh->solver.neChange, rh->solver.chemChange);
+			Message(rh, " ne: last Newton step %.2E, chemical"
+						" equilibrium: last Newton step %.2E\n",
+					rh->solver.neChange, rh->solver.chemChange);
 		}
 		printRhoNe(NULL, saved, x);
 		if (niter > 1) resHistAdd(dpopsmax); /* not the jump from the start */
@@ -608,26 +608,26 @@ void iterateFixedPoint(int NmaxIter, double iterLimit)
 	}
 
 	if (converged) {
-		Error(MESSAGE, routineName, "\n -- Converged in %d iterations: max change"
-									" %.4E < ITER_LIMIT = %.4E\n",
-			  niter, dpopsmax, iterLimit);
+		Message(rh, "\n -- Converged in %d iterations: max change"
+					" %.4E < ITER_LIMIT = %.4E\n",
+				niter, dpopsmax, iterLimit);
 	} else if (stopped) {
-		Error(WARNING, routineName, "Stopped on request (STOP_RH) after %d iterations:"
-									" NOT CONVERGED.\n The output is not a converged solution",
-			  niter - 1);
+		Warning(rh, routineName, "Stopped on request (STOP_RH) after %d iterations:"
+								 " NOT CONVERGED.\n The output is not a converged solution",
+				niter - 1);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	} else {
-		Error(WARNING, routineName, "NOT CONVERGED after %d iterations: max change"
-									" %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"
-									" solution; increase N_MAX_ITER or see what limits convergence",
-			  niter - 1, dpopsmax, iterLimit);
+		Warning(rh, routineName, "NOT CONVERGED after %d iterations: max change"
+								 " %.4E >= ITER_LIMIT = %.4E.\n The output is not a converged"
+								 " solution; increase N_MAX_ITER or see what limits convergence",
+				niter - 1, dpopsmax, iterLimit);
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	}
 	/* --- With Ng the residuals are those of accelerated iterates:
 		   no estimate, as for ANDERSON and NEWTON_KRYLOV --  ------- */
 
 	if (rh->input.Ngorder == 0) printContraction();
-	Error(MESSAGE, routineName, " -- G evaluations: %ld\n", rh->solver.Gcount);
+	Message(rh, " -- G evaluations: %ld\n", rh->solver.Gcount);
 
 	/* --- With ne in the state: the background of the final state, for
 		   the final formal solution and the output --   -------------- */
@@ -913,11 +913,11 @@ static void logSolve(int Nsolve, bool_t per_block, const AndersonSolve *info,
 		   iteration that solved (also when all were left out) -- --- */
 
 	for (b = 0; b < Nsolve; b++) {
-		Error(MESSAGE, NULL, "  Anderson%s%s: %d column%s, cond %.2E, %d dropped;"
-							 " |f|_W %.3E\n",
-			  (per_block) ? " " : "", (per_block) ? rh->solver.blocks[rh->solver.packBlock[b]].name : "",
-			  info[b].Ncols, (info[b].Ncols == 1) ? "" : "s", info[b].cond,
-			  info[b].Ndrop, fnorm);
+		Message(rh, "  Anderson%s%s: %d column%s, cond %.2E, %d dropped;"
+					" |f|_W %.3E\n",
+				(per_block) ? " " : "", (per_block) ? rh->solver.blocks[rh->solver.packBlock[b]].name : "",
+				info[b].Ncols, (info[b].Ncols == 1) ? "" : "s", info[b].cond,
+				info[b].Ndrop, fnorm);
 	}
 }
 /* ------- end ---------------------------- logSolve.c -------------- */
@@ -935,28 +935,28 @@ static double printChange(int niter, const double *x,
 		   definition on (x, G(x)), in the format of the other
 		   solvers. Returns the largest --            -------------- */
 
-	Error(MESSAGE, NULL, "\n -- Iteration %3d\n", niter);
+	Message(rh, "\n -- Iteration %3d\n", niter);
 	for (n = 0; n < rh->solver.Nblocks; n++) {
 		if (rh->solver.blocks[n].kind != BLOCK_ATOM && rh->solver.blocks[n].kind != BLOCK_MOLECULE)
 			continue;
 		dpops = relChange(x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n], rh->solver.blocks[n].N);
-		Error(MESSAGE, NULL, (rh->solver.blocks[n].kind == BLOCK_ATOM) ? " %s, delta = %6.4E\n" : " %s , delta = %6.4E\n",
-			  (rh->solver.blocks[n].kind == BLOCK_ATOM) ? ((Atom *) rh->solver.blocks[n].owner)->ID
-														: ((Molecule *) rh->solver.blocks[n].owner)->ID,
-			  dpops);
+		Message(rh, (rh->solver.blocks[n].kind == BLOCK_ATOM) ? " %s, delta = %6.4E\n" : " %s , delta = %6.4E\n",
+				(rh->solver.blocks[n].kind == BLOCK_ATOM) ? ((Atom *) rh->solver.blocks[n].owner)->ID
+														  : ((Molecule *) rh->solver.blocks[n].owner)->ID,
+				dpops);
 		dpopsmax = MAX(dpops, dpopsmax);
 	}
 	if (rh->input.solve_ne == ITERATION) {
-		Error(MESSAGE, NULL, " ne: last Newton step %.2E, chemical"
-							 " equilibrium: last Newton step %.2E\n",
-			  rh->solver.neChange, rh->solver.chemChange);
+		Message(rh, " ne: last Newton step %.2E, chemical"
+					" equilibrium: last Newton step %.2E\n",
+				rh->solver.neChange, rh->solver.chemChange);
 	}
 	printRhoNe(x, NULL, gx);
 	if (rh->input.errorLimit > 0.0) {
 		for (n = 0; n < rh->solver.Nblocks; n++) {
 			if (rh->solver.blocks[n].kind != BLOCK_J) continue;
-			Error(MESSAGE, NULL, " J: delta = %6.4E\n",
-				  relChange(x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n], rh->solver.blocks[n].N));
+			Message(rh, " J: delta = %6.4E\n",
+					relChange(x + rh->solver.blockStart[n], gx + rh->solver.blockStart[n], rh->solver.blocks[n].N));
 		}
 	}
 	return dpopsmax;
@@ -1023,16 +1023,16 @@ static void errorTestInit(ErrorTest *t)
 	t->Geval     = 0;
 	if (t->limit <= 0.0) return;
 
-	Error(MESSAGE, NULL, " -- ERROR_LIMIT = %.2E: the run stops when the estimated error"
-						 " of the\n    populations, rho, ne and J is below it%s; each"
-						 " estimate takes %d plain G\n    steps (memory %.1f MB)\n",
-		  t->limit,
-		  (rh->input.iterLimit_set) ? " and the residual of the populations below"
-									  " ITER_LIMIT"
-									: "",
-		  ERROR_STEPS,
-		  ((double) ERROR_STEPS * errorSize() + 2.0 * rh->solver.Nstate) * sizeof(double) /
-			  1.0E6);
+	Message(rh, " -- ERROR_LIMIT = %.2E: the run stops when the estimated error"
+				" of the\n    populations, rho, ne and J is below it%s; each"
+				" estimate takes %d plain G\n    steps (memory %.1f MB)\n",
+			t->limit,
+			(rh->input.iterLimit_set) ? " and the residual of the populations below"
+										" ITER_LIMIT"
+									  : "",
+			ERROR_STEPS,
+			((double) ERROR_STEPS * errorSize() + 2.0 * rh->solver.Nstate) * sizeof(double) /
+				1.0E6);
 }
 
 /* --- The residual of rho, ne and J (relChange) -- ----------------- */
@@ -1138,9 +1138,9 @@ static bool_t errorTestStop(ErrorTest *t, int niter,
 	t->residual = r;
 	t->estimate = e;
 	if (e >= 0.0 && e < t->limit) {
-		Error(MESSAGE, NULL, " -- Iteration %d: residual %.2E, estimated error %.2E <"
-							 " ERROR_LIMIT\n",
-			  niter, r, e);
+		Message(rh, " -- Iteration %d: residual %.2E, estimated error %.2E <"
+					" ERROR_LIMIT\n",
+				niter, r, e);
 
 		/* --- What G sets besides the state, that of G(x) -- -------- */
 
@@ -1152,16 +1152,14 @@ static bool_t errorTestStop(ErrorTest *t, int niter,
 	}
 	t->target = (e > 0.0) ? MIN(0.8 * r * t->limit / e, 0.8 * r) : 0.5 * r;
 	if (e >= 0.0)
-		Error(MESSAGE, NULL,
-			  " -- Iteration %d: residual %.2E, estimated error %.2E >="
-			  " ERROR_LIMIT;\n    next estimate at residual %.2E\n",
-			  niter, r, e, t->target);
+		Message(rh, " -- Iteration %d: residual %.2E, estimated error %.2E >="
+					" ERROR_LIMIT;\n    next estimate at residual %.2E\n",
+				niter, r, e, t->target);
 	else
-		Error(MESSAGE, NULL,
-			  " -- Iteration %d: residual %.2E, no error estimate (a plain"
-			  " step failed,\n    or no finite limit); next estimate at"
-			  " residual %.2E\n",
-			  niter, r, t->target);
+		Message(rh, " -- Iteration %d: residual %.2E, no error estimate (a plain"
+					" step failed,\n    or no finite limit); next estimate at"
+					" residual %.2E\n",
+				niter, r, t->target);
 	return FALSE;
 }
 
@@ -1205,8 +1203,8 @@ static void errorTestLimits(const ErrorTest *t, char *s, size_t n, double dpopsm
 static void errorTestSummary(const ErrorTest *t)
 {
 	if (t->limit <= 0.0) return;
-	Error(MESSAGE, NULL, " -- ERROR_LIMIT: %d error estimate%s, %ld G evaluations\n",
-		  t->Nestimate, (t->Nestimate == 1) ? "" : "s", t->Geval);
+	Message(rh, " -- ERROR_LIMIT: %d error estimate%s, %ld G evaluations\n",
+			t->Nestimate, (t->Nestimate == 1) ? "" : "s", t->Geval);
 }
 /* ------- end ---------------------------- errorTest.c ------------- */
 
@@ -1275,25 +1273,25 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 	opt.window    = rh->input.Anderson_safeguard_window;
 	delay         = MAX(rh->input.Anderson_delay, 2);
 
-	Error(MESSAGE, routineName, "\n -- SOLVER = ANDERSON: %ld unknowns in %d blocks; PRD"
-								" sub-iterations per G: %d;\n    ANDERSON_DEPTH = %d,"
-								" ANDERSON_DELAY = %d, ANDERSON_COND_MAX = %.1E,\n"
-								"    ANDERSON_SAFEGUARD = %g, ANDERSON_SAFEGUARD_WINDOW = %d,\n"
-								"    ANDERSON_VARIABLES = %s,"
-								" ANDERSON_COEFFICIENTS = %s,\n    ANDERSON_EXTRAPOLATE = %s%s:"
-								" %ld unknowns in %d blocks extrapolated;\n    memory: history"
-								" and variables %.1f MB, x, G(x) and G at the last accepted"
-								" point %.1f MB\n",
-		  rh->solver.Nstate, rh->solver.Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0, m,
-		  rh->input.Anderson_delay, rh->input.Anderson_cond_max,
-		  rh->input.Anderson_safeguard, rh->input.Anderson_safeguard_window,
-		  (rh->solver.varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
-		  (opt.per_block) ? "PER_BLOCK" : "GLOBAL",
-		  extrapolateName[rh->input.Anderson_extrapolate],
-		  rh->input.Anderson_extrapolate_default ? " (the default)" : "", rh->solver.Npacked, rh->solver.Npack,
-		  ((3.0 * m + 7 + (rh->solver.varKind == VARIABLES_RELATIVE)) * sizeof(double) + m + 4) *
-			  rh->solver.Npacked / 1.0E6,
-		  3.0 * sizeof(double) * rh->solver.Nstate / 1.0E6);
+	Message(rh, "\n -- SOLVER = ANDERSON: %ld unknowns in %d blocks; PRD"
+				" sub-iterations per G: %d;\n    ANDERSON_DEPTH = %d,"
+				" ANDERSON_DELAY = %d, ANDERSON_COND_MAX = %.1E,\n"
+				"    ANDERSON_SAFEGUARD = %g, ANDERSON_SAFEGUARD_WINDOW = %d,\n"
+				"    ANDERSON_VARIABLES = %s,"
+				" ANDERSON_COEFFICIENTS = %s,\n    ANDERSON_EXTRAPOLATE = %s%s:"
+				" %ld unknowns in %d blocks extrapolated;\n    memory: history"
+				" and variables %.1f MB, x, G(x) and G at the last accepted"
+				" point %.1f MB\n",
+			rh->solver.Nstate, rh->solver.Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0, m,
+			rh->input.Anderson_delay, rh->input.Anderson_cond_max,
+			rh->input.Anderson_safeguard, rh->input.Anderson_safeguard_window,
+			(rh->solver.varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE",
+			(opt.per_block) ? "PER_BLOCK" : "GLOBAL",
+			extrapolateName[rh->input.Anderson_extrapolate],
+			rh->input.Anderson_extrapolate_default ? " (the default)" : "", rh->solver.Npacked, rh->solver.Npack,
+			((3.0 * m + 7 + (rh->solver.varKind == VARIABLES_RELATIVE)) * sizeof(double) + m + 4) *
+				rh->solver.Npacked / 1.0E6,
+			3.0 * sizeof(double) * rh->solver.Nstate / 1.0E6);
 	/* --- Without PRD lines there is no rho to extrapolate: say so
 		   when the keyword file asked for POPULATIONS_RHO, the run goes
 		   on as POPULATIONS (S-11). The 2-D and 3-D default says
@@ -1303,8 +1301,8 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		!rh->input.Anderson_extrapolate_default) {
 		for (n = 0; n < rh->solver.Nblocks && rh->solver.blocks[n].kind != BLOCK_RHO; n++);
 		if (n == rh->solver.Nblocks) {
-			Error(WARNING, routineName, "ANDERSON_EXTRAPOLATE = POPULATIONS_RHO, but there are no PRD"
-										" lines:\n the same as POPULATIONS");
+			Warning(rh, routineName, "ANDERSON_EXTRAPOLATE = POPULATIONS_RHO, but there are no PRD"
+									 " lines:\n the same as POPULATIONS");
 		}
 	}
 	/* --- The carried blocks, several lines if needed -- -------- */
@@ -1321,7 +1319,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		} while (t < rh->solver.Ncarry &&
 				 strlen(line) + strlen(rh->solver.blocks[rh->solver.carryBlock[t]].name) + 4 < 80);
 		strcat(line, "\n");
-		Error(MESSAGE, NULL, "%s", line);
+		Message(rh, "%s", line);
 	}
 	errorTestInit(&et);
 
@@ -1351,9 +1349,9 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		negTauTrial(FALSE);
 		if (!Gok) {
 			negTauMessage(what, sizeof(what));
-			Error(MESSAGE, NULL, "\n -- Iteration %3d\n  Anderson: %s at the extrapolated point:"
-								 " point rejected; plain step from the last accepted point\n",
-				  niter, what);
+			Message(rh, "\n -- Iteration %3d\n  Anderson: %s at the extrapolated point:"
+						" point rejected; plain step from the last accepted point\n",
+					niter, what);
 			Nbadtrial++;
 			negTauReset();
 			andersonRejectTrial(a);
@@ -1380,10 +1378,10 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 							  un, gamma, info);
 		switch (action) {
 		case ANDERSON_REJECTED:
-			Error(MESSAGE, NULL, "  Anderson: point rejected, |f|_W %.3E > %g x %.3E;"
-								 " plain step from the last accepted point\n",
-				  andersonNorm(rh->solver.Npacked, u, gu, valid, w), opt.safeguard,
-				  a->fnorm_ref);
+			Message(rh, "  Anderson: point rejected, |f|_W %.3E > %g x %.3E;"
+						" plain step from the last accepted point\n",
+					andersonNorm(rh->solver.Npacked, u, gu, valid, w), opt.safeguard,
+					a->fnorm_ref);
 			memcpy(x, gacc, rh->solver.Nstate * sizeof(double));
 			break;
 
@@ -1393,17 +1391,17 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 			fromVars(un, gx, andersonMask(a), x);
 			guard = guardTrial(x, gx, NULL);
 			for (t = 1, theta = 0.5; guard != GUARD_OK && t <= 2; t++, theta *= 0.5) {
-				Error(MESSAGE, NULL, "  Anderson: guard: %s; step damped to %g\n",
-					  guardName[guard], theta);
+				Message(rh, "  Anderson: guard: %s; step damped to %g\n",
+						guardName[guard], theta);
 				Ndamped++;
 				andersonDamp(a, &opt, gamma, info, theta, un);
 				fromVars(un, gx, andersonMask(a), x);
 				guard = guardTrial(x, gx, NULL);
 			}
 			if (guard != GUARD_OK) {
-				Error(MESSAGE, NULL, "  Anderson: guard: %s; plain step,"
-									 " history restarted\n",
-					  guardName[guard]);
+				Message(rh, "  Anderson: guard: %s; plain step,"
+							" history restarted\n",
+						guardName[guard]);
 				Nguardplain++;
 				andersonAbandon(a, un);
 				memcpy(x, gx, rh->solver.Nstate * sizeof(double));
@@ -1423,7 +1421,7 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 
 	if (converged) {
 		errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, TRUE);
-		Error(MESSAGE, routineName, "\n -- Converged in %d iterations: %s\n", niter, limits);
+		Message(rh, "\n -- Converged in %d iterations: %s\n", niter, limits);
 	} else {
 		/* --- The output is G of the last accepted point: the state
 			   arrays may hold the image of a rejected one -- ------- */
@@ -1431,36 +1429,36 @@ void iterateAnderson(int NmaxIter, double iterLimit)
 		if (!stopped && niter > 1) errorTestFinal(&et, gacc);
 		if (niter > 1) stateScatter(gacc);
 		if (stopped) {
-			Error(WARNING, routineName,
-				  "Stopped on request (STOP_RH) after %d iterations:"
-				  " NOT CONVERGED.\n The output is not a converged"
-				  " solution",
-				  niter - 1);
+			Warning(rh, routineName,
+					"Stopped on request (STOP_RH) after %d iterations:"
+					" NOT CONVERGED.\n The output is not a converged"
+					" solution",
+					niter - 1);
 		} else {
 			errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, FALSE);
-			Error(WARNING, routineName,
-				  "NOT CONVERGED after %d iterations: %s.\n The output"
-				  " is not a converged solution; increase N_MAX_ITER or"
-				  " see what limits convergence",
-				  niter - 1, limits);
+			Warning(rh, routineName,
+					"NOT CONVERGED after %d iterations: %s.\n The output"
+					" is not a converged solution; increase N_MAX_ITER or"
+					" see what limits convergence",
+					niter - 1, limits);
 		}
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	}
-	Error(MESSAGE, routineName, " -- G evaluations: %ld\n -- Anderson: extrapolated %ld, plain %ld,"
-								" rejected %ld; guard: damped %ld, plain %ld; columns dropped %ld\n",
-		  rh->solver.Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
-		  a->Ndropped);
+	Message(rh, " -- G evaluations: %ld\n -- Anderson: extrapolated %ld, plain %ld,"
+				" rejected %ld; guard: damped %ld, plain %ld; columns dropped %ld\n",
+			rh->solver.Gcount, a->Nextrapolated, a->Nplain, a->Nrejected, Ndamped, Nguardplain,
+			a->Ndropped);
 	errorTestSummary(&et);
 	if (Nbadtrial > 0) {
-		Error(MESSAGE, routineName, " -- Anderson: %ld of the rejected points were invalid trial points"
-									" (negative total opacity, negative populations or non-positive PRD rho;"
-									" N-40, N-8, N-4)\n",
-			  Nbadtrial);
+		Message(rh, " -- Anderson: %ld of the rejected points were invalid trial points"
+					" (negative total opacity, negative populations or non-positive PRD rho;"
+					" N-40, N-8, N-4)\n",
+				Nbadtrial);
 	}
 	if (rh->solver.Ncarry > 0) {
-		Error(MESSAGE, routineName, " -- Anderson: carried blocks equal to G at the last accepted"
-									" point in %ld of %ld evaluations\n",
-			  Ncarried_ok, Ncarried);
+		Message(rh, " -- Anderson: carried blocks equal to G at the last accepted"
+					" point in %ld of %ld evaluations\n",
+				Ncarried_ok, Ncarried);
 	}
 
 	if (rh->input.solve_ne == ITERATION) BackgroundOfState(TRUE);
@@ -1632,20 +1630,20 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	ctx.Ninvalid  = 0;
 	ctx.Nbadtrial = 0;
 
-	Error(MESSAGE, routineName, "\n -- SOLVER = NEWTON_KRYLOV: %ld unknowns in %d blocks; PRD"
-								" sub-iterations per G: %d;\n    NEWTON_VARIABLES = %s,"
-								" NEWTON_NOISE = %.2E (finite-difference step h = %.2E),\n"
-								"    NEWTON_KRYLOV_MAX = %d (no restart), NEWTON_ETA_MAX = %g;\n"
-								"    forcing: Eisenstat-Walker choice 2, gamma = %g, alpha = %g,"
-								" safeguard above %g,\n    floor 0.5 x ITER_LIMIT / |R|_W;"
-								" line search: lambda = 1 ... 1/%d, Armijo %.0E;\n"
-								"    N_MAX_ITER caps G evaluations; memory %.1f MB\n",
-		  rh->solver.Nstate, rh->solver.Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
-		  (rh->solver.varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE", rh->input.Newton_noise,
-		  h, k, rh->input.Newton_eta_max, NEWTON_EW_GAMMA, NEWTON_EW_ALPHA,
-		  NEWTON_EW_SAFE, 1 << NEWTON_N_BACKTRACK, NEWTON_ARMIJO,
-		  ((k + 1.0 + 12 + (rh->solver.varKind == VARIABLES_RELATIVE)) * sizeof(double) + 4) *
-			  rh->solver.Nstate / 1.0E6);
+	Message(rh, "\n -- SOLVER = NEWTON_KRYLOV: %ld unknowns in %d blocks; PRD"
+				" sub-iterations per G: %d;\n    NEWTON_VARIABLES = %s,"
+				" NEWTON_NOISE = %.2E (finite-difference step h = %.2E),\n"
+				"    NEWTON_KRYLOV_MAX = %d (no restart), NEWTON_ETA_MAX = %g;\n"
+				"    forcing: Eisenstat-Walker choice 2, gamma = %g, alpha = %g,"
+				" safeguard above %g,\n    floor 0.5 x ITER_LIMIT / |R|_W;"
+				" line search: lambda = 1 ... 1/%d, Armijo %.0E;\n"
+				"    N_MAX_ITER caps G evaluations; memory %.1f MB\n",
+			rh->solver.Nstate, rh->solver.Nblocks, (rh->atmos.NPRDactive > 0) ? rh->input.PRD_NmaxIter : 0,
+			(rh->solver.varKind == VARIABLES_LOG) ? "LOG" : "RELATIVE", rh->input.Newton_noise,
+			h, k, rh->input.Newton_eta_max, NEWTON_EW_GAMMA, NEWTON_EW_ALPHA,
+			NEWTON_EW_SAFE, 1 << NEWTON_N_BACKTRACK, NEWTON_ARMIJO,
+			((k + 1.0 + 12 + (rh->solver.varKind == VARIABLES_RELATIVE)) * sizeof(double) + 4) *
+				rh->solver.Nstate / 1.0E6);
 
 	errorTestInit(&et);
 
@@ -1759,25 +1757,25 @@ void iterateNewton(int NmaxIter, double iterLimit)
 			}
 		}
 		if (accepted) {
-			Error(MESSAGE, NULL, "  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
-								 " |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); lambda %g"
-								 " (guard halvings %d: %d not finite, %d negative, %d invalid trial),"
-								 " |R(trial)|_W %.3E; G evaluations %ld\n",
-				  Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
-				  (gres.breakdown) ? " (invariant space)" : "", dinf,
-				  rh->solver.blocks[ninf].name, lambda, Nhalve, Nreason[GUARD_NONFINITE],
-				  Nreason[GUARD_NEGATIVE], Nbadtrial, rtnorm, Neval);
+			Message(rh, "  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
+						" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); lambda %g"
+						" (guard halvings %d: %d not finite, %d negative, %d invalid trial),"
+						" |R(trial)|_W %.3E; G evaluations %ld\n",
+					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
+					(gres.breakdown) ? " (invariant space)" : "", dinf,
+					rh->solver.blocks[ninf].name, lambda, Nhalve, Nreason[GUARD_NONFINITE],
+					Nreason[GUARD_NEGATIVE], Nbadtrial, rtnorm, Neval);
 			memcpy(x, xt, rh->solver.Nstate * sizeof(double));
 			memcpy(gx, gt, rh->solver.Nstate * sizeof(double));
 		} else {
-			Error(MESSAGE, NULL, "  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
-								 " |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); no lambda accepted"
-								 " (guard halvings %d: %d not finite, %d negative, %d invalid trial):"
-								 " plain step; G evaluations %ld\n",
-				  Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
-				  (gres.breakdown) ? " (invariant space)" : "", dinf,
-				  rh->solver.blocks[ninf].name, Nhalve, Nreason[GUARD_NONFINITE],
-				  Nreason[GUARD_NEGATIVE], Nbadtrial, Neval);
+			Message(rh, "  Newton step %ld: |R|_W %.3E, eta %.2E; GMRES %d products,"
+						" |R + J d|_W %.3E%s;\n  |d|_max %.2E (%s); no lambda accepted"
+						" (guard halvings %d: %d not finite, %d negative, %d invalid trial):"
+						" plain step; G evaluations %ld\n",
+					Nsteps, rnorm, eta, gres.Niter, gres.rnorm,
+					(gres.breakdown) ? " (invariant space)" : "", dinf,
+					rh->solver.blocks[ninf].name, Nhalve, Nreason[GUARD_NONFINITE],
+					Nreason[GUARD_NEGATIVE], Nbadtrial, Neval);
 			Nplain++;
 			if (Neval >= NmaxIter) {
 
@@ -1815,35 +1813,35 @@ void iterateNewton(int NmaxIter, double iterLimit)
 	stateScatter(gx);
 	if (converged) {
 		errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, TRUE);
-		Error(MESSAGE, routineName, "\n -- Converged at base point %d: %s\n", niter, limits);
+		Message(rh, "\n -- Converged at base point %d: %s\n", niter, limits);
 	} else {
 		if (stopped) {
-			Error(WARNING, routineName,
-				  "Stopped on request (STOP_RH) after %ld G"
-				  " evaluations: NOT CONVERGED.\n The output is not a"
-				  " converged solution",
-				  Neval);
+			Warning(rh, routineName,
+					"Stopped on request (STOP_RH) after %ld G"
+					" evaluations: NOT CONVERGED.\n The output is not a"
+					" converged solution",
+					Neval);
 		} else {
 			errorTestLimits(&et, limits, sizeof(limits), dpopsmax, iterLimit, FALSE);
-			Error(WARNING, routineName,
-				  "NOT CONVERGED after %ld G evaluations"
-				  " (N_MAX_ITER = %d): %s.\n The output is not a converged"
-				  " solution; increase N_MAX_ITER or see what limits"
-				  " convergence",
-				  Neval, NmaxIter, limits);
+			Warning(rh, routineName,
+					"NOT CONVERGED after %ld G evaluations"
+					" (N_MAX_ITER = %d): %s.\n The output is not a converged"
+					" solution; increase N_MAX_ITER or see what limits"
+					" convergence",
+					Neval, NmaxIter, limits);
 		}
 		SetExitFlag(RH_EXIT_NOT_CONVERGED);
 	}
-	Error(MESSAGE, routineName, " -- G evaluations: %ld\n -- Newton: steps %ld, G evaluations base %ld,"
-								" Krylov %ld, line search %ld (lost an entry %ld); plain steps %ld;"
-								" guard halvings %ld; invalid probe entries %ld; restoring %ld\n",
-		  Neval, Nsteps, Nbase, Nkrylov, Nline, Nlost, Nplain, Nguard,
-		  ctx.Ninvalid, Nrestore);
+	Message(rh, " -- G evaluations: %ld\n -- Newton: steps %ld, G evaluations base %ld,"
+				" Krylov %ld, line search %ld (lost an entry %ld); plain steps %ld;"
+				" guard halvings %ld; invalid probe entries %ld; restoring %ld\n",
+			Neval, Nsteps, Nbase, Nkrylov, Nline, Nlost, Nplain, Nguard,
+			ctx.Ninvalid, Nrestore);
 	errorTestSummary(&et);
 	if (ctx.Nbadtrial > 0) {
-		Error(MESSAGE, routineName, " -- Newton: %ld Jacobian probes were invalid trial points (negative"
-									" total opacity, populations or PRD rho, N-40, N-8, N-4) and gave a zero product\n",
-			  ctx.Nbadtrial);
+		Message(rh, " -- Newton: %ld Jacobian probes were invalid trial points (negative"
+					" total opacity, populations or PRD rho, N-40, N-8, N-4) and gave a zero product\n",
+				ctx.Nbadtrial);
 	}
 
 	if (rh->input.solve_ne == ITERATION) BackgroundOfState(TRUE);

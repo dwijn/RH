@@ -134,7 +134,7 @@ void initSolution(void)
 		}
 		break;
 	default:
-		Error(ERROR_LEVEL_2, routineName, "Unknown topology (%d)", rh->topology);
+		Error(rh, ERROR_LEVEL_2, routineName, "Unknown topology (%d)", rh->topology);
 	}
 	/* --- Read angle-averaged intensity from previous run if necessary,
 		   and open file for J in case option for limited memory is set */
@@ -162,13 +162,13 @@ void initSolution(void)
 	}
 	if (openJfile) {
 		if ((rh->spectrum.fd_J = open(rh->input.JFile, oflag, PERMISSIONS)) == -1) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s with permission %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s with permission %s",
 				  rh->input.JFile, permission);
 		}
 		if (rh->input.backgr_pol) {
 			if ((rh->spectrum.fd_J20 = open(J20_DOT_OUT, oflag,
 											PERMISSIONS)) == -1) {
-				Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s with permission %s",
+				Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s with permission %s",
 					  J20_DOT_OUT, permission);
 			}
 		}
@@ -227,12 +227,12 @@ void initSolution(void)
 
 			fclose(fp);
 			readJgas(rh->spectrum.Jgas);
-			Error(MESSAGE, routineName, "Read spectrum.Jgas from file.");
+			Message(rh, "Read spectrum.Jgas from file.");
 		} else {
 
 			/* --- File does not exist --                    -------------- */
 
-			Error(WARNING, routineName, "Jgas.dat does not exist,setting spectrum.Jgas spectrum.J.");
+			Warning(rh, routineName, "Jgas.dat does not exist,setting spectrum.Jgas spectrum.J.");
 
 			for (k = 0; k < rh->atmos.Nspace; k++) {
 				for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++) {
@@ -262,7 +262,7 @@ void initSolution(void)
 			oflag |= (O_RDWR | O_CREAT);
 		}
 		if ((rh->spectrum.fd_Imu = open(IMU_FILENAME, oflag, PERMISSIONS)) == -1) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to open %s file %s with permission %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open %s file %s with permission %s",
 				  (rh->spectrum.updateJ) ? "update" : "input",
 				  IMU_FILENAME, permission);
 		}
@@ -286,7 +286,7 @@ void initSolution(void)
 
 		char *isPRD = (char *) malloc(rh->spectrum.Nspect);
 
-		if (isPRD == NULL) Error(ERROR_LEVEL_2, routineName, "Out of memory");
+		if (isPRD == NULL) Error(rh, ERROR_LEVEL_2, routineName, "Out of memory");
 
 		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
 			isPRD[nspect] = containsPRDline(&rh->spectrum.as[nspect]);

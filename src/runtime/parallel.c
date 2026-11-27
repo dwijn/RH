@@ -73,8 +73,8 @@ void parallelFor(int N, int nthreads, ParallelRange work, void *arg)
 
 			/* --- Could not start the thread: do its share here instead --- */
 
-			Error(WARNING, "parallelFor",
-				  "Could not create a thread, running its share in the caller");
+			Warning(rh, "parallelFor",
+					"Could not create a thread, running its share in the caller");
 			runChunk(&chunk[nt]);
 		} else
 			started[nt] = TRUE;
@@ -157,8 +157,8 @@ void parallelForDynamic(int N, int chunk, int nthreads,
 			/* --- Could not start the thread: the others will simply
 				   take its chunks. Worker nt stays unused --  ---------- */
 
-			Error(WARNING, "parallelForDynamic",
-				  "Could not create a thread, its chunks go to the others");
+			Warning(rh, "parallelForDynamic",
+					"Could not create a thread, its chunks go to the others");
 		} else
 			started[nt] = TRUE;
 	}

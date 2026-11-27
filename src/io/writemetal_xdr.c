@@ -37,7 +37,7 @@ bool_t writeMetals(char *fileName)
 	if (!strcmp(fileName, "none")) return result;
 
 	if ((fp_out = fopen(fileName, "w")) == NULL) {
-		Error(ERROR_LEVEL_1, routineName, "Unable to open output file %s", fileName);
+		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open output file %s", fileName);
 		return FALSE;
 	}
 	xdrstdio_create(&xdrs, fp_out, XDR_ENCODE);

@@ -60,7 +60,7 @@ void SortLambda()
 
 	if (strcmp(rh->input.wavetable_input, "none")) {
 		if ((fp_wavetable = fopen(rh->input.wavetable_input, "r")) == NULL) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to open input file %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s",
 				  rh->input.wavetable_input);
 		}
 		xdrstdio_create(&xdrs, fp_wavetable, XDR_DECODE);
@@ -70,7 +70,7 @@ void SortLambda()
 		result &= xdr_vector(&xdrs, (char *) wavetable, Nwave,
 							 sizeof(double), (xdrproc_t) rh_xdr_double);
 		if (!result) {
-			Error(ERROR_LEVEL_2, routineName, "Unable to read from input file %s",
+			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s",
 				  rh->input.wavetable_input);
 		}
 		xdr_destroy(&xdrs);
@@ -223,11 +223,11 @@ void SortLambda()
 			rh->spectrum.Nspect++;
 		}
 	}
-	Error(MESSAGE, routineName, "\n %s: Found %d unique wavelengths\n",
-		  routineName, rh->spectrum.Nspect);
+	Message(rh, "\n %s: Found %d unique wavelengths\n",
+			routineName, rh->spectrum.Nspect);
 	if (rh->spectrum.Nspect < Nspectrum) {
-		Error(MESSAGE, routineName, " %s: Eliminated %d duplicate wavelengths\n\n",
-			  routineName, Nspectrum - rh->spectrum.Nspect);
+		Message(rh, " %s: Eliminated %d duplicate wavelengths\n\n",
+				routineName, Nspectrum - rh->spectrum.Nspect);
 	}
 	/* --- Allocate space for wavelength array and active sets -- ----- */
 
@@ -318,8 +318,8 @@ void SortLambda()
 				as->Nactiveatomrt[nact]++;
 
 				if (as->Nactiveatomrt[nact] == N_MAX_OVERLAP) {
-					Error(ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
-													  "for atom %s and nspect = %d\n",
+					Error(rh, ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
+														  "for atom %s and nspect = %d\n",
 						  as->Nactiveatomrt[nact], atom->ID, nspect);
 				}
 			}
@@ -396,8 +396,8 @@ void SortLambda()
 				as->Nactiveatomrt[nact]++;
 
 				if (as->Nactiveatomrt[nact] == N_MAX_OVERLAP) {
-					Error(ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
-													  "for atom %s and nspect = %d\n",
+					Error(rh, ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
+														  "for atom %s and nspect = %d\n",
 						  as->Nactiveatomrt[nact], atom->ID, nspect);
 				}
 			}
@@ -443,8 +443,8 @@ void SortLambda()
 				as->Nactivemolrt[nact]++;
 
 				if (as->Nactivemolrt[nact] == N_MAX_OVERLAP) {
-					Error(ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
-													  "for molecule %s and nspect = %d\n",
+					Error(rh, ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
+														  "for molecule %s and nspect = %d\n",
 						  as->Nactivemolrt[nact], molecule->ID, nspect);
 				}
 			}
