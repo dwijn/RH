@@ -68,11 +68,6 @@ _Noreturn void Error(RHState *rh, enum errorlevel level,
 #define Warning(rh, routineName, ...) \
 	Log((rh), WARNING, (routineName), __VA_ARGS__)
 
-/* --- The one instance of the state, until every function that uses
-	   it is passed it (Q-49) --                       -------------- */
-
-extern RHState *const rh;
-
 void SetExitFlag(RHState *rh, int flag);
 int  ExitStatus(RHState *rh);
 

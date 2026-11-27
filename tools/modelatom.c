@@ -25,6 +25,8 @@
 
 /* --- Global variables --                             -------------- */
 
+extern RHState *const rh; /* the tool's, in its main file */
+
 /* ------- begin -------------------------- writeModelAtom.c -------- */
 
 void writeModelAtom(Atom *atom, FILE *fp_out)

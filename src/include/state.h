@@ -10,11 +10,10 @@
 
 /* --- What the programs used to define as separate globals. Each
 	   program (and tests/unit/globals.c) defines the one instance
-	   with RH_STATE_INIT and the pointer rh to it; the library reaches
-	   the state through rh, as in rh->atmos.T. In phase 3 a parameter
-	   RHState *rh takes over the name, and the code that uses it stays
-	   as it is. rh is a const pointer, so the compiler loads it once
-	   per function and keeps it across calls.
+	   with RH_STATE_INIT and a pointer rh to it, and passes rh to the
+	   library: the functions that use the state take it as their
+	   first parameter, RHState *rh, as in rh->atmos.T (Q-49). There is
+	   no global: the library cannot reach a state it was not given.
 
 	 - The type of the geometry differs per geometry (geometry.h in
 	   src/geometry/<geometry>), so the library holds a pointer to it

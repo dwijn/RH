@@ -26,6 +26,8 @@
 
 /* --- Global variables --                             -------------- */
 
+extern RHState *const rh; /* the tool's, in its main file */
+
 /* ------- begin -------------------------- rawAtom.c --------------- */
 
 void rawAtom(Atom *atom, char *atomFileName)
