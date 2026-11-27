@@ -70,7 +70,7 @@ rh_status parallelFor(RHState *rh, int N, int nthreads, ParallelRange work, void
 
 	size    = (N + nthreads - 1) / nthreads;
 	Nchunk  = (N + size - 1) / size;
-	chunk   = (Chunk *) malloc(Nchunk * sizeof(Chunk));
+	chunk   = (Chunk *) calloc(Nchunk, sizeof(Chunk));
 	id      = (pthread_t *) malloc(Nchunk * sizeof(pthread_t));
 	started = (bool_t *) calloc(Nchunk, sizeof(bool_t));
 
