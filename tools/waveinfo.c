@@ -50,7 +50,6 @@ int main(int argc, char *argv[])
 {
 	register int i;
 
-	char    format[] = "%9.3f   %9.3f   %9.3f   %9.3f   %9.3f\n";
 	bool_t  showfull = FALSE, to_air = FALSE;
 	int     Nlambda;
 	char   *fileName;
@@ -127,15 +126,19 @@ int main(int argc, char *argv[])
 		fprintf(stderr,
 				"\n Found %d wavelengths, ranging from %9.3f to %9.3f [nm]%s\n\n",
 				Nlambda, lambda[0], lambda[Nlambda - 1],
-				(to_air) ? " (in air)" : " (in vaccuum)");
+				(to_air) ? " (in air)" : " (in vacuum)");
 	}
-	if (showfull) {
-		for (i = 0; i < Nlambda - 5; i += 5) {
-			printf(format, lambda[i], lambda[i + 1], lambda[i + 2],
-				   lambda[i + 3], lambda[i + 4]);
+	/* --- Five wavelengths to a row, each once (B-76: the last row was
+		   always the last five) --                       -------------- */
+
+	if (showfull && Nlambda > 0) {
+		for (i = 0; i < Nlambda; i++) {
+			printf("%9.3f", lambda[i]);
+			if (i == Nlambda - 1)
+				printf("\n\n");
+			else
+				printf("%s", (i % 5 == 4) ? "\n" : "   ");
 		}
-		for (i = MAX(Nlambda - 5, 0); i < Nlambda; i++)
-			printf("%9.3f%s", lambda[i], (i == Nlambda - 1) ? "\n\n" : "   ");
 	}
 	free(lambda);
 	exit(EXIT_SUCCESS);
