@@ -40,7 +40,6 @@ int main(int argc, char *argv[])
 	register int k;
 
 	char   line[MAX_LINE_SIZE];
-	bool_t exit_on_EOF;
 	int    Nread;
 	double Pe;
 
@@ -62,7 +61,7 @@ int main(int argc, char *argv[])
 			ATMOS_ID_WIDTH);
 	atmos.ID[ATMOS_ID_WIDTH - 1] = '\0';
 
-	getLine(rh, fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF = TRUE);
+	ExitOnError(rh, getLine(rh, fp_Trujillo, COMMENT_CHAR, line));
 	Nread = sscanf(line, "%d", &geometry.Ndep);
 	if (Nread != 1) {
 		Error(rh, ERROR_LEVEL_2, argv[0], "Malformed input line:\n %.200s", line);
@@ -83,7 +82,7 @@ int main(int argc, char *argv[])
 	atmos.chi_B   = (double *) malloc(geometry.Ndep * sizeof(double));
 
 	for (k = geometry.Ndep - 1; k >= 0; k--) {
-		getLine(rh, fp_Trujillo, COMMENT_CHAR, line, exit_on_EOF = TRUE);
+		ExitOnError(rh, getLine(rh, fp_Trujillo, COMMENT_CHAR, line));
 		Nread = sscanf(line, "%lf %lf %lf %lf %lf %lf %lf %lf",
 					   &geometry.tau_ref[k], &atmos.T[k], &Pe, &atmos.vturb[k],
 					   &atmos.B[k], &geometry.vel[k], &atmos.gamma_B[k],

@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 	register int k, mu, n;
 
 	char   chartFileName[10], inputLine[MAX_LINE_SIZE];
-	bool_t result, exit_on_EOF, crosscoupling, to_obs, initialize,
+	bool_t result, crosscoupling, to_obs, initialize,
 		boundbound, PRD_angle_dep, polarized_as,
 		polarized_c, angle_dep, analyze_output, equilibria_only;
 	int        Nspect, Nread, *wave_index, checkPoint;
@@ -64,13 +64,13 @@ int main(int argc, char *argv[])
 	XDR        xdrs;
 	ActiveSet *as;
 
-	setOptions(rh, argc, argv);
+	ExitOnError(rh, setOptions(rh, argc, argv));
 	getCPU(rh, 0, TIME_START, NULL);
 	SetFPEtraps(rh);
 
 	/* --- Read input data and initialize --             -------------- */
 
-	readInput(rh);
+	ExitOnError(rh, readInput(rh));
 	rh->spectrum.updateJ = FALSE;
 
 	getCPU(rh, 1, TIME_START, NULL);
@@ -107,12 +107,12 @@ int main(int argc, char *argv[])
 		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", FLOW_DOT_INPUT);
 	}
 
-	getLine(rh, fp_flow, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	ExitOnError(rh, getLine(rh, fp_flow, COMMENT_CHAR, inputLine));
 	Nread      = sscanf(strtok(inputLine, " "), "%d", &Nspect);
 	wave_index = (int *) mallocOrAbort(Nspect * sizeof(int));
 	for (n = 0; n < Nspect; n++)
 		Nread += sscanf(strtok(NULL, " "), "%d", wave_index + n);
-	checkNread(rh, Nread, Nspect + 1, argv[0], checkPoint = 2);
+	ExitOnError(rh, checkNread(rh, Nread, Nspect + 1, argv[0], checkPoint = 2));
 	fclose(fp_flow);
 
 	I   = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));

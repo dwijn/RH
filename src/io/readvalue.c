@@ -19,9 +19,11 @@
 		   enum keywordtype type;      -- One of three types:
 										  KEYWORD_REQUIRED, KEYWORD_DEFAULT,
 										  and KEYWORD_OPTIONAL.
-		   void *pointer, (*setValue)(RHState *rh, char *value,
-									   void *pointer);
-									   -- pointer to function of type void
+		   void *pointer;
+		   rh_status (*setValue)(RHState *rh, char *value,
+								 void *pointer);
+									   -- pointer to function that
+										  returns a status (Q-56),
 										  accepting the state, pointer to
 										  string value and pointer to
 										  actual value.
@@ -62,21 +64,21 @@ int pthread_setconcurrency(int new_level);
 
 /* ------- begin -------------------------- readValues.c ------------ */
 
-void readValues(RHState *rh, FILE *fp_keyword, int Nkeyword, Keyword *theKeywords)
+rh_status readValues(RHState *rh, FILE *fp_keyword, int Nkeyword, Keyword *theKeywords)
 {
 	const char   routineName[] = "readValues";
 	register int n;
 
 	char keyword[MAX_KEYWORD_LENGTH], value[MAX_VALUE_LENGTH],
 		line[MAX_LINE_SIZE];
-	bool_t recognized, exit_on_EOF;
+	bool_t recognized;
 	int    nread;
 
 	/* --- Read input data line-by-line --                ------------- */
 
-	while (getLine(rh, fp_keyword, COMMENT_CHAR, line, exit_on_EOF = FALSE) != EOF) {
+	while (getLineOrEOF(fp_keyword, COMMENT_CHAR, line) != EOF) {
 		if ((nread = sscanf(line, "%s = %s", keyword, value)) != 2) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Missing input value for keyword %s", keyword);
+			return Fail(rh, RH_E_INPUT, routineName, "Missing input value for keyword %s", keyword);
 		}
 
 		recognized = FALSE;
@@ -102,11 +104,12 @@ void readValues(RHState *rh, FILE *fp_keyword, int Nkeyword, Keyword *theKeyword
 	for (n = 0; n < Nkeyword; n++) {
 		if ((!theKeywords[n].set) &&
 			(theKeywords[n].type == KEYWORD_REQUIRED)) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Missing input value for required keyword %s",
-				  theKeywords[n].keyword);
+			return Fail(rh, RH_E_INPUT, routineName, "Missing input value for required keyword %s",
+						theKeywords[n].keyword);
 		}
-		(*theKeywords[n].setValue)(rh, theKeywords[n].value, theKeywords[n].pointer);
+		RH_TRY((*theKeywords[n].setValue)(rh, theKeywords[n].value, theKeywords[n].pointer));
 	}
+	return RH_OK;
 }
 /* ------- end ---------------------------- readValues.c ------------ */
 
@@ -146,49 +149,53 @@ void showValues(int Nkeyword, Keyword *theKeywords)
 
 /* ------- begin -------------------------- setcharValue.c ---------- */
 
-void setcharValue(RHState *rh, char *value, void *pointer)
+rh_status setcharValue(RHState *rh, char *value, void *pointer)
 {
 	(void) rh;
 	strcpy((char *) pointer, value);
+	return RH_OK;
 }
 /* ------- end ---------------------------- setcharValue.c ---------- */
 
 /* ------- begin -------------------------- setintValue.c ----------- */
 
-void setintValue(RHState *rh, char *value, void *pointer)
+rh_status setintValue(RHState *rh, char *value, void *pointer)
 {
 	int intvalue = atoi(value);
 
 	(void) rh;
 	memcpy(pointer, &intvalue, sizeof(int));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setintValue.c ----------- */
 
 /* ------- begin -------------------------- setdoubleValue.c -------- */
 
-void setdoubleValue(RHState *rh, char *value, void *pointer)
+rh_status setdoubleValue(RHState *rh, char *value, void *pointer)
 {
 	double doublevalue = atof(value);
 
 	(void) rh;
 	memcpy(pointer, &doublevalue, sizeof(double));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setdoubleValue.c -------- */
 
 /* ------- begin -------------------------- setboolValue.c ---------- */
 
-void setboolValue(RHState *rh, char *value, void *pointer)
+rh_status setboolValue(RHState *rh, char *value, void *pointer)
 {
 	bool_t boolvalue = (strstr(value, "TRUE")) ? TRUE : FALSE;
 
 	(void) rh;
 	memcpy(pointer, &boolvalue, sizeof(bool_t));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setboolValue.c ---------- */
 
 /* ------- begin -------------------------- setAngleSet.c ----------- */
 
-void setAngleSet(RHState *rh, char *value, void *pointer)
+rh_status setAngleSet(RHState *rh, char *value, void *pointer)
 {
 	int      Ninclination, Nazimuth;
 	AngleSet angleSet;
@@ -220,8 +227,8 @@ void setAngleSet(RHState *rh, char *value, void *pointer)
 
 	else if (strstr(value, "SET_GL_")) {
 		if (sscanf(value, "SET_GL_%dX%d", &Ninclination, &Nazimuth) != 2) {
-			Error(rh, ERROR_LEVEL_2, "setAngleSet", "\n  Invalid Gauss-Legandre format for keyword ANGLE_SET: %s",
-				  value);
+			return Fail(rh, RH_E_INPUT, "setAngleSet", "\n  Invalid Gauss-Legandre format for keyword ANGLE_SET: %s",
+						value);
 		}
 		angleSet.set          = SET_GL;
 		angleSet.Ninclination = Ninclination;
@@ -232,17 +239,18 @@ void setAngleSet(RHState *rh, char *value, void *pointer)
 				Ninclination, Nazimuth);
 
 		if (Ninclination <= 0 || Ninclination > NMAXINCLINATION) {
-			Error(rh, ERROR_LEVEL_2, "setAngleSet", "\n  Invalid value for Ninclination in angleset: %d",
-				  Ninclination);
+			return Fail(rh, RH_E_INPUT, "setAngleSet", "\n  Invalid value for Ninclination in angleset: %d",
+						Ninclination);
 		}
 		if (Nazimuth <= 0 || Nazimuth > NMAXAZIMUTH) {
-			Error(rh, ERROR_LEVEL_2, "setAngleSet", "\n  Invalid value for Nazimuth in angleset: %d",
-				  Nazimuth);
+			return Fail(rh, RH_E_INPUT, "setAngleSet", "\n  Invalid value for Nazimuth in angleset: %d",
+						Nazimuth);
 		}
 	} else {
-		Error(rh, ERROR_LEVEL_2, "setAngleSet", "\n  Invalid value for keyword ANGLE_SET: %s", value);
+		return Fail(rh, RH_E_INPUT, "setAngleSet", "\n  Invalid value for keyword ANGLE_SET: %s", value);
 	}
 	memcpy(pointer, &angleSet, sizeof(AngleSet));
+	return RH_OK;
 }
 /* ------- begin -------------------------- initAngleSet.c ---------- */
 
@@ -256,7 +264,7 @@ void initAngleSet(AngleSet *angleSet)
 
 /* ------- begin -------------------------- setStokesMode.c --------- */
 
-void setStokesMode(RHState *rh, char *value, void *pointer)
+rh_status setStokesMode(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setStokesMode";
 
@@ -269,15 +277,16 @@ void setStokesMode(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "FULL_STOKES"))
 		StokesMode = FULL_STOKES;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for keyword STOKES_MODE: %s", value);
+		return Fail(rh, RH_E_INPUT, routineName, "Invalid value for keyword STOKES_MODE: %s", value);
 	}
 	memcpy(pointer, &StokesMode, sizeof(enum_t));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setStokesMode.c --------- */
 
 /* ------- begin -------------------------- setThreadValue.c -------- */
 
-void setThreadValue(RHState *rh, char *value, void *pointer)
+rh_status setThreadValue(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setThreadValue";
 
@@ -312,20 +321,21 @@ void setThreadValue(RHState *rh, char *value, void *pointer)
 		/* --- Suggest thread concurrency to the operating system -- ---- */
 
 		if ((return_value = pthread_setconcurrency(Nthreads)))
-			Error(rh, ERROR_LEVEL_2, routineName,
-				  "Failed to set concurrency level for threads.");
+			return Fail(rh, RH_E_INPUT, routineName,
+						"Failed to set concurrency level for threads.");
 		else {
 			Warning(rh, routineName, "Setting thread concurrency to %d", Nthreads);
 		}
 	}
 
 	memcpy(pointer, &Nthreads, sizeof(int));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setThreadValue.c -------- */
 
 /* ------- begin -------------------------- setInterpolate_2D.c ----- */
 
-void setInterpolate_2D(RHState *rh, char *value, void *pointer)
+rh_status setInterpolate_2D(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setInterpolate_2D";
 
@@ -336,17 +346,18 @@ void setInterpolate_2D(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "BEZIER_2D"))
 		order = BEZIER_2D;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "\n  Invalid value for keyword INTERPOLATE_2D: %s\n"
-											  "  Use BEZIER_2D (monotonic cubic Bezier) or LINEAR_2D",
-			  value);
+		return Fail(rh, RH_E_INPUT, routineName, "\n  Invalid value for keyword INTERPOLATE_2D: %s\n"
+												 "  Use BEZIER_2D (monotonic cubic Bezier) or LINEAR_2D",
+					value);
 	}
 	memcpy(pointer, &order, sizeof(enum order_2D));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setInterpolate_2D.c ----- */
 
 /* ------- begin -------------------------- setInterpolate_3D.c ----- */
 
-void setInterpolate_3D(RHState *rh, char *value, void *pointer)
+rh_status setInterpolate_3D(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setInterpolate_3D";
 
@@ -357,39 +368,41 @@ void setInterpolate_3D(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "BICUBIC_3D"))
 		order = BICUBIC_3D;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "\n  Invalid value for keyword INTERPOLATE_3D: %s", value);
+		return Fail(rh, RH_E_INPUT, routineName, "\n  Invalid value for keyword INTERPOLATE_3D: %s", value);
 	}
 	memcpy(pointer, &order, sizeof(enum order_3D));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setInterpolate_3D.c ----- */
 
 /* ------- begin -------------------------- set_S_Interpolation.c --- */
 
-void set_S_Interpolation(RHState *rh, char *value, void *pointer)
+rh_status set_S_Interpolation(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "set_S_Interpolation";
 
 	enum S_interpol interpolation;
 
 	if (!strcmp(value, "S_PARABOLIC")) {
-		Error(rh, ERROR_LEVEL_2, routineName, "\n  S_INTERPOLATION = S_PARABOLIC has been removed:"
-											  " the quadratic\n  interpolation is not monotonic and makes the"
-											  " iteration unstable\n  in dynamic atmospheres. Use S_BEZIER3"
-											  " (monotonic, higher order)\n  or S_LINEAR");
+		return Fail(rh, RH_E_INPUT, routineName, "\n  S_INTERPOLATION = S_PARABOLIC has been removed:"
+												 " the quadratic\n  interpolation is not monotonic and makes the"
+												 " iteration unstable\n  in dynamic atmospheres. Use S_BEZIER3"
+												 " (monotonic, higher order)\n  or S_LINEAR");
 	} else if (!strcmp(value, "S_LINEAR"))
 		interpolation = S_LINEAR;
 	else if (!strcmp(value, "S_BEZIER3"))
 		interpolation = S_BEZIER3;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "\n  Invalid value for keyword S_INTERPOLATION: %s", value);
+		return Fail(rh, RH_E_INPUT, routineName, "\n  Invalid value for keyword S_INTERPOLATION: %s", value);
 	}
 	memcpy(pointer, &interpolation, sizeof(enum S_interpol));
+	return RH_OK;
 }
 /* ------- end ---------------------------- set_S_Interpolation.c --- */
 
 /* ------- begin ------------------ set_S_interpolation_longchar.c --- */
 
-void set_S_interpolation_longchar(RHState *rh, char *value, void *pointer)
+rh_status set_S_interpolation_longchar(RHState *rh, char *value, void *pointer)
 {
 	/* --- Integration of S along the long characteristics of the 2-D
 		   and 3-D unpolarized formal solution (N-39): S_LINEAR or
@@ -404,18 +417,18 @@ void set_S_interpolation_longchar(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "S_BEZIER3"))
 		interpolation = S_BEZIER3;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "\n  Invalid value for keyword S_INTERPOLATION_LONGCHAR: %s"
-											  " (S_LINEAR or S_BEZIER3)",
-			  value);
-		return;
+		return Fail(rh, RH_E_INPUT, routineName, "\n  Invalid value for keyword S_INTERPOLATION_LONGCHAR: %s"
+												 " (S_LINEAR or S_BEZIER3)",
+					value);
 	}
 	memcpy(pointer, &interpolation, sizeof(enum S_interpol));
+	return RH_OK;
 }
 /* ------- end -------------------- set_S_interpolation_longchar.c --- */
 
 /* ------- begin ------------------- set_S_interpolation_stokes.c --- */
 
-void set_S_interpolation_stokes(RHState *rh, char *value, void *pointer)
+rh_status set_S_interpolation_stokes(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "set_S_interpolation_stokes";
 
@@ -424,19 +437,20 @@ void set_S_interpolation_stokes(RHState *rh, char *value, void *pointer)
 	if (!strcmp(value, "DELO_BEZIER3"))
 		interpolation = DELO_BEZIER3;
 	else if (!strcmp(value, "DELO_PARABOLIC")) {
-		Error(rh, ERROR_LEVEL_2, routineName, "S_INTERPOLATION_STOKES = DELO_PARABOLIC has been"
-											  " removed:\n  the quadratic interpolation is not monotonic. Use"
-											  " DELO_BEZIER3");
+		return Fail(rh, RH_E_INPUT, routineName, "S_INTERPOLATION_STOKES = DELO_PARABOLIC has been"
+												 " removed:\n  the quadratic interpolation is not monotonic. Use"
+												 " DELO_BEZIER3");
 	} else {
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for keyword S_INTERPOLATION_STOKES: %s", value);
+		return Fail(rh, RH_E_INPUT, routineName, "Invalid value for keyword S_INTERPOLATION_STOKES: %s", value);
 	}
 	memcpy(pointer, &interpolation, sizeof(enum S_interpol_stokes));
+	return RH_OK;
 }
 /* ------- end --------------------- set_S_interpolation_stokes.c --- */
 
 /* ------- begin ------------------- setPRDangle.c ------------------ */
 
-void setPRDangle(RHState *rh, char *value, void *pointer)
+rh_status setPRDangle(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setPRDangle";
 
@@ -449,15 +463,16 @@ void setPRDangle(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "PRD_ANGLE_DEP"))
 		PRD_angle_dep = PRD_ANGLE_DEP;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for keyword PRD_ANGLE_DEP: %s", value);
+		return Fail(rh, RH_E_INPUT, routineName, "Invalid value for keyword PRD_ANGLE_DEP: %s", value);
 	}
 	memcpy(pointer, &PRD_angle_dep, sizeof(enum_t));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setPRDangle.c ----------- */
 
 /* ------- begin -------------------------- setstartValue.c --------- */
 
-void setstartValue(RHState *rh, char *value, void *pointer)
+rh_status setstartValue(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setStartValue";
 
@@ -468,16 +483,17 @@ void setstartValue(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "OLD_J"))
 		startvalue = OLD_J;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for keyword STARTING_J: %s", value);
+		return Fail(rh, RH_E_INPUT, routineName, "Invalid value for keyword STARTING_J: %s", value);
 	}
 
 	memcpy(pointer, &startvalue, sizeof(enum_t));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setstartValue.c --------- */
 
 /* ------- begin -------------------------- setnesolution.c --------- */
 
-void setnesolution(RHState *rh, char *value, void *pointer)
+rh_status setnesolution(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setnesolution";
 
@@ -490,16 +506,17 @@ void setnesolution(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "ITERATION")) {
 		nesolution = ITERATION;
 	} else {
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for keyword SOLVE_NE: %s", value);
+		return Fail(rh, RH_E_INPUT, routineName, "Invalid value for keyword SOLVE_NE: %s", value);
 	}
 
 	memcpy(pointer, &nesolution, sizeof(enum_t));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setnesolution.c --------- */
 
 /* ------- begin -------------------------- setsolver.c ------------- */
 
-void setsolver(RHState *rh, char *value, void *pointer)
+rh_status setsolver(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setsolver";
 
@@ -514,13 +531,14 @@ void setsolver(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "NEWTON_KRYLOV"))
 		solver = SOLVER_NEWTON_KRYLOV;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for keyword SOLVER: %s\n"
-											  " Valid options are NG, FIXED_POINT, ANDERSON and"
-											  " NEWTON_KRYLOV",
-			  value);
+		return Fail(rh, RH_E_INPUT, routineName, "Invalid value for keyword SOLVER: %s\n"
+												 " Valid options are NG, FIXED_POINT, ANDERSON and"
+												 " NEWTON_KRYLOV",
+					value);
 	}
 
 	memcpy(pointer, &solver, sizeof(enum_t));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setsolver.c ------------- */
 
@@ -543,7 +561,7 @@ const char *solverName(enum solver_type solver)
 
 /* ------- begin -------------------------- setSolverVariables.c ---- */
 
-void setSolverVariables(RHState *rh, char *value, void *pointer)
+rh_status setSolverVariables(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setSolverVariables";
 
@@ -556,17 +574,18 @@ void setSolverVariables(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "RELATIVE"))
 		variables = VARIABLES_RELATIVE;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for keyword ANDERSON_VARIABLES or"
-											  " NEWTON_VARIABLES: %s\n Valid options are LOG and RELATIVE",
-			  value);
+		return Fail(rh, RH_E_INPUT, routineName, "Invalid value for keyword ANDERSON_VARIABLES or"
+												 " NEWTON_VARIABLES: %s\n Valid options are LOG and RELATIVE",
+					value);
 	}
 	memcpy(pointer, &variables, sizeof(enum_t));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setSolverVariables.c ---- */
 
 /* ------- begin -------------------------- setAndersonCoefficients.c */
 
-void setAndersonCoefficients(RHState *rh, char *value, void *pointer)
+rh_status setAndersonCoefficients(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setAndersonCoefficients";
 
@@ -577,17 +596,18 @@ void setAndersonCoefficients(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "PER_BLOCK"))
 		coefficients = ANDERSON_PER_BLOCK;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for keyword ANDERSON_COEFFICIENTS: %s\n"
-											  " Valid options are GLOBAL and PER_BLOCK",
-			  value);
+		return Fail(rh, RH_E_INPUT, routineName, "Invalid value for keyword ANDERSON_COEFFICIENTS: %s\n"
+												 " Valid options are GLOBAL and PER_BLOCK",
+					value);
 	}
 	memcpy(pointer, &coefficients, sizeof(enum_t));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setAndersonCoefficients.c */
 
 /* ------- begin -------------------------- setBgOperator.c --------- */
 
-void setBgOperator(RHState *rh, char *value, void *pointer)
+rh_status setBgOperator(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setBgOperator";
 
@@ -598,17 +618,18 @@ void setBgOperator(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "DIAGONAL"))
 		op = BG_OPERATOR_DIAGONAL;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for keyword BACKGROUND_OPERATOR: %s\n"
-											  " Valid options are TRIDIAGONAL and DIAGONAL",
-			  value);
+		return Fail(rh, RH_E_INPUT, routineName, "Invalid value for keyword BACKGROUND_OPERATOR: %s\n"
+												 " Valid options are TRIDIAGONAL and DIAGONAL",
+					value);
 	}
 	memcpy(pointer, &op, sizeof(enum_t));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setBgOperator.c --------- */
 
 /* ------- begin -------------------------- setAndersonExtrapolate.c - */
 
-void setAndersonExtrapolate(RHState *rh, char *value, void *pointer)
+rh_status setAndersonExtrapolate(RHState *rh, char *value, void *pointer)
 {
 	const char routineName[] = "setAndersonExtrapolate";
 
@@ -624,10 +645,11 @@ void setAndersonExtrapolate(RHState *rh, char *value, void *pointer)
 	else if (!strcmp(value, "POPULATIONS_RHO"))
 		extrapolate = EXTRAPOLATE_POPULATIONS_RHO;
 	else {
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid value for keyword ANDERSON_EXTRAPOLATE: %s\n"
-											  " Valid options are ALL, POPULATIONS and POPULATIONS_RHO",
-			  value);
+		return Fail(rh, RH_E_INPUT, routineName, "Invalid value for keyword ANDERSON_EXTRAPOLATE: %s\n"
+												 " Valid options are ALL, POPULATIONS and POPULATIONS_RHO",
+					value);
 	}
 	memcpy(pointer, &extrapolate, sizeof(enum_t));
+	return RH_OK;
 }
 /* ------- end ---------------------------- setAndersonExtrapolate.c - */

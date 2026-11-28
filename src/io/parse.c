@@ -21,14 +21,15 @@ void ShowUsage(char *programName, int Noption, Option *theOptions);
 
 /* ------- begin -------------------------- parse.c ----------------- */
 
-void parse(RHState *rh, int argc, char *argv[], int Noption, Option *theOptions)
+rh_status parse(RHState *rh, int argc, char *argv[], int Noption, Option *theOptions)
 {
 	const char   routineName[] = "parse";
 	register int n, nopt;
 
-	char **options, **values;
-	bool_t recognized;
-	int    Narg = argc - 1, Nset;
+	char    **options, **values;
+	bool_t    recognized;
+	int       Narg   = argc - 1, Nset;
+	rh_status result = RH_OK;
 
 	/* --- Break down the command line in option/value pairs -- ------- */
 
@@ -73,8 +74,9 @@ void parse(RHState *rh, int argc, char *argv[], int Noption, Option *theOptions)
 					if (theOptions[nopt].value_required) {
 						/* --- An error results if value is not given when required */
 
-						Error(rh, ERROR_LEVEL_2, routineName, "Option %s requires value",
-							  theOptions[nopt].name);
+						result = Fail(rh, RH_E_INPUT, routineName, "Option %s requires value",
+									  theOptions[nopt].name);
+						goto cleanup;
 					} else
 						/* --- Options that require no value are assumed to be
 								   boolean and are set to TRUE --      -------------- */
@@ -93,12 +95,15 @@ void parse(RHState *rh, int argc, char *argv[], int Noption, Option *theOptions)
 
 	for (nopt = 1; nopt < Noption; nopt++) {
 		if (theOptions[nopt].pointer != NULL)
-			(*theOptions[nopt].setValue)(rh, theOptions[nopt].value,
-										 theOptions[nopt].pointer);
+			RH_TRY_GOTO(result, cleanup,
+						(*theOptions[nopt].setValue)(rh, theOptions[nopt].value,
+													 theOptions[nopt].pointer));
 	}
 
+cleanup:
 	free(options);
 	free(values);
+	return result;
 }
 /* ------- end ---------------------------- parse.c ----------------- */
 

@@ -44,7 +44,7 @@ void MULTIatmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 	register int k, n;
 
 	char    scaleStr[21], inputLine[MAX_LINE_SIZE], *filename;
-	bool_t  exit_on_EOF, enhanced_atmos_ID = FALSE;
+	bool_t  enhanced_atmos_ID = FALSE;
 	int     Nread, Ndep, Nrequired, checkPoint;
 	double *dscale, turbpress, turbelecpress, nbaryon, meanweight;
 
@@ -86,7 +86,7 @@ void MULTIatmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 	/* --- Read atmos ID, scale type, gravity, and number of depth
 		   points --                                       ------------ */
 
-	getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	ExitOnError(rh, getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine));
 	if (enhanced_atmos_ID) {
 
 		/* --- Construct atmosID from filename and last modification date */
@@ -102,13 +102,13 @@ void MULTIatmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 	} else
 		Nread = sscanf(inputLine, "%s", atmos->ID);
 
-	getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	ExitOnError(rh, getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine));
 	Nread += sscanf(inputLine, "%20s", scaleStr);
-	getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	ExitOnError(rh, getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine));
 	Nread += sscanf(inputLine, "%lf", &atmos->gravity);
-	getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	ExitOnError(rh, getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine));
 	Nread += sscanf(inputLine, "%d", &geometry->Ndep);
-	checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 1);
+	ExitOnError(rh, checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 1));
 
 	/* --- Keep duplicates of some of the geometrical quantities in
 		   Atmos structure --                            -------------- */
@@ -132,11 +132,11 @@ void MULTIatmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 
 	dscale = (double *) mallocOrAbort(Ndep * sizeof(double));
 	for (k = 0; k < Ndep; k++) {
-		getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		ExitOnError(rh, getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine));
 		Nread = sscanf(inputLine, "%lf %lf %lf %lf %lf",
 					   &dscale[k], &atmos->T[k], &atmos->ne[k],
 					   &geometry->vel[k], &atmos->vturb[k]);
-		checkNread(rh, Nread, Nrequired = 5, routineName, checkPoint = 2);
+		ExitOnError(rh, checkNread(rh, Nread, Nrequired = 5, routineName, checkPoint = 2));
 	}
 
 	switch (toupper(scaleStr[0])) {
@@ -185,12 +185,11 @@ void MULTIatmos(RHState *rh, Atmosphere *atmos, Geometry *geometry)
 
 	atmos->nH = matrix_double(rh, atmos->NHydr, Ndep);
 	for (k = 0; k < Ndep; k++) {
-		if (getLine(rh, atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine,
-					exit_on_EOF = FALSE) == EOF) break;
+		if (getLineOrEOF(atmos->fp_atmos, MULTI_COMMENT_CHAR, inputLine) == EOF) break;
 		Nread = sscanf(inputLine, "%lf %lf %lf %lf %lf %lf",
 					   &atmos->nH[0][k], &atmos->nH[1][k], &atmos->nH[2][k],
 					   &atmos->nH[3][k], &atmos->nH[4][k], &atmos->nH[5][k]);
-		checkNread(rh, Nread, Nrequired = 6, routineName, checkPoint = 3);
+		ExitOnError(rh, checkNread(rh, Nread, Nrequired = 6, routineName, checkPoint = 3));
 	}
 	if (k > 0 && k < Ndep) {
 		Error(rh, ERROR_LEVEL_2, routineName, "Reached end of input file %s before all data was read",

@@ -58,7 +58,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 
 	char inputLine[MAX_LINE_SIZE], shapeStr[20], vdWstr[20], nuDepStr[20],
 		symmStr[20], optionStr[20], labelStr[MAX_LINE_SIZE];
-	bool_t exit_on_EOF, match;
+	bool_t match;
 	int    i, j, Nlevel, Nline, Ncont, Nfixed,
 		Nspace = rh->atmos.Nspace,
 		Nread, Nrequired, checkPoint, Ndup;
@@ -84,9 +84,9 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 
 	/* --- Read atom ID and convert to uppercase --     -------------- */
 
-	getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	ExitOnError(rh, getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine));
 	Nread = sscanf(inputLine, "%2s", atom->ID);
-	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 1);
+	ExitOnError(rh, checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 1));
 	for (n = 0; n < (int) strlen(atom->ID); n++)
 		atom->ID[n] = toupper(atom->ID[n]);
 	if (strlen(atom->ID) == 1) strcat(atom->ID, " ");
@@ -118,10 +118,10 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 
 	/* --- Get Number of levels, lines fixed transitions, and continua  */
 
-	getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	ExitOnError(rh, getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine));
 	Nread = sscanf(inputLine, "%d %d %d %d",
 				   &atom->Nlevel, &atom->Nline, &atom->Ncont, &atom->Nfixed);
-	checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 2);
+	ExitOnError(rh, checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 2));
 	Nlevel = atom->Nlevel;
 	Nline  = atom->Nline;
 	Ncont  = atom->Ncont;
@@ -137,10 +137,10 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 
 	for (i = 0; i < Nlevel; i++) {
 		atom->label[i] = (char *) callocOrAbort((ATOM_LABEL_WIDTH + 1), sizeof(char));
-		getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		ExitOnError(rh, getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine));
 		Nread = sscanf(inputLine, "%lf %lf '%20c' %d",
 					   &atom->E[i], &atom->g[i], atom->label[i], &atom->stage[i]);
-		checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 3);
+		ExitOnError(rh, checkNread(rh, Nread, Nrequired = 4, routineName, checkPoint = 3));
 
 		atom->E[i] *= (HPLANCK * CLIGHT) / CM_TO_M;
 	}
@@ -183,7 +183,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 		line->atom         = atom;
 		line->isotope_frac = 1.0;
 
-		getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		ExitOnError(rh, getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine));
 		Nread = sscanf(inputLine,
 					   "%d %d %lf %s %d %s %lf %lf %s %lf %lf %lf %lf %lf %lf %lf",
 					   &j, &i, &f, shapeStr, &line->Nlambda, symmStr,
@@ -191,7 +191,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 					   &line->cvdWaals[0], &line->cvdWaals[1],
 					   &line->cvdWaals[2], &line->cvdWaals[3],
 					   &line->Grad, &line->cStark, &line->g_Lande_eff);
-		checkNread(rh, Nread, Nrequired = 15, routineName, checkPoint = 4);
+		ExitOnError(rh, checkNread(rh, Nread, Nrequired = 15, routineName, checkPoint = 4));
 		if (Nread == 15) line->g_Lande_eff = 0.0;
 
 		line->j = MAX(i, j);
@@ -226,7 +226,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 		if (strstr(shapeStr, "GAUSS")) line->Voigt = FALSE;
 
 		if (strstr(shapeStr, "COMPOSIT")) {
-			getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			ExitOnError(rh, getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine));
 			Nread         = sscanf(inputLine, "%d", &line->Ncomponent);
 			line->c_shift = (double *) mallocOrAbort(line->Ncomponent * sizeof(double));
 			line->c_fraction =
@@ -234,7 +234,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 
 			c_sum = 0.0;
 			for (n = 0; n < line->Ncomponent; n++) {
-				getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+				ExitOnError(rh, getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine));
 				Nread = sscanf(inputLine, "%lf %lf",
 							   &line->c_shift[n], &line->c_fraction[n]);
 				c_sum += line->c_fraction[n];
@@ -326,11 +326,11 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 		continuum->atom         = atom;
 		continuum->isotope_frac = 1.0;
 
-		getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		ExitOnError(rh, getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine));
 		Nread = sscanf(inputLine, "%d %d %lf %d %s %lf",
 					   &j, &i, &continuum->alpha0, &continuum->Nlambda,
 					   nuDepStr, &lambdamin);
-		checkNread(rh, Nread, Nrequired = 6, routineName, checkPoint = 5);
+		ExitOnError(rh, checkNread(rh, Nread, Nrequired = 6, routineName, checkPoint = 5));
 
 		continuum->j = MAX(i, j);
 		continuum->i = MIN(i, j);
@@ -347,10 +347,10 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 		if (strstr(nuDepStr, "EXPLICIT")) {
 			continuum->hydrogenic = FALSE;
 			for (la = continuum->Nlambda - 1; la >= 0; la--) {
-				getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+				ExitOnError(rh, getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine));
 				Nread = sscanf(inputLine, "%lf %lf",
 							   &continuum->lambda[la], &continuum->alpha[la]);
-				checkNread(rh, Nread, Nrequired = 2, routineName, checkPoint = 6);
+				ExitOnError(rh, checkNread(rh, Nread, Nrequired = 2, routineName, checkPoint = 6));
 			}
 			/* --- The table is interpolated in SortLambda and metalPrepare
 				   (pchip.c), which need strictly increasing wavelengths. Drop repeated entries (a duplicated
@@ -422,11 +422,11 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 			fixed       = atom->ft + kf;
 			fixed->atom = atom;
 
-			getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			ExitOnError(rh, getLine(rh, atom->fp_input, COMMENT_CHAR, inputLine));
 			Nread = sscanf(inputLine, "%d %d %lf %lf %s",
 						   &j, &i, &fixed->strength,
 						   &fixed->Trad, optionStr);
-			checkNread(rh, Nread, Nrequired = 5, routineName, checkPoint = 6);
+			ExitOnError(rh, checkNread(rh, Nread, Nrequired = 5, routineName, checkPoint = 6));
 
 			fixed->j = MAX(i, j);
 			fixed->i = MIN(i, j);
@@ -815,10 +815,9 @@ void readAtomicModels(RHState *rh)
 	char filename[MAX_LINE_SIZE],
 		actionKey[MAX_KEYWORD_SIZE], popsKey[MAX_KEYWORD_SIZE],
 		popsFile[MAX_LINE_SIZE], inputLine[MAX_LINE_SIZE], atomID[ATOM_ID_WIDTH + 1];
-	bool_t exit_on_EOF;
-	int    Nread, Nrequired, checkPoint;
-	FILE  *fp_atoms;
-	Atom  *atom;
+	int   Nread, Nrequired, checkPoint;
+	FILE *fp_atoms;
+	Atom *atom;
 
 	getCPU(rh, 2, TIME_START, NULL);
 
@@ -830,9 +829,9 @@ void readAtomicModels(RHState *rh)
 	}
 	/* --- Get the number of atomic models to be read -- -------------- */
 
-	getLine(rh, fp_atoms, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	ExitOnError(rh, getLine(rh, fp_atoms, COMMENT_CHAR, inputLine));
 	Nread = sscanf(inputLine, "%d", &rh->atmos.Natom);
-	checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 1);
+	ExitOnError(rh, checkNread(rh, Nread, Nrequired = 1, routineName, checkPoint = 1));
 
 	rh->atmos.atoms = (Atom *) mallocOrAbort(rh->atmos.Natom * sizeof(Atom));
 
@@ -840,10 +839,10 @@ void readAtomicModels(RHState *rh)
 
 	for (n = 0; n < rh->atmos.Natom; n++) {
 
-		getLine(rh, fp_atoms, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		ExitOnError(rh, getLine(rh, fp_atoms, COMMENT_CHAR, inputLine));
 		Nread = sscanf(inputLine, "%s %s %s %s ",
 					   filename, actionKey, popsKey, popsFile);
-		checkNread(rh, Nread, Nrequired = 3, routineName, checkPoint = 2);
+		ExitOnError(rh, checkNread(rh, Nread, Nrequired = 3, routineName, checkPoint = 2));
 
 		getAtomID(rh, filename, atomID);
 		if (n == 0 && !strstr(atomID, "H ")) {
@@ -956,16 +955,15 @@ void getAtomID(RHState *rh, char *atom_file, char atomID[ATOM_ID_WIDTH + 1])
 	const char   routineName[] = "getAtomID";
 	register int n;
 
-	char   inputLine[MAX_LINE_SIZE];
-	bool_t exit_on_EOF;
-	FILE  *fp_atom;
+	char  inputLine[MAX_LINE_SIZE];
+	FILE *fp_atom;
 
 	if ((fp_atom = fopen(atom_file, "r")) == NULL) {
 		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open inputfile %s", atom_file);
 	}
 	/* --- Read atom ID and convert to uppercase --     -------------- */
 
-	getLine(rh, fp_atom, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	ExitOnError(rh, getLine(rh, fp_atom, COMMENT_CHAR, inputLine));
 	sscanf(inputLine, "%2s", atomID);
 
 	for (n = 0; n < (int) strlen(atomID); n++)

@@ -686,7 +686,7 @@ static rh_status backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 	register int nspect, n;
 
 	char          inputLine[MAX_LINE_SIZE];
-	bool_t        exit_on_EOF, do_fudge;
+	bool_t        do_fudge;
 	int           Nfudge, Nworker = 0, chunk;
 	double       *thomson = NULL, *lambda_fudge = NULL, **fudge = NULL;
 	Atom         *He;
@@ -725,7 +725,7 @@ static rh_status backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 			   Linear read past the table, a repeated one divided by
 			   zero, a value below -1 gave a negative opacity -- ----- */
 
-		getLine(rh, fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		RH_TRY_GOTO(result, failed, getLine(rh, fp_fudge, COMMENT_CHAR, inputLine));
 		if (sscanf(inputLine, "%d", &Nfudge) != 1 || Nfudge < 2) {
 			result = Fail(rh, RH_E_DATA, routineName, "Opacity fudge file %.200s: the first line must give the number"
 													  " of wavelengths, at least 2 (read \"%.40s\")",
@@ -735,7 +735,7 @@ static rh_status backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 		lambda_fudge = (double *) mallocOrAbort(Nfudge * sizeof(double));
 		fudge        = matrix_double(rh, 3, Nfudge);
 		for (n = 0; n < Nfudge; n++) {
-			getLine(rh, fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			RH_TRY_GOTO(result, failed, getLine(rh, fp_fudge, COMMENT_CHAR, inputLine));
 			if (sscanf(inputLine, "%lf %lf %lf %lf", &lambda_fudge[n],
 					   &fudge[0][n], &fudge[1][n], &fudge[2][n]) != 4 ||
 				!isfinite(lambda_fudge[n]) || !isfinite(fudge[0][n]) ||

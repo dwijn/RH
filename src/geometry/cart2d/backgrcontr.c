@@ -43,10 +43,10 @@ int main(int argc, char *argv[])
 
 	/* --- Read input data and initialize --             -------------- */
 
-	setOptions(rh, argc, argv);
+	ExitOnError(rh, setOptions(rh, argc, argv));
 	SetFPEtraps(rh);
 
-	readInput(rh);
+	ExitOnError(rh, readInput(rh));
 	readAtmos(rh, &rh->atmos, rh->geometry);
 	readAtomicModels(rh);
 	readMolecularModels(rh);

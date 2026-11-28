@@ -43,7 +43,7 @@ void backgrOpac(RHState *rh, int Nlambda, double *lambda)
 
 	char metalID[12], format[21], contribution_out[MAX_LINE_SIZE],
 		inputLine[MAX_LINE_SIZE];
-	bool_t         exit_on_EOF, do_fudge;
+	bool_t         do_fudge;
 	int            Nfudge;
 	enum opac_type type;
 	double        *chi, *eta, *scatt, *thomson,
@@ -79,12 +79,12 @@ void backgrOpac(RHState *rh, int Nlambda, double *lambda)
 		Message(rh, "\n-Fudging background opacities with file\n  %s\n\n",
 				rh->input.fudgeData);
 
-		getLine(rh, fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+		ExitOnError(rh, getLine(rh, fp_fudge, COMMENT_CHAR, inputLine));
 		sscanf(inputLine, "%d", &Nfudge);
 		lambda_fudge = (double *) mallocOrAbort(Nfudge * sizeof(double));
 		fudge        = matrix_double(rh, 3, Nfudge);
 		for (n = 0; n < Nfudge; n++) {
-			getLine(rh, fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+			ExitOnError(rh, getLine(rh, fp_fudge, COMMENT_CHAR, inputLine));
 			sscanf(inputLine, "%lf %lf %lf %lf", &lambda_fudge[n],
 				   &fudge[0][n], &fudge[1][n], &fudge[2][n]);
 		}
