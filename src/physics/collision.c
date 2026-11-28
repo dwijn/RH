@@ -749,8 +749,7 @@ rh_status CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 
 	char inputLine[MAX_LINE_SIZE], keyword[MAX_LINE_SIZE], *pointer,
 		labelStr[MAX_LINE_SIZE];
-	bool_t exit_on_EOF;
-	int    nitem, i1 = 0, i2 = 0, i = 0, j = 0, ij, ji = 0,
+	int nitem, i1 = 0, i2 = 0, i = 0, j = 0, ij, ji = 0,
 			   Nlevel = atom->Nlevel, Nitem, Ntemp = 0, status;
 	long       Nspace = rh->atmos.Nspace;
 	double     dE, C0, *T, *coeff, *C, Cdown, Cup, gij, *np, xj, fac, fxj;
@@ -789,8 +788,8 @@ rh_status CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 
 	sumscl = 1.0;
 
-	while ((status = getLine(rh, fp_atom, COMMENT_CHAR,
-							 inputLine, exit_on_EOF = FALSE)) != EOF) {
+	while ((status = getLineOrEOF(fp_atom, COMMENT_CHAR,
+								  inputLine)) != EOF) {
 		strcpy(keyword, strtok(inputLine, " "));
 
 		if (!strcmp(keyword, "TEMP")) {
@@ -908,8 +907,7 @@ rh_status CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 			badi  = matrix_double(rh, Nrow, Ncoef);
 
 			for (m = 0, nitem = 0; m < Nrow; m++) {
-				status = getLine(rh, fp_atom, COMMENT_CHAR, inputLine,
-								 exit_on_EOF = FALSE);
+				status = getLineOrEOF(fp_atom, COMMENT_CHAR, inputLine);
 
 				badi[m][0] = atof(strtok(inputLine, " "));
 				nitem++;
@@ -971,7 +969,7 @@ rh_status CollisionRate(RHState *rh, struct Atom *atom, FILE *fp_atom)
 			cdi   = matrix_double(rh, Nrow, MSHELL);
 
 			for (m = 0, nitem = 0; m < Nrow; m++) {
-				status = getLine(rh, fp_atom, COMMENT_CHAR, inputLine, exit_on_EOF = FALSE);
+				status = getLineOrEOF(fp_atom, COMMENT_CHAR, inputLine);
 
 				cdi[m][0] = atof(strtok(inputLine, " "));
 				nitem++;

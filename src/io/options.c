@@ -21,7 +21,7 @@
 
 /* ------- begin -------------------------- setOptions.c ------------ */
 
-void setOptions(RHState *rh, int argc, char *argv[])
+rh_status setOptions(RHState *rh, int argc, char *argv[])
 {
 	const char routineName[]              = "setOptions";
 	char       logfileName[MAX_LINE_SIZE] = "";
@@ -43,14 +43,15 @@ void setOptions(RHState *rh, int argc, char *argv[])
 		 "Show keyword values with current keyword input file"}};
 	Noption = sizeof(theOptions) / sizeof(Option);
 
-	parse(rh, argc, argv, Noption, theOptions);
+	RH_TRY(parse(rh, argc, argv, Noption, theOptions));
 
 	if (strlen(logfileName) > 0) {
 		if ((rh->commandline.logfile = fopen(logfileName, "w")) == NULL) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open log file %s", logfileName);
+			return Fail(rh, RH_E_DATA, routineName, "Unable to open log file %s", logfileName);
 		}
 		setvbuf(rh->commandline.logfile, NULL, _IOLBF, BUFSIZ);
 	} else
 		rh->commandline.logfile = stderr;
+	return RH_OK;
 }
 /* ------- end ---------------------------- setOptions.c ------------ */

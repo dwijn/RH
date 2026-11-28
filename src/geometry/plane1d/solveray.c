@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
 	register int n, k, la;
 
 	char   rayFileName[14], inputLine[MAX_LINE_SIZE], ascFilename[18];
-	bool_t result, exit_on_EOF, to_obs, initialize, crosscoupling,
+	bool_t result, to_obs, initialize, crosscoupling,
 		analyze_output, equilibria_only;
 	int        Nspect, Nread, Nrequired, checkPoint, *wave_index = NULL;
 	double     muz, *S = NULL, *chi = NULL, *J = NULL;
@@ -62,13 +62,13 @@ int main(int argc, char *argv[])
 	XDR        xdrs;
 	ActiveSet *as;
 
-	setOptions(rh, argc, argv);
+	ExitOnError(rh, setOptions(rh, argc, argv));
 	getCPU(rh, 0, TIME_START, NULL);
 	SetFPEtraps(rh);
 
 	/* --- Read input data and initialize --             -------------- */
 
-	readInput(rh);
+	ExitOnError(rh, readInput(rh));
 	rh->spectrum.updateJ = FALSE;
 
 	/* --- Read input data for atmosphere --             -------------- */
@@ -82,9 +82,9 @@ int main(int argc, char *argv[])
 		Error(rh, ERROR_LEVEL_2, argv[0], "Unable to open inputfile %s", RAY_INPUT_FILE);
 	}
 
-	getLine(rh, fp_ray, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
+	ExitOnError(rh, getLine(rh, fp_ray, COMMENT_CHAR, inputLine));
 	Nread = sscanf(inputLine, "%lf", &muz);
-	checkNread(rh, Nread, Nrequired = 1, argv[0], checkPoint = 1);
+	ExitOnError(rh, checkNread(rh, Nread, Nrequired = 1, argv[0], checkPoint = 1));
 
 	if (muz <= 0.0 || muz > 1.0) {
 		Error(rh, ERROR_LEVEL_2, argv[0], "Value of muz = %f does not lie in interval <0.0, 1.0]\n", muz);
@@ -188,13 +188,13 @@ int main(int argc, char *argv[])
 		   written out for the specified direction --    -------------- */
 
 	Nread = fscanf(fp_ray, "%d", &Nspect);
-	checkNread(rh, Nread, 1, argv[0], checkPoint = 2);
+	ExitOnError(rh, checkNread(rh, Nread, 1, argv[0], checkPoint = 2));
 
 	if (Nspect > 0) {
 		wave_index = (int *) mallocOrAbort(Nspect * sizeof(int));
 		Nread      = 0;
 		while (fscanf(fp_ray, "%d", &wave_index[Nread]) != EOF) Nread++;
-		checkNread(rh, Nread, Nspect, argv[0], checkPoint = 3);
+		ExitOnError(rh, checkNread(rh, Nread, Nspect, argv[0], checkPoint = 3));
 		fclose(fp_ray);
 
 		chi = (double *) mallocOrAbort(rh->atmos.Nspace * sizeof(double));

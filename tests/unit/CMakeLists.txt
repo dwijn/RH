@@ -105,6 +105,7 @@ rh_unit_test(test_ohchbf_range test_ohchbf_range.c)
 rh_unit_test(test_molecule_range test_molecule_range.c)
 rh_unit_test(test_error test_error.c)
 rh_unit_test(test_status test_status.c)
+rh_unit_test(test_config test_config.c)
 rh_unit_test(test_parallel test_parallel.c)
 rh_unit_test(test_alloc test_alloc.c)
 # ASan by default aborts on an allocation it cannot satisfy; the test needs

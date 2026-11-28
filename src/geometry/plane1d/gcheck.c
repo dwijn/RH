@@ -42,11 +42,11 @@ int main(int argc, char *argv[])
 	GCheckOptions opt;
 
 	gcheckParse(&argc, argv, &opt);
-	setOptions(rh, argc, argv);
+	ExitOnError(rh, setOptions(rh, argc, argv));
 	getCPU(rh, 0, TIME_START, NULL);
 	SetFPEtraps(rh);
 
-	readInput(rh);
+	ExitOnError(rh, readInput(rh));
 	if (rh->input.solver != SOLVER_FIXED_POINT) {
 		Error(rh, ERROR_LEVEL_2, "gcheck",
 			  "gcheck checks the map G of SOLVER = FIXED_POINT: set"

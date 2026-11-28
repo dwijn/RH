@@ -47,10 +47,11 @@ static void   setKeywordValue(Keyword *theKeywords, int Nkeyword,
 
 /* ------- begin -------------------------- readInput.c ------------- */
 
-void readInput(RHState *rh)
+rh_status readInput(RHState *rh)
 {
 	const char routineName[] = "readInput";
 	char       errorStr[MAX_MESSAGE_LENGTH];
+	rh_status  status;
 
 	int              Nkeyword, Nconflict, n, p;
 	char             sname[MAX_KEYWORD_LENGTH + 16];
@@ -270,20 +271,21 @@ void readInput(RHState *rh)
 	/* --- Open the input data file --                    ------------- */
 
 	if ((fp_keyword = fopen(rh->commandline.keyword_input, "r")) == NULL) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open inputfile %s",
-			  rh->commandline.keyword_input);
+		return Fail(rh, RH_E_DATA, routineName, "Unable to open inputfile %s",
+					rh->commandline.keyword_input);
 	}
 
-	readValues(rh, fp_keyword, Nkeyword, theKeywords);
+	status = readValues(rh, fp_keyword, Nkeyword, theKeywords);
 	fclose(fp_keyword);
+	if (status != RH_OK) return status;
 
 	/* --- Perform some sanity checks --                 -------------- */
 
 	switch (rh->topology) {
 	case ONE_D_PLANE:
 		if (rh->atmos.Nrays == 0)
-			Error(rh, ERROR_LEVEL_2, routineName,
-				  "Must set keyword NRAYS in 1-D plane parallel geometry");
+			return Fail(rh, RH_E_INPUT, routineName,
+						"Must set keyword NRAYS in 1-D plane parallel geometry");
 
 		if (rh->atmos.angleSet.set == SET_VERTICAL ||
 			rh->atmos.angleSet.set == SET_GAUSS_LOBATTO ||
@@ -304,7 +306,7 @@ void readInput(RHState *rh)
 				if (rh->atmos.Nrays != NRO_GLOB_4 && rh->atmos.Nrays != NRO_GLOB_6) {
 					sprintf(errorStr, "NRAYS must be %d or %d for SET_GAUSS_LOBATTO",
 							NRO_GLOB_4, NRO_GLOB_6);
-					Error(rh, ERROR_LEVEL_2, routineName, "%s", errorStr);
+					return Fail(rh, RH_E_INPUT, routineName, "%s", errorStr);
 				}
 				break;
 
@@ -332,15 +334,15 @@ void readInput(RHState *rh)
 
 	case TWO_D_PLANE:
 		if (rh->atmos.angleSet.set == SET_EDDINGTON)
-			Error(rh, ERROR_LEVEL_2, routineName, EDDINGTON_1D_ONLY);
+			return Fail(rh, RH_E_INPUT, routineName, EDDINGTON_1D_ONLY);
 		break;
 
 	case THREE_D_PLANE:
 		if (rh->atmos.angleSet.set == NO_SET)
-			Error(rh, ERROR_LEVEL_2, routineName,
-				  "Must set keyword ANGLE_SET in multi-D plane geometry");
+			return Fail(rh, RH_E_INPUT, routineName,
+						"Must set keyword ANGLE_SET in multi-D plane geometry");
 		if (rh->atmos.angleSet.set == SET_EDDINGTON)
-			Error(rh, ERROR_LEVEL_2, routineName, EDDINGTON_1D_ONLY);
+			return Fail(rh, RH_E_INPUT, routineName, EDDINGTON_1D_ONLY);
 		if (rh->atmos.Nrays > 0)
 			Warning(rh, routineName,
 					"Ignoring value of keyword NRAYS in multi-D plane geometry");
@@ -357,24 +359,24 @@ void readInput(RHState *rh)
 		   period must be at least 1 --                  -------------- */
 
 	if (rh->input.Ngorder < 0 || rh->input.Ngdelay < 0)
-		Error(rh, ERROR_LEVEL_2, routineName,
-			  "Values of NG_ORDER and NG_DELAY should be at least 0");
+		return Fail(rh, RH_E_INPUT, routineName,
+					"Values of NG_ORDER and NG_DELAY should be at least 0");
 	if (rh->input.PRD_Ngorder < 0 || rh->input.PRD_Ngdelay < 0)
-		Error(rh, ERROR_LEVEL_2, routineName,
-			  "Values of PRD_NG_ORDER and PRD_NG_DELAY should be at least 0");
+		return Fail(rh, RH_E_INPUT, routineName,
+					"Values of PRD_NG_ORDER and PRD_NG_DELAY should be at least 0");
 	if (rh->input.Ngorder > 0 && rh->input.Ngperiod < 1)
-		Error(rh, ERROR_LEVEL_2, routineName,
-			  "Value of NG_PERIOD should be at least 1 when NG_ORDER > 0");
+		return Fail(rh, RH_E_INPUT, routineName,
+					"Value of NG_PERIOD should be at least 1 when NG_ORDER > 0");
 	if (rh->input.PRD_Ngorder > 0 && rh->input.PRD_Ngperiod < 1)
-		Error(rh, ERROR_LEVEL_2, routineName,
-			  "Value of PRD_NG_PERIOD should be at least 1 when PRD_NG_ORDER > 0");
+		return Fail(rh, RH_E_INPUT, routineName,
+					"Value of PRD_NG_PERIOD should be at least 1 when PRD_NG_ORDER > 0");
 
 	/* --- The PRD sub-iterations update rho by the fraction
 		   PRD_DAMPING of the change (N-38); 0 would freeze rho -- ---- */
 
 	if (!(rh->input.PRD_damping > 0.0 && rh->input.PRD_damping <= 1.0)) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Value of PRD_DAMPING should be in (0, 1], not %g",
-			  rh->input.PRD_damping);
+		return Fail(rh, RH_E_INPUT, routineName, "Value of PRD_DAMPING should be in (0, 1], not %g",
+					rh->input.PRD_damping);
 	}
 
 	/* --- Lambda_ref should be positive since it is used for the conversion
@@ -383,13 +385,13 @@ void readInput(RHState *rh)
 	switch (rh->topology) {
 	case ONE_D_PLANE:
 		if (rh->atmos.lambda_ref <= 0.0)
-			Error(rh, ERROR_LEVEL_2, routineName,
-				  "Value of LAMBDA_REF should be larger than 0.0");
+			return Fail(rh, RH_E_INPUT, routineName,
+						"Value of LAMBDA_REF should be larger than 0.0");
 		break;
 	default:
 		if (rh->atmos.lambda_ref < 0.0)
-			Error(rh, ERROR_LEVEL_2, routineName,
-				  "Value of LAMBDA_REF should be larger than or equal 0.0");
+			return Fail(rh, RH_E_INPUT, routineName,
+						"Value of LAMBDA_REF should be larger than or equal 0.0");
 		break;
 	}
 
@@ -408,10 +410,10 @@ void readInput(RHState *rh)
 						" of Zeeman splitting");
 			}
 			if (rh->input.StokesMode == NO_STOKES) {
-				Error(rh, ERROR_LEVEL_1, routineName, "%s",
-					  "Keyword STOKES_MODE == NO_STOKES.\n"
-					  " Set to FIELD_FREE or FULL_STOKES\n"
-					  " when doing polarization calculations");
+				return Fail(rh, RH_E_INPUT, routineName, "%s",
+							"Keyword STOKES_MODE == NO_STOKES.\n"
+							" Set to FIELD_FREE or FULL_STOKES\n"
+							" when doing polarization calculations");
 			}
 			break;
 		default:
@@ -429,10 +431,10 @@ void readInput(RHState *rh)
 		if ((rh->input.StokesMode == FIELD_FREE ||
 			 rh->input.StokesMode == FULL_STOKES) &&
 			rh->input.backgr_pol == FALSE) {
-			Error(rh, ERROR_LEVEL_2, routineName,
-				  "Should not run STOKES_MODE == FIELD_FREE or FULL_STOKES\n "
-				  "when no magnetic field is read and "
-				  "BACKGROUND_POLARIZATION == FALSE");
+			return Fail(rh, RH_E_INPUT, routineName,
+						"Should not run STOKES_MODE == FIELD_FREE or FULL_STOKES\n "
+						"when no magnetic field is read and "
+						"BACKGROUND_POLARIZATION == FALSE");
 		}
 	}
 	/* --- Hydrostatic equilibrium only in 1-D plane parallel -- ------ */
@@ -442,9 +444,9 @@ void readInput(RHState *rh)
 		break;
 	default:
 		if (rh->atmos.hydrostatic)
-			Error(rh, ERROR_LEVEL_2, routineName,
-				  "Can only perform hydrostatic equilibrium calculation"
-				  " in 1-D Cartesian geometry");
+			return Fail(rh, RH_E_INPUT, routineName,
+						"Can only perform hydrostatic equilibrium calculation"
+						" in 1-D Cartesian geometry");
 		break;
 	}
 
@@ -476,9 +478,9 @@ void readInput(RHState *rh)
 			}
 		}
 		if (Nconflict) {
-			Error(rh, ERROR_LEVEL_2, routineName, "%s* keywords without SOLVER = %s; see the"
-												  " warnings above.",
-				  prefix, solverName(owner));
+			return Fail(rh, RH_E_INPUT, routineName, "%s* keywords without SOLVER = %s; see the"
+													 " warnings above.",
+						prefix, solverName(owner));
 		}
 	}
 
@@ -494,14 +496,14 @@ void readInput(RHState *rh)
 	if (keywordSet(theKeywords, Nkeyword, "ERROR_LIMIT")) {
 		if (rh->input.solver != SOLVER_ANDERSON &&
 			rh->input.solver != SOLVER_NEWTON_KRYLOV) {
-			Error(rh, ERROR_LEVEL_2, routineName, "ERROR_LIMIT is set, but SOLVER = %s has no error"
-												  " estimate. Set SOLVER =\n ANDERSON or NEWTON_KRYLOV, or"
-												  " remove the keyword and use ITER_LIMIT.",
-				  sname);
+			return Fail(rh, RH_E_INPUT, routineName, "ERROR_LIMIT is set, but SOLVER = %s has no error"
+													 " estimate. Set SOLVER =\n ANDERSON or NEWTON_KRYLOV, or"
+													 " remove the keyword and use ITER_LIMIT.",
+						sname);
 		}
 		if (!(rh->input.errorLimit > 0.0)) {
-			Error(rh, ERROR_LEVEL_2, routineName, "ERROR_LIMIT = %g: must be positive.",
-				  rh->input.errorLimit);
+			return Fail(rh, RH_E_INPUT, routineName, "ERROR_LIMIT = %g: must be positive.",
+						rh->input.errorLimit);
 		}
 	} else
 		rh->input.errorLimit = 0.0;
@@ -514,14 +516,14 @@ void readInput(RHState *rh)
 			setKeywordValue(theKeywords, Nkeyword, "ITER_LIMIT", value);
 		} else if (rh->input.solver == SOLVER_ANDERSON ||
 				   rh->input.solver == SOLVER_NEWTON_KRYLOV) {
-			Error(rh, ERROR_LEVEL_2, routineName, "SOLVER = %s: set ITER_LIMIT (the residual of the"
-												  " populations),\n ERROR_LIMIT (their estimated error, and"
-												  " that of rho, ne and J), or both.",
-				  sname);
+			return Fail(rh, RH_E_INPUT, routineName, "SOLVER = %s: set ITER_LIMIT (the residual of the"
+													 " populations),\n ERROR_LIMIT (their estimated error, and"
+													 " that of rho, ne and J), or both.",
+						sname);
 		} else {
-			Error(rh, ERROR_LEVEL_2, routineName, "Missing input value for required keyword ITER_LIMIT"
-												  " (SOLVER = %s)",
-				  sname);
+			return Fail(rh, RH_E_INPUT, routineName, "Missing input value for required keyword ITER_LIMIT"
+													 " (SOLVER = %s)",
+						sname);
 		}
 	}
 
@@ -553,13 +555,13 @@ void readInput(RHState *rh)
 	if (rh->input.bg_NmaxIter < 0 || rh->input.bg_depth < 0 || rh->input.bg_depth > 50 ||
 		(rh->input.bg_NmaxIter > 0 && !(rh->input.bg_iterLimit > 0.0)) ||
 		!(rh->input.bg_linearAlbedo >= 0.0) || !(rh->input.bg_linearTau >= 0.0)) {
-		Error(rh, ERROR_LEVEL_2, routineName, "BACKGROUND_N_MAX_ITER = %d (>= 0, 0 = lambda iteration),"
-											  " BACKGROUND_ANDERSON_DEPTH = %d\n (0 .. 50),"
-											  " BACKGROUND_ITER_LIMIT = %g (> 0),\n"
-											  " BACKGROUND_LINEAR_ALBEDO = %g (>= 0, >= 1 = never),"
-											  " BACKGROUND_LINEAR_TAU = %g (>= 0): a value is out of range.",
-			  rh->input.bg_NmaxIter, rh->input.bg_depth, rh->input.bg_iterLimit,
-			  rh->input.bg_linearAlbedo, rh->input.bg_linearTau);
+		return Fail(rh, RH_E_INPUT, routineName, "BACKGROUND_N_MAX_ITER = %d (>= 0, 0 = lambda iteration),"
+												 " BACKGROUND_ANDERSON_DEPTH = %d\n (0 .. 50),"
+												 " BACKGROUND_ITER_LIMIT = %g (> 0),\n"
+												 " BACKGROUND_LINEAR_ALBEDO = %g (>= 0, >= 1 = never),"
+												 " BACKGROUND_LINEAR_TAU = %g (>= 0): a value is out of range.",
+					rh->input.bg_NmaxIter, rh->input.bg_depth, rh->input.bg_iterLimit,
+					rh->input.bg_linearAlbedo, rh->input.bg_linearTau);
 	}
 
 	/* --- SOLVER = FIXED_POINT, ANDERSON and NEWTON_KRYLOV iterate the
@@ -721,11 +723,11 @@ void readInput(RHState *rh)
 			rh->input.background_double = TRUE;
 		}
 		if (Nconflict) {
-			Error(rh, ERROR_LEVEL_2, routineName, "SOLVER = %s: %d keyword setting%s conflict with"
-												  " it; see the\n warning%s above. docs/SOLVER.md describes"
-												  " the solvers and their keywords.",
-				  sname, Nconflict, (Nconflict > 1) ? "s" : "",
-				  (Nconflict > 1) ? "s" : "");
+			return Fail(rh, RH_E_INPUT, routineName, "SOLVER = %s: %d keyword setting%s conflict with"
+													 " it; see the\n warning%s above. docs/SOLVER.md describes"
+													 " the solvers and their keywords.",
+						sname, Nconflict, (Nconflict > 1) ? "s" : "",
+						(Nconflict > 1) ? "s" : "");
 		}
 	}
 
@@ -737,6 +739,7 @@ void readInput(RHState *rh)
 
 	rh->atmos.vmicro_char *= KM_TO_M;
 	rh->atmos.vmacro_tresh *= KM_TO_M;
+	return RH_OK;
 }
 /* ------- end ---------------------------- readInput.c ------------- */
 

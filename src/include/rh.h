@@ -116,14 +116,14 @@ enum PRDangle { PRD_ANGLE_AVER = 0,
 
 /* --- Function prototypes --                          -------------- */
 
-void   SetFPEtraps(RHState *rh);
-void   checkNread(RHState *rh, int Nread, int Nrequired, const char *routineName,
-				  int checkPoint);
-void   setOptions(RHState *rh, int argc, char *argv[]);
-double vproject(RHState *rh, int k, int mu);
-void   Bproject(RHState *rh);
-bool_t StopRequested(RHState *rh);
-char **getWords(char *label, char *separator, int *count);
+void                   SetFPEtraps(RHState *rh);
+RH_NODISCARD rh_status checkNread(RHState *rh, int Nread, int Nrequired,
+								  const char *routineName, int checkPoint);
+RH_NODISCARD rh_status setOptions(RHState *rh, int argc, char *argv[]);
+double                 vproject(RHState *rh, int k, int mu);
+void                   Bproject(RHState *rh);
+bool_t                 StopRequested(RHState *rh);
+char                 **getWords(char *label, char *separator, int *count);
 
 /* --- Matrix manipulation --                          -------------- */
 

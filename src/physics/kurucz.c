@@ -142,7 +142,7 @@ rh_status readKuruczLines(RHState *rh, char *inputFile)
 	}
 	/* --- Go through each of the linelist files listed in input file - */
 
-	while (getLine(rh, fp_Kurucz, commentChar, listName, FALSE) != EOF) {
+	while (getLineOrEOF(fp_Kurucz, commentChar, listName) != EOF) {
 		Nread = sscanf(listName, "%s", filename);
 		if ((fp_linelist = fopen(filename, "r")) == NULL) {
 			fclose(fp_Kurucz);
@@ -331,7 +331,12 @@ rh_status readKuruczLines(RHState *rh, char *inputFile)
 				iso_dl      = 0;
 				rlk->iso_dl = iso_dl * MILLI * ANGSTROM_TO_NM;
 
-				checkNread(rh, Nread, Nrequired = 17, routineName, checkPoint = 1);
+				if ((status = checkNread(rh, Nread, Nrequired = 17, routineName,
+										 checkPoint = 1)) != RH_OK) {
+					fclose(fp_linelist);
+					fclose(fp_Kurucz);
+					goto failed;
+				}
 				rlk++;
 			}
 		}

@@ -52,11 +52,11 @@ int main(int argc, char *argv[])
 
 	/* --- Read input data and initialize --             -------------- */
 
-	setOptions(rh, argc, argv);
+	ExitOnError(rh, setOptions(rh, argc, argv));
 	getCPU(rh, 0, TIME_START, NULL);
 	SetFPEtraps(rh);
 
-	readInput(rh);
+	ExitOnError(rh, readInput(rh));
 	rh->spectrum.updateJ = TRUE;
 
 	getCPU(rh, 1, TIME_START, NULL);

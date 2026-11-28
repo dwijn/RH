@@ -60,13 +60,13 @@ int main(int argc, char *argv[])
 	Atom     *atom;
 	Molecule *molecule;
 
-	setOptions(rh, argc, argv);
+	ExitOnError(rh, setOptions(rh, argc, argv));
 	getCPU(rh, 0, TIME_START, NULL);
 	SetFPEtraps(rh);
 
 	/* --- Read input data and initialize --             -------------- */
 
-	readInput(rh);
+	ExitOnError(rh, readInput(rh));
 	rh->spectrum.updateJ = TRUE;
 
 	getCPU(rh, 1, TIME_START, NULL);

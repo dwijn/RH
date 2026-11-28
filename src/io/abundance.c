@@ -75,7 +75,7 @@ void readAbundance(RHState *rh, Atmosphere *atmos)
 	register int n, k, i;
 
 	char     ID[ATOM_ID_WIDTH + 1], line[MAX_LINE_SIZE], *match;
-	bool_t   result = TRUE, DEX = FALSE, exit_on_EOF;
+	bool_t   result = TRUE, DEX = FALSE;
 	int      Nread, pti;
 	double   abund, totalAbund, avgWeight, metallicity;
 	Element *element;
@@ -103,7 +103,7 @@ void readAbundance(RHState *rh, Atmosphere *atmos)
 	}
 	/* --- Read abundances from file --                  -------------- */
 
-	while (getLine(rh, fp_abund, COMMENT_CHAR, line, exit_on_EOF = FALSE) != EOF) {
+	while (getLineOrEOF(fp_abund, COMMENT_CHAR, line) != EOF) {
 		if ((Nread = sscanf(line, "%s %lf", ID, &abund)) != 2) {
 			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read input file %s",
 				  rh->input.abund_input);
