@@ -130,8 +130,6 @@ RH_NODISCARD rh_status Background(RHState *rh, bool_t analyze_output, bool_t equ
 void                   backgrOpac(RHState *rh, int Nlambda, double *lambda);
 RH_NODISCARD rh_status backgroundPrepare(RHState *rh);
 void                   backgroundCleanup(RHState *rh);
-bool_t                 duplicateLevel(RHState *rh, Atom *atom, char *label);
-bool_t                 duplicateLine(RHState *rh, Atom *atom, char *labeli, char *labelj);
 void                   readBackground(RHState *rh, int nspect, int mu, bool_t top_to_bottom);
 void                   mapBackground(RHState *rh);
 void                   unmapBackground(void);

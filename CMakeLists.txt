@@ -172,7 +172,7 @@ set(rh_physics background barklem broad chemequil cocollisions collision
 set(rh_transfer bezier_aux bgscatter formal negtau opacity stokesgrid stokesopac)
 set(rh_nlte fillgamma gchecks initial_xdr initscatter iterate redistribute
   solver statequil)
-set(rh_model duplicate getlambda sortlambda)
+set(rh_model getlambda sortlambda)
 set(rh_io abundance backgropac_xdr brs_xdr getline options parse pops_xdr
   radrate_xdr readatom readb_xdr readinput readj readmolecule readvalue
   writeatmos_xdr writeatom_xdr writecoll_xdr writedamp_xdr writeinput_xdr
