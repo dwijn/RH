@@ -23,8 +23,8 @@ upstream. Newest changes go at the top of the changelog.
 *Status on 2026-11-27.* The work is on the fork
 [dwijn/RH](https://github.com/dwijn/RH), integration branch `modernize`.
 Every change is a pull request, verified against upstream RH (`c95bdf6`)
-or against its base commit. 264 issues are logged; 181 are fixed and 5
-closed without a fix. Of the 78 open, 35 are on the wishlist.
+or against its base commit. 265 issues are logged; 181 are fixed and 5
+closed without a fix. Of the 79 open, 35 are on the wishlist.
 Plan steps 1–4 (crash fixes, build and hygiene, tests, the solver) are
 done: step 4 closed on 2026-11-23, its research items and the parts not
 needed now on the wishlist (§4). The library track (errors that return,
@@ -32,7 +32,7 @@ no globals; from step 7) is in its phase 3, phases 0 to 2 merged;
 then speed and memory.
 
 - **Wrong answers that looked right, also in upstream RH.**
-  - 115 of the problems found also exist upstream (§3.9), and 91 of them
+  - 116 of the problems found also exist upstream (§3.9), and 91 of them
     are fixed here.
   - **Formal solvers:**
     - 2-D and 3-D long characteristics stopped one section short (B-24):
@@ -536,6 +536,7 @@ SOLVER.md S-5, Results.
 | [B-83](https://github.com/dwijn/RH/issues/632) | low | `SortLambda`'s limit of overlapping transitions is 499, not 500: it tests `== N_MAX_OVERLAP` after the increment, so it stops at 500 overlapping transitions, which would fit (the arrays have 500 entries): the limit is 499, and the message says "> 500". Also upstream (`sortlambda.c:350, 431, 484`) | `src/model/sortlambda.c:320, 398, 445` | code reading, Q-51 classification, checked 2026-11-27 | open |
 | [B-84](https://github.com/dwijn/RH/issues/633) | low | "Setting thread concurrency" is a warning on every multi-thread run: `setThreadValue` writes "Setting thread concurrency to N" as a WARNING on every run with N_THREADS > 1: a warning for the normal case, which hides real ones. It is a message. Also upstream (`readvalue.c:336-337`) | `src/io/readvalue.c:313-318` | `rhf1d` with N_THREADS = 2; `claude/RH/evidence/lib-q51-errors/bugcheck` (README), 2026-11-27 | open |
 | [B-85](https://github.com/dwijn/RH/issues/634) | low | A failed write of the passive atoms' file `metals.out` goes unreported: `writeMetals` drops the result of `xdr_atom` for hydrogen, and its caller in `Background` drops the result of `writeMetals` altogether. Its comment says "Only write active atoms"; it writes the passive ones. Also upstream (`writemetal_xdr.c:51`, `background.c:637`) | `src/io/writemetal_xdr.c:45-55`, `src/physics/background.c:903` | code reading, Q-51 classification, checked 2026-11-27 | open |
+| [B-86](https://github.com/dwijn/RH/issues/640) | low | Every line of a model atom with Barklem broadening reads a Barklem table again and never frees it: `getBarklemactivecross` calls `readBarklemTable` for each such line, which opens and parses the table file, and frees none of the four arrays (`neff1`, `neff2`, `cross`, `alpha`) on any path. A few kB per line, and one file read per line where one per table would do. Also upstream (`barklem.c:272-281`) | `src/physics/barklem.c:249-336` | code reading, independent review of Q-54, checked 2026-11-27 | open |
 
 ### 3.2 Numerics and convergence
 
@@ -885,6 +886,7 @@ upstream issue or pull request once filed. Most severe first.
 | [B-83](https://github.com/dwijn/RH/issues/632) | low | `SortLambda`'s overlap limit is 499, not 500 as its message says | — | — |
 | [B-84](https://github.com/dwijn/RH/issues/633) | low | "Setting thread concurrency" is a warning on every multi-thread run | — | — |
 | [B-85](https://github.com/dwijn/RH/issues/634) | low | A failed write of `metals.out` goes unreported: `writeMetals` drops the result of `xdr_atom` for hydrogen, and `Background` drops the result of `writeMetals` | — | — |
+| [B-86](https://github.com/dwijn/RH/issues/640) | low | Every line with Barklem broadening reads its Barklem table again and never frees it (`getBarklemactivecross`) | — | — |
 | [N-54](https://github.com/dwijn/RH/issues/498) | low | The height zero point at τ = 1 is interpolated linearly in τ and silently held at the table end when τ = 1 is outside the atmosphere | [#513](https://github.com/dwijn/RH/pull/513) | — |
 | [N-57](https://github.com/dwijn/RH/issues/501) | low | Feautrier's emergent I⁺ = 2P₀ − I⁻ can be negative with an irradiated top | — | — |
 | [N-58](https://github.com/dwijn/RH/issues/502) | low | The `THERMALIZED` boundary intensity B ∓ ΔB/Δτ can be negative over a thin or steep boundary interval | — | — |
