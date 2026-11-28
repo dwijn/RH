@@ -23,9 +23,10 @@
 	   The LU populations are not guaranteed non-negative, and a
 	   negative or non-finite one (N-8) is not allowed to go on: during
 	   a trial evaluation of G the trial is invalidated (negTauInvalid,
-	   as for a negative total opacity), otherwise the run stops. A
-	   population is negative below -SE_NEG_TOL times the total, which
-	   leaves the rounding of the LU solution of a nearly empty level.
+	   as for a negative total opacity), otherwise statEquil fails with
+	   RH_E_TRIAL. A population is negative below -SE_NEG_TOL times the
+	   total, which leaves the rounding of the LU solution of a nearly
+	   empty level.
 
 	   isum is the reference level: GTH eliminates it last, and LU
 	   replaces its equation by particle conservation. If set to -1 then
@@ -69,9 +70,9 @@ typedef struct {
 
 /* ------- begin -------------------------- solveRates.c ------------ */
 
-static void solveRates(RHState *rh, int N, double **Gamma, int k, int isum,
-					   double ntotal, double *n, double **R,
-					   double **A, SEFallback *fb)
+static rh_status solveRates(RHState *rh, int N, double **Gamma, int k, int isum,
+							double ntotal, double *n, double **R,
+							double **A, SEFallback *fb)
 {
 	register int i, j;
 
@@ -99,7 +100,7 @@ static void solveRates(RHState *rh, int N, double **Gamma, int k, int isum,
 		for (j = 0; j < N; j++) R[i][j] = (i == j) ? 0.0 : Gamma[j * N + i][k];
 
 	status = SolveGTH(N, R, root, ntotal, n, &i_bad, &j_bad);
-	if (status == GTH_OK) return;
+	if (status == GTH_OK) return RH_OK;
 
 	if (fb->Nlu++ == 0) {
 		fb->k      = k;
@@ -124,7 +125,7 @@ static void solveRates(RHState *rh, int N, double **Gamma, int k, int isum,
 	n[root] = ntotal;
 	for (j = 0; j < N; j++) A[root][j] = 1.0;
 
-	ExitOnError(rh, SolveLinearEq(rh, N, A, n, TRUE));
+	RH_TRY(SolveLinearEq(rh, N, A, n, TRUE));
 
 	for (i = 0; i < N; i++) {
 		if (isfinite(n[i]) && n[i] >= -SE_NEG_TOL * ntotal) continue;
@@ -135,6 +136,7 @@ static void solveRates(RHState *rh, int N, double **Gamma, int k, int isum,
 		}
 		break;
 	}
+	return RH_OK;
 }
 /* ------- end ---------------------------- solveRates.c ------------ */
 
@@ -171,21 +173,22 @@ static void reportFallback(RHState *rh, const char *ID, const SEFallback *fb,
 
 /* ------- begin -------------------------- badPopulations.c ------- */
 
-static void badPopulations(RHState *rh, const char *ID, const char *level, long Nsolved,
-						   const SEFallback *fb)
+static rh_status badPopulations(RHState *rh, const char *ID, const char *level, long Nsolved,
+								const SEFallback *fb)
 {
 	const char routineName[] = "badPopulations";
 	char       what[440];
 
 	/* --- Only reached when LU produced a population that is negative
-		   or not finite (N-8): invalidates a trial point, else stops
-		   the run --                                   -------------- */
+		   or not finite (N-8): invalidates a trial point, else fails
+		   with RH_E_TRIAL (the iterate is invalid, and no solver can
+		   reject it) --                                -------------- */
 
 	/* --- A negative population comes from a negative rate (the MALI
 		   preconditioning in a thick line core, or bad atomic data), a
 		   non-finite one from a non-finite rate or an overflow. The
 		   initial solution (initial_xdr.c) can also be the source; it
-		   is never a trial, so it stops with this message -- -------- */
+		   is never a trial, so it fails with this message -- -------- */
 
 	snprintf(what, sizeof(what),
 			 "%s: the LU solution of the rate equations has a %s population"
@@ -201,21 +204,22 @@ static void badPopulations(RHState *rh, const char *ID, const char *level, long 
 
 	if (negTauInTrial(rh)) {
 		negTauInvalid(rh, what);
-		return;
+		return RH_OK;
 	}
-	Error(rh, ERROR_LEVEL_2, routineName, "\n  %s", what);
+	return Fail(rh, RH_E_TRIAL, routineName, "\n  %s", what);
 }
 /* ------- end ---------------------------- badPopulations.c ------- */
 
 /* ------- begin -------------------------- statEquil.c ------------- */
 
-void statEquil(RHState *rh, Atom *atom, int isum)
+rh_status statEquil(RHState *rh, Atom *atom, int isum)
 {
 	register int i, k;
 
 	int        Nlevel;
 	double    *n_k, **R, **A;
-	SEFallback fb = SE_FALLBACK_INIT;
+	rh_status  status = RH_OK;
+	SEFallback fb     = SE_FALLBACK_INIT;
 
 	getCPU(rh, 3, TIME_START, NULL);
 
@@ -232,8 +236,9 @@ void statEquil(RHState *rh, Atom *atom, int isum)
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		for (i = 0; i < Nlevel; i++) n_k[i] = atom->n[i][k];
 
-		solveRates(rh, Nlevel, atom->Gamma, k, isum, atom->ntotal[k], n_k, R, A,
-				   &fb);
+		RH_TRY_GOTO(status, cleanup,
+					solveRates(rh, Nlevel, atom->Gamma, k, isum, atom->ntotal[k], n_k, R, A,
+							   &fb));
 		for (i = 0; i < Nlevel; i++) atom->n[i][k] = n_k[i];
 	}
 	workRates(rh, rh->atmos.Nspace, fb.Nlu);
@@ -242,26 +247,29 @@ void statEquil(RHState *rh, Atom *atom, int isum)
 		char level[ATOM_LABEL_WIDTH + 8];
 
 		sprintf(level, " (%s)", atom->label[fb.ibad]);
-		badPopulations(rh, atom->ID, level, rh->atmos.Nspace, &fb);
+		status = badPopulations(rh, atom->ID, level, rh->atmos.Nspace, &fb);
 	}
 
+cleanup:
 	free(n_k);
 	freeMatrix(rh, (void **) R);
 	freeMatrix(rh, (void **) A);
 
 	getCPU(rh, 3, TIME_POLL, "Stat Equil");
+	return status;
 }
 /* ------- end ---------------------------- statEquil.c ------------- */
 
 /* ------- begin -------------------------- statEquilMolecule.c ----- */
 
-void statEquilMolecule(RHState *rh, struct Molecule *molecule, int isum)
+rh_status statEquilMolecule(RHState *rh, struct Molecule *molecule, int isum)
 {
 	register int vi, k;
 
 	int        Nlevel, Nsolved = 0;
 	double    *n_k, **R, **A;
-	SEFallback fb = SE_FALLBACK_INIT;
+	rh_status  status = RH_OK;
+	SEFallback fb     = SE_FALLBACK_INIT;
 
 	getCPU(rh, 3, TIME_START, NULL);
 
@@ -275,8 +283,9 @@ void statEquilMolecule(RHState *rh, struct Molecule *molecule, int isum)
 		if (molecule->n[k] > 0.0) {
 			for (vi = 0; vi < Nlevel; vi++) n_k[vi] = molecule->nv[vi][k];
 
-			solveRates(rh, Nlevel, molecule->Gamma, k, isum, molecule->n[k], n_k,
-					   R, A, &fb);
+			RH_TRY_GOTO(status, cleanup,
+						solveRates(rh, Nlevel, molecule->Gamma, k, isum, molecule->n[k], n_k,
+								   R, A, &fb));
 			for (vi = 0; vi < Nlevel; vi++) molecule->nv[vi][k] = n_k[vi];
 			Nsolved++;
 		} else
@@ -284,19 +293,21 @@ void statEquilMolecule(RHState *rh, struct Molecule *molecule, int isum)
 	}
 	workRates(rh, Nsolved, fb.Nlu);
 	if (fb.Nlu) reportFallback(rh, molecule->ID, &fb, NULL, Nlevel);
-	if (fb.Nbad) badPopulations(rh, molecule->ID, "", Nsolved, &fb);
+	if (fb.Nbad) status = badPopulations(rh, molecule->ID, "", Nsolved, &fb);
 
+cleanup:
 	free(n_k);
 	freeMatrix(rh, (void **) R);
 	freeMatrix(rh, (void **) A);
 
 	getCPU(rh, 3, TIME_POLL, "Stat Equil");
+	return status;
 }
 /* ------- end ---------------------------- statEquilMolecule.c ----- */
 
 /* ------- begin -------------------------- updatePopulations.c ----- */
 
-double updatePopulations(RHState *rh, int niter)
+rh_status updatePopulations(RHState *rh, int niter, double *dpopsmax_out)
 {
 	register int nact;
 
@@ -313,8 +324,8 @@ double updatePopulations(RHState *rh, int niter)
 	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		atom = rh->atmos.activeatoms[nact];
 
-		statEquil(rh, atom, rh->input.isum);
-		ExitOnError(rh, Accelerate(rh, atom->Ng_n, atom->n[0], &accel));
+		RH_TRY(statEquil(rh, atom, rh->input.isum));
+		RH_TRY(Accelerate(rh, atom->Ng_n, atom->n[0], &accel));
 
 		snprintf(label, sizeof(label), " %s,", atom->ID);
 		dpops = MaxChange(rh, atom->Ng_n, label, quiet = FALSE);
@@ -327,8 +338,8 @@ double updatePopulations(RHState *rh, int niter)
 	for (nact = 0; nact < rh->atmos.Nactivemol; nact++) {
 		molecule = rh->atmos.activemols[nact];
 
-		statEquilMolecule(rh, molecule, 0);
-		ExitOnError(rh, Accelerate(rh, molecule->Ng_nv, molecule->nv[0], &accel));
+		RH_TRY(statEquilMolecule(rh, molecule, 0));
+		RH_TRY(Accelerate(rh, molecule->Ng_nv, molecule->nv[0], &accel));
 
 		snprintf(label, sizeof(label), " %s ,", molecule->ID);
 		dpops = MaxChange(rh, molecule->Ng_nv, label, quiet = FALSE);
@@ -337,6 +348,7 @@ double updatePopulations(RHState *rh, int niter)
 		dpopsmax = MAX(dpops, dpopsmax);
 	}
 
-	return dpopsmax;
+	*dpopsmax_out = dpopsmax;
+	return RH_OK;
 }
 /* ------- end ---------------------------- updatePopulations.c ----- */

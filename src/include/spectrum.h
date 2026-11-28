@@ -53,13 +53,14 @@ typedef struct {
 
 /* --- Associated function prototypes --               -------------- */
 
-double Formal(RHState *rh, int nspect, bool_t eval_operator, bool_t redistribute);
-double solveSpectrum(RHState *rh, bool_t eval_operator, bool_t redistribute);
+double                 Formal(RHState *rh, int nspect, bool_t eval_operator, bool_t redistribute);
+RH_NODISCARD rh_status solveSpectrum(RHState *rh, bool_t eval_operator, bool_t redistribute,
+									 double *dJmax);
 
-void addtoGamma(RHState *rh, int nspect, double wmu, double *P, double *Psi);
-void addtoRates(RHState *rh, int nspect, int mu, bool_t to_obs, double wmu,
-				double *I, bool_t redistribute);
-void initScatter(RHState *rh);
+void                   addtoGamma(RHState *rh, int nspect, double wmu, double *P, double *Psi);
+void                   addtoRates(RHState *rh, int nspect, int mu, bool_t to_obs, double wmu,
+								  double *I, bool_t redistribute);
+RH_NODISCARD rh_status initScatter(RHState *rh);
 
 void StokesK(RHState *rh, int nspect, int k, double chi_I, double K[4][4]);
 void addtoCoupling(RHState *rh, int nspect);

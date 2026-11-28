@@ -525,7 +525,7 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 		/* --- Get wavelength quadratures and allocate space
 			   for populations --                          -------------- */
 
-		for (kr = 0; kr < Nline; kr++) getLambda(rh, atom->line + kr);
+		for (kr = 0; kr < Nline; kr++) ExitOnError(rh, getLambda(rh, atom->line + kr));
 		atom->n = matrix_double(rh, Nlevel, Nspace);
 
 		/* --- Allocate space for thread dependent quantities -- -------- */

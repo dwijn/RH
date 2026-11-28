@@ -225,15 +225,17 @@ static int ecnoise(int nf, double *f, double *fnoise)
 
 /* ------- begin -------------------------- gcheckRun.c ------------- */
 
-void gcheckRun(RHState *rh, const GCheckOptions *opt)
+rh_status gcheckRun(RHState *rh, const GCheckOptions *opt)
 {
 	register long k;
 	register int  n, i;
 
-	int     Nb, nf, inform, Nnoise, Nsmall, Nlarge, ne;
-	long    N, off;
-	double *x, *xb, *y1, *y2, *p, **f, *col, fn, rel, nmax, nsum,
-		t_start, *D[2], eps, num, den, dmax;
+	int       Nb, nf, inform, Nnoise, Nsmall, Nlarge, ne;
+	long      N, off;
+	bool_t    valid;
+	double   *x, *xb, *y1, *y2, fn, rel, nmax, nsum, t_start, eps, num, den, dmax;
+	double   *p = NULL, **f = NULL, *col = NULL, *D[2] = {NULL, NULL};
+	rh_status status = RH_OK;
 
 	N  = stateInit(rh);
 	Nb = stateNblocks(rh);
@@ -260,16 +262,16 @@ void gcheckRun(RHState *rh, const GCheckOptions *opt)
 	t_start = wallClock();
 	for (i = 1; i <= opt->Nsteps; i++) {
 		if (i == opt->Nsteps - opt->lag + 1) memcpy(xb, x, N * sizeof(double));
-		G_eval(rh, x, x);
+		RH_TRY_GOTO(status, cleanup, G_eval(rh, x, x, &valid));
 	}
 
 	/* --- Twice and history --                         -------------- */
 
-	G_eval(rh, x, y1);
-	G_eval(rh, x, y2);
+	RH_TRY_GOTO(status, cleanup, G_eval(rh, x, y1, &valid));
+	RH_TRY_GOTO(status, cleanup, G_eval(rh, x, y2, &valid));
 	compare(rh, "twice", y1, y2, N);
-	G_eval(rh, xb, y2);
-	G_eval(rh, x, y2);
+	RH_TRY_GOTO(status, cleanup, G_eval(rh, xb, y2, &valid));
+	RH_TRY_GOTO(status, cleanup, G_eval(rh, x, y2, &valid));
 	compare(rh, "history", y1, y2, N);
 
 	for (n = 0, off = 0; n < Nb; off += stateBlockSize(rh, n), n++) {
@@ -292,7 +294,7 @@ void gcheckRun(RHState *rh, const GCheckOptions *opt)
 		for (i = 0; i < nf; i++) {
 			for (k = 0; k < N; k++)
 				y2[k] = x[k] + (i - opt->Necn / 2) * opt->hEcnoise * p[k];
-			G_eval(rh, y2, f[i]);
+			RH_TRY_GOTO(status, cleanup, G_eval(rh, y2, f[i], &valid));
 		}
 		col = (double *) mallocOrAbort(nf * sizeof(double));
 		Message(rh, "gcheck: ecnoise, %d points, relative step %.1E:"
@@ -324,6 +326,9 @@ void gcheckRun(RHState *rh, const GCheckOptions *opt)
 		free(col);
 		free(p);
 		freeMatrix(rh, (void **) f);
+		col = NULL;
+		p   = NULL;
+		f   = NULL;
 	}
 
 	/* --- Finite-difference Jacobian products --       -------------- */
@@ -342,7 +347,7 @@ void gcheckRun(RHState *rh, const GCheckOptions *opt)
 		Message(rh, "\n");
 		for (ne = 0, eps = opt->fdmax; ne < NEPS; ne++, eps *= 0.1) {
 			for (k = 0; k < N; k++) y2[k] = x[k] + eps * p[k];
-			G_eval(rh, y2, D[ne % 2]);
+			RH_TRY_GOTO(status, cleanup, G_eval(rh, y2, D[ne % 2], &valid));
 			for (k = 0; k < N; k++) D[ne % 2][k] = (D[ne % 2][k] - y1[k]) / eps;
 			if (ne == 0) continue;
 			Message(rh, "gcheck: fd %8.1E", eps);
@@ -359,6 +364,9 @@ void gcheckRun(RHState *rh, const GCheckOptions *opt)
 		free(p);
 		free(D[0]);
 		free(D[1]);
+		p    = NULL;
+		D[0] = NULL;
+		D[1] = NULL;
 	}
 	if (opt->perturb) {
 		Message(rh, "gcheck: ecnoise and fd directions restricted to"
@@ -368,9 +376,16 @@ void gcheckRun(RHState *rh, const GCheckOptions *opt)
 	Message(rh, "gcheck: %ld evaluations of G, %.3f s per evaluation\n",
 			G_count(rh), (wallClock() - t_start) / G_count(rh));
 
+cleanup:
+	free(p);
+	free(col);
+	if (f != NULL) freeMatrix(rh, (void **) f);
+	free(D[0]);
+	free(D[1]);
 	free(x);
 	free(xb);
 	free(y1);
 	free(y2);
+	return status;
 }
 /* ------- end ---------------------------- gcheckRun.c ------------- */

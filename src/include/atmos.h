@@ -102,10 +102,11 @@ RH_NODISCARD rh_status passive_bb(RHState *rh, PassiveBBCache *cache, double lam
 flags rlk_opacity(RHState *rh, double lambda, int nspect, int mu, bool_t to_obs,
 				  double *chi, double *eta, double *scatt, double *chip);
 
-void molecularPrepare(RHState *rh);
+RH_NODISCARD rh_status molecularPrepare(RHState *rh);
 
-flags MolecularOpacity(RHState *rh, double lambda, int nspect, int mu, bool_t to_obs,
-					   double *chi, double *eta, double *chip);
+RH_NODISCARD rh_status MolecularOpacity(RHState *rh, double lambda, int nspect, int mu,
+										bool_t to_obs, double *chi, double *eta, double *chip,
+										flags *result);
 
 /* --- Moleculear concentrations --                    -------------- */
 

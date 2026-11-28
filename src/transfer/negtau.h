@@ -69,13 +69,13 @@ bool_t negTauColumns(RHState *rh, int nspect, int mu, int to_obs, int Nz, long N
 					 const double *chi, const double *z, double muz,
 					 enum negtau_quadrature quad);
 
-void   negTauTrial(RHState *rh, bool_t trial);
-bool_t negTauInTrial(RHState *rh);
-void   negTauInvalid(RHState *rh, const char *message);
-bool_t negTauFound(RHState *rh);
-void   negTauReset(RHState *rh);
-void   negTauMessage(RHState *rh, char *message, size_t size);
-void   negTauStop(RHState *rh);
+void                   negTauTrial(RHState *rh, bool_t trial);
+bool_t                 negTauInTrial(RHState *rh);
+void                   negTauInvalid(RHState *rh, const char *message);
+bool_t                 negTauFound(RHState *rh);
+void                   negTauReset(RHState *rh);
+void                   negTauMessage(RHState *rh, char *message, size_t size);
+RH_NODISCARD rh_status negTauStop(RHState *rh);
 
 /* --- The state of the detector between calls, its part of RHState
 	   (rh->negtau, Q-46). The threads of solveSpectrum write detected

@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
 
 	readAtomicModels(rh);
 	readMolecularModels(rh);
-	SortLambda(rh);
+	ExitOnError(rh, SortLambda(rh));
 
 	getBoundary(rh, &rh->atmos, rh->geometry);
 
@@ -98,8 +98,8 @@ int main(int argc, char *argv[])
 	readBRS(rh);
 
 	ExitOnError(rh, getProfiles(rh));
-	initSolution(rh);
-	initScatter(rh);
+	ExitOnError(rh, initSolution(rh));
+	ExitOnError(rh, initScatter(rh));
 
 	/* --- Get wavelength indices for flow field --      -------------- */
 

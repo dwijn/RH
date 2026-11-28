@@ -34,13 +34,14 @@
 
 /* ------- begin -------------------------- SortLambda.c ------------ */
 
-void SortLambda(RHState *rh)
+rh_status SortLambda(RHState *rh)
 {
 	const char   routineName[] = "SortLambda";
 	register int kr, n, m, nspect, la, nact;
 
-	bool_t           unique, result;
-	int              Nred, Nspectrum, Nlambda_original, Z, i = 0, j = 0, Nwave;
+	bool_t unique, result;
+	int    Nred, Nspectrum, Nlambda_original, Z, i = 0, j = 0, Nwave,
+											  Nchanged;
 	double          *alpha_original, gbf_0, n_eff, *wavetable = NULL;
 	PchipTable       bftable;
 	ActiveSet       *as;
@@ -54,27 +55,29 @@ void SortLambda(RHState *rh)
 
 	getCPU(rh, 2, TIME_START, NULL);
 
-	/* --- First read the wavelength table if specified -- ------------ */
-
-	result = TRUE;
+	/* --- First read the wavelength table if specified. The count is
+		   checked before it sizes the table --          -------------- */
 
 	if (strcmp(rh->input.wavetable_input, "none")) {
 		if ((fp_wavetable = fopen(rh->input.wavetable_input, "r")) == NULL) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s",
-				  rh->input.wavetable_input);
+			return Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s",
+						rh->input.wavetable_input);
 		}
 		xdrstdio_create(&xdrs, fp_wavetable, XDR_DECODE);
 
-		result &= xdr_int(&xdrs, &Nwave);
-		wavetable = (double *) mallocOrAbort(Nwave * sizeof(double));
-		result &= xdr_vector(&xdrs, (char *) wavetable, Nwave,
-							 sizeof(double), (xdrproc_t) rh_xdr_double);
-		if (!result) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read from input file %s",
-				  rh->input.wavetable_input);
+		result = xdr_int(&xdrs, &Nwave);
+		if (result) {
+			wavetable = (double *) mallocOrAbort(Nwave * sizeof(double));
+			result    = xdr_vector(&xdrs, (char *) wavetable, Nwave,
+								   sizeof(double), (xdrproc_t) rh_xdr_double);
 		}
 		xdr_destroy(&xdrs);
 		fclose(fp_wavetable);
+		if (!result) {
+			free(wavetable);
+			return Fail(rh, RH_E_DATA, routineName, "Unable to read from input file %s",
+						rh->input.wavetable_input);
+		}
 	} else
 		Nwave = 0;
 
@@ -87,12 +90,17 @@ void SortLambda(RHState *rh)
 		   full profiles (N-55) --                       -------------- */
 
 	if (rh->atmos.Natom > 0) {
-		double *extra = (double *) mallocOrAbort((Nwave + 1) * sizeof(double));
+		double   *extra = (double *) mallocOrAbort((Nwave + 1) * sizeof(double));
+		rh_status status;
 
 		for (kr = 0; kr < Nwave; kr++) extra[kr] = wavetable[kr];
 		if (rh->atmos.lambda_ref > 0.0) extra[Nwave] = rh->atmos.lambda_ref;
-		asymmetricBlends(rh, extra, Nspectrum);
+		status = asymmetricBlends(rh, extra, Nspectrum, &Nchanged);
 		free(extra);
+		if (status != RH_OK) {
+			free(wavetable);
+			return status;
+		}
 	}
 
 	/* --- Go through the active atoms to collect number of wavelengths
@@ -171,6 +179,7 @@ void SortLambda(RHState *rh)
 
 	for (kr = 0; kr < Nwave; kr++)
 		rh->spectrum.lambda[nspect++] = wavetable[kr];
+	free(wavetable);
 
 	/* --- Finally, all the detailed radiative transitions -- --------- */
 
@@ -318,9 +327,9 @@ void SortLambda(RHState *rh)
 				as->Nactiveatomrt[nact]++;
 
 				if (as->Nactiveatomrt[nact] == N_MAX_OVERLAP) {
-					Error(rh, ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
-														  "for atom %s and nspect = %d\n",
-						  as->Nactiveatomrt[nact], atom->ID, nspect);
+					return Fail(rh, RH_E_DATA, routineName, "\n Too many overlapping transitions (> %d) "
+															"for atom %s and nspect = %d\n",
+								as->Nactiveatomrt[nact], atom->ID, nspect);
 				}
 			}
 			/* --- In case of Bound-Free transition compute absorption
@@ -351,8 +360,8 @@ void SortLambda(RHState *rh)
 					   went negative around resonances --  -------------- */
 
 				alpha_original = continuum->alpha;
-				ExitOnError(rh, pchipTableInit(rh, &bftable, Nlambda_original, continuum->lambda,
-											   alpha_original, PCHIP_LOGLOG));
+				RH_TRY(pchipTableInit(rh, &bftable, Nlambda_original, continuum->lambda,
+									  alpha_original, PCHIP_LOGLOG));
 
 				continuum->alpha =
 					(double *) mallocOrAbort(continuum->Nlambda * sizeof(double));
@@ -396,9 +405,9 @@ void SortLambda(RHState *rh)
 				as->Nactiveatomrt[nact]++;
 
 				if (as->Nactiveatomrt[nact] == N_MAX_OVERLAP) {
-					Error(rh, ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
-														  "for atom %s and nspect = %d\n",
-						  as->Nactiveatomrt[nact], atom->ID, nspect);
+					return Fail(rh, RH_E_DATA, routineName, "\n Too many overlapping transitions (> %d) "
+															"for atom %s and nspect = %d\n",
+								as->Nactiveatomrt[nact], atom->ID, nspect);
 				}
 			}
 			free(line->lambda);
@@ -443,9 +452,9 @@ void SortLambda(RHState *rh)
 				as->Nactivemolrt[nact]++;
 
 				if (as->Nactivemolrt[nact] == N_MAX_OVERLAP) {
-					Error(rh, ERROR_LEVEL_2, routineName, "\n Too many overlapping transitions (> %d) "
-														  "for molecule %s and nspect = %d\n",
-						  as->Nactivemolrt[nact], molecule->ID, nspect);
+					return Fail(rh, RH_E_DATA, routineName, "\n Too many overlapping transitions (> %d) "
+															"for molecule %s and nspect = %d\n",
+								as->Nactivemolrt[nact], molecule->ID, nspect);
 				}
 			}
 		}
@@ -558,5 +567,6 @@ void SortLambda(RHState *rh)
 	mirrorQuadrature(rh);
 
 	getCPU(rh, 2, TIME_POLL, "SortLambda");
+	return RH_OK;
 }
 /* ------- end ---------------------------- SortLambda.c ------------ */

@@ -7,7 +7,9 @@
 	   solvers (B-68): the 1-D cubic on the column where NEWTON_KRYLOV
 	   overflowed on 1d_shock_h6 (the value Piecewise_Bezier3_1D had,
 	   from gdb), and both Bezier forms between the smallest and
-	   largest chi of the interval times its path length.
+	   largest chi of the interval times its path length. After a
+	   detection negTauStop leaves a trial point to the solver and
+	   fails with RH_E_TRIAL outside a trial (Q-55).
 	   --                                              -------------- */
 
 #include <math.h>
@@ -19,6 +21,7 @@
 #include "atom.h"
 #include "atmos.h"
 #include "spectrum.h"
+#include "error.h"
 #include "check.h"
 #include "negtau.h"
 #include "state.h"
@@ -85,6 +88,12 @@ static void check_threshold(void)
 				  strstr(msg, "-70") && strstr(msg, "depth points 0 and 3"),
 			  "message does not name the deepest run: %s", msg);
 	}
+	negTauTrial(rh, TRUE);
+	CHECK(negTauStop(rh) == RH_OK && !Failed(rh), "negTauStop in a trial failed");
+	negTauTrial(rh, FALSE);
+	CHECK(negTauStop(rh) == RH_E_TRIAL && Failed(rh) && rh->error.code == RH_E_TRIAL,
+		  "negTauStop outside a trial: not RH_E_TRIAL");
+	ClearError(rh);
 	negTauReset(rh);
 	CHECK(!negTauFound(rh), "reset");
 }

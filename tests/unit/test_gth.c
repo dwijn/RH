@@ -301,7 +301,7 @@ static void test_statequil(void)
 	atom.C[3 * N + 1][1] = -0.1;
 	atom.Gamma[3 * N + 1][1] += -0.1;
 
-	statEquil(rh, &atom, -1);
+	CHECK(statEquil(rh, &atom, -1) == RH_OK, "statEquil failed");
 
 	CHECK_CLOSE(atom.n[0][0], p[0] / (p[0] + p[1] + p[2] + p[3] + p[4]),
 				1.0e-14, 0.0, "statEquil GTH, n[0] at k = %d", 0);

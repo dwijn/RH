@@ -23,7 +23,7 @@
 
 /* ------- begin -------------------------- initScatter.c ----------- */
 
-void initScatter(RHState *rh)
+rh_status initScatter(RHState *rh)
 {
 	const char   routineName[] = "initScatter";
 	register int n, kr, niter;
@@ -44,9 +44,9 @@ void initScatter(RHState *rh)
 					line = atom->line + kr;
 					if (line->PRD) {
 						if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
-							ExitOnError(rh, PRDAngleScatter(rh, line));
+							RH_TRY(PRDAngleScatter(rh, line));
 						else
-							ExitOnError(rh, PRDScatter(rh, line));
+							RH_TRY(PRDScatter(rh, line));
 					}
 				}
 			}
@@ -66,11 +66,12 @@ void initScatter(RHState *rh)
 
 		niter = 0;
 		while (rh->input.NmaxIter && niter < rh->input.NmaxScatter) {
-			dJmax = solveSpectrum(rh, FALSE, FALSE);
+			RH_TRY(solveSpectrum(rh, FALSE, FALSE, &dJmax));
 			if (dJmax < rh->input.iterLimit) break;
 			niter++;
 		}
 	}
 	getCPU(rh, 2, TIME_POLL, "Initial solution");
+	return RH_OK;
 }
 /* ------- end ---------------------------- initScatter.c ----------- */

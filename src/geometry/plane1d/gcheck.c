@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
 
 	readAtomicModels(rh);
 	readMolecularModels(rh);
-	SortLambda(rh);
+	ExitOnError(rh, SortLambda(rh));
 
 	getBoundary(rh, rh->geometry);
 
@@ -69,12 +69,12 @@ int main(int argc, char *argv[])
 	convertScales(rh, &rh->atmos, rh->geometry);
 
 	ExitOnError(rh, getProfiles(rh));
-	initSolution(rh);
-	initScatter(rh);
+	ExitOnError(rh, initSolution(rh));
+	ExitOnError(rh, initScatter(rh));
 
 	getCPU(rh, 1, TIME_POLL, "Total initialize");
 
-	gcheckRun(rh, &opt);
+	ExitOnError(rh, gcheckRun(rh, &opt));
 
 	return ExitStatus(rh);
 }

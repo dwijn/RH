@@ -250,13 +250,10 @@ void negTauInvalid(RHState *rh, const char *message)
 		   is TRUE until the next negTauReset and negTauMessage gives
 		   this message (the first one, unless an opacity detection
 		   came first). Only during a trial, from the main thread;
-		   anywhere else it is a programming error and stops -- ----                                      -------------- */
+		   the callers check negTauInTrial first --       -------------- */
 
-	if (!rh->negtau.trial) {
-		Error(rh, ERROR_LEVEL_2, "negTauInvalid",
+	RH_ASSERT(rh, rh->negtau.trial, "negTauInvalid",
 			  "called outside a trial evaluation of G (programming error)");
-		return;
-	}
 	pthread_mutex_lock(&rh->negtau.lock);
 	if (!rh->negtau.invalid) {
 		rh->negtau.invalid = TRUE;
@@ -322,20 +319,21 @@ void negTauMessage(RHState *rh, char *message, size_t size)
 
 /* ------- begin -------------------------- negTauStop.c ------------ */
 
-void negTauStop(RHState *rh)
+rh_status negTauStop(RHState *rh)
 {
 	const char routineName[] = "negTauStop";
 	char       what[256];
 
-	/* --- Called by solveSpectrum after its threads have joined: stops
-		   the run unless a solver is evaluating a trial point -- ---- */
+	/* --- Called by solveSpectrum after its threads have joined: fails
+		   with RH_E_TRIAL (the iterate is invalid, and no solver can
+		   reject it) unless a solver is evaluating a trial point -- */
 
-	if (!rh->negtau.detected.found || rh->negtau.trial) return; /* (invalid only in a trial) */
+	if (!rh->negtau.detected.found || rh->negtau.trial) return RH_OK; /* (invalid only in a trial) */
 
 	negTauMessage(rh, what, sizeof(what));
-	Error(rh, ERROR_LEVEL_2, routineName, "\n  %s.\n  The formal solution would overflow there. A negative"
-										  " total opacity\n  comes from a strong inverted line (population"
-										  " inversion) in\n  the current populations (SOLVER.md, trap 5)",
-		  what);
+	return Fail(rh, RH_E_TRIAL, routineName, "\n  %s.\n  The formal solution would overflow there. A negative"
+											 " total opacity\n  comes from a strong inverted line (population"
+											 " inversion) in\n  the current populations (SOLVER.md, trap 5)",
+				what);
 }
 /* ------- end ---------------------------- negTauStop.c ------------ */

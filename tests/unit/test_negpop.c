@@ -7,18 +7,21 @@
 	   population n_1 = -N a / (|a| ... ) < 0 (GTH needs non-negative
 	   rates). The test checks
 
-	   -- outside a trial evaluation of G, statEquil stops the run
-		  (ERROR_LEVEL_2, in a child process);
+	   -- outside a trial evaluation of G, statEquil fails with
+		  RH_E_TRIAL and records the error (Q-55);
 	   -- inside one (negTauTrial(TRUE)) it returns, and negTauFound is
 		  TRUE with a message that names atom, level and location and
 		  says that negative populations come from negative
 		  preconditioned rates, until negTauReset;
 	   -- the same for a non-finite rate (a NaN, from LU a NaN);
 	   -- a negative rate with non-negative LU populations, and plain
-		  non-negative rates, give no stop and no invalidation.
+		  non-negative rates, give no failure and no invalidation;
+	   -- negTauInvalid outside a trial is an assertion (SIGABRT, in a
+		  child process).
 	   --                                              -------------- */
 
 #include <math.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
@@ -33,8 +36,8 @@
 #include "negtau.h"
 #include "state.h"
 
-/* --- LeakSanitizer would report the buffers that Error() leaves in
-	   the child that it ends, and change its exit status -- -------- */
+/* --- LeakSanitizer would report the buffers that the assertion
+	   leaves in the child that it ends -- ------------------------ */
 
 static int in_child = 0;
 
@@ -68,15 +71,10 @@ static void run_invalid_outside(void)
 	negTauInvalid(rh, "x");
 }
 
-static void run_stop(void)
-{
-	statEquil(rh, &atom, -1);
-}
+/* --- Run f in a child with its output discarded; TRUE if it
+	   aborted (RH_ASSERT) --                          -------------- */
 
-/* --- Run f in a child with its output discarded; TRUE if it ended
-	   with RH's fatal exit status --                   -------------- */
-
-static int is_fatal(void (*f)(void))
+static int aborts(void (*f)(void))
 {
 	pid_t pid;
 	int   status;
@@ -90,8 +88,8 @@ static int is_fatal(void (*f)(void))
 		f();
 		_exit(0);
 	}
-	if (pid < 0 || waitpid(pid, &status, 0) != pid) return -1; /* fork failed: not "not fatal" */
-	return WIFEXITED(status) && WEXITSTATUS(status) == RH_EXIT_FATAL;
+	if (pid < 0 || waitpid(pid, &status, 0) != pid) return -1; /* fork failed: not "no abort" */
+	return WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT;
 }
 
 static void check_case(const char *name, double a, double b, bool_t bad,
@@ -101,15 +99,19 @@ static void check_case(const char *name, double a, double b, bool_t bad,
 
 	set_rates(a, b);
 	{
-		int fatal = is_fatal(run_stop);
-		CHECK(fatal == bad, "%s: outside a trial, stops: %d (-1: fork failed), expected %d",
-			  name, fatal, bad);
+		rh_status status = statEquil(rh, &atom, -1);
+
+		CHECK(status == (bad ? RH_E_TRIAL : RH_OK), "%s: outside a trial, status %d, expected %d",
+			  name, status, bad ? RH_E_TRIAL : RH_OK);
+		CHECK(Failed(rh) == bad && (!bad || rh->error.code == RH_E_TRIAL),
+			  "%s: outside a trial, the error is not recorded as it should", name);
+		ClearError(rh);
 	}
 
 	set_rates(a, b);
 	negTauReset(rh);
 	negTauTrial(rh, TRUE);
-	statEquil(rh, &atom, -1);
+	CHECK(statEquil(rh, &atom, -1) == RH_OK, "%s: in a trial, statEquil failed", name);
 	negTauTrial(rh, FALSE);
 	CHECK(negTauFound(rh) == bad, "%s: in a trial, invalid: %d, expected %d", name,
 		  negTauFound(rh), bad);
@@ -147,8 +149,8 @@ int main(void)
 
 	/* --- Plain non-negative rates: GTH, nothing to report -- ------ */
 
-	CHECK(is_fatal(run_invalid_outside) == 1,
-		  "negTauInvalid outside a trial does not stop (or fork failed)");
+	CHECK(aborts(run_invalid_outside) == 1,
+		  "negTauInvalid outside a trial does not abort (or fork failed)");
 	check_case("non-negative rates", 0.5, 1.0, FALSE, "", "");
 
 	free(atom.label[0]);

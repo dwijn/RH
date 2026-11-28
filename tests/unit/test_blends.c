@@ -18,6 +18,11 @@
 		  of its red half unchanged, bit for bit, and the mirror image
 		  on the blue side;
 	   -- a second call changes nothing.
+
+	   The error paths of the wavelength grid (Q-55), in the process:
+	   getLambda with qcore <= 0, and SortLambda with a wavelength
+	   table that cannot be opened or is truncated, return RH_E_DATA
+	   and record it.
 	   --                                              -------------- */
 
 #include <math.h>
@@ -28,6 +33,8 @@
 #include "atom.h"
 #include "atmos.h"
 #include "inputs.h"
+#include "error.h"
+#include "xdr.h"
 #include "check.h"
 #include "state.h"
 
@@ -50,7 +57,52 @@ static void initLine(AtomicLine *line, double l0, int j, int i)
 	line->c_shift    = (double *) calloc(1, sizeof(double));
 	line->j          = j;
 	line->i          = i;
-	getLambda(rh, line);
+	CHECK(getLambda(rh, line) == RH_OK, "getLambda of line %d -> %d failed", j, i);
+}
+
+/* --- The error paths (Q-55) --                     -------------- */
+
+static void check_errors(void)
+{
+	AtomicLine bad;
+	char       path[] = "test_blends_waveXXXXXX";
+	int        fd, Nwave = 3;
+	double     lambda = 500.0;
+	FILE      *fp;
+	XDR        xdrs;
+
+	memset(&bad, 0, sizeof(bad));
+	bad.qcore      = 0.0;
+	bad.qwing      = 600.0;
+	bad.Nlambda    = NHALF;
+	bad.symmetric  = TRUE;
+	bad.Ncomponent = 1;
+	CHECK(getLambda(rh, &bad) == RH_E_DATA && Failed(rh) && rh->error.code == RH_E_DATA &&
+			  bad.lambda == NULL,
+		  "getLambda with qcore = 0: not RH_E_DATA");
+	ClearError(rh);
+
+	snprintf(rh->input.wavetable_input, sizeof(rh->input.wavetable_input), "%s",
+			 "/nonexistent/wavetable");
+	CHECK(SortLambda(rh) == RH_E_DATA && Failed(rh) && rh->error.code == RH_E_DATA,
+		  "SortLambda, missing wavelength table: not RH_E_DATA");
+	ClearError(rh);
+
+	/* --- Three wavelengths announced, one written --  ------------ */
+
+	fd = mkstemp(path);
+	fp = (fd >= 0) ? fdopen(fd, "w") : NULL;
+	CHECK(fp != NULL, "cannot write %s", path);
+	if (fp == NULL) return;
+	xdrstdio_create(&xdrs, fp, XDR_ENCODE);
+	CHECK(xdr_int(&xdrs, &Nwave) && xdr_double(&xdrs, &lambda), "cannot write %s", path);
+	xdr_destroy(&xdrs);
+	fclose(fp);
+	snprintf(rh->input.wavetable_input, sizeof(rh->input.wavetable_input), "%s", path);
+	CHECK(SortLambda(rh) == RH_E_DATA && Failed(rh) && rh->error.code == RH_E_DATA,
+		  "SortLambda, truncated wavelength table: not RH_E_DATA");
+	ClearError(rh);
+	remove(path);
 }
 
 int main(void)
@@ -102,7 +154,7 @@ int main(void)
 	rh->atmos.atoms     = atoms;
 	rh->atmos.Nmolecule = 0;
 
-	Nchanged = asymmetricBlends(rh, extra, 2);
+	CHECK(asymmetricBlends(rh, extra, 2, &Nchanged) == RH_OK, "asymmetricBlends failed");
 	CHECK(Nchanged == 4, "%d lines made asymmetric, want 4", Nchanged);
 
 	for (kr = 0; kr < NLINE; kr++) {
@@ -126,7 +178,8 @@ int main(void)
 						"line %g: blue point %d not the mirror of the red one", lambda0[kr], la);
 	}
 
-	CHECK(asymmetricBlends(rh, extra, 2) == 0, "a second call changes lines");
+	CHECK(asymmetricBlends(rh, extra, 2, &Nchanged) == RH_OK && Nchanged == 0,
+		  "a second call changes lines");
 
 	for (kr = 0; kr < NLINE; kr++) {
 		free(lines[kr].lambda);
@@ -135,6 +188,8 @@ int main(void)
 	free(passive.lambda);
 	free(passive.c_shift);
 	free(cont.lambda);
+
+	check_errors();
 
 	return check_summary("test_blends");
 }

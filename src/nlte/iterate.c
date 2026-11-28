@@ -39,8 +39,8 @@ void *Formal_pthread(void *argument);
 
 /* --- Global variables --                             -------------- */
 
-static void   iterateNg(RHState *rh, int NmaxIter, double iterLimit);
-static bool_t moreIterations(RHState *rh, int niter, int NmaxIter);
+static rh_status iterateNg(RHState *rh, int NmaxIter, double iterLimit);
+static bool_t    moreIterations(RHState *rh, int niter, int NmaxIter);
 
 /* ------- begin -------------------------- Iterate.c --------------- */
 
@@ -52,9 +52,10 @@ static bool_t moreIterations(RHState *rh, int niter, int NmaxIter)
 	return (niter <= NmaxIter || (rh->input.CR_Nstep > 0 && niter <= rh->input.CR_Nstep));
 }
 
-void Iterate(RHState *rh, int NmaxIter, double iterLimit)
+rh_status Iterate(RHState *rh, int NmaxIter, double iterLimit)
 {
-	double t_start;
+	double    t_start;
+	rh_status status;
 
 	/* --- The main iteration with the solver selected by keyword
 		   SOLVER: RH's Ng-accelerated MALI iteration (NG, the default in
@@ -65,7 +66,7 @@ void Iterate(RHState *rh, int NmaxIter, double iterLimit)
 
 	if (NmaxIter <= 0) {
 		workPhase(rh, WORK_FINAL);
-		return;
+		return RH_OK;
 	}
 	Message(rh, " -- SOLVER = %s%s\n", solverName(rh->input.solver),
 			rh->input.solver_default ? " (the default)" : "");
@@ -76,28 +77,30 @@ void Iterate(RHState *rh, int NmaxIter, double iterLimit)
 
 	switch (rh->input.solver) {
 	case SOLVER_FIXED_POINT:
-		iterateFixedPoint(rh, NmaxIter, iterLimit);
+		status = iterateFixedPoint(rh, NmaxIter, iterLimit);
 		break;
 	case SOLVER_ANDERSON:
-		iterateAnderson(rh, NmaxIter, iterLimit);
+		status = iterateAnderson(rh, NmaxIter, iterLimit);
 		break;
 	case SOLVER_NEWTON_KRYLOV:
-		iterateNewton(rh, NmaxIter, iterLimit);
+		status = iterateNewton(rh, NmaxIter, iterLimit);
 		break;
 	default:
-		iterateNg(rh, NmaxIter, iterLimit);
+		status = iterateNg(rh, NmaxIter, iterLimit);
 		break;
 	}
+	if (status != RH_OK) return status;
 
 	workAdd(rh, WORK_ITERATION, wallClock() - t_start);
 	workPhase(rh, WORK_FINAL);
 	getCPU(rh, 1, TIME_POLL, "Iteration Total");
+	return RH_OK;
 }
 /* ------- end ---------------------------- Iterate.c --------------- */
 
 /* ------- begin -------------------------- iterateNg.c ------------- */
 
-static void iterateNg(RHState *rh, int NmaxIter, double iterLimit)
+static rh_status iterateNg(RHState *rh, int NmaxIter, double iterLimit)
 {
 	const char   routineName[] = "Iterate";
 	register int niter, nact;
@@ -109,6 +112,7 @@ static void iterateNg(RHState *rh, int NmaxIter, double iterLimit)
 	double    dpopsmax = 0.0, PRDiterlimit;
 	Atom     *atom;
 	Molecule *molecule;
+	rh_status status = RH_OK;
 
 	/* --- Initialize structures for Ng acceleration of population
 		   convergence --                                  ------------ */
@@ -153,7 +157,7 @@ static void iterateNg(RHState *rh, int NmaxIter, double iterLimit)
 
 		/* --- Formal solution for all wavelengths --      -------------- */
 
-		solveSpectrum(rh, eval_operator = TRUE, FALSE);
+		RH_TRY_GOTO(status, cleanup, solveSpectrum(rh, eval_operator = TRUE, FALSE, NULL));
 
 		/* --- Merge each thread's Gamma contributions (accumulated with
 			   no locking during the sweep above) into the shared Gamma,
@@ -168,7 +172,7 @@ static void iterateNg(RHState *rh, int NmaxIter, double iterLimit)
 		/* --- Solve statistical equilibrium equations --  -------------- */
 
 		Message(rh, "\n -- Iteration %3d\n", niter);
-		dpopsmax = updatePopulations(rh, niter);
+		RH_TRY_GOTO(status, cleanup, updatePopulations(rh, niter, &dpopsmax));
 
 		if (rh->atmos.NPRDactive > 0) {
 
@@ -179,7 +183,7 @@ static void iterateNg(RHState *rh, int NmaxIter, double iterLimit)
 			else
 				PRDiterlimit = rh->input.PRDiterLimit;
 
-			Redistribute(rh, rh->input.PRD_NmaxIter, PRDiterlimit);
+			RH_TRY_GOTO(status, cleanup, Redistribute(rh, rh->input.PRD_NmaxIter, PRDiterlimit));
 		}
 
 		snprintf(label, sizeof(label), "Total Iteration %3d", niter);
@@ -223,12 +227,14 @@ static void iterateNg(RHState *rh, int NmaxIter, double iterLimit)
 		}
 
 		if (rh->input.solve_ne == ITERATION)
-			ExitOnError(rh, Background(rh, write_analyze_output = TRUE, equilibria_only = FALSE));
+			RH_TRY_GOTO(status, cleanup,
+						Background(rh, write_analyze_output = TRUE, equilibria_only = FALSE));
 
 		if (rh->atmos.hydrostatic) {
 			if (!rh->atmos.atoms[0].active) {
-				Error(rh, ERROR_LEVEL_2, routineName, "Can only perform hydrostatic equilibrium"
-													  " for hydrogen active");
+				status = Fail(rh, RH_E_INPUT, routineName, "Can only perform hydrostatic equilibrium"
+														   " for hydrogen active");
+				goto cleanup;
 			}
 
 			/* --- After the last iteration of a run that did not converge
@@ -264,6 +270,7 @@ static void iterateNg(RHState *rh, int NmaxIter, double iterLimit)
 		SetExitFlag(rh, RH_EXIT_NOT_CONVERGED);
 	}
 
+cleanup:
 	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		atom = rh->atmos.activeatoms[nact];
 		freeMatrix(rh, (void **) atom->Gamma);
@@ -274,6 +281,7 @@ static void iterateNg(RHState *rh, int NmaxIter, double iterLimit)
 		freeMatrix(rh, (void **) molecule->Gamma);
 		NgFree(rh, molecule->Ng_nv);
 	}
+	return status;
 }
 /* ------- end ---------------------------- Iterate.c --------------- */
 
@@ -291,7 +299,8 @@ static const char *linearNote(const BgScatterStats *bs, char *note, size_t size)
 	return note;
 }
 
-double solveSpectrum(RHState *rh, bool_t eval_operator, bool_t redistribute)
+rh_status solveSpectrum(RHState *rh, bool_t eval_operator, bool_t redistribute,
+						double *dJmax_out)
 {
 	register int nspect, nt;
 
@@ -323,7 +332,9 @@ double solveSpectrum(RHState *rh, bool_t eval_operator, bool_t redistribute)
 		   redistribute key is passed to the addtoRates routine via
 		   Formal so that only the radiative rates of PRD lines are
 		   updated. These are needed for the emission profile ratio \rho.
-		   --                                            -------------- */
+
+		   The largest relative change of J goes to dJmax_out, unless it
+		   is NULL --                                    -------------- */
 
 	getCPU(rh, 3, TIME_START, NULL);
 
@@ -431,11 +442,11 @@ double solveSpectrum(RHState *rh, bool_t eval_operator, bool_t redistribute)
 		endJgas(rh, redistribute);
 
 	/* --- A wavelength whose total opacity was negative enough to
-		   overflow the formal solution was skipped (N-40): stop with a
+		   overflow the formal solution was skipped (N-40): fail with a
 		   message, unless a solver is evaluating a trial point, which it
 		   then rejects --                                -------------- */
 
-	negTauStop(rh);
+	RH_TRY(negTauStop(rh));
 
 	Message(rh, " Spectrum max delta J = %6.4E (lambda#: %d)\n",
 			dJmax, lambda_max);
@@ -464,7 +475,8 @@ double solveSpectrum(RHState *rh, bool_t eval_operator, bool_t redistribute)
 	getCPU(rh, 3, TIME_POLL,
 		   (eval_operator) ? "Spectrum & Operator" : "Solve Spectrum");
 
-	return dJmax;
+	if (dJmax_out != NULL) *dJmax_out = dJmax;
+	return RH_OK;
 }
 /* ------- end ---------------------------- solveSpectrum.c --------- */
 

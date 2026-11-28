@@ -12,14 +12,14 @@
 /* --- State vector x (populations, molecular populations, PRD rho, J)
 	   and the map G, see solver.c --                 -------------- */
 
-long        stateInit(RHState *rh);
-void        stateGather(RHState *rh, double *x);
-void        stateScatter(RHState *rh, const double *x);
-int         stateNblocks(RHState *rh);
-const char *stateBlockName(RHState *rh, int n);
-long        stateBlockSize(RHState *rh, int n);
-bool_t      G_eval(RHState *rh, const double *x_in, double *x_out);
-long        G_count(RHState *rh);
+long                   stateInit(RHState *rh);
+void                   stateGather(RHState *rh, double *x);
+void                   stateScatter(RHState *rh, const double *x);
+int                    stateNblocks(RHState *rh);
+const char            *stateBlockName(RHState *rh, int n);
+long                   stateBlockSize(RHState *rh, int n);
+RH_NODISCARD rh_status G_eval(RHState *rh, const double *x_in, double *x_out, bool_t *valid);
+long                   G_count(RHState *rh);
 
 /* --- The state of the solver between calls, its part of RHState
 	   (rh->solver, Q-46) --                          -------------- */
@@ -68,9 +68,9 @@ typedef struct {
 
 #define SOLVER_STATE_INIT {.offJ = -1, .varKind = VARIABLES_LOG}
 
-void iterateFixedPoint(RHState *rh, int NmaxIter, double iterLimit);
-void iterateAnderson(RHState *rh, int NmaxIter, double iterLimit);
-void iterateNewton(RHState *rh, int NmaxIter, double iterLimit);
+RH_NODISCARD rh_status iterateFixedPoint(RHState *rh, int NmaxIter, double iterLimit);
+RH_NODISCARD rh_status iterateAnderson(RHState *rh, int NmaxIter, double iterLimit);
+RH_NODISCARD rh_status iterateNewton(RHState *rh, int NmaxIter, double iterLimit);
 
 /* --- Acceptance checks of G (gchecks.c), run by the gcheck programs */
 
@@ -81,8 +81,8 @@ typedef struct {
 	char  *perturb;
 } GCheckOptions;
 
-void gcheckParse(int *argc, char *argv[], GCheckOptions *opt);
-void gcheckRun(RHState *rh, const GCheckOptions *opt);
+void                   gcheckParse(int *argc, char *argv[], GCheckOptions *opt);
+RH_NODISCARD rh_status gcheckRun(RHState *rh, const GCheckOptions *opt);
 
 #endif /* !__SOLVER_H__ */
 

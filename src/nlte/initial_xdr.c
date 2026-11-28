@@ -49,7 +49,7 @@
 
 /* ------- begin -------------------------- initSolution.c ---------- */
 
-void initSolution(RHState *rh)
+rh_status initSolution(RHState *rh)
 {
 	const char   routineName[] = "initSolution";
 	register int k, i, ij, nspect, n, nact, mu;
@@ -64,19 +64,21 @@ void initSolution(RHState *rh)
 	AtomicLine      *line;
 	AtomicContinuum *continuum;
 	FILE            *fp;
+	bool_t           openedImu = FALSE;
+	rh_status        status    = RH_OK;
 
 	getCPU(rh, 2, TIME_START, NULL);
 
 	/* --- Allocate space for angle-averaged mean intensity -- -------- */
 
 	if (!rh->input.limit_memory) {
-		rh->spectrum.J = matrix_double(rh, rh->spectrum.Nspect, rh->atmos.Nspace);
+		RH_TRY(allocMatrixDouble(rh, rh->spectrum.Nspect, rh->atmos.Nspace, &rh->spectrum.J));
 
 		/* --- If we do background polarization we need space for the
 			   anisotropy --                               -------------- */
 
 		if (rh->input.backgr_pol)
-			rh->spectrum.J20 = matrix_double(rh, rh->spectrum.Nspect, rh->atmos.Nspace);
+			RH_TRY(allocMatrixDouble(rh, rh->spectrum.Nspect, rh->atmos.Nspace, &rh->spectrum.J20));
 	}
 
 	/* --- For the PRD angle approximation we need to store J in
@@ -85,9 +87,9 @@ void initSolution(RHState *rh)
 	if (rh->input.PRD_angle_dep == PRD_ANGLE_APPROX &&
 		rh->atmos.NPRDactive > 0) {
 
-		rh->spectrum.Jgas = matrix_double(rh, rh->spectrum.Nspect, rh->atmos.Nspace);
+		RH_TRY(allocMatrixDouble(rh, rh->spectrum.Nspect, rh->atmos.Nspace, &rh->spectrum.Jgas));
 		initJgasLocks(rh);
-		rh->spectrum.v_los = matrix_double(rh, rh->atmos.Nrays, rh->atmos.Nspace);
+		RH_TRY(allocMatrixDouble(rh, rh->atmos.Nrays, rh->atmos.Nspace, &rh->spectrum.v_los));
 
 		/* --- Calculate line of sight velocity --         -------------- */
 
@@ -100,44 +102,46 @@ void initSolution(RHState *rh)
 		/* --- Interpolation weights of rho and Jgas, unless they are
 			   computed when needed (PRDH_LIMIT_MEM) --  -------------- */
 
-		ExitOnError(rh, initPRDhTables(rh));
+		RH_TRY(initPRDhTables(rh));
 	}
 
 	/* --- Allocate space for the emergent intensity --  -------------- */
 
 	switch (rh->topology) {
 	case ONE_D_PLANE:
-		rh->spectrum.I = matrix_double(rh, rh->spectrum.Nspect, rh->atmos.Nrays);
+		RH_TRY(allocMatrixDouble(rh, rh->spectrum.Nspect, rh->atmos.Nrays, &rh->spectrum.I));
 		if (rh->atmos.Stokes || rh->input.backgr_pol) {
-			rh->spectrum.Stokes_Q = matrix_double(rh, rh->spectrum.Nspect, rh->atmos.Nrays);
-			rh->spectrum.Stokes_U = matrix_double(rh, rh->spectrum.Nspect, rh->atmos.Nrays);
-			rh->spectrum.Stokes_V = matrix_double(rh, rh->spectrum.Nspect, rh->atmos.Nrays);
+			RH_TRY(allocMatrixDouble(rh, rh->spectrum.Nspect, rh->atmos.Nrays, &rh->spectrum.Stokes_Q));
+			RH_TRY(allocMatrixDouble(rh, rh->spectrum.Nspect, rh->atmos.Nrays, &rh->spectrum.Stokes_U));
+			RH_TRY(allocMatrixDouble(rh, rh->spectrum.Nspect, rh->atmos.Nrays, &rh->spectrum.Stokes_V));
 		}
 		break;
 	case TWO_D_PLANE:
-		Nsr            = rh->spectrum.Nspect * rh->atmos.Nrays;
-		rh->spectrum.I = matrix_double(rh, Nsr, rh->atmos.N[0]);
+		Nsr = rh->spectrum.Nspect * rh->atmos.Nrays;
+		RH_TRY(allocMatrixDouble(rh, Nsr, rh->atmos.N[0], &rh->spectrum.I));
 		if (rh->atmos.Stokes || rh->input.backgr_pol) {
-			rh->spectrum.Stokes_Q = matrix_double(rh, Nsr, rh->atmos.N[0]);
-			rh->spectrum.Stokes_U = matrix_double(rh, Nsr, rh->atmos.N[0]);
-			rh->spectrum.Stokes_V = matrix_double(rh, Nsr, rh->atmos.N[0]);
+			RH_TRY(allocMatrixDouble(rh, Nsr, rh->atmos.N[0], &rh->spectrum.Stokes_Q));
+			RH_TRY(allocMatrixDouble(rh, Nsr, rh->atmos.N[0], &rh->spectrum.Stokes_U));
+			RH_TRY(allocMatrixDouble(rh, Nsr, rh->atmos.N[0], &rh->spectrum.Stokes_V));
 		}
 		break;
 	case THREE_D_PLANE:
-		Nsr            = rh->spectrum.Nspect * rh->atmos.Nrays;
-		Nplane         = rh->atmos.N[0] * rh->atmos.N[1];
-		rh->spectrum.I = matrix_double(rh, Nsr, Nplane);
+		Nsr    = rh->spectrum.Nspect * rh->atmos.Nrays;
+		Nplane = rh->atmos.N[0] * rh->atmos.N[1];
+		RH_TRY(allocMatrixDouble(rh, Nsr, Nplane, &rh->spectrum.I));
 		if (rh->atmos.Stokes || rh->input.backgr_pol) {
-			rh->spectrum.Stokes_Q = matrix_double(rh, Nsr, Nplane);
-			rh->spectrum.Stokes_U = matrix_double(rh, Nsr, Nplane);
-			rh->spectrum.Stokes_V = matrix_double(rh, Nsr, Nplane);
+			RH_TRY(allocMatrixDouble(rh, Nsr, Nplane, &rh->spectrum.Stokes_Q));
+			RH_TRY(allocMatrixDouble(rh, Nsr, Nplane, &rh->spectrum.Stokes_U));
+			RH_TRY(allocMatrixDouble(rh, Nsr, Nplane, &rh->spectrum.Stokes_V));
 		}
 		break;
 	default:
-		Error(rh, ERROR_LEVEL_2, routineName, "Unknown topology (%d)", rh->topology);
+		RH_ASSERT(rh, FALSE, routineName, "Unknown topology (%d)", rh->topology);
 	}
 	/* --- Read angle-averaged intensity from previous run if necessary,
-		   and open file for J in case option for limited memory is set */
+		   and open file for J in case option for limited memory is set.
+		   From here on a failure closes the files opened here (failed,
+		   below) --                                     -------------- */
 
 	rh->spectrum.fd_J   = -1;
 	rh->spectrum.fd_J20 = -1;
@@ -162,14 +166,16 @@ void initSolution(RHState *rh)
 	}
 	if (openJfile) {
 		if ((rh->spectrum.fd_J = open(rh->input.JFile, oflag, PERMISSIONS)) == -1) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s with permission %s",
-				  rh->input.JFile, permission);
+			status = Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s with permission %s",
+						  rh->input.JFile, permission);
+			goto failed;
 		}
 		if (rh->input.backgr_pol) {
 			if ((rh->spectrum.fd_J20 = open(J20_DOT_OUT, oflag,
 											PERMISSIONS)) == -1) {
-				Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s with permission %s",
-					  J20_DOT_OUT, permission);
+				status = Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s with permission %s",
+							  J20_DOT_OUT, permission);
+				goto failed;
 			}
 		}
 	}
@@ -262,10 +268,12 @@ void initSolution(RHState *rh)
 			oflag |= (O_RDWR | O_CREAT);
 		}
 		if ((rh->spectrum.fd_Imu = open(IMU_FILENAME, oflag, PERMISSIONS)) == -1) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open %s file %s with permission %s",
-				  (rh->spectrum.updateJ) ? "update" : "input",
-				  IMU_FILENAME, permission);
+			status = Fail(rh, RH_E_DATA, routineName, "Unable to open %s file %s with permission %s",
+						  (rh->spectrum.updateJ) ? "update" : "input",
+						  IMU_FILENAME, permission);
+			goto failed;
 		}
+		openedImu = TRUE;
 		/* --- Fill the index list that keeps track of the location
 			   of intensity Imu in file spectrum.fd_Imu at wavelength
 			   corresponding to nspect. --                 -------------- */
@@ -286,8 +294,6 @@ void initSolution(RHState *rh)
 
 		char *isPRD = (char *) mallocOrAbort(rh->spectrum.Nspect);
 
-		if (isPRD == NULL) Error(rh, ERROR_LEVEL_2, routineName, "Out of memory");
-
 		for (nspect = 0; nspect < rh->spectrum.Nspect; nspect++)
 			isPRD[nspect] = containsPRDline(rh, &rh->spectrum.as[nspect]);
 		initJgasRows(rh, isPRD);
@@ -298,7 +304,8 @@ void initSolution(RHState *rh)
 
 		/* --- Allocate memory for the rate equation matrix -- ---------- */
 
-		atom->Gamma = matrix_double(rh, SQ(atom->Nlevel), rh->atmos.Nspace);
+		RH_TRY_GOTO(status, failed,
+					allocMatrixDouble(rh, SQ(atom->Nlevel), rh->atmos.Nspace, &atom->Gamma));
 
 		switch (atom->initial_solution) {
 		case LTE_POPULATIONS:
@@ -359,7 +366,8 @@ void initSolution(RHState *rh)
 			}
 			/* --- Solve statistical equilibrium equations --  ------------ */
 
-			statEquil(rh, atom, (rh->input.isum == -1) ? 0 : rh->input.isum);
+			RH_TRY_GOTO(status, failed,
+						statEquil(rh, atom, (rh->input.isum == -1) ? 0 : rh->input.isum));
 			break;
 
 		case OLD_POPULATIONS:
@@ -391,7 +399,8 @@ void initSolution(RHState *rh)
 		}
 		/* --- Allocate memory for the rate equation matrix -- ---------- */
 
-		molecule->Gamma = matrix_double(rh, SQ(molecule->Nv), rh->atmos.Nspace);
+		RH_TRY_GOTO(status, failed,
+					allocMatrixDouble(rh, SQ(molecule->Nv), rh->atmos.Nspace, &molecule->Gamma));
 
 		switch (molecule->initial_solution) {
 
@@ -416,5 +425,20 @@ void initSolution(RHState *rh)
 
 		COcollisions(rh, molecule); /* only CO can be active (readMolecule, B-69) */
 	}
+	return RH_OK;
+
+failed:
+	/* --- The files opened here are closed; the arrays made here
+		   belong to the run (phase 4) --                -------------- */
+
+	if (rh->spectrum.fd_J >= 0) close(rh->spectrum.fd_J);
+	if (rh->spectrum.fd_J20 >= 0) close(rh->spectrum.fd_J20);
+	rh->spectrum.fd_J   = -1;
+	rh->spectrum.fd_J20 = -1;
+	if (openedImu) {
+		close(rh->spectrum.fd_Imu);
+		rh->spectrum.fd_Imu = -1;
+	}
+	return status;
 }
 /* ------- end ---------------------------- initSolution.c ---------- */
