@@ -126,15 +126,19 @@ rh_status readKuruczLines(RHState *rh, char *inputFile)
 
 	/* --- Read in the data files for Barklem collisional broadening -- */
 
-	RH_TRY(readBarklemTable(rh, SP, &bs_SP));
-	RH_TRY(readBarklemTable(rh, PD, &bs_PD));
-	RH_TRY(readBarklemTable(rh, DF, &bs_DF));
+	memset(&bs_SP, 0, sizeof(bs_SP));
+	memset(&bs_PD, 0, sizeof(bs_PD));
+	memset(&bs_DF, 0, sizeof(bs_DF));
+	RH_TRY_GOTO(status, failed, readBarklemTable(rh, SP, &bs_SP));
+	RH_TRY_GOTO(status, failed, readBarklemTable(rh, PD, &bs_PD));
+	RH_TRY_GOTO(status, failed, readBarklemTable(rh, DF, &bs_DF));
 
 	labeli[RLK_LABEL_LENGTH] = '\0';
 	labelj[RLK_LABEL_LENGTH] = '\0';
 
 	if ((fp_Kurucz = fopen(inputFile, "r")) == NULL) {
-		return Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s", inputFile);
+		status = Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s", inputFile);
+		goto failed;
 	}
 	/* --- Go through each of the linelist files listed in input file - */
 
@@ -142,7 +146,8 @@ rh_status readKuruczLines(RHState *rh, char *inputFile)
 		Nread = sscanf(listName, "%s", filename);
 		if ((fp_linelist = fopen(filename, "r")) == NULL) {
 			fclose(fp_Kurucz);
-			return Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s", filename);
+			status = Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s", filename);
+			goto failed;
 		}
 		/* --- Count the number of lines in this file --   -------------- */
 
@@ -236,7 +241,7 @@ rh_status readKuruczLines(RHState *rh, char *inputFile)
 				if (status != RH_OK) {
 					fclose(fp_linelist);
 					fclose(fp_Kurucz);
-					return status;
+					goto failed;
 				}
 				rlk->polarizable = (rh->atmos.Stokes && determined);
 
@@ -343,6 +348,14 @@ rh_status readKuruczLines(RHState *rh, char *inputFile)
 	free_BS(rh, &bs_PD);
 	free_BS(rh, &bs_DF);
 	return RH_OK;
+
+	/* --- After a failure (files closed where it happened) -- ------- */
+
+failed:
+	free_BS(rh, &bs_SP);
+	free_BS(rh, &bs_PD);
+	free_BS(rh, &bs_DF);
+	return status;
 }
 /* ------- end ---------------------------- readKuruczLines.c ------- */
 
@@ -1149,11 +1162,14 @@ void getUnsoldcross(RHState *rh, RLK_Line *rlk)
 
 void free_BS(RHState *rh, Barklemstruct *bs)
 {
+	/* --- Also for a table that was not read (NULL pointers) -- ----- */
+
 	free(bs->neff1);
 	free(bs->neff2);
-
-	freeMatrix(rh, (void **) bs->cross);
-	freeMatrix(rh, (void **) bs->alpha);
+	if (bs->cross != NULL) freeMatrix(rh, (void **) bs->cross);
+	if (bs->alpha != NULL) freeMatrix(rh, (void **) bs->alpha);
+	bs->neff1 = bs->neff2 = NULL;
+	bs->cross = bs->alpha = NULL;
 }
 /* ------- end ---------------------------- free_BS.c --------------- */
 

@@ -247,7 +247,7 @@ static rh_status reserveRecords(RHState *rh, BackgroundJob *job, int nspect, int
 	Nrec  = backgroundRecords(rh, nspect);
 	recno = atomic_fetch_add(&job->backgrrecno, Nrec);
 	if (recno + Nrec > INT_MAX)
-		return Fail(rh, RH_E_NUMERIC, routineName,
+		return Fail(rh, RH_E_INPUT, routineName,
 					"Record number of background data exceeds INT_MAX");
 
 	*first = (int) recno;

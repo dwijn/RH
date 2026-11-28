@@ -281,6 +281,8 @@ rh_status Zeeman(RHState *rh, AtomicLine *line)
 		RH_ASSERT(rh, result, "Zeeman", "Atom %s: no quantum numbers for line %d -> %d",
 				  atom->ID, line->j, line->i);
 		if ((int) (Ju - Jl) < -1 || (int) (Ju - Jl) > 1) {
+			free(line->zm);
+			line->zm = NULL;
 			return Fail(rh, RH_E_DATA, "Zeeman",
 						"Atom %s, line %d -> %d: J changes from %g to %g, by more than 1",
 						atom->ID, line->j, line->i, Ju, Jl);
@@ -375,8 +377,12 @@ rh_status adjustStokesMode(RHState *rh)
 					/* --- First free up the space used in field-free
 							   calculation --                        -------------- */
 
-					if (!rh->input.limit_memory) freeMatrix(rh, (void **) line->phi);
+					if (!rh->input.limit_memory) {
+						freeMatrix(rh, (void **) line->phi);
+						line->phi = NULL;
+					}
 					free(line->wphi);
+					line->wphi = NULL;
 
 					RH_TRY(Profile(rh, line));
 				}

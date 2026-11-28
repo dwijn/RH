@@ -19,6 +19,7 @@
 #include "error.h"
 #include "statistics.h"
 #include "state.h"
+#include "negtau.h"
 
 /* --- Function prototypes --                          -------------- */
 
@@ -83,7 +84,7 @@ rh_status LTEpops(RHState *rh, Atom *atom, bool_t Debeye)
 
 	for (k = 0; k < Nspace; k++) {
 		if (rh->atmos.ne[k] <= 0.0) {
-			return Fail(rh, RH_E_TRIAL, "LTEpops",
+			return Fail(rh, negTauInTrial(rh) ? RH_E_TRIAL : RH_E_DATA, "LTEpops",
 						"Electron density must be positive for LTE populations "
 						"(atom %s, ne[%d] = %g)\n",
 						atom->ID, k, rh->atmos.ne[k]);
@@ -156,7 +157,7 @@ rh_status LTEpops_elem(RHState *rh, Element *element)
 
 	for (k = 0; k < rh->atmos.Nspace; k++) {
 		if (rh->atmos.ne[k] <= 0.0) {
-			return Fail(rh, RH_E_TRIAL, "LTEpops_elem",
+			return Fail(rh, negTauInTrial(rh) ? RH_E_TRIAL : RH_E_DATA, "LTEpops_elem",
 						"Electron density must be positive for LTE populations "
 						"(element %s, ne[%d] = %g)\n",
 						element->ID, k, rh->atmos.ne[k]);

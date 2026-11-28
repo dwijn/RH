@@ -22,7 +22,9 @@
 		  only);
 	   -- the old chain (linear, double) overflows or loses the
 		  dominant stage in the case documented below, the new code
-		  does not.
+		  does not;
+	   -- ne <= 0 at one location: LTEpops_elem returns RH_E_DATA, or
+		  RH_E_TRIAL in a trial evaluation of G, and records it.
 
 	   Run with --table to print the cases where the old linear chain
 	   fails.
@@ -38,7 +40,9 @@
 #include "atom.h"
 #include "atmos.h"
 #include "constant.h"
+#include "error.h"
 #include "check.h"
+#include "negtau.h"
 #include "state.h"
 
 #define NT     25
@@ -356,6 +360,24 @@ int main(int argc, char *argv[])
 
 	test_atom(FALSE);
 	test_atom(TRUE);
+
+	/* --- ne <= 0 at one location, outside and in a trial -- -------- */
+
+	for (int trial = 0; trial <= 1; trial++) {
+		Element   el  = make_element(7, CHI_C);
+		double    ne0 = rh->atmos.ne[5];
+		rh_status s, want = (trial) ? RH_E_TRIAL : RH_E_DATA;
+
+		rh->atmos.ne[5] = 0.0;
+		negTauTrial(rh, trial);
+		s = LTEpops_elem(rh, &el);
+		negTauTrial(rh, FALSE);
+		CHECK(s == want && Failed(rh) && rh->error.code == want,
+			  "LTEpops_elem with ne = 0, trial %d: status %d", trial, s);
+		ClearError(rh);
+		rh->atmos.ne[5] = ne0;
+		free_element(&el);
+	}
 
 	return check_summary("test_ltepops");
 }

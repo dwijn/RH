@@ -95,10 +95,11 @@ rh_status readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs
 	register int n, i, j;
 	const char   routineName[] = "readBarklemTable";
 
-	char   filename[MAX_LINE_SIZE], inputLine[MAX_LINE_SIZE], *charptr;
-	int    nread;
-	double neff1_0 = 0.0, neff2_0 = 0.0;
-	FILE  *fp_Barklem;
+	char      filename[MAX_LINE_SIZE], inputLine[MAX_LINE_SIZE], *charptr;
+	int       nread;
+	double    neff1_0 = 0.0, neff2_0 = 0.0;
+	FILE     *fp_Barklem;
+	rh_status result;
 
 	switch (type) {
 	case SP:
@@ -129,6 +130,8 @@ rh_status readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs
 		break;
 	}
 
+	bs->neff1 = bs->neff2 = NULL;
+	bs->cross = bs->alpha = NULL;
 	if ((fp_Barklem = fopen(filename, "r")) == NULL) {
 		return Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s", filename);
 	}
@@ -147,9 +150,9 @@ rh_status readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs
 	for (n = 0; n < 3; n++) {
 		charptr = fgets(inputLine, MAX_LINE_SIZE, fp_Barklem);
 		if (charptr == NULL) {
-			fclose(fp_Barklem);
-			return Fail(rh, RH_E_DATA, routineName, "Unable to read header of Barklem table %s",
-						filename);
+			result = Fail(rh, RH_E_DATA, routineName, "Unable to read header of Barklem table %s",
+						  filename);
+			goto failed;
 		}
 	}
 
@@ -157,17 +160,17 @@ rh_status readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs
 		for (j = 0; j < bs->N2; j++) {
 			nread = fscanf(fp_Barklem, "%lf", &bs->cross[i][j]);
 			if (nread != 1) {
-				fclose(fp_Barklem);
-				return Fail(rh, RH_E_DATA, routineName,
-							"Unable to read cross[%d][%d] from Barklem table %s", i, j, filename);
+				result = Fail(rh, RH_E_DATA, routineName,
+							  "Unable to read cross[%d][%d] from Barklem table %s", i, j, filename);
+				goto failed;
 			}
 		}
 	for (n = 0; n < 2; n++) {
 		charptr = fgets(inputLine, MAX_LINE_SIZE, fp_Barklem);
 		if (charptr == NULL) {
-			fclose(fp_Barklem);
-			return Fail(rh, RH_E_DATA, routineName, "Unable to read header of Barklem table %s",
-						filename);
+			result = Fail(rh, RH_E_DATA, routineName, "Unable to read header of Barklem table %s",
+						  filename);
+			goto failed;
 		}
 	}
 
@@ -175,14 +178,26 @@ rh_status readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs
 		for (j = 0; j < bs->N2; j++) {
 			nread = fscanf(fp_Barklem, "%lf", &bs->alpha[i][j]);
 			if (nread != 1) {
-				fclose(fp_Barklem);
-				return Fail(rh, RH_E_DATA, routineName,
-							"Unable to read alpha[%d][%d] from Barklem table %s", i, j, filename);
+				result = Fail(rh, RH_E_DATA, routineName,
+							  "Unable to read alpha[%d][%d] from Barklem table %s", i, j, filename);
+				goto failed;
 			}
 		}
 
 	fclose(fp_Barklem);
 	return RH_OK;
+
+	/* --- After a failure: the file closed, the arrays freed -- ----- */
+
+failed:
+	fclose(fp_Barklem);
+	free(bs->neff1);
+	free(bs->neff2);
+	freeMatrix(rh, (void **) bs->cross);
+	freeMatrix(rh, (void **) bs->alpha);
+	bs->neff1 = bs->neff2 = NULL;
+	bs->cross = bs->alpha = NULL;
+	return result;
 }
 /* ------- end ---------------------------- readBarklemTable.c------- */
 

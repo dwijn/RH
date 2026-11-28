@@ -230,6 +230,8 @@ rh_status MolZeeman(RHState *rh, MolecularLine *mrt)
 			RH_ASSERT(rh, FALSE, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
 		}
 		if ((int) (Jl - Ju) < -1 || (int) (Jl - Ju) > 1) {
+			free(mrt->zm);
+			mrt->zm = NULL;
 			return Fail(rh, RH_E_DATA, routineName,
 						"Molecule %s, line at %g nm: J changes from %g to %g, by more than 1",
 						mrt->molecule->ID, mrt->lambda0, Ju, Jl);

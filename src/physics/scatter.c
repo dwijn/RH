@@ -305,6 +305,18 @@ static rh_status prdOpenFile(RHState *rh, AtomicLine *PRDline, const char *routi
 
 /* ------- begin -------------------------- PRDScatter.c ------------ */
 
+/* --- After a failure in the call that opened the scratch file of the
+	   weights: the file is closed and the block sizes dropped, so that
+	   the next call computes the weights again -- ---------------- */
+
+static void prdDropFile(AtomicLine *PRDline)
+{
+	fclose(PRDline->fp_GII);
+	PRDline->fp_GII = NULL;
+	free(PRDline->prd_block);
+	PRDline->prd_block = NULL;
+}
+
 /* --- Angle-averaged and hybrid (PRD_ANGLE_APPROX) PRD. The loop over
 	   locations is threaded: the integral at one location uses only
 	   that location's data and writes only rho_prd[.][k]. The file holds
@@ -574,6 +586,7 @@ rh_status PRDScatter(RHState *rh, AtomicLine *PRDline)
 	getCPU(rh, 3, TIME_POLL, label);
 
 cleanup:
+	if (result != RH_OK && job.initialize) prdDropFile(PRDline);
 	free(job.kstart);
 	free(XRD);
 	free(Yj);
@@ -873,6 +886,7 @@ rh_status PRDAngleScatter(RHState *rh, AtomicLine *PRDline)
 	getCPU(rh, 3, TIME_POLL, label);
 
 cleanup:
+	if (result != RH_OK && job.initialize) prdDropFile(PRDline);
 	free(job.Iall);
 	free(job.g);
 	free(job.denom);
