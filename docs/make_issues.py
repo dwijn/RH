@@ -51,7 +51,7 @@ for ids, step in [
     ("S-1 S-2 S-3 S-4 S-5 S-10 S-11 S-13 S-14", 4),
     ("P-1 P-2 P-3 P-4 P-5 P-6 P-7 P-8 P-9 P-10 P-12 P-13 P-14 P-15 T-5 P-16 P-17 P-18 P-19 B-56", 5),
     ("B-10 B-11 M-1 M-2 M-3 M-4 M-5 M-6 M-7 M-8 M-9", 6),
-    ("B-41 B-12 B-14 T-1 T-2 T-3 Q-4 Q-5 Q-6 Q-7 Q-8 Q-9 Q-16 Q-19 Q-30 P-11 B-71 Q-38 Q-39 Q-40 Q-41 Q-42 Q-43 Q-45 Q-46 Q-47 Q-48 Q-49 Q-50 Q-51 Q-52 Q-53 Q-54 Q-55 B-74 B-75 B-76 B-77 B-78 B-79 B-80 B-81 B-82 B-83 B-84 B-85 B-86 B-87", 7),
+    ("B-41 B-12 B-14 T-1 T-2 T-3 Q-4 Q-5 Q-6 Q-7 Q-8 Q-9 Q-16 Q-19 Q-30 P-11 B-71 Q-38 Q-39 Q-40 Q-41 Q-42 Q-43 Q-45 Q-46 Q-47 Q-48 Q-49 Q-50 Q-51 Q-52 Q-53 Q-54 Q-55 Q-56 B-74 B-75 B-76 B-77 B-78 B-79 B-80 B-81 B-82 B-83 B-84 B-85 B-86 B-87", 7),
     # Not planned work: the wishlist (section 3.7) has its own option
     ("F-1 F-2 F-3 F-4 F-5 S-6 S-7 S-8 S-9 S-12 N-14 N-12 N-30 F-6 F-7 N-9 F-8 N-46 N-15 N-26 F-9 F-10 B-58 N-57 N-58 N-59 N-60 B-70 N-63 N-52 N-64 F-11 F-12 N-67 N-68 Q-44", "Wishlist"),
 ]:
