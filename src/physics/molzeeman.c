@@ -53,6 +53,9 @@ double MolZeemanStr(RHState *rh, double Ju, double Mu, double Jl, double Ml)
 	q  = (int) (Ml - Mu);
 	dJ = (int) (Jl - Ju);
 
+	/* --- MolZeeman checks dJ for each line (Q-54) -- --------------- */
+
+	RH_ASSERT(rh, dJ >= -1 && dJ <= 1, routineName, "Invalid dJ: %d", dJ);
 	switch (dJ) {
 	case 1:
 		switch (q) {
@@ -104,9 +107,6 @@ double MolZeemanStr(RHState *rh, double Ju, double Mu, double Jl, double Ml)
 			break;
 		}
 		break;
-
-	default:
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
 	}
 	/* --- The strengths are normalized already. --      -------------- */
 
@@ -150,7 +150,7 @@ double MolLande_b(double Lambda, double S, double N, double J)
 
 /* ------- begin -------------------------- MolZeeman.c ------------- */
 
-void MolZeeman(RHState *rh, MolecularLine *mrt)
+rh_status MolZeeman(RHState *rh, MolecularLine *mrt)
 {
 	const char routineName[] = "MolZeeman";
 
@@ -215,7 +215,8 @@ void MolZeeman(RHState *rh, MolecularLine *mrt)
 			gLl = MolLande_b(mrt->Lambdai, mrt->Si, Nl, Jl);
 			break;
 		default:
-			Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
+			/* --- readMolecule sets only CASE_A or CASE_B -- ------- */
+			RH_ASSERT(rh, FALSE, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
 		}
 		switch (mrt->Hundj) {
 		case CASE_A:
@@ -226,7 +227,12 @@ void MolZeeman(RHState *rh, MolecularLine *mrt)
 			gLu = MolLande_b(mrt->Lambdaj, mrt->Sj, Nu, Ju);
 			break;
 		default:
-			Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
+			RH_ASSERT(rh, FALSE, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
+		}
+		if ((int) (Jl - Ju) < -1 || (int) (Jl - Ju) > 1) {
+			return Fail(rh, RH_E_DATA, routineName,
+						"Molecule %s, line at %g nm: J changes from %g to %g, by more than 1",
+						mrt->molecule->ID, mrt->lambda0, Ju, Jl);
 		}
 		/* --- Determine the number of components --       -------------- */
 
@@ -270,5 +276,6 @@ void MolZeeman(RHState *rh, MolecularLine *mrt)
 				"Zeeman components, gL_eff = %7.4f\n",
 			mrt->molecule->ID,
 			lambda_air, zm->Ncomponent, mrt->g_Lande_eff);
+	return RH_OK;
 }
 /* ------- end ------------------------- MolZeeman.c ---------------- */

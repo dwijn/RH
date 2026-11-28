@@ -61,9 +61,8 @@ void COcollisions(RHState *rh, struct Molecule *molecule)
 
 	double hcomega_k, *beta, C_0;
 
-	if (strcmp(molecule->ID, "CO") != 0) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Molecule is not CO: %s\n", molecule->ID);
-	}
+	RH_ASSERT(rh, strcmp(molecule->ID, "CO") == 0, routineName, "Molecule is not CO: %s\n",
+			  molecule->ID);
 
 	C_0 = KBOLTZMANN / ATM_TO_PA;
 

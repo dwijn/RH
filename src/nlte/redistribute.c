@@ -71,7 +71,7 @@ void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 	register int kr, nact;
 
 	char        label[MAX_MESSAGE_LENGTH], status[MAX_MESSAGE_LENGTH];
-	bool_t      quiet, accel, eval_operator, redistribute;
+	bool_t      quiet, accel, eval_operator, redistribute, valid;
 	int         niter, Nlamu;
 	long        NlamuL;
 	double      drho, dres = 0.0, drhomax, drhomaxa, *old = NULL;
@@ -119,9 +119,9 @@ void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 						memcpy(old, line->rho_prd[0], (size_t) line->Ng_prd->N * sizeof(double));
 					}
 					if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
-						PRDAngleScatter(rh, line);
+						ExitOnError(rh, PRDAngleScatter(rh, line));
 					else
-						PRDScatter(rh, line);
+						ExitOnError(rh, PRDScatter(rh, line));
 					dres = PRDDamp(rh, line, old, line->Ng_prd->N);
 
 					/* --- Damped, the change of rho is PRD_DAMPING times
@@ -134,7 +134,8 @@ void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 						   SOLVER = NG has no trial evaluations, so a
 						   FALSE return would be a bug -- ------------- */
 
-					if (!PRDRhoCheck(rh, atom, kr))
+					ExitOnError(rh, PRDRhoCheck(rh, atom, kr, &valid));
+					if (!valid)
 						Error(rh, ERROR_LEVEL_2, routineName,
 							  "rho of a PRD line is invalid in a trial evaluation");
 					snprintf(label, sizeof(label),

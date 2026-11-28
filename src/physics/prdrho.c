@@ -34,7 +34,7 @@ long PRDRhoSize(RHState *rh, const AtomicLine *line)
 
 /* ------- begin -------------------------- PRDRhoCheck.c ----------- */
 
-bool_t PRDRhoCheck(RHState *rh, const Atom *atom, int kr)
+rh_status PRDRhoCheck(RHState *rh, const Atom *atom, int kr, bool_t *valid)
 {
 	const char        routineName[] = "PRDRhoCheck";
 	const AtomicLine *line          = atom->line + kr;
@@ -45,11 +45,11 @@ bool_t PRDRhoCheck(RHState *rh, const Atom *atom, int kr)
 
 	/* --- After a PRD sub-iteration (N-4): rho, the ratio of the PRD to
 		   the CRD profile, must be positive and finite in every value:
-		   the line emissivity is proportional to it. Returns TRUE if it
-		   is. Otherwise a trial evaluation of G is invalidated
-		   (negTauInvalid, as for a negative total opacity) and FALSE is
-		   returned; outside a trial the run stops. Nothing is
-		   clipped --                                   -------------- */
+		   the line emissivity is proportional to it. *valid is TRUE if
+		   it is. Otherwise a trial evaluation of G is invalidated
+		   (negTauInvalid, as for a negative total opacity) and *valid is
+		   FALSE; outside a trial PRDRhoCheck fails (RH_E_NUMERIC).
+		   Nothing is clipped --                         -------------- */
 
 	N = PRDRhoSize(rh, line);
 	for (n = 0; n < N; n++) {
@@ -59,7 +59,8 @@ bool_t PRDRhoCheck(RHState *rh, const Atom *atom, int kr)
 			if (Nbad++ == 0) nbad = n;
 		}
 	}
-	if (Nbad == 0) return TRUE;
+	*valid = (Nbad == 0);
+	if (*valid) return RH_OK;
 
 	la = (int) (nbad / Ns);
 	if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP) {
@@ -80,9 +81,8 @@ bool_t PRDRhoCheck(RHState *rh, const Atom *atom, int kr)
 
 	if (negTauInTrial(rh)) {
 		negTauInvalid(rh, what);
-		return FALSE;
+		return RH_OK;
 	}
-	Error(rh, ERROR_LEVEL_2, routineName, "\n  %s", what);
-	return FALSE;
+	return Fail(rh, RH_E_NUMERIC, routineName, "\n  %s", what);
 }
 /* ------- end ---------------------------- PRDRhoCheck.c ----------- */

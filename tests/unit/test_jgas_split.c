@@ -138,7 +138,7 @@ int main(void)
 
 	rh->spectrum.Jgas        = matrix_double(rh, NWAVE, NSPACE);
 	rh->input.prdh_limit_mem = FALSE;
-	initPRDhTables(rh);
+	CHECK(initPRDhTables(rh) == RH_OK, "initPRDhTables failed: %s", rh->error.message);
 	initJgasRows(rh, isPRD);
 	{
 		int nrow = 0, nnone = 0;

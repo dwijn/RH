@@ -149,7 +149,7 @@ void prdhRhoWeights(const AtomicLine *line, double lag, int *id0, int *id1, doub
 
 /* ------- begin -------------------------- initPRDhTables.c -------- */
 
-void initPRDhTables(RHState *rh)
+rh_status initPRDhTables(RHState *rh)
 {
 	/* --- Tabulate the weights of prdhRhoWeights for every PRD line,
 		   wavelength, ray, direction and location, and those of
@@ -166,7 +166,7 @@ void initPRDhTables(RHState *rh)
 	AtomicLine *line;
 	PRDhBracket b;
 
-	if (rh->input.prdh_limit_mem) return;
+	if (rh->input.prdh_limit_mem) return RH_OK;
 
 	/* --- Interpolation of rho --                       -------------- */
 
@@ -176,10 +176,10 @@ void initPRDhTables(RHState *rh)
 			line = &atom->line[kr];
 			if (!line->PRD) continue;
 
-			Nlamu      = 2 * rh->atmos.Nrays * line->Nlambda;
-			line->frac = matrix_double(rh, Nlamu, rh->atmos.Nspace);
-			line->id0  = matrix_int(rh, Nlamu, rh->atmos.Nspace);
-			line->id1  = matrix_int(rh, Nlamu, rh->atmos.Nspace);
+			Nlamu = 2 * rh->atmos.Nrays * line->Nlambda;
+			RH_TRY(allocMatrixDouble(rh, Nlamu, rh->atmos.Nspace, &line->frac));
+			RH_TRY(allocMatrixInt(rh, Nlamu, rh->atmos.Nspace, &line->id0));
+			RH_TRY(allocMatrixInt(rh, Nlamu, rh->atmos.Nspace, &line->id1));
 
 			for (la = 0; la < line->Nlambda; la++) {
 				for (mu = 0; mu < rh->atmos.Nrays; mu++) {
@@ -202,7 +202,7 @@ void initPRDhTables(RHState *rh)
 	Nlamuk          = 2L * rh->atmos.Nrays * rh->spectrum.Nspect * rh->atmos.Nspace;
 	rh->spectrum.nc = (long *) malloc(Nlamuk * sizeof(long));
 	if (rh->spectrum.nc == NULL) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Unable to allocate the hybrid PRD interpolation table (%ld points)", Nlamuk);
+		return Fail(rh, RH_E_NOMEM, routineName, "Unable to allocate the hybrid PRD interpolation table (%ld points)", Nlamuk);
 	}
 	Ncoef = 0;
 	for (la = 0; la < rh->spectrum.Nspect; la++) {
@@ -219,9 +219,9 @@ void initPRDhTables(RHState *rh)
 	rh->spectrum.iprdh = (int *) malloc(MAX(Ncoef, 1) * sizeof(int));
 	rh->spectrum.cprdh = (double *) malloc(MAX(Ncoef, 1) * sizeof(double));
 	if (rh->spectrum.iprdh == NULL || rh->spectrum.cprdh == NULL) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Unable to allocate the hybrid PRD interpolation table"
-											  " (%ld points, %ld coefficients)",
-			  Nlamuk, Ncoef);
+		return Fail(rh, RH_E_NOMEM, routineName, "Unable to allocate the hybrid PRD interpolation table"
+												 " (%ld points, %ld coefficients)",
+					Nlamuk, Ncoef);
 	}
 	for (la = 0; la < rh->spectrum.Nspect; la++) {
 		for (mu = 0; mu < rh->atmos.Nrays; mu++) {
@@ -239,5 +239,6 @@ void initPRDhTables(RHState *rh)
 			}
 		}
 	}
+	return RH_OK;
 }
 /* ------- end ---------------------------- initPRDhTables.c -------- */

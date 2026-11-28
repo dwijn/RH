@@ -19,7 +19,9 @@
 		  the stretched case j3 = j1 + j2, tabulated values, the
 		  orthogonality of the 3j symbols, the symmetries under
 		  permutation of the columns and under m -> -m, the selection
-		  rules; w6js against {a b c; 0 c b} and the sum rules.
+		  rules; w6js against {a b c; 0 c b} and the sum rules; both
+		  return RH_OK where the factorials are finite, w3js fails with
+		  RH_E_NUMERIC where they overflow.
 
 	   Run with --table to print the measured errors.
 	   --                                              -------------- */
@@ -28,8 +30,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include "rh.h"
 #include "atom.h"
@@ -296,15 +296,35 @@ static double sign(double k)
 	return (fmod(fabs(k), 2.0) < 0.5) ? 1.0 : -1.0; /* (-1)^k, k integer */
 }
 
+/* --- The symbols, with their status checked -- ------------------ */
+
+static double wig3(double j1, double j2, double j3, double m1, double m2, double m3)
+{
+	double    w = NAN;
+	rh_status s = w3js(rh, j1, j2, j3, m1, m2, m3, &w);
+
+	CHECK(s == RH_OK, "w3js(%g %g %g; %g %g %g): status %d", j1, j2, j3, m1, m2, m3, s);
+	return w;
+}
+
+static double wig6(double j1, double j2, double j3, double l1, double l2, double l3)
+{
+	double    w = NAN;
+	rh_status s = w6js(rh, j1, j2, j3, l1, l2, l3, &w);
+
+	CHECK(s == RH_OK, "w6js{%g %g %g; %g %g %g}: status %d", j1, j2, j3, l1, l2, l3, s);
+	return w;
+}
+
 /* --- (j j 0; m -m 0) = (-1)^(j-m) / sqrt(2j+1) -- ---------------- */
 
 static void test_w3js_j_j_0(void)
 {
 	for (double j = 0.0; j <= 10.0; j += 0.5)
 		for (double m = -j; m <= j + 1e-9; m += 1.0) {
-			CHECK_CLOSE(w3js(rh, j, j, 0.0, m, -m, 0.0), sign(j - m) / sqrt(2.0 * j + 1.0), 1e-14, 0.0,
+			CHECK_CLOSE(wig3(j, j, 0.0, m, -m, 0.0), sign(j - m) / sqrt(2.0 * j + 1.0), 1e-14, 0.0,
 						"(j j 0; m -m 0), j = %g, m = %g", j, m);
-			CHECK_CLOSE(w3js(rh, j, 0.0, j, m, 0.0, -m), sign(2.0 * j) * sign(j - m) / sqrt(2.0 * j + 1.0), 1e-14, 0.0,
+			CHECK_CLOSE(wig3(j, 0.0, j, m, 0.0, -m), sign(2.0 * j) * sign(j - m) / sqrt(2.0 * j + 1.0), 1e-14, 0.0,
 						"(j 0 j; m 0 -m) (an odd permutation), j = %g, m = %g", j, m);
 		}
 }
@@ -335,7 +355,7 @@ static void test_w3js_zero(void)
 	for (int j1 = 0; j1 <= 24; j1++)
 		for (int j2 = 0; j2 <= 24; j2++)
 			for (int j3 = abs(j1 - j2); j3 <= j1 + j2; j3++) {
-				double got = w3js(rh, j1, j2, j3, 0, 0, 0), want = w3js_zero_closed(j1, j2, j3);
+				double got = wig3(j1, j2, j3, 0, 0, 0), want = w3js_zero_closed(j1, j2, j3);
 
 				if (want != 0.0) {
 					worst = MAX(worst, fabs(got - want) / fabs(want));
@@ -369,7 +389,7 @@ static void test_w3js_stretched(void)
 					double want = sign(j1 - j2 + M) *
 								  exp(0.5 * (lgamma(2 * j1 + 1) + lgamma(2 * j2 + 1) + lgamma(j3 + M + 1) + lgamma(j3 - M + 1) -
 											 lgamma(2 * j3 + 2) - lgamma(j1 + m1 + 1) - lgamma(j1 - m1 + 1) - lgamma(j2 + m2 + 1) - lgamma(j2 - m2 + 1)));
-					double got = w3js(rh, j1, j2, j3, m1, m2, -M);
+					double got = wig3(j1, j2, j3, m1, m2, -M);
 
 					worst = MAX(worst, fabs(got - want) / fabs(want));
 					CHECK_CLOSE(got, want, 3e-14, 0.0, "stretched (%g %g %g; %g %g %g)", j1, j2, j3, m1, m2, -M);
@@ -385,14 +405,14 @@ static void test_w3js_values(void)
 		   coefficients of two spins 1/2; (1 1 2) and (2 2 2) are
 		   from the closed form for m = 0 and the standard tables -- */
 
-	CHECK_CLOSE(w3js(rh, 0.5, 0.5, 1.0, 0.5, -0.5, 0.0), 1.0 / sqrt(6.0), 1e-14, 0.0, "(1/2 1/2 1; 1/2 -1/2 0), code %d", 0);
-	CHECK_CLOSE(w3js(rh, 0.5, 0.5, 1.0, -0.5, 0.5, 0.0), 1.0 / sqrt(6.0), 1e-14, 0.0, "(1/2 1/2 1; -1/2 1/2 0), code %d", 1);
-	CHECK_CLOSE(w3js(rh, 0.5, 0.5, 1.0, 0.5, 0.5, -1.0), -1.0 / sqrt(3.0), 1e-14, 0.0, "(1/2 1/2 1; 1/2 1/2 -1), code %d", 2);
-	CHECK_CLOSE(w3js(rh, 0.5, 0.5, 1.0, -0.5, -0.5, 1.0), -1.0 / sqrt(3.0), 1e-14, 0.0, "(1/2 1/2 1; -1/2 -1/2 1), code %d", 3);
-	CHECK_CLOSE(w3js(rh, 1.0, 1.0, 2.0, 0.0, 0.0, 0.0), sqrt(2.0 / 15.0), 1e-14, 0.0, "(1 1 2; 0 0 0), code %d", 0);
-	CHECK_CLOSE(w3js(rh, 1.0, 1.0, 2.0, 1.0, -1.0, 0.0), sqrt(1.0 / 30.0), 1e-14, 0.0, "(1 1 2; 1 -1 0), code %d", 1);
-	CHECK_CLOSE(w3js(rh, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0), -sqrt(2.0 / 35.0), 1e-14, 0.0, "(2 2 2; 0 0 0), code %d", 2);
-	CHECK_CLOSE(w3js(rh, 1.0, 1.0, 1.0, 1.0, -1.0, 0.0), 1.0 / sqrt(6.0), 1e-14, 0.0, "(1 1 1; 1 -1 0), code %d", 3);
+	CHECK_CLOSE(wig3(0.5, 0.5, 1.0, 0.5, -0.5, 0.0), 1.0 / sqrt(6.0), 1e-14, 0.0, "(1/2 1/2 1; 1/2 -1/2 0), code %d", 0);
+	CHECK_CLOSE(wig3(0.5, 0.5, 1.0, -0.5, 0.5, 0.0), 1.0 / sqrt(6.0), 1e-14, 0.0, "(1/2 1/2 1; -1/2 1/2 0), code %d", 1);
+	CHECK_CLOSE(wig3(0.5, 0.5, 1.0, 0.5, 0.5, -1.0), -1.0 / sqrt(3.0), 1e-14, 0.0, "(1/2 1/2 1; 1/2 1/2 -1), code %d", 2);
+	CHECK_CLOSE(wig3(0.5, 0.5, 1.0, -0.5, -0.5, 1.0), -1.0 / sqrt(3.0), 1e-14, 0.0, "(1/2 1/2 1; -1/2 -1/2 1), code %d", 3);
+	CHECK_CLOSE(wig3(1.0, 1.0, 2.0, 0.0, 0.0, 0.0), sqrt(2.0 / 15.0), 1e-14, 0.0, "(1 1 2; 0 0 0), code %d", 0);
+	CHECK_CLOSE(wig3(1.0, 1.0, 2.0, 1.0, -1.0, 0.0), sqrt(1.0 / 30.0), 1e-14, 0.0, "(1 1 2; 1 -1 0), code %d", 1);
+	CHECK_CLOSE(wig3(2.0, 2.0, 2.0, 0.0, 0.0, 0.0), -sqrt(2.0 / 35.0), 1e-14, 0.0, "(2 2 2; 0 0 0), code %d", 2);
+	CHECK_CLOSE(wig3(1.0, 1.0, 1.0, 1.0, -1.0, 0.0), 1.0 / sqrt(6.0), 1e-14, 0.0, "(1 1 1; 1 -1 0), code %d", 3);
 }
 
 /* --- Bounds in the tests of the 3j and 6j symbols (except where
@@ -417,7 +437,7 @@ static void test_w3js_orthogonality(void)
 					if (fabs(m3p) > j3p) continue;
 					for (double m1 = -j1; m1 <= j1 + 1e-9; m1 += 1.0)
 						for (double m2 = -j2; m2 <= j2 + 1e-9; m2 += 1.0)
-							sum += (2.0 * j3 + 1.0) * w3js(rh, j1, j2, j3, m1, m2, -m3) * w3js(rh, j1, j2, j3p, m1, m2, -m3p);
+							sum += (2.0 * j3 + 1.0) * wig3(j1, j2, j3, m1, m2, -m3) * wig3(j1, j2, j3p, m1, m2, -m3p);
 					worst = MAX(worst, fabs(sum - ((j3 == j3p) ? 1.0 : 0.0)));
 					CHECK_CLOSE(sum, (j3 == j3p) ? 1.0 : 0.0, 5e-15, 5e-15,
 								"orthogonality j1 = %g, j2 = %g, j3 = %g, j3' = %g, m3 = %g", j1, j2, j3, j3p, m3);
@@ -439,15 +459,15 @@ static void test_w3js_symmetry(void)
 		if (j3 > j1 + j2 || j3 < fabs(j1 - j2) || fmod(j1 + j2 + j3, 1.0) != 0.0) continue;
 		for (double m1 = -j1; m1 <= j1 + 1e-9; m1 += 1.0)
 			for (double m2 = -j2; m2 <= j2 + 1e-9; m2 += 1.0) {
-				double m3 = -m1 - m2, v = w3js(rh, j1, j2, j3, m1, m2, m3);
+				double m3 = -m1 - m2, v = wig3(j1, j2, j3, m1, m2, m3);
 
 				if (fabs(m3) > j3) continue;
-				CHECK_CLOSE(w3js(rh, j2, j3, j1, m2, m3, m1), v, 5e-15, 1e-15, "cyclic, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
-				CHECK_CLOSE(w3js(rh, j3, j1, j2, m3, m1, m2), v, 5e-15, 1e-15, "cyclic 2, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
-				CHECK_CLOSE(w3js(rh, j2, j1, j3, m2, m1, m3), ph * v, 5e-15, 1e-15, "swap 12, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
-				CHECK_CLOSE(w3js(rh, j1, j3, j2, m1, m3, m2), ph * v, 5e-15, 1e-15, "swap 23, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
-				CHECK_CLOSE(w3js(rh, j3, j2, j1, m3, m2, m1), ph * v, 5e-15, 1e-15, "swap 13, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
-				CHECK_CLOSE(w3js(rh, j1, j2, j3, -m1, -m2, -m3), ph * v, 5e-15, 1e-15, "m -> -m, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
+				CHECK_CLOSE(wig3(j2, j3, j1, m2, m3, m1), v, 5e-15, 1e-15, "cyclic, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
+				CHECK_CLOSE(wig3(j3, j1, j2, m3, m1, m2), v, 5e-15, 1e-15, "cyclic 2, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
+				CHECK_CLOSE(wig3(j2, j1, j3, m2, m1, m3), ph * v, 5e-15, 1e-15, "swap 12, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
+				CHECK_CLOSE(wig3(j1, j3, j2, m1, m3, m2), ph * v, 5e-15, 1e-15, "swap 23, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
+				CHECK_CLOSE(wig3(j3, j2, j1, m3, m2, m1), ph * v, 5e-15, 1e-15, "swap 13, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
+				CHECK_CLOSE(wig3(j1, j2, j3, -m1, -m2, -m3), ph * v, 5e-15, 1e-15, "m -> -m, j = %g %g %g, m = %g %g", j1, j2, j3, m1, m2);
 			}
 	}
 }
@@ -456,21 +476,21 @@ static void test_w3js_selection(void)
 {
 	/* --- All of these are zero by the selection rules -- ------- */
 
-	CHECK(w3js(rh, 1.0, 1.0, 3.0, 0.0, 0.0, 0.0) == 0.0, "triangle: j3 > j1 + j2, value %g", w3js(rh, 1.0, 1.0, 3.0, 0.0, 0.0, 0.0));
-	CHECK(w3js(rh, 3.0, 1.0, 1.0, 0.0, 0.0, 0.0) == 0.0, "triangle: j1 > j2 + j3, value %g", w3js(rh, 3.0, 1.0, 1.0, 0.0, 0.0, 0.0));
-	CHECK(w3js(rh, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0) == 0.0, "m1 + m2 + m3 != 0, value %g", w3js(rh, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0));
-	CHECK(w3js(rh, 1.0, 1.0, 1.0, 2.0, -1.0, -1.0) == 0.0, "|m1| > j1, value %g", w3js(rh, 1.0, 1.0, 1.0, 2.0, -1.0, -1.0));
-	CHECK(w3js(rh, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0) == 0.0, "(1 1 1; 0 0 0) odd J, value %g", w3js(rh, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0));
-	CHECK(w3js(rh, 0.3, 1.0, 1.0, 0.0, 0.0, 0.0) == 0.0, "j1 not a half-integer, value %g", w3js(rh, 0.3, 1.0, 1.0, 0.0, 0.0, 0.0));
-	CHECK(w3js(rh, 1.0, 1.0, 1.0, 0.25, -0.25, 0.0) == 0.0, "m1 not a half-integer, value %g", w3js(rh, 1.0, 1.0, 1.0, 0.25, -0.25, 0.0));
+	CHECK(wig3(1.0, 1.0, 3.0, 0.0, 0.0, 0.0) == 0.0, "triangle: j3 > j1 + j2, value %g", wig3(1.0, 1.0, 3.0, 0.0, 0.0, 0.0));
+	CHECK(wig3(3.0, 1.0, 1.0, 0.0, 0.0, 0.0) == 0.0, "triangle: j1 > j2 + j3, value %g", wig3(3.0, 1.0, 1.0, 0.0, 0.0, 0.0));
+	CHECK(wig3(1.0, 1.0, 1.0, 1.0, 1.0, 0.0) == 0.0, "m1 + m2 + m3 != 0, value %g", wig3(1.0, 1.0, 1.0, 1.0, 1.0, 0.0));
+	CHECK(wig3(1.0, 1.0, 1.0, 2.0, -1.0, -1.0) == 0.0, "|m1| > j1, value %g", wig3(1.0, 1.0, 1.0, 2.0, -1.0, -1.0));
+	CHECK(wig3(1.0, 1.0, 1.0, 0.0, 0.0, 0.0) == 0.0, "(1 1 1; 0 0 0) odd J, value %g", wig3(1.0, 1.0, 1.0, 0.0, 0.0, 0.0));
+	CHECK(wig3(0.3, 1.0, 1.0, 0.0, 0.0, 0.0) == 0.0, "j1 not a half-integer, value %g", wig3(0.3, 1.0, 1.0, 0.0, 0.0, 0.0));
+	CHECK(wig3(1.0, 1.0, 1.0, 0.25, -0.25, 0.0) == 0.0, "m1 not a half-integer, value %g", wig3(1.0, 1.0, 1.0, 0.25, -0.25, 0.0));
 
 	/* --- j - m not whole, and j1 + j2 + j3 not whole (before B-22
 		   (1/2 1/2 1/2; 1/2 -1/2 0) gave 1) -- ------------------ */
 
-	CHECK(w3js(rh, 1.0, 0.5, 0.5, 0.5, 0.0, -0.5) == 0.0, "j1 - m1 not whole, value %g", w3js(rh, 1.0, 0.5, 0.5, 0.5, 0.0, -0.5));
-	CHECK(w3js(rh, 0.5, 0.5, 1.0, 0.0, 0.0, 0.0) == 0.0, "j1 - m1, j2 - m2 not whole, value %g", w3js(rh, 0.5, 0.5, 1.0, 0.0, 0.0, 0.0));
-	CHECK(w3js(rh, 0.5, 0.5, 0.5, 0.5, -0.5, 0.0) == 0.0, "j1 + j2 + j3 not whole, value %g", w3js(rh, 0.5, 0.5, 0.5, 0.5, -0.5, 0.0));
-	CHECK(w3js(rh, 1.5, 1.0, 0.5, 0.5, 0.0, -0.5) != 0.0, "valid half-integer symbol, value %g", w3js(rh, 1.5, 1.0, 0.5, 0.5, 0.0, -0.5));
+	CHECK(wig3(1.0, 0.5, 0.5, 0.5, 0.0, -0.5) == 0.0, "j1 - m1 not whole, value %g", wig3(1.0, 0.5, 0.5, 0.5, 0.0, -0.5));
+	CHECK(wig3(0.5, 0.5, 1.0, 0.0, 0.0, 0.0) == 0.0, "j1 - m1, j2 - m2 not whole, value %g", wig3(0.5, 0.5, 1.0, 0.0, 0.0, 0.0));
+	CHECK(wig3(0.5, 0.5, 0.5, 0.5, -0.5, 0.0) == 0.0, "j1 + j2 + j3 not whole, value %g", wig3(0.5, 0.5, 0.5, 0.5, -0.5, 0.0));
+	CHECK(wig3(1.5, 1.0, 0.5, 0.5, 0.0, -0.5) != 0.0, "valid half-integer symbol, value %g", wig3(1.5, 1.0, 0.5, 0.5, 0.0, -0.5));
 }
 
 /* --- Large j: the symbol is a sum of alternating terms with products
@@ -481,25 +501,17 @@ static void test_w3js_selection(void)
 	   in the square root from j = 49 ((j!)^6 > 1e308), the (3j+1)!
 	   of the triangle coefficient from j = 57 (170! is the largest
 	   finite factorial). Before B-22 that gave +-inf at j = 50 .. 56
-	   and 0 from j = 58; now the run stops with an error, which is
-	   checked in a child process. Bounds: 5e-13 for j <= 20 and 1e-6
-	   for j = 32 .. 48 -- ------------------------------------- */
+	   and 0 from j = 58; now w3js fails with RH_E_NUMERIC. Bounds:
+	   5e-13 for j <= 20 and 1e-6 for j = 32 .. 48 -- ------------ */
 
-static bool_t w3js_stops(double j)
+static bool_t w3js_fails(double j)
 {
-	pid_t pid;
-	int   status;
+	double    w;
+	rh_status s        = w3js(rh, j, j, j, 0.0, 0.0, 0.0, &w);
+	bool_t    recorded = (Failed(rh) && rh->error.code == s);
 
-	fflush(stdout);
-	fflush(stderr);
-	if ((pid = fork()) == 0) {
-		if (!freopen("/dev/null", "w", stdout) || !freopen("/dev/null", "w", stderr)) _exit(1);
-		rh->commandline.logfile = stderr;
-		w3js(rh, j, j, j, 0.0, 0.0, 0.0);
-		_exit(0);
-	}
-	if (pid < 0 || waitpid(pid, &status, 0) != pid) return FALSE;
-	return WIFEXITED(status) && WEXITSTATUS(status) == RH_EXIT_FATAL;
+	ClearError(rh);
+	return s == RH_E_NUMERIC && recorded;
 }
 
 static void test_w3js_large(void)
@@ -507,7 +519,7 @@ static void test_w3js_large(void)
 	double worst20 = 0.0, worst48 = 0.0;
 
 	for (int j = 2; j <= 48; j += 2) {
-		double got = w3js(rh, j, j, j, 0, 0, 0), want = w3js_zero_closed(j, j, j);
+		double got = wig3(j, j, j, 0, 0, 0), want = w3js_zero_closed(j, j, j);
 		double err = fabs(got - want) / fabs(want);
 
 		if (j <= 20) {
@@ -522,9 +534,9 @@ static void test_w3js_large(void)
 	if (table)
 		printf("w3js (j j j; 0 0 0): max relative error %.2e for j <= 20, %.2e for 32 <= j <= 48\n", worst20, worst48);
 
-	CHECK(w3js_stops(50.0), "(j j j; 0 0 0), j = %d: no error on overflow", 50);
-	CHECK(w3js_stops(58.0), "(j j j; 0 0 0), j = %d: no error on overflow", 58);
-	CHECK(!w3js_stops(48.0), "(j j j; 0 0 0), j = %d: error without overflow", 48);
+	CHECK(w3js_fails(50.0), "(j j j; 0 0 0), j = %d: no error on overflow", 50);
+	CHECK(w3js_fails(58.0), "(j j j; 0 0 0), j = %d: no error on overflow", 58);
+	CHECK(!w3js_fails(48.0), "(j j j; 0 0 0), j = %d: error without overflow", 48);
 }
 
 /* --- 6-j symbols -- ----------------------------------------------- */
@@ -536,12 +548,12 @@ static void test_w6js(void)
 	/* --- {1 1 1; 1 1 1} = 1/6, {1/2 1/2 1; 1/2 1/2 1} = 1/6,
 		   {a b c; 0 c b} = (-1)^(a+b+c) / sqrt((2b+1)(2c+1)) -- --- */
 
-	CHECK_CLOSE(w6js(rh, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0), 1.0 / 6.0, 1e-14, 0.0, "{1 1 1; 1 1 1}, code %d", 0);
-	CHECK_CLOSE(w6js(rh, 0.5, 0.5, 1.0, 0.5, 0.5, 1.0), 1.0 / 6.0, 1e-14, 0.0, "{1/2 1/2 1; 1/2 1/2 1}, code %d", 1);
+	CHECK_CLOSE(wig6(1.0, 1.0, 1.0, 1.0, 1.0, 1.0), 1.0 / 6.0, 1e-14, 0.0, "{1 1 1; 1 1 1}, code %d", 0);
+	CHECK_CLOSE(wig6(0.5, 0.5, 1.0, 0.5, 0.5, 1.0), 1.0 / 6.0, 1e-14, 0.0, "{1/2 1/2 1; 1/2 1/2 1}, code %d", 1);
 	for (double a = 0.0; a <= 5.0; a += 0.5)
 		for (double b = 0.0; b <= 5.0; b += 0.5)
 			for (double c = fabs(a - b); c <= a + b + 1e-9; c += 1.0) {
-				double want = sign(a + b + c) / sqrt((2 * b + 1) * (2 * c + 1)), got = w6js(rh, a, b, c, 0.0, c, b);
+				double want = sign(a + b + c) / sqrt((2 * b + 1) * (2 * c + 1)), got = wig6(a, b, c, 0.0, c, b);
 
 				worst = MAX(worst, fabs(got - want) / fabs(want));
 				CHECK_CLOSE(got, want, 5e-15, 0.0, "{%g %g %g; 0 %g %g}", a, b, c, c, b);
@@ -558,14 +570,14 @@ static void test_w6js(void)
 				double s1 = 0.0;
 
 				for (double x = fabs(a - b); x <= a + b + 1e-9; x += 1.0)
-					s1 += (2.0 * x + 1.0) * w6js(rh, a, b, x, a, b, f);
+					s1 += (2.0 * x + 1.0) * wig6(a, b, x, a, b, f);
 				CHECK_CLOSE(s1, sign(2.0 * (a + b)), 5e-15, 5e-15, "sum rule 1, a = %g, b = %g, f = %g", a, b, f);
 			}
 			for (double f = 0.0; f <= 2.0 * MIN(a, b) + 1e-9; f += 1.0) {
 				double s2 = 0.0;
 
 				for (double x = fabs(a - b); x <= a + b + 1e-9; x += 1.0)
-					s2 += sign(a + b + x) * (2.0 * x + 1.0) * w6js(rh, a, b, x, b, a, f);
+					s2 += sign(a + b + x) * (2.0 * x + 1.0) * wig6(a, b, x, b, a, f);
 				CHECK_CLOSE(s2, (f == 0.0) ? sqrt((2 * a + 1) * (2 * b + 1)) : 0.0, 5e-15, 5e-15,
 							"sum rule 2, a = %g, b = %g, f = %g", a, b, f);
 			}
@@ -585,12 +597,12 @@ static void test_w6js(void)
 					double sum = 0.0;
 
 					for (double x = 0.0; x <= 12.0; x += 0.5)
-						sum += (2.0 * x + 1.0) * (2.0 * f + 1.0) * w6js(rh, a, b, x, c, d, f) * w6js(rh, a, b, x, c, d, fp);
+						sum += (2.0 * x + 1.0) * (2.0 * f + 1.0) * wig6(a, b, x, c, d, f) * wig6(a, b, x, c, d, fp);
 					if (f == fp) {
 						/* --- delta(f, f') only when f is allowed; else 0 */
 						double nonzero = 0.0;
 
-						for (double x = 0.0; x <= 12.0; x += 0.5) nonzero += fabs(w6js(rh, a, b, x, c, d, f));
+						for (double x = 0.0; x <= 12.0; x += 0.5) nonzero += fabs(wig6(a, b, x, c, d, f));
 						if (nonzero == 0.0) continue;
 					}
 					CHECK_CLOSE(sum, (f == fp) ? 1.0 : 0.0, 5e-15, 5e-15, "6j orthogonality a b c d = %g %g %g %g, f = %g, f' = %g", a, b, c, d, f, fp);
@@ -600,16 +612,16 @@ static void test_w6js(void)
 	/* --- selection rules and symmetry under exchange of columns and of
 		   upper and lower entries of two columns -- ------------------ */
 
-	CHECK(w6js(rh, 1.0, 1.0, 3.0, 1.0, 1.0, 1.0) == 0.0, "triangle (j1 j2 j3), value %g", w6js(rh, 1.0, 1.0, 3.0, 1.0, 1.0, 1.0));
-	CHECK(w6js(rh, 1.0, 1.0, 1.0, 1.0, 1.0, 3.0) == 0.0, "triangle (J1 J2 j3), value %g", w6js(rh, 1.0, 1.0, 1.0, 1.0, 1.0, 3.0));
-	CHECK(w6js(rh, 1.0, 1.0, 1.0, 1.0, 1.0, 0.3) == 0.0, "not half-integer, value %g", w6js(rh, 1.0, 1.0, 1.0, 1.0, 1.0, 0.3));
+	CHECK(wig6(1.0, 1.0, 3.0, 1.0, 1.0, 1.0) == 0.0, "triangle (j1 j2 j3), value %g", wig6(1.0, 1.0, 3.0, 1.0, 1.0, 1.0));
+	CHECK(wig6(1.0, 1.0, 1.0, 1.0, 1.0, 3.0) == 0.0, "triangle (J1 J2 j3), value %g", wig6(1.0, 1.0, 1.0, 1.0, 1.0, 3.0));
+	CHECK(wig6(1.0, 1.0, 1.0, 1.0, 1.0, 0.3) == 0.0, "not half-integer, value %g", wig6(1.0, 1.0, 1.0, 1.0, 1.0, 0.3));
 	{
-		double j1 = 2.0, j2 = 1.5, j3 = 2.5, J1 = 1.0, J2 = 2.0, J3 = 1.5, v = w6js(rh, j1, j2, j3, J1, J2, J3);
+		double j1 = 2.0, j2 = 1.5, j3 = 2.5, J1 = 1.0, J2 = 2.0, J3 = 1.5, v = wig6(j1, j2, j3, J1, J2, J3);
 
-		CHECK_CLOSE(w6js(rh, j2, j1, j3, J2, J1, J3), v, 5e-15, 0.0, "column exchange, code %d", 0);
-		CHECK_CLOSE(w6js(rh, j1, j3, j2, J1, J3, J2), v, 5e-15, 0.0, "column exchange, code %d", 1);
-		CHECK_CLOSE(w6js(rh, J1, J2, j3, j1, j2, J3), v, 5e-15, 0.0, "exchange of upper and lower, code %d", 0);
-		CHECK_CLOSE(w6js(rh, j1, J2, J3, J1, j2, j3), v, 5e-15, 0.0, "exchange of upper and lower, code %d", 1);
+		CHECK_CLOSE(wig6(j2, j1, j3, J2, J1, J3), v, 5e-15, 0.0, "column exchange, code %d", 0);
+		CHECK_CLOSE(wig6(j1, j3, j2, J1, J3, J2), v, 5e-15, 0.0, "column exchange, code %d", 1);
+		CHECK_CLOSE(wig6(J1, J2, j3, j1, j2, J3), v, 5e-15, 0.0, "exchange of upper and lower, code %d", 0);
+		CHECK_CLOSE(wig6(j1, J2, J3, J1, j2, j3), v, 5e-15, 0.0, "exchange of upper and lower, code %d", 1);
 	}
 	if (table) printf("w6js {a b c; 0 c b}: max relative error %.2e\n", worst);
 }

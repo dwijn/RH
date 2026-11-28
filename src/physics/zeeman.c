@@ -183,6 +183,9 @@ double ZeemanStrength(RHState *rh, double Ju, double Mu, double Jl, double Ml)
 	q  = (int) (Ml - Mu);
 	dJ = (int) (Ju - Jl);
 
+	/* --- Zeeman and RLKZeeman check dJ for each line (Q-54) -- ----- */
+
+	RH_ASSERT(rh, dJ >= -1 && dJ <= 1, routineName, "Invalid dJ: %d", dJ);
 	switch (dJ) {
 	case 0:
 		switch (q) {
@@ -207,9 +210,6 @@ double ZeemanStrength(RHState *rh, double Ju, double Mu, double Jl, double Ml)
 		case 1: s = (Ju + Mu + 1.0) * (Ju + Mu + 2.0); break;
 		}
 		break;
-
-	default:
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
 	}
 	return s;
 }
@@ -217,7 +217,7 @@ double ZeemanStrength(RHState *rh, double Ju, double Mu, double Jl, double Ml)
 
 /* ------- begin -------------------------- Zeeman.c ---------------- */
 
-void Zeeman(RHState *rh, AtomicLine *line)
+rh_status Zeeman(RHState *rh, AtomicLine *line)
 {
 	register int n;
 
@@ -275,13 +275,15 @@ void Zeeman(RHState *rh, AtomicLine *line)
 							  &nq, &Sl, &Ll, &Jl);
 		result &= determinate(rh, atom->label[line->j], atom->g[line->j],
 							  &nq, &Su, &Lu, &Ju);
-		if (!result) {
+		/* --- readAtom only marks a line polarizable when both labels
+			   can be parsed --                            -------------- */
 
-			/* --- readAtom only marks a line polarizable when both
-				   labels can be parsed, so this cannot happen -- ------- */
-
-			Error(rh, ERROR_LEVEL_2, "Zeeman", "Atom %s: no quantum numbers for line %d -> %d",
+		RH_ASSERT(rh, result, "Zeeman", "Atom %s: no quantum numbers for line %d -> %d",
 				  atom->ID, line->j, line->i);
+		if ((int) (Ju - Jl) < -1 || (int) (Ju - Jl) > 1) {
+			return Fail(rh, RH_E_DATA, "Zeeman",
+						"Atom %s, line %d -> %d: J changes from %g to %g, by more than 1",
+						atom->ID, line->j, line->i, Ju, Jl);
 		}
 
 		/* --- Count the number of components --           -------------- */
@@ -319,6 +321,7 @@ void Zeeman(RHState *rh, AtomicLine *line)
 			if (norm[zm->q[n] + 1] > 0.0) zm->strength[n] /= norm[zm->q[n] + 1];
 	}
 	zm->g_eff = effectiveLande(rh, line);
+	return RH_OK;
 }
 /* ------- end ---------------------------- Zeeman.c ---------------- */
 
@@ -337,7 +340,7 @@ double zm_gamma(double J, double S, double L)
 
 /* ------- begin -------------------------- adjustStokesMode.c ------ */
 
-void adjustStokesMode(RHState *rh)
+rh_status adjustStokesMode(RHState *rh)
 {
 	register int kr, nact;
 
@@ -353,7 +356,7 @@ void adjustStokesMode(RHState *rh)
 		 rh->input.StokesMode == NO_STOKES ||
 		 rh->input.StokesMode == FULL_STOKES) &&
 		!rh->input.backgr_pol)
-		return;
+		return RH_OK;
 	else
 		rh->input.StokesMode = FULL_STOKES;
 
@@ -375,12 +378,13 @@ void adjustStokesMode(RHState *rh)
 					if (!rh->input.limit_memory) freeMatrix(rh, (void **) line->phi);
 					free(line->wphi);
 
-					Profile(rh, line);
+					RH_TRY(Profile(rh, line));
 				}
 			}
 		}
 		getCPU(rh, 2, TIME_POLL, "adjustStokesMode");
 	}
+	return RH_OK;
 }
 /* ------- end ---------------------------- adjustStokesMode.c ------ */
 

@@ -120,10 +120,13 @@ static void expected_pattern(const Config *c, Pattern *p)
 	for (double Ml = -c->J_l; Ml <= c->J_l; Ml++)
 		for (double Mu = -c->J_u; Mu <= c->J_u; Mu++) {
 			if (fabs(Mu - Ml) > 1.0) continue;
-			int q             = (int) (Ml - Mu);
-			p->q[p->N]        = q;
-			p->shift[p->N]    = g_l * Ml - g_u * Mu;
-			p->strength[p->N] = 3.0 * SQ(w3js(rh, c->J_u, c->J_l, 1.0, -Mu, Ml, -q));
+			int q          = (int) (Ml - Mu);
+			p->q[p->N]     = q;
+			p->shift[p->N] = g_l * Ml - g_u * Mu;
+			double w3      = 0.0;
+
+			CHECK(w3js(rh, c->J_u, c->J_l, 1.0, -Mu, Ml, -q, &w3) == RH_OK, "%s: w3js", c->name);
+			p->strength[p->N] = 3.0 * SQ(w3);
 			norm[q + 1] += p->strength[p->N];
 			p->N++;
 		}
@@ -221,7 +224,7 @@ static void check_pattern(const Config *c, bool_t verbose)
 		return;
 	}
 	expected_pattern(c, &p);
-	Zeeman(rh, &line);
+	CHECK(Zeeman(rh, &line) == RH_OK, "%s: Zeeman failed: %s", c->name, rh->error.message);
 
 	CHECK(line.zm->Ncomponent == p.N, "%s: %d components, expected %d", c->name,
 		  line.zm->Ncomponent, p.N);
@@ -421,7 +424,7 @@ static void check_profiles(const Config *c, bool_t verbose)
 
 	make_line(c);
 	expected_pattern(c, &p);
-	Profile(rh, &line);
+	CHECK(Profile(rh, &line) == RH_OK, "%s: Profile failed: %s", c->name, rh->error.message);
 
 	for (int la = 0; la < NLAMBDA; la++)
 		for (int mu = 0; mu < NRAYS; mu++)
@@ -549,7 +552,7 @@ static void check_milne_eddington(const MECase *mc, bool_t verbose)
 	rh->atmos.Nspace = NPOINT;
 	make_line(c);
 	expected_pattern(c, &p);
-	Profile(rh, &line);
+	CHECK(Profile(rh, &line) == RH_OK, "%s: Profile failed: %s", c->name, rh->error.message);
 	for (int la = 0; la < NLAMBDA; la++) {
 		int lamu          = 2 * (NRAYS * la + mu) + 1;
 		me_profile[la][0] = line.phi[lamu][k];

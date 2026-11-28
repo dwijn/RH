@@ -185,7 +185,7 @@ static void check_jgas(void)
 	rh->spectrum.Jgas = matrix_double(rh, N, Nspace);
 	initJgasLocks(rh);
 	rh->input.prdh_limit_mem = FALSE;
-	initPRDhTables(rh);
+	CHECK(initPRDhTables(rh) == RH_OK, "initPRDhTables failed: %s", rh->error.message);
 
 	Jtab = matrix_double(rh, N, Nspace);
 	Jmem = matrix_double(rh, N, Nspace);

@@ -90,7 +90,7 @@ bool_t determinate_abo(RHState *rh, char *label, int *l)
 
 /* ------- begin -------------------------- readBarklemTable.c ------ */
 
-bool_t readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs)
+rh_status readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs)
 {
 	register int n, i, j;
 	const char   routineName[] = "readBarklemTable";
@@ -130,8 +130,7 @@ bool_t readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs)
 	}
 
 	if ((fp_Barklem = fopen(filename, "r")) == NULL) {
-		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open input file %s", filename);
-		return FALSE;
+		return Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s", filename);
 	}
 
 	bs->neff1 = (double *) mallocOrAbort(bs->N1 * sizeof(double));
@@ -148,8 +147,9 @@ bool_t readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs)
 	for (n = 0; n < 3; n++) {
 		charptr = fgets(inputLine, MAX_LINE_SIZE, fp_Barklem);
 		if (charptr == NULL) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read header of Barklem table %s",
-				  filename);
+			fclose(fp_Barklem);
+			return Fail(rh, RH_E_DATA, routineName, "Unable to read header of Barklem table %s",
+						filename);
 		}
 	}
 
@@ -157,15 +157,17 @@ bool_t readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs)
 		for (j = 0; j < bs->N2; j++) {
 			nread = fscanf(fp_Barklem, "%lf", &bs->cross[i][j]);
 			if (nread != 1) {
-				Error(rh, ERROR_LEVEL_2, routineName, "Unable to read cross[%d][%d] from Barklem table %s",
-					  i, j, filename);
+				fclose(fp_Barklem);
+				return Fail(rh, RH_E_DATA, routineName,
+							"Unable to read cross[%d][%d] from Barklem table %s", i, j, filename);
 			}
 		}
 	for (n = 0; n < 2; n++) {
 		charptr = fgets(inputLine, MAX_LINE_SIZE, fp_Barklem);
 		if (charptr == NULL) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Unable to read header of Barklem table %s",
-				  filename);
+			fclose(fp_Barklem);
+			return Fail(rh, RH_E_DATA, routineName, "Unable to read header of Barklem table %s",
+						filename);
 		}
 	}
 
@@ -173,13 +175,14 @@ bool_t readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs)
 		for (j = 0; j < bs->N2; j++) {
 			nread = fscanf(fp_Barklem, "%lf", &bs->alpha[i][j]);
 			if (nread != 1) {
-				Error(rh, ERROR_LEVEL_2, routineName, "Unable to read alpha[%d][%d] from Barklem table %s",
-					  i, j, filename);
+				fclose(fp_Barklem);
+				return Fail(rh, RH_E_DATA, routineName,
+							"Unable to read alpha[%d][%d] from Barklem table %s", i, j, filename);
 			}
 		}
 
 	fclose(fp_Barklem);
-	return TRUE;
+	return RH_OK;
 }
 /* ------- end ---------------------------- readBarklemTable.c------- */
 
@@ -246,7 +249,7 @@ bool_t getBarklemcross(RHState *rh, Barklemstruct *bs, RLK_Line *rlk)
 
 /* ------- begin -------------------------- getBarklemactivecross.c - */
 
-bool_t getBarklemactivecross(RHState *rh, AtomicLine *line)
+rh_status getBarklemactivecross(RHState *rh, AtomicLine *line, bool_t *found)
 {
 	bool_t determined = TRUE, useBarklem = FALSE;
 	int    index, Ll, Lu, i, j, ic;
@@ -255,14 +258,15 @@ bool_t getBarklemactivecross(RHState *rh, AtomicLine *line)
 	Atom         *atom;
 	Barklemstruct bs;
 
-	atom = line->atom;
-	j    = line->j;
-	i    = line->i;
+	*found = FALSE;
+	atom   = line->atom;
+	j      = line->j;
+	i      = line->i;
 
 	/* --- ABO tabulations are only valid for neutral atoms -- -------- */
 
 	if (atom->stage[i] > 0)
-		return FALSE;
+		return RH_OK;
 
 	/* --- Get the quantum numbers for orbital angular momentum -- ---- */
 
@@ -274,16 +278,19 @@ bool_t getBarklemactivecross(RHState *rh, AtomicLine *line)
 	if (determined) {
 		if ((Ll == S_ORBIT && Lu == P_ORBIT) ||
 			(Ll == P_ORBIT && Lu == S_ORBIT)) {
-			useBarklem = readBarklemTable(rh, SP, &bs);
+			RH_TRY(readBarklemTable(rh, SP, &bs));
+			useBarklem = TRUE;
 		} else if ((Ll == P_ORBIT && Lu == D_ORBIT) ||
 				   (Ll == D_ORBIT && Lu == P_ORBIT)) {
-			useBarklem = readBarklemTable(rh, PD, &bs);
+			RH_TRY(readBarklemTable(rh, PD, &bs));
+			useBarklem = TRUE;
 		} else if ((Ll == D_ORBIT && Lu == F_ORBIT) ||
 				   (Ll == F_ORBIT && Lu == D_ORBIT)) {
-			useBarklem = readBarklemTable(rh, DF, &bs);
+			RH_TRY(readBarklemTable(rh, DF, &bs));
+			useBarklem = TRUE;
 		}
 	}
-	if (!determined || !useBarklem) return FALSE;
+	if (!determined || !useBarklem) return RH_OK;
 
 	/* --- Determine the index of the appropriate continuum level -- -- */
 
@@ -302,13 +309,13 @@ bool_t getBarklemactivecross(RHState *rh, AtomicLine *line)
 	/* --- Interpolate according to effective principal quantum number  */
 
 	if (neff1 < bs.neff1[0] || neff1 > bs.neff1[bs.N1 - 1])
-		return FALSE;
+		return RH_OK;
 	Locate(bs.N1, bs.neff1, neff1, &index);
 	findex1 =
 		(double) index + (neff1 - bs.neff1[index]) / BARKLEM_DELTA_NEFF;
 
 	if (neff2 < bs.neff2[0] || neff2 > bs.neff2[bs.N2 - 1])
-		return FALSE;
+		return RH_OK;
 	Locate(bs.N2, bs.neff2, neff2, &index);
 	findex2 =
 		(double) index + (neff2 - bs.neff2[index]) / BARKLEM_DELTA_NEFF;
@@ -332,7 +339,8 @@ bool_t getBarklemactivecross(RHState *rh, AtomicLine *line)
 	line->cvdWaals[2] = 1.0;
 	line->cvdWaals[3] = 0.0;
 
-	return TRUE;
+	*found = TRUE;
+	return RH_OK;
 }
 /* ------- end ---------------------------- getBarklemactivecross.c -- */
 

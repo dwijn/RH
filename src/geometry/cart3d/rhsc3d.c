@@ -80,9 +80,9 @@ int main(int argc, char *argv[])
 
 	getBoundary(rh, &rh->atmos, rh->geometry);
 
-	Background(rh, analyze_output = TRUE, equilibria_only = FALSE);
+	ExitOnError(rh, Background(rh, analyze_output = TRUE, equilibria_only = FALSE));
 
-	getProfiles(rh);
+	ExitOnError(rh, getProfiles(rh));
 	initSolution(rh);
 	initScatter(rh);
 
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
 
 	Iterate(rh, rh->input.NmaxIter, rh->input.iterLimit);
 
-	adjustStokesMode(rh);
+	ExitOnError(rh, adjustStokesMode(rh));
 
 	niter = 0;
 

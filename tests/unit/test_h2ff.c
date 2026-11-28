@@ -54,7 +54,7 @@ int main(void)
 	strcpy(rh->input.HminusBfData, RH_SOURCE_DIR "/Atoms/Hminus_bf.ecsv");
 	CHECK(log != NULL, "%s", "tmpfile");
 	rh->commandline.logfile = log;
-	hydrogenPrepare(rh);
+	CHECK(hydrogenPrepare(rh) == RH_OK, "hydrogenPrepare failed: %s", rh->error.message);
 
 	/* --- Table nodes (theta = 0.5 for depth 0, T = 2500 K for depth 1) --- */
 

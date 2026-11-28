@@ -95,8 +95,9 @@ typedef struct PassiveBBCache PassiveBBCache;
 PassiveBBCache *passiveBBCacheCreate(void);
 void            passiveBBCacheFree(PassiveBBCache *cache);
 
-flags passive_bb(RHState *rh, PassiveBBCache *cache, double lambda, int nspect, int mu,
-				 bool_t to_obs, double *chi, double *eta, double *chip);
+RH_NODISCARD rh_status passive_bb(RHState *rh, PassiveBBCache *cache, double lambda, int nspect,
+								  int mu, bool_t to_obs, double *chi, double *eta, double *chip,
+								  flags *result);
 
 flags rlk_opacity(RHState *rh, double lambda, int nspect, int mu, bool_t to_obs,
 				  double *chi, double *eta, double *scatt, double *chip);

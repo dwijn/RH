@@ -27,13 +27,13 @@ double triangleCoefficient(RHState *rh, double a, double b, double c);
 
 /* ------- begin -------------------------- w3js.c ------------------ */
 
-double w3js(RHState *rh, double j1, double j2, double j3,
-			double m1, double m2, double m3)
+rh_status w3js(RHState *rh, double j1, double j2, double j3,
+			   double m1, double m2, double m3, double *w)
 {
 	register int t;
 
 	int    tmin, tmax;
-	double w3js, q1, q2, q3, q4, q5, sumt;
+	double value, q1, q2, q3, q4, q5, sumt;
 
 	/* --- See: E. Landi Degl'Innocenti & M. Landolfi, 2004
 				"Polarization in Spectral Lines", Kluwer
@@ -44,32 +44,39 @@ double w3js(RHState *rh, double j1, double j2, double j3,
 
 		   --                                            -------------- */
 
-	w3js = 0.0;
+	*w = 0.0;
 
 	/* --- Check whether j1, ..., m3 are whole or half-integers -- ---- */
 
 	if (fmod(j1, 0.5) || fmod(m1, 0.5) ||
 		fmod(j2, 0.5) || fmod(m2, 0.5) ||
-		fmod(j3, 0.5) || fmod(m3, 0.5)) return w3js;
+		fmod(j3, 0.5) || fmod(m3, 0.5)) return RH_OK;
 
 	/* --- Check whether the m_i are between -j_i and j_i -- ---------- */
 
-	if (fabs(m1) > j1 || fabs(m2) > j2 || fabs(m3) > j3) return w3js;
+	if (fabs(m1) > j1 || fabs(m2) > j2 || fabs(m3) > j3) return RH_OK;
 
 	/* --- Check sum rule for z-components of J --       -------------- */
 
-	if (m1 + m2 + m3 != 0.0) return w3js;
+	if (m1 + m2 + m3 != 0.0) return RH_OK;
 
 	/* --- j_i and m_i both whole or both half-integer, and j1 + j2 + j3
 		   whole -- --------------------------------------------- */
 
 	if (fmod(j1 - m1, 1.0) || fmod(j2 - m2, 1.0) || fmod(j3 - m3, 1.0) ||
-		fmod(j1 + j2 + j3, 1.0)) return w3js;
+		fmod(j1 + j2 + j3, 1.0)) return RH_OK;
 
 	/* --- Check maximum value of j3, given j1,2 --      -------------- */
 
-	if (j3 > j1 + j2 || j3 < fabs(j1 - j2)) return w3js;
+	if (j3 > j1 + j2 || j3 < fabs(j1 - j2)) return RH_OK;
 
+	/* --- The largest factorial below is (j1 + j2 + j3 + 1)! -- ----- */
+
+	if (j1 + j2 + j3 + 1.0 >= NFACT) {
+		return Fail(rh, RH_E_NUMERIC, "w3js",
+					"3j symbol (%g %g %g; %g %g %g): needs factorials beyond %d!", j1, j2,
+					j3, m1, m2, m3, NFACT - 1);
+	}
 	q1   = j3 - j2 + m1;
 	q2   = j3 - j1 - m2;
 	tmin = (int) MAX(0, MAX(-q1, -q2));
@@ -86,32 +93,33 @@ double w3js(RHState *rh, double j1, double j2, double j3,
 				 fact(rh, q1 + t) * fact(rh, q2 + t));
 	}
 
-	w3js = ((((int) (j1 - j2 - m3)) % 2) ? -1.0 : 1.0) *
-		   sqrt(triangleCoefficient(rh, j1, j2, j3) *
-				fact(rh, j1 + m1) * fact(rh, j1 - m1) *
-				fact(rh, j2 + m2) * fact(rh, j2 - m2) *
-				fact(rh, j3 + m3) * fact(rh, j3 - m3)) *
-		   sumt;
+	value = ((((int) (j1 - j2 - m3)) % 2) ? -1.0 : 1.0) *
+			sqrt(triangleCoefficient(rh, j1, j2, j3) *
+				 fact(rh, j1 + m1) * fact(rh, j1 - m1) *
+				 fact(rh, j2 + m2) * fact(rh, j2 - m2) *
+				 fact(rh, j3 + m3) * fact(rh, j3 - m3)) *
+			sumt;
 
 	/* --- The products of factorials overflow from j ~ 50 -- -------- */
 
-	if (!isfinite(w3js)) {
-		Error(rh, ERROR_LEVEL_2, "w3js", "3j symbol (%g %g %g; %g %g %g) overflows",
-			  j1, j2, j3, m1, m2, m3);
+	if (!isfinite(value)) {
+		return Fail(rh, RH_E_NUMERIC, "w3js", "3j symbol (%g %g %g; %g %g %g) overflows",
+					j1, j2, j3, m1, m2, m3);
 	}
-	return w3js;
+	*w = value;
+	return RH_OK;
 }
 /* ------- end ---------------------------- w3js.c ------------------ */
 
 /* ------- begin -------------------------- w6js.c ------------------ */
 
-double w6js(RHState *rh, double j1, double j2, double j3,
-			double J1, double J2, double J3)
+rh_status w6js(RHState *rh, double j1, double j2, double j3,
+			   double J1, double J2, double J3, double *w)
 {
 	register int z;
 
 	int    zmin, zmax;
-	double w6js, q1, q2, q3, sum1, sum2, sum3, sum4,
+	double value, q1, q2, q3, sum1, sum2, sum3, sum4,
 		tc1, tc2, tc3, tc4, sumz;
 
 	/* --- See: E. Landi Degl'Innocenti & M. Landolfi, 2004
@@ -123,23 +131,23 @@ double w6js(RHState *rh, double j1, double j2, double j3,
 
 		   --                                            -------------- */
 
-	w6js = 0.0;
+	*w = 0.0;
 
 	/* --- Check whether j1, ..., m3 are whole or half-integers -- ---- */
 
 	if (fmod(j1, 0.5) || fmod(J1, 0.5) ||
 		fmod(j2, 0.5) || fmod(J2, 0.5) ||
-		fmod(j3, 0.5) || fmod(J3, 0.5)) return w6js;
+		fmod(j3, 0.5) || fmod(J3, 0.5)) return RH_OK;
 
-	if (j3 > j1 + j2 || j3 < fabs(j1 - j2)) return w6js;
-	if (J3 > j1 + J2 || J3 < fabs(j1 - J2)) return w6js;
-	if (J3 > J1 + j2 || J3 < fabs(J1 - j2)) return w6js;
-	if (j3 > J1 + J2 || j3 < fabs(J1 - J2)) return w6js;
+	if (j3 > j1 + j2 || j3 < fabs(j1 - j2)) return RH_OK;
+	if (J3 > j1 + J2 || J3 < fabs(j1 - J2)) return RH_OK;
+	if (J3 > J1 + j2 || J3 < fabs(J1 - j2)) return RH_OK;
+	if (j3 > J1 + J2 || j3 < fabs(J1 - J2)) return RH_OK;
 
-	if (fmod(sum1 = j1 + j2 + j3, 1.0)) return w6js;
-	if (fmod(sum2 = j1 + J2 + J3, 1.0)) return w6js;
-	if (fmod(sum3 = J1 + j2 + J3, 1.0)) return w6js;
-	if (fmod(sum4 = J1 + J2 + j3, 1.0)) return w6js;
+	if (fmod(sum1 = j1 + j2 + j3, 1.0)) return RH_OK;
+	if (fmod(sum2 = j1 + J2 + J3, 1.0)) return RH_OK;
+	if (fmod(sum3 = J1 + j2 + J3, 1.0)) return RH_OK;
+	if (fmod(sum4 = J1 + J2 + j3, 1.0)) return RH_OK;
 
 	zmin = MAX(MAX(MAX(sum1, sum2), sum3), sum4);
 
@@ -148,6 +156,14 @@ double w6js(RHState *rh, double j1, double j2, double j3,
 	q3   = j3 + j1 + J3 + J1;
 	zmax = MIN(MIN(q1, q2), q3);
 
+	/* --- The largest factorial below is (z + 1)! with z <= zmax, or
+		   that of a triangle coefficient, (sum_i + 1)! -- ---------- */
+
+	if (MAX(zmax, MAX(MAX(sum1, sum2), MAX(sum3, sum4))) + 1.0 >= NFACT) {
+		return Fail(rh, RH_E_NUMERIC, "w6js",
+					"6j symbol {%g %g %g; %g %g %g}: needs factorials beyond %d!", j1, j2,
+					j3, J1, J2, J3, NFACT - 1);
+	}
 	sumz = 0.0;
 	for (z = zmin; z <= zmax; z++) {
 		sumz += ((z % 2) ? -1.0 : 1.0) * fact(rh, z + 1.0) /
@@ -160,13 +176,14 @@ double w6js(RHState *rh, double j1, double j2, double j3,
 	tc3 = triangleCoefficient(rh, J1, j2, J3);
 	tc4 = triangleCoefficient(rh, J1, J2, j3);
 
-	w6js = sqrt(tc1 * tc2 * tc3 * tc4) * sumz;
+	value = sqrt(tc1 * tc2 * tc3 * tc4) * sumz;
 
-	if (!isfinite(w6js)) {
-		Error(rh, ERROR_LEVEL_2, "w6js", "6j symbol {%g %g %g; %g %g %g} overflows",
-			  j1, j2, j3, J1, J2, J3);
+	if (!isfinite(value)) {
+		return Fail(rh, RH_E_NUMERIC, "w6js", "6j symbol {%g %g %g; %g %g %g} overflows",
+					j1, j2, j3, J1, J2, J3);
 	}
-	return w6js;
+	*w = value;
+	return RH_OK;
 }
 /* ------- begin -------------------------- fact.c ------------------ */
 
@@ -174,7 +191,8 @@ double fact(RHState *rh, double xi)
 {
 	/* --- Returns the factorial of xi. On first call the factorials
 		   for the numbers 0 through 170 are stored in the static
-		   variable factorial. --                        -------------- */
+		   variable factorial. w3js and w6js check that their
+		   arguments stay in that range (Q-54) --        -------------- */
 
 	register int n;
 
@@ -189,10 +207,8 @@ double fact(RHState *rh, double xi)
 
 		initialize = FALSE;
 	}
-	if (fmod(xi, 1.0) || xi < 0.0 || xi >= NFACT) {
-		Error(rh, ERROR_LEVEL_2, "fact", "Factorial of %g: needs an integer from 0 to %d",
-			  xi, NFACT - 1);
-	}
+	RH_ASSERT(rh, !fmod(xi, 1.0) && xi >= 0.0 && xi < NFACT, "fact",
+			  "Factorial of %g: needs an integer from 0 to %d", xi, NFACT - 1);
 	return factorial[(int) xi];
 }
 /* ------- end ---------------------------- fact.c ------------------ */

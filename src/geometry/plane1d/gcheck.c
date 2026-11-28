@@ -65,10 +65,10 @@ int main(int argc, char *argv[])
 
 	getBoundary(rh, rh->geometry);
 
-	Background(rh, write_analyze_output = FALSE, equilibria_only = FALSE);
+	ExitOnError(rh, Background(rh, write_analyze_output = FALSE, equilibria_only = FALSE));
 	convertScales(rh, &rh->atmos, rh->geometry);
 
-	getProfiles(rh);
+	ExitOnError(rh, getProfiles(rh));
 	initSolution(rh);
 	initScatter(rh);
 

@@ -57,7 +57,7 @@ static void solveHydrostatic(RHState *rh, int NmaxIter, double iterLimit)
 		   ne^{met} = F(T, ne) n_H^{tot} --              -------------- */
 
 	FMetals(rh, F);
-	dFMetals(rh, dFdne);
+	ExitOnError(rh, dFMetals(rh, dFdne));
 
 	/* --- Go through all depth points and iterate on the number
 		   densities of nH, ne, np, nH2, and nHtot --    -------------- */
@@ -210,14 +210,14 @@ static void solveHydrostatic(RHState *rh, int NmaxIter, double iterLimit)
 	/* --- Adjust total populations of background metals and recalculate
 		   all the LTE populations, including hydrogen -- ------------- */
 
-	LTEpops(rh, rh->atmos.H, Debeye = TRUE);
+	ExitOnError(rh, LTEpops(rh, rh->atmos.H, Debeye = TRUE));
 
 	for (n = 1; n < rh->atmos.Natom; n++) {
 		atom = &rh->atmos.atoms[n];
 		for (k = 0; k < rh->atmos.Nspace; k++)
 			atom->ntotal[k] = atom->abundance * rh->atmos.nHtot[k];
 
-		LTEpops(rh, atom, Debeye = TRUE);
+		ExitOnError(rh, LTEpops(rh, atom, Debeye = TRUE));
 	}
 
 	/* --- Clean up --                                   -------------- */

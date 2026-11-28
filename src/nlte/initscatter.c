@@ -44,9 +44,9 @@ void initScatter(RHState *rh)
 					line = atom->line + kr;
 					if (line->PRD) {
 						if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
-							PRDAngleScatter(rh, line);
+							ExitOnError(rh, PRDAngleScatter(rh, line));
 						else
-							PRDScatter(rh, line);
+							ExitOnError(rh, PRDScatter(rh, line));
 					}
 				}
 			}

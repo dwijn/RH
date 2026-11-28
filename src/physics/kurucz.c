@@ -87,23 +87,22 @@ FORMAT(F11.4,F7.3,F6.2,F12.3,F5.2,1X,A10,F12.3,F5.2,1X,A10,
 
 /* --- Function prototypes --                          -------------- */
 
-double RLKProfile(RHState *rh, RLK_Line *rlk, int k, int mu, bool_t to_obs,
-				  double  lambda,
-				  double *phi_Q, double *phi_U, double *phi_V,
-				  double *psi_Q, double *psi_U, double *psi_V);
-void   RLKZeeman(RHState *rh, RLK_Line *rlk);
-double RLKLande(RHState *rh, RLK_level *level);
-void   initRLK(RLK_Line *rlk);
-bool_t RLKdet_level(RHState *rh, char *label, RLK_level *level);
-double getJK_K(RHState *rh, char c);
-void   getUnsoldcross(RHState *rh, RLK_Line *rlk);
-void   free_BS(RHState *rh, Barklemstruct *bs);
+double                 RLKProfile(RHState *rh, RLK_Line *rlk, int k, int mu, bool_t to_obs,
+								  double  lambda,
+								  double *phi_Q, double *phi_U, double *phi_V,
+								  double *psi_Q, double *psi_U, double *psi_V);
+RH_NODISCARD rh_status RLKZeeman(RHState *rh, RLK_Line *rlk);
+double                 RLKLande(RHState *rh, RLK_level *level);
+void                   initRLK(RLK_Line *rlk);
+RH_NODISCARD rh_status getJK_K(RHState *rh, char c, double *K);
+void                   getUnsoldcross(RHState *rh, RLK_Line *rlk);
+void                   free_BS(RHState *rh, Barklemstruct *bs);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- readKuruczLines.c ------- */
 
-void readKuruczLines(RHState *rh, char *inputFile)
+rh_status readKuruczLines(RHState *rh, char *inputFile)
 {
 	const char   routineName[] = "readKuruczLines";
 	const double C             = 2.0 * PI * (Q_ELECTRON / EPSILON_0) *
@@ -121,28 +120,29 @@ void readKuruczLines(RHState *rh, char *inputFile)
 	RLK_Line     *rlk;
 	Barklemstruct bs_SP, bs_PD, bs_DF;
 	FILE         *fp_Kurucz, *fp_linelist;
+	rh_status     status;
 
-	if (!strcmp(inputFile, "none")) return;
+	if (!strcmp(inputFile, "none")) return RH_OK;
 
 	/* --- Read in the data files for Barklem collisional broadening -- */
 
-	readBarklemTable(rh, SP, &bs_SP);
-	readBarklemTable(rh, PD, &bs_PD);
-	readBarklemTable(rh, DF, &bs_DF);
+	RH_TRY(readBarklemTable(rh, SP, &bs_SP));
+	RH_TRY(readBarklemTable(rh, PD, &bs_PD));
+	RH_TRY(readBarklemTable(rh, DF, &bs_DF));
 
 	labeli[RLK_LABEL_LENGTH] = '\0';
 	labelj[RLK_LABEL_LENGTH] = '\0';
 
 	if ((fp_Kurucz = fopen(inputFile, "r")) == NULL) {
-		Error(rh, ERROR_LEVEL_1, routineName, "Unable to open input file %s", inputFile);
-		return;
+		return Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s", inputFile);
 	}
 	/* --- Go through each of the linelist files listed in input file - */
 
 	while (getLine(rh, fp_Kurucz, commentChar, listName, FALSE) != EOF) {
 		Nread = sscanf(listName, "%s", filename);
 		if ((fp_linelist = fopen(filename, "r")) == NULL) {
-			Error(rh, ERROR_LEVEL_1, routineName, "Unable to open input file %s", filename);
+			fclose(fp_Kurucz);
+			return Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s", filename);
 		}
 		/* --- Count the number of lines in this file --   -------------- */
 
@@ -230,8 +230,14 @@ void readKuruczLines(RHState *rh, char *inputFile)
 
 				/* --- Get quantum numbers for angular momentum and spin -- - */
 
-				determined       = (RLKdet_level(rh, labeli, &rlk->level_i) &&
-                              RLKdet_level(rh, labelj, &rlk->level_j));
+				status = RLKdet_level(rh, labeli, &rlk->level_i, &determined);
+				if (status == RH_OK && determined)
+					status = RLKdet_level(rh, labelj, &rlk->level_j, &determined);
+				if (status != RH_OK) {
+					fclose(fp_linelist);
+					fclose(fp_Kurucz);
+					return status;
+				}
 				rlk->polarizable = (rh->atmos.Stokes && determined);
 
 				/* --- Line broadening --                      -------------- */
@@ -336,6 +342,7 @@ void readKuruczLines(RHState *rh, char *inputFile)
 	free_BS(rh, &bs_SP);
 	free_BS(rh, &bs_PD);
 	free_BS(rh, &bs_DF);
+	return RH_OK;
 }
 /* ------- end ---------------------------- readKuruczLines.c ------- */
 
@@ -423,7 +430,7 @@ void rlk_locate(int N, RLK_Line *lines, double lambda, int *low)
 
 /* ------- begin -------------------------- rlk_prepare.c ---------- */
 
-void rlk_prepare(RHState *rh)
+rh_status rlk_prepare(RHState *rh)
 {
 	register int k, n;
 
@@ -455,9 +462,9 @@ void rlk_prepare(RHState *rh)
 
 		if (element->n == NULL) {
 			element->n = matrix_double(rh, element->Nstage, rh->atmos.Nspace);
-			LTEpops_elem(rh, element);
+			RH_TRY(LTEpops_elem(rh, element));
 		}
-		if (rlk->polarizable && rlk->zm == NULL) RLKZeeman(rh, rlk);
+		if (rlk->polarizable && rlk->zm == NULL) RH_TRY(RLKZeeman(rh, rlk));
 
 		if (rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1] == NULL)
 			rh->kurucz.rlk_tab.lnU[rlk->pt_index - 1] =
@@ -484,6 +491,7 @@ void rlk_prepare(RHState *rh)
 		for (k = 0; k < rh->atmos.Nspace; k++)
 			rh->kurucz.rlk_tab.T03[k] = pow(rh->atmos.T[k], 0.3);
 	}
+	return RH_OK;
 }
 /* ------- end ---------------------------- rlk_prepare.c ---------- */
 
@@ -827,7 +835,7 @@ double RLKProfile(RHState *rh, RLK_Line *rlk, int k, int mu, bool_t to_obs,
 
 /* ------- begin -------------------------- RLKZeeman.c ------------- */
 
-void RLKZeeman(RHState *rh, RLK_Line *rlk)
+rh_status RLKZeeman(RHState *rh, RLK_Line *rlk)
 {
 	register int n;
 
@@ -854,6 +862,11 @@ void RLKZeeman(RHState *rh, RLK_Line *rlk)
 
 	Jl = rlk->level_i.J;
 	Ju = rlk->level_j.J;
+	if ((int) (Ju - Jl) < -1 || (int) (Ju - Jl) > 1) {
+		return Fail(rh, RH_E_DATA, "RLKZeeman",
+					"Kurucz line at %g nm: J changes from %g to %g, by more than 1",
+					rlk->lambda0, Ju, Jl);
+	}
 
 	rlk->zm = (ZeemanMultiplet *) mallocOrAbort(sizeof(ZeemanMultiplet));
 	initZeeman(rlk->zm);
@@ -897,6 +910,7 @@ void RLKZeeman(RHState *rh, RLK_Line *rlk)
 
 	g_eff /= norm[2];
 	zm->g_eff = g_eff;
+	return RH_OK;
 }
 /* ------- end ---------------------------- RLKZeeman.c ------------- */
 
@@ -906,7 +920,7 @@ void RLKZeeman(RHState *rh, RLK_Line *rlk)
 #define JK_COUNT 6
 #define JJ_COUNT 4
 
-bool_t RLKdet_level(RHState *rh, char *label, RLK_level *level)
+rh_status RLKdet_level(RHState *rh, char *label, RLK_level *level, bool_t *determined)
 {
 	const char routineName[] = "RLKdet_level";
 
@@ -955,7 +969,8 @@ bool_t RLKdet_level(RHState *rh, char *label, RLK_level *level)
 							&multiplicity, orbit);
 			if (Nread != 2 || !isupper(orbit[0])) {
 				free(words);
-				return FALSE;
+				*determined = FALSE;
+				return RH_OK;
 			}
 
 			level->L = getOrbital(rh, orbit[0]);
@@ -968,11 +983,13 @@ bool_t RLKdet_level(RHState *rh, char *label, RLK_level *level)
 			// --- JdlCR: also extract l --- //
 			level->l = getOrbital(rh, toupper(orbit[0]));
 
-			level->cpl = LS_COUPLING;
-			return TRUE;
+			level->cpl  = LS_COUPLING;
+			*determined = TRUE;
+			return RH_OK;
 		} else {
 			free(words); /* B-72 */
-			return FALSE;
+			*determined = FALSE;
+			return RH_OK;
 		}
 	} else {
 
@@ -983,24 +1000,25 @@ bool_t RLKdet_level(RHState *rh, char *label, RLK_level *level)
 
 		if (ptr_i == NULL || ptr_f == NULL) {
 			if (ptr_i != NULL && ptr_f == NULL) {
-				Error(rh, ERROR_LEVEL_2, routineName, " Malformed label: missing ending "
-													  "delimiter: %c, label: %s\n",
-					  delims_f[strchr(delims_i, ptr_i[0]) - delims_i], label);
+				return Fail(rh, RH_E_DATA, routineName,
+							" Malformed label: missing ending delimiter: %c, label: %s\n",
+							delims_f[strchr(delims_i, ptr_i[0]) - delims_i], label);
 			}
 			if (ptr_i == NULL && ptr_f != NULL) {
-				Error(rh, ERROR_LEVEL_2, routineName, " Malformed label: missing beginning "
-													  "delimiter: %c, label: %s\n",
-					  delims_i[strchr(delims_f, ptr_f[0]) - delims_f], label);
+				return Fail(rh, RH_E_DATA, routineName,
+							" Malformed label: missing beginning delimiter: %c, label: %s\n",
+							delims_i[strchr(delims_f, ptr_f[0]) - delims_f], label);
 			}
-			return FALSE;
+			*determined = FALSE;
+			return RH_OK;
 		}
 		if (ptr_i[0] != delims_i[strchr(delims_f, ptr_f[0]) - delims_f]) {
 
 			/* --- When delimiters are not matching --       -------------- */
 
-			Error(rh, ERROR_LEVEL_2, routineName, " Malformed label: mismatched delimiters: '%c %c', %s\n",
-				  ptr_i[0], ptr_f[0], label);
-			return FALSE;
+			return Fail(rh, RH_E_DATA, routineName,
+						" Malformed label: mismatched delimiters: '%c %c', %s\n", ptr_i[0],
+						ptr_f[0], label);
 		}
 
 		length     = ptr_f - ptr_i + 2;
@@ -1032,7 +1050,14 @@ bool_t RLKdet_level(RHState *rh, char *label, RLK_level *level)
 				level->S1 = (M1 - 1) / 2.0;
 				level->L1 = getOrbital(rh, L1char);
 				level->l  = getOrbital(rh, toupper(lchar));
-				level->K  = getJK_K(rh, Kchar);
+				{
+					rh_status status = getJK_K(rh, Kchar, &level->K);
+
+					if (status != RH_OK) {
+						free(quanta_str);
+						return status;
+					}
+				}
 
 				level->cpl = JK_COUPLING;
 			}
@@ -1052,12 +1077,14 @@ bool_t RLKdet_level(RHState *rh, char *label, RLK_level *level)
 			break;
 		}
 		if (counterror) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Wrong quantum number count: %s: %d\n",
-				  quanta_str, Nread);
-			return FALSE;
+			rh_status status = Fail(rh, RH_E_DATA, routineName,
+									"Wrong quantum number count: %s: %d\n", quanta_str, Nread);
+			free(quanta_str);
+			return status;
 		}
 		free(quanta_str);
-		return TRUE;
+		*determined = TRUE;
+		return RH_OK;
 	}
 }
 /* ------- end ---------------------------- RLKdet_level.c ---------- */
@@ -1163,7 +1190,8 @@ double RLKLande(RHState *rh, RLK_level *level)
 		break;
 
 	default:
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid coupling: %d", level->cpl);
+		/* --- RLKdet_level sets only LS, JK or JJ coupling -- ------- */
+		RH_ASSERT(rh, FALSE, routineName, "Invalid coupling: %d", level->cpl);
 	}
 	return level->gL;
 }
@@ -1171,27 +1199,24 @@ double RLKLande(RHState *rh, RLK_level *level)
 
 /* ------- begin -------------------------- getJK_K.c -- ------------ */
 
-double getJK_K(RHState *rh, char Kchar)
+rh_status getJK_K(RHState *rh, char Kchar, double *K)
 {
 	const char routineName[] = "getJK_K";
 
-	double K = 0.0;
-
 	switch (Kchar) {
-	case 'p': K = 0.5; break;
-	case 'f': K = 1.5; break;
-	case 'h': K = 2.5; break;
-	case 'k': K = 3.5; break;
-	case 'm': K = 4.5; break;
-	case 'o': K = 5.5; break;
-	case 'r': K = 6.5; break;
-	case 't': K = 7.5; break;
-	case 'u': K = 8.5; break;
-	case 'v': K = 9.5; break;
-	case 'w': K = 10.5; break;
-	default:
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid Kchar: %c", Kchar);
+	case 'p': *K = 0.5; break;
+	case 'f': *K = 1.5; break;
+	case 'h': *K = 2.5; break;
+	case 'k': *K = 3.5; break;
+	case 'm': *K = 4.5; break;
+	case 'o': *K = 5.5; break;
+	case 'r': *K = 6.5; break;
+	case 't': *K = 7.5; break;
+	case 'u': *K = 8.5; break;
+	case 'v': *K = 9.5; break;
+	case 'w': *K = 10.5; break;
+	default: return Fail(rh, RH_E_DATA, routineName, "Invalid Kchar: %c", Kchar);
 	}
-	return K;
+	return RH_OK;
 }
 /* ------- end ---------------------------- getJK_K.c --------------- */

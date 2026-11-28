@@ -146,19 +146,17 @@ void prdFold(RHState *rh, int N, double *qtab, int Np, double *qp, double *gw, i
 {
 	/* --- W[m - m0] += sum over the fine grid of gw times the
 		   interpolation coefficient of line point m. The range comes
-		   from prdFoldRange; a point outside it is an error, not a
-		   write past W --                                -------------- */
+		   from prdFoldRange; a point outside it is a bug (an assertion),
+		   not a write past W --                          -------------- */
 
 	int    lap, j;
 	double fx;
 
 	for (lap = 0; lap < Np; lap++) {
 		prdFoldIndex(N, qtab, qp[lap], &j, &fx);
-		if (j < m0 || ((fx < 1.0) ? j + 1 : j) >= m0 + len) {
-			Error(rh, ERROR_LEVEL_2, "prdFold", "Fine-grid point %g outside the range [%d, %d) of"
-												" the redistribution weights",
+		RH_ASSERT(rh, j >= m0 && ((fx < 1.0) ? j + 1 : j) < m0 + len, "prdFold",
+				  "Fine-grid point %g outside the range [%d, %d) of the redistribution weights",
 				  qp[lap], m0, m0 + len);
-		}
 		W[j - m0] += gw[lap] * fx;
 		if (fx < 1.0) W[j + 1 - m0] += gw[lap] * (1.0 - fx);
 	}

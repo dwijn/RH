@@ -49,20 +49,20 @@
 
 /* --- Function prototypes --                          -------------- */
 
-double sumE1(RHState *rh, double xrad);
-double sumE1_xe(RHState *rh, double xe, double xrad);
+RH_NODISCARD rh_status sumE1(RHState *rh, double xrad, double *result);
+RH_NODISCARD rh_status sumE1_xe(RHState *rh, double xe, double xrad, double *result);
 
 /* --- Global variables --                             -------------- */
 
 /* ------- begin -------------------------- FixedRate.c ------------- */
 
-void FixedRate(RHState *rh, Atom *atom)
+rh_status FixedRate(RHState *rh, Atom *atom)
 {
 	register int kf, k;
 
 	int    Nrepeat, Ndepth, i, j, ij, ji;
 	double Te, Trad, deltaT, gij = 0.0, e_mc, xe, xrad, C0 = 0.0, hc_kla,
-							 exp_hckTla;
+							 exp_hckTla, sum;
 	FixedTransition *ft = atom->ft;
 
 	getCPU(rh, 3, TIME_START, NULL);
@@ -132,20 +132,22 @@ void FixedRate(RHState *rh, Atom *atom)
 				break;
 			case FIXED_CONTINUUM:
 				xe = hc_kla / Te;
-				atom->C[ji][k] += C0 * sumE1(rh, xrad);
-				atom->C[ij][k] += atom->nstar[i][k] / atom->nstar[j][k] * C0 *
-								  sumE1_xe(rh, xe, xrad);
+				RH_TRY(sumE1(rh, xrad, &sum));
+				atom->C[ji][k] += C0 * sum;
+				RH_TRY(sumE1_xe(rh, xe, xrad, &sum));
+				atom->C[ij][k] += atom->nstar[i][k] / atom->nstar[j][k] * C0 * sum;
 				break;
 			}
 		}
 	}
 	getCPU(rh, 3, TIME_POLL, "Fixed Rates");
+	return RH_OK;
 }
 /* ------- end ---------------------------- FixedRate.c ------------- */
 
 /* ------- begin -------------------------- sumE1.c ----------------- */
 
-double sumE1(RHState *rh, double xrad)
+rh_status sumE1(RHState *rh, double xrad, double *result)
 {
 	register int n;
 
@@ -156,21 +158,22 @@ double sumE1(RHState *rh, double xrad)
 	 *                    n=1
 	 */
 
-	ExitOnError(rh, E1(rh, xrad, &sum));
-	if (sum == 0.0) return sum;
-
-	for (n = 2; n < N_MAX_INTEGRAL; n++) {
-		ExitOnError(rh, E1(rh, n * xrad, &dsum));
-		sum += dsum;
-		if (dsum / sum <= DELTA_MIN) break;
+	RH_TRY(E1(rh, xrad, &sum));
+	if (sum != 0.0) {
+		for (n = 2; n < N_MAX_INTEGRAL; n++) {
+			RH_TRY(E1(rh, n * xrad, &dsum));
+			sum += dsum;
+			if (dsum / sum <= DELTA_MIN) break;
+		}
 	}
-	return sum;
+	*result = sum;
+	return RH_OK;
 }
 /* ------- end ---------------------------- sumE1.c ----------------- */
 
 /* ------- begin -------------------------- sumE1_xe.c -------------- */
 
-double sumE1_xe(RHState *rh, double xe, double xrad)
+rh_status sumE1_xe(RHState *rh, double xe, double xrad, double *result)
 {
 	register int n;
 
@@ -181,15 +184,16 @@ double sumE1_xe(RHState *rh, double xe, double xrad)
 	 *                    n=0
 	 */
 
-	ExitOnError(rh, E1(rh, xe, &sum));
-	ExitOnError(rh, E1(rh, xe + xrad, &dsum));
-	if ((sum += dsum) == 0.0) return sum;
-
-	for (n = 2; n < N_MAX_INTEGRAL; n++) {
-		ExitOnError(rh, E1(rh, xe + n * xrad, &dsum));
-		sum += dsum;
-		if (dsum / sum <= DELTA_MIN) break;
+	RH_TRY(E1(rh, xe, &sum));
+	RH_TRY(E1(rh, xe + xrad, &dsum));
+	if ((sum += dsum) != 0.0) {
+		for (n = 2; n < N_MAX_INTEGRAL; n++) {
+			RH_TRY(E1(rh, xe + n * xrad, &dsum));
+			sum += dsum;
+			if (dsum / sum <= DELTA_MIN) break;
+		}
 	}
-	return sum;
+	*result = sum;
+	return RH_OK;
 }
 /* ------- end ---------------------------- sumE1_xe.c -------------- */

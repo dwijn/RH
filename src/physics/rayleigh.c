@@ -25,6 +25,19 @@
 
 /* ------- begin -------------------------- Rayleigh.c -------------- */
 
+/* --- Rayleigh scattering needs the ground level of the atom in the
+	   neutral stage: checked once, before the opacities, by
+	   backgroundPrepare --                              -------------- */
+
+rh_status RayleighCheck(RHState *rh, const Atom *atom)
+{
+	if (atom->stage[0] != 0) {
+		return Fail(rh, RH_E_DATA, "Rayleigh", "Lowest level of atom is not from neutral stage: %s",
+					atom->label[0]);
+	}
+	return RH_OK;
+}
+
 bool_t Rayleigh(RHState *rh, double lambda, Atom *atom, double *scatt)
 {
 	/* --- Rayleigh scattering by transitions from the ground state of
@@ -42,10 +55,9 @@ bool_t Rayleigh(RHState *rh, double lambda, Atom *atom, double *scatt)
 		sigma_Rayleigh;
 	AtomicLine *line;
 
-	if (atom->stage[0] != 0) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Lowest level of atom is not from neutral stage: %s",
+	RH_ASSERT(rh, atom->stage[0] == 0, routineName,
+			  "Lowest level of atom is not from neutral stage: %s (RayleighCheck not called)",
 			  atom->label[0]);
-	}
 	/* --- Find the red limit of the shortest wavelength b-b transition
 		   from the atom's ground state --               -------------- */
 

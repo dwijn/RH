@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 
 	/* --- Solve chemical equilibrium and open background opacity file- */
 
-	Background(rh, analyze_output = FALSE, equilibria_only = TRUE);
+	ExitOnError(rh, Background(rh, analyze_output = FALSE, equilibria_only = TRUE));
 
 	if ((rh->atmos.fd_background =
 			 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
 	}
 	readBRS(rh);
 
-	getProfiles(rh);
+	ExitOnError(rh, getProfiles(rh));
 	initSolution(rh);
 	initScatter(rh);
 

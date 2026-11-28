@@ -63,12 +63,13 @@ void FMetals(RHState *rh, double *F)
 
 /* ------- begin -------------------------- dFMetals.c -------------- */
 
-void dFMetals(RHState *rh, double *dFdne)
+rh_status dFMetals(RHState *rh, double *dFdne)
 {
 	register int n, k;
 
-	bool_t  Debeye;
-	double *neold, *Fmin, *Fplus;
+	bool_t    Debeye;
+	double   *neold, *Fmin, *Fplus;
+	rh_status result = RH_OK;
 
 	/* --- Numerically evaluate the derivative dF/dne -- -------------- */
 
@@ -84,7 +85,7 @@ void dFMetals(RHState *rh, double *dFdne)
 		rh->atmos.ne[k] = (1.0 - NEFRACTION) * neold[k];
 	}
 	for (n = 1; n < rh->atmos.Natom; n++)
-		LTEpops(rh, &rh->atmos.atoms[n], Debeye = TRUE);
+		RH_TRY_GOTO(result, failed, LTEpops(rh, &rh->atmos.atoms[n], Debeye = TRUE));
 
 	/* --- Get reduced ionization fraction F --          -------------- */
 
@@ -95,7 +96,7 @@ void dFMetals(RHState *rh, double *dFdne)
 	for (k = 0; k < rh->atmos.Nspace; k++)
 		rh->atmos.ne[k] = (1.0 + NEFRACTION) * neold[k];
 	for (n = 1; n < rh->atmos.Natom; n++)
-		LTEpops(rh, &rh->atmos.atoms[n], Debeye = TRUE);
+		RH_TRY_GOTO(result, failed, LTEpops(rh, &rh->atmos.atoms[n], Debeye = TRUE));
 
 	/* --- Get enhanced ionization fraction F --         -------------- */
 
@@ -110,10 +111,20 @@ void dFMetals(RHState *rh, double *dFdne)
 	/* --- Restore the LTE populations --                 ------------- */
 
 	for (n = 1; n < rh->atmos.Natom; n++)
-		LTEpops(rh, &rh->atmos.atoms[n], Debeye = TRUE);
+		RH_TRY_GOTO(result, failed, LTEpops(rh, &rh->atmos.atoms[n], Debeye = TRUE));
 
 	free(neold);
 	free(Fmin);
 	free(Fplus);
+	return RH_OK;
+
+	/* --- After a failure: the electron density restored -- -------- */
+
+failed:
+	for (k = 0; k < rh->atmos.Nspace; k++) rh->atmos.ne[k] = neold[k];
+	free(neold);
+	free(Fmin);
+	free(Fplus);
+	return result;
 }
 /* ------- end ---------------------------- dFMetals.c -------------- */

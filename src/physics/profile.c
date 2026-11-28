@@ -256,7 +256,7 @@ static void profileWorker(RHState *rh, int kbeg, int kend, int nt, void *arg)
 
 /* ------- begin -------------------------- Profile.c --------------- */
 
-void Profile(RHState *rh, AtomicLine *line)
+rh_status Profile(RHState *rh, AtomicLine *line)
 {
 	const char   routineName[] = "Profile";
 	register int la, k, mu;
@@ -272,6 +272,7 @@ void Profile(RHState *rh, AtomicLine *line)
 	bool_t     polarized = (line->polarizable &&
                         rh->input.StokesMode == FULL_STOKES);
 	ProfileJob job;
+	rh_status  result = RH_OK;
 
 	getCPU(rh, 3, TIME_START, NULL);
 
@@ -289,7 +290,7 @@ void Profile(RHState *rh, AtomicLine *line)
 		else
 			Nlamu = line->Nlambda;
 
-		line->rho_prd = matrix_double(rh, Nlamu, rh->atmos.Nspace);
+		RH_TRY(allocMatrixDouble(rh, Nlamu, rh->atmos.Nspace, &line->rho_prd));
 		for (la = 0; la < Nlamu; la++) {
 			for (k = 0; k < rh->atmos.Nspace; k++)
 				line->rho_prd[la][k] = 1.0;
@@ -306,7 +307,7 @@ void Profile(RHState *rh, AtomicLine *line)
 	if (line->polarizable && (rh->input.StokesMode > FIELD_FREE)) {
 		Larmor = (Q_ELECTRON / (4.0 * PI * M_ELECTRON)) * (line->lambda0 * NM_TO_M);
 
-		Zeeman(rh, line);
+		RH_TRY_GOTO(result, cleanup, Zeeman(rh, line));
 		Message(rh, " -- Atom %2s, line %3d -> %3d has %2d Zeeman components\n",
 				atom->ID, line->j, line->i, line->zm->Ncomponent);
 	}
@@ -318,7 +319,8 @@ void Profile(RHState *rh, AtomicLine *line)
 				line->j, line->i);
 		if ((line->fd_profile =
 				 open(filename, O_RDWR | O_CREAT, PERMISSIONS)) == -1) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open profile file %s", filename);
+			result = Fail(rh, RH_E_DATA, routineName, "Unable to open profile file %s", filename);
+			goto cleanup;
 		}
 
 		if (line->polarizable && (rh->input.StokesMode == FULL_STOKES)) {
@@ -409,28 +411,31 @@ void Profile(RHState *rh, AtomicLine *line)
 						: NULL;
 	job.polarized = polarized;
 
-	ExitOnError(rh, parallelFor(rh, rh->atmos.Nspace, (rh->input.limit_memory) ? 1 : rh->input.Nthreads,
-								profileWorker, &job));
+	RH_TRY_GOTO(result, cleanup,
+				parallelFor(rh, rh->atmos.Nspace, (rh->input.limit_memory) ? 1 : rh->input.Nthreads,
+							profileWorker, &job));
 
 	/* --- Store the inverse of the profile normalization -- ---------- */
 
 	for (k = 0; k < rh->atmos.Nspace; k++) line->wphi[k] = 1.0 / line->wphi[k];
 
-	/* --- Clean up --                                     ------------ */
-
-	free(adamp);
-	if (rh->input.limit_memory) free(phi);
-
-	if (rh->atmos.moving) freeMatrix(rh, (void **) v_los);
-	if (line->polarizable && (rh->input.StokesMode == FULL_STOKES)) {
-		free(vB);
-		free(sv);
-
+	if (line->polarizable && (rh->input.StokesMode == FULL_STOKES))
 		snprintf(label, sizeof(label), "Stokes prof %7.1f", line->lambda0);
-	} else
+	else
 		snprintf(label, sizeof(label), "Profile %7.1f", line->lambda0);
-
 	getCPU(rh, 3, TIME_POLL, label);
+
+	/* --- Clean up, also after a failure (phi only with limit_memory,
+		   v_los only in a moving atmosphere, vB and sv only with full
+		   Stokes; NULL otherwise) --                  ------------ */
+
+cleanup:
+	free(adamp);
+	free(phi);
+	if (v_los != NULL) freeMatrix(rh, (void **) v_los);
+	free(vB);
+	free(sv);
+	return result;
 }
 /* ------- end ---------------------------- Profile.c --------------- */
 
@@ -534,7 +539,7 @@ void MolecularProfile(RHState *rh, MolecularLine *mrt)
 
 /* ------- begin -------------------------- getProfiles.c ----------- */
 
-void getProfiles(RHState *rh)
+rh_status getProfiles(RHState *rh)
 {
 	register int nact, kr;
 
@@ -552,7 +557,7 @@ void getProfiles(RHState *rh)
 		atom = rh->atmos.activeatoms[nact];
 		for (kr = 0; kr < atom->Nline; kr++) {
 			line = &atom->line[kr];
-			Profile(rh, line);
+			RH_TRY(Profile(rh, line));
 		}
 	}
 
@@ -565,5 +570,6 @@ void getProfiles(RHState *rh)
 	}
 
 	getCPU(rh, 2, TIME_POLL, "Profiles");
+	return RH_OK;
 }
 /* ------- end ---------------------------- getProfiles.c ----------- */
