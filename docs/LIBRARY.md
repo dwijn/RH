@@ -838,6 +838,15 @@ flowchart TB
    abort with a message.*
    *Q-53 done 2026-11-27 (#637): 492 allocation calls through checked
    helpers that abort with the routine, the size and the expression.*
+   *Q-54 done 2026-11-27 (#642): the 85 fatal sites of the physics, 4
+   gone with dead code (`Paschen` and `tqli`, `MolLande_eff`, a check in
+   `Stark` that could not fail), 26 `RH_ASSERT` and 61 returning a
+   status. As built: four checks moved to where the data enters (the
+   factorial range to `w3js`/`w6js`, dJ to the Zeeman setup, the H and He
+   ground levels to `RayleighCheck`), with an assertion left in the leaf;
+   `RH_TRY_GOTO` and a cleanup label where a function holds several
+   resources; the large PRD arrays through `allocMatrixDouble` and
+   `allocMatrixInt`, which return `RH_E_NOMEM`.*
 4. **Split lifetimes and free everything.** Model, atmosphere and solver
    become separate objects (§3.2): atom data without `Nspace` arrays,
    collision data parsed into memory, `Background()` no longer frees model
