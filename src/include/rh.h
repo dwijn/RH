@@ -131,6 +131,8 @@ char                 **matrix_char(RHState *rh, int Nrow, int Ncol);
 int                  **matrix_int(RHState *rh, int Nrow, int Ncol);
 double               **matrix_double(RHState *rh, int Nrow, int Ncol);
 float                **matrix_float(RHState *rh, int Nrow, int Ncol);
+RH_NODISCARD rh_status allocMatrixDouble(RHState *rh, int Nrow, int Ncol, double ***matrix);
+RH_NODISCARD rh_status allocMatrixInt(RHState *rh, int Nrow, int Ncol, int ***matrix);
 void                   freeMatrix(RHState *rh, void **Matrix);
 RH_NODISCARD rh_status SolveLinearEq(RHState *rh, int N, double **A, double *b,
 									 bool_t improve);

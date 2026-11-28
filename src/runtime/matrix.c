@@ -119,6 +119,55 @@ float **matrix_float(RHState *rh, int Nrow, int Ncol)
 }
 /* ------- end ---------------------------- matrix_float.c ---------- */
 
+/* ------- begin -------------------------- allocMatrix.c ----------- */
+
+/* --- As matrix_double and matrix_int, but a failed allocation
+	   returns RH_E_NOMEM (recorded with Fail) and leaves *matrix NULL:
+	   for the large arrays (Q-54; all allocations in phase 4) -- --- */
+
+rh_status allocMatrixDouble(RHState *rh, int Nrow, int Ncol, double ***matrix)
+{
+	register int i;
+
+	double *theMatrix, **Matrix;
+
+	*matrix   = NULL;
+	theMatrix = (double *) calloc((size_t) Nrow * Ncol, sizeof(double));
+	Matrix    = (double **) malloc((size_t) Nrow * sizeof(double *));
+	if ((theMatrix == NULL && (size_t) Nrow * Ncol > 0) || (Matrix == NULL && Nrow > 0)) {
+		free(theMatrix);
+		free(Matrix);
+		return Fail(rh, RH_E_NOMEM, "allocMatrixDouble", "Could not allocate a %d x %d matrix",
+					Nrow, Ncol);
+	}
+	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
+		Matrix[i] = theMatrix;
+	*matrix = Matrix;
+	return RH_OK;
+}
+
+rh_status allocMatrixInt(RHState *rh, int Nrow, int Ncol, int ***matrix)
+{
+	register int i;
+
+	int *theMatrix, **Matrix;
+
+	*matrix   = NULL;
+	theMatrix = (int *) calloc((size_t) Nrow * Ncol, sizeof(int));
+	Matrix    = (int **) malloc((size_t) Nrow * sizeof(int *));
+	if ((theMatrix == NULL && (size_t) Nrow * Ncol > 0) || (Matrix == NULL && Nrow > 0)) {
+		free(theMatrix);
+		free(Matrix);
+		return Fail(rh, RH_E_NOMEM, "allocMatrixInt", "Could not allocate a %d x %d matrix",
+					Nrow, Ncol);
+	}
+	for (i = 0; i < Nrow; i++, theMatrix += Ncol)
+		Matrix[i] = theMatrix;
+	*matrix = Matrix;
+	return RH_OK;
+}
+/* ------- end ---------------------------- allocMatrix.c ----------- */
+
 /* ------- begin -------------------------- freeMatrix.c ------------ */
 
 void freeMatrix(RHState *rh, void **matrix)

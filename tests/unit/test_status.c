@@ -1,13 +1,15 @@
 /* ------- file: -------------------------- test_status.c -----------
 
-	   Errors that return (error.c, Q-51): Fail, RH_TRY, ExitOnError,
-	   RH_ASSERT, Failed and ClearError.
+	   Errors that return (error.c, Q-51): Fail, RH_TRY, RH_TRY_GOTO,
+	   ExitOnError, RH_ASSERT, Failed and ClearError.
 
 	   -- Fail records the code, the routine and the whole message (also
 		  one far longer than MAX_MESSAGE_LENGTH) and returns the code;
 		  a second Fail returns its own code and leaves the first record;
 	   -- RH_TRY returns a failure from the function that contains it
 		  and goes on after RH_OK;
+	   -- RH_TRY_GOTO goes on after RH_OK; on a failure it stores the
+		  status and jumps to the label;
 	   -- ClearError forgets the record;
 	   -- ExitOnError returns on RH_OK; on a failure it prints the
 		  recorded error exactly as Error() prints the same routine and
@@ -128,6 +130,24 @@ static rh_status outer(bool_t fail)
 	return RH_OK;
 }
 
+/* --- RH_TRY_GOTO: reached stays 0 on a failure, cleaned is set on
+	   both paths -- ------------------------------------------------ */
+
+static int cleaned;
+
+static rh_status outerCleanup(bool_t fail)
+{
+	rh_status result = RH_OK;
+
+	reached = cleaned = 0;
+	RH_TRY_GOTO(result, cleanup, inner(fail));
+	reached = 1;
+
+cleanup:
+	cleaned = 1;
+	return result;
+}
+
 /* --- Threads failing at once --                      -------------- */
 
 #define NTHREADS 8
@@ -191,6 +211,14 @@ int main(void)
 	CHECK(!Failed(rh), "nothing recorded on success");
 	CHECK(outer(TRUE) == RH_E_NUMERIC && reached == 0, "RH_TRY returns the failure");
 	CHECK(Failed(rh) && strcmp(rh->error.routine, "inner") == 0, "the inner error is recorded");
+	ClearError(rh);
+
+	/* --- RH_TRY_GOTO --                                 -------------- */
+
+	CHECK(outerCleanup(FALSE) == RH_OK && reached == 1 && cleaned == 1,
+		  "RH_TRY_GOTO goes on after RH_OK");
+	CHECK(outerCleanup(TRUE) == RH_E_NUMERIC && reached == 0 && cleaned == 1,
+		  "RH_TRY_GOTO jumps to the label with the failure");
 	ClearError(rh);
 
 	/* --- ExitOnError --                                 -------------- */
