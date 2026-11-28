@@ -360,7 +360,7 @@ void Opacity(RHState *rh, int nspect, int mu, bool_t to_obs, bool_t initialize)
 				break;
 
 			default:
-				Error(rh, ERROR_LEVEL_1, routineName, "Invalid transition type");
+				RH_ASSERT(rh, FALSE, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 			/* --- Always calculate total opacity and emissivity of set - - */
@@ -440,7 +440,7 @@ void Opacity(RHState *rh, int nspect, int mu, bool_t to_obs, bool_t initialize)
 				break;
 
 			default:
-				Error(rh, ERROR_LEVEL_1, routineName, "Invalid transition type");
+				RH_ASSERT(rh, FALSE, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 			/* --- Always calculate total opacity and emissivity of set - - */
@@ -820,7 +820,7 @@ void mrt_locate(int N, MolecularLine *lines, double lambda, int *low)
 
 /* ------- begin -------------------------- molecularPrepare.c ----- */
 
-void molecularPrepare(RHState *rh)
+rh_status molecularPrepare(RHState *rh)
 {
 	register int n, kr, la;
 
@@ -836,7 +836,7 @@ void molecularPrepare(RHState *rh)
 		   the one in MolecularOpacity (it uses the range of the
 		   spectrum, not the individual wavelengths). -- -------------- */
 
-	if (!rh->atmos.Stokes || rh->spectrum.Nspect < 1) return;
+	if (!rh->atmos.Stokes || rh->spectrum.Nspect < 1) return RH_OK;
 
 	lamin = lamax = rh->spectrum.lambda[0];
 	for (la = 1; la < rh->spectrum.Nspect; la++) {
@@ -853,18 +853,19 @@ void molecularPrepare(RHState *rh)
 					ratio = (w < 1.0) ? 1.0 / (1.0 - w) : 1.0E+300;
 					if (mrt->lambda0 / (1.0 + w) <= lamax &&
 						mrt->lambda0 * ratio >= lamin)
-						ExitOnError(rh, MolZeeman(rh, mrt));
+						RH_TRY(MolZeeman(rh, mrt));
 				}
 			}
 		}
 	}
+	return RH_OK;
 }
 /* ------- end ---------------------------- molecularPrepare.c ----- */
 
 /* ------- begin -------------------------- MolecularOpacity.c ------ */
 
-flags MolecularOpacity(RHState *rh, double lambda, int nspect, int mu, bool_t to_obs,
-					   double *chi, double *eta, double *chip)
+rh_status MolecularOpacity(RHState *rh, double lambda, int nspect, int mu, bool_t to_obs,
+						   double *chi, double *eta, double *chip, flags *result)
 {
 	const char routineName[] = "MolecularOpacity";
 
@@ -873,8 +874,8 @@ flags MolecularOpacity(RHState *rh, double lambda, int nspect, int mu, bool_t to
 	/* --- Opacity due to molecular lines in the background. LTE
 		   populations are assumed. If magnetic fields are present
 		   the Stokes emission coefficients eta_{Q,U,V} are also
-		   calculated.
-		   --                                            -------------- */
+		   calculated. The flags go to result. Called from the
+		   background workers: a failure is recorded and returned -- */
 
 	int    NrecStokes;
 	double dlamb_char0, dlamb_charN, kT, hc_la, hc, fourPI, hc_4PI,
@@ -952,8 +953,8 @@ flags MolecularOpacity(RHState *rh, double lambda, int nspect, int mu, bool_t to
 						if (mrt->polarizable) {
 							backgrflags.ispolarized = TRUE;
 							if (mrt->zm == NULL) {
-								Error(rh, ERROR_LEVEL_2, routineName, "Zeeman multiplet not set up "
-																	  "(call molecularPrepare first)");
+								return Fail(rh, RH_E_STATE, routineName, "Zeeman multiplet not set up "
+																		 "(call molecularPrepare first)");
 							}
 						}
 
@@ -996,7 +997,8 @@ flags MolecularOpacity(RHState *rh, double lambda, int nspect, int mu, bool_t to
 			}
 		}
 	}
-	return backgrflags;
+	*result = backgrflags;
+	return RH_OK;
 }
 /* ------- end ---------------------------- MolecularOpacity.c ------ */
 

@@ -36,7 +36,7 @@
 
 /* ------- begin -------------------------- getLambda.c ------------- */
 
-void getLambda(RHState *rh, AtomicLine *line)
+rh_status getLambda(RHState *rh, AtomicLine *line)
 {
 	const char   routineName[] = "getLambda";
 	register int la, n;
@@ -48,9 +48,9 @@ void getLambda(RHState *rh, AtomicLine *line)
 	/* --- First some sanity checks on qcore and qwing -- ------------- */
 
 	if ((line->qcore <= 0.0) || (line->qwing <= 0.0)) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Either qcore or qwing is negative or zero"
-											  " transition %d->%d",
-			  line->j, line->i);
+		return Fail(rh, RH_E_DATA, routineName, "Either qcore or qwing is negative or zero"
+												" transition %d->%d",
+					line->j, line->i);
 	}
 	/* --- Create full (instead of half) line profiles in case of:
 
@@ -152,6 +152,7 @@ void getLambda(RHState *rh, AtomicLine *line)
 			qsort(line->lambda, line->Nlambda, sizeof(double), qsascend);
 	}
 	free(q);
+	return RH_OK;
 }
 /* ------- end ---------------------------- getLambda.c ------------- */
 
@@ -170,8 +171,8 @@ void getLambda(RHState *rh, AtomicLine *line)
 	   the same half grid on both sides (Nlambda = 2 x the half), so the
 	   red half is unchanged. Repeated until nothing changes, because the
 	   new blue half of a line can fall in the blue half of another.
-	   Lines that nothing overlaps stay symmetric. Returns the number of
-	   lines made asymmetric --                         -------------- */
+	   Lines that nothing overlaps stay symmetric. Gives the number of
+	   lines made asymmetric in Nchanged --             -------------- */
 
 static bool_t inBlueHalf(double lambda, double lo, double hi)
 {
@@ -225,11 +226,12 @@ static bool_t blueHalfOverlap(RHState *rh, const AtomicLine *line, const double 
 	return FALSE;
 }
 
-int asymmetricBlends(RHState *rh, const double *extra, int Nextra)
+rh_status asymmetricBlends(RHState *rh, const double *extra, int Nextra, int *Nchanged)
 {
-	int    n, kr, Nchanged = 0;
+	int    n, kr;
 	bool_t changed;
 
+	*Nchanged = 0;
 	do {
 		changed = FALSE;
 		for (n = 0; n < rh->atmos.Natom; n++) {
@@ -250,19 +252,20 @@ int asymmetricBlends(RHState *rh, const double *extra, int Nextra)
 				line->Nlambda   = 2 * line->Nlambda;
 				line->symmetric = FALSE;
 				free(line->lambda);
-				getLambda(rh, line);
+				line->lambda = NULL;
+				RH_TRY(getLambda(rh, line));
 
 				Message(rh, " -- Line %3d -> %3d of atom %2s (%.4f nm): other"
 							" transitions have wavelengths in its blue half;"
 							" full profile (N-55)\n",
 						line->j, line->i, atom->ID, line->lambda0);
-				Nchanged++;
+				(*Nchanged)++;
 				changed = TRUE;
 			}
 		}
 	} while (changed);
 
-	return Nchanged;
+	return RH_OK;
 }
 /* ------- end ---------------------------- asymmetricBlends.c ------ */
 

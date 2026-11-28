@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
 
 	readAtomicModels(rh);
 	readMolecularModels(rh);
-	SortLambda(rh);
+	ExitOnError(rh, SortLambda(rh));
 
 	getBoundary(rh, rh->geometry);
 
@@ -135,14 +135,14 @@ int main(int argc, char *argv[])
 	convertScales(rh, &rh->atmos, rh->geometry);
 
 	ExitOnError(rh, getProfiles(rh));
-	initSolution(rh);
-	initScatter(rh);
+	ExitOnError(rh, initSolution(rh));
+	ExitOnError(rh, initScatter(rh));
 
 	getCPU(rh, 1, TIME_POLL, "Total initialize");
 
 	/* --- Solve radiative transfer equations --         -------------- */
 
-	solveSpectrum(rh, FALSE, FALSE);
+	ExitOnError(rh, solveSpectrum(rh, FALSE, FALSE, NULL));
 
 	/* --- Write emergent spectrum to output file --     -------------- */
 

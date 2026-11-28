@@ -229,14 +229,14 @@ typedef struct {
 
 /* --- Associated function prototypes --               -------------- */
 
-void initSolution(RHState *rh);
-void Iterate(RHState *rh, int NmaxIter, double iterLimit);
+RH_NODISCARD rh_status initSolution(RHState *rh);
+RH_NODISCARD rh_status Iterate(RHState *rh, int NmaxIter, double iterLimit);
 
-void   readAtomicModels(RHState *rh);
-void   readMolecularModels(RHState *rh);
-void   OHCH_bf_check(RHState *rh);
-void   statEquil(RHState *rh, Atom *atom, int isum);
-double updatePopulations(RHState *rh, int niter);
+void                   readAtomicModels(RHState *rh);
+void                   readMolecularModels(RHState *rh);
+void                   OHCH_bf_check(RHState *rh);
+RH_NODISCARD rh_status statEquil(RHState *rh, Atom *atom, int isum);
+RH_NODISCARD rh_status updatePopulations(RHState *rh, int niter, double *dpopsmax);
 
 RH_NODISCARD rh_status CollisionRate(RHState *rh, Atom *atom, FILE *atomFile);
 RH_NODISCARD rh_status fone(RHState *rh, double x, double *f);
@@ -249,8 +249,9 @@ void                   freeRateReports(Atom *atom);
 void                   freeAtomicLine(RHState *rh, AtomicLine *line);
 void                   freeAtomicContinuum(RHState *rh, AtomicContinuum *continuum);
 void                   getfjk(RHState *rh, Element *element, double ne, int k, double *fjk, double *dfjk);
-void                   getLambda(RHState *rh, AtomicLine *line);
-int                    asymmetricBlends(RHState *rh, const double *extra, int Nextra);
+RH_NODISCARD rh_status getLambda(RHState *rh, AtomicLine *line);
+RH_NODISCARD rh_status asymmetricBlends(RHState *rh, const double *extra, int Nextra,
+										int *Nchanged);
 int                    mirrorQuadrature(RHState *rh);
 void                   getLambdaCont(AtomicContinuum *continuum, double lambdamin);
 double                 getwlambda_line(AtomicLine *line, int la);
@@ -279,7 +280,7 @@ void                   readProfile(RHState *rh, AtomicLine *line, int lamu, floa
 void                   writeProfile(RHState *rh, AtomicLine *line, int lamu, float *phi);
 void                   readAtom(RHState *rh, Atom *atom, char *atomFileName);
 void                   readPopulations(RHState *rh, Atom *atom);
-void                   SortLambda(RHState *rh);
+RH_NODISCARD rh_status SortLambda(RHState *rh);
 void                   Stark(RHState *rh, AtomicLine *line, double *GStark);
 void                   StarkLinear(RHState *rh, AtomicLine *line, double *GStark);
 void                   VanderWaals(RHState *rh, AtomicLine *line, double *GvdW);
@@ -303,7 +304,7 @@ bool_t                 determinate_abo(RHState *rh, char *label, int *l);
 
 /* --- Associated function prototypes --               -------------- */
 
-void statEquilMolecule(RHState *rh, Molecule *molecule, int isum);
+RH_NODISCARD rh_status statEquilMolecule(RHState *rh, Molecule *molecule, int isum);
 
 void   COcollisions(RHState *rh, Molecule *molecule);
 void   MolecularDamping(RHState *rh, MolecularLine *mrt, double *adamp);
@@ -333,7 +334,7 @@ typedef struct {
 
 double                 GII(double adamp, double waveRatio, double q_emit, double q_abs);
 double                 RII(RHState *rh, double v_emit, double v_abs, double adamp, int mu1, int mu2);
-void                   Redistribute(RHState *rh, int NmaxIter, double iterLimit);
+RH_NODISCARD rh_status Redistribute(RHState *rh, int NmaxIter, double iterLimit);
 double                 PRDDamp(RHState *rh, AtomicLine *line, const double *old, long N);
 long                   PRDRhoSize(RHState *rh, const AtomicLine *line);
 RH_NODISCARD rh_status PRDRhoCheck(RHState *rh, const Atom *atom, int kr, bool_t *valid);

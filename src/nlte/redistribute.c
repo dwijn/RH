@@ -65,7 +65,7 @@ double PRDDamp(RHState *rh, AtomicLine *line, const double *old, long N)
 
 /* ------- begin -------------------------- Redistribute.c ---------- */
 
-void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
+rh_status Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 {
 	const char   routineName[] = "Redistribute";
 	register int kr, nact;
@@ -77,6 +77,7 @@ void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 	double      drho, dres = 0.0, drhomax, drhomaxa, *old = NULL;
 	Atom       *atom;
 	AtomicLine *line;
+	rh_status   result = RH_OK;
 
 	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		atom = rh->atmos.activeatoms[nact];
@@ -88,9 +89,9 @@ void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 			if (line->PRD && line->Ng_prd == NULL) {
 				NlamuL = PRDRhoSize(rh, line);
 				if (NlamuL > INT_MAX) {
-					Error(rh, ERROR_LEVEL_2, routineName, "PRD line %d -> %d: %ld values of rho, too many for"
-														  " the Ng acceleration of the PRD iteration",
-						  line->j, line->i, NlamuL);
+					return Fail(rh, RH_E_INPUT, routineName, "PRD line %d -> %d: %ld values of rho, too many for"
+															 " the Ng acceleration of the PRD iteration",
+								line->j, line->i, NlamuL);
 				}
 				Nlamu = (int) NlamuL;
 
@@ -119,25 +120,27 @@ void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 						memcpy(old, line->rho_prd[0], (size_t) line->Ng_prd->N * sizeof(double));
 					}
 					if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
-						ExitOnError(rh, PRDAngleScatter(rh, line));
+						RH_TRY_GOTO(result, cleanup, PRDAngleScatter(rh, line));
 					else
-						ExitOnError(rh, PRDScatter(rh, line));
+						RH_TRY_GOTO(result, cleanup, PRDScatter(rh, line));
 					dres = PRDDamp(rh, line, old, line->Ng_prd->N);
 
 					/* --- Damped, the change of rho is PRD_DAMPING times
 						   the residual; the log and the PRD_ITER_LIMIT
 						   test use the residual (N-38) --  -------------- */
 
-					ExitOnError(rh, Accelerate(rh, line->Ng_prd, line->rho_prd[0], &accel));
+					RH_TRY_GOTO(result, cleanup, Accelerate(rh, line->Ng_prd, line->rho_prd[0], &accel));
 
-					/* --- Stops the run if rho <= 0 or not finite (N-4).
-						   SOLVER = NG has no trial evaluations, so a
-						   FALSE return would be a bug -- ------------- */
+					/* --- Fails if rho <= 0 or not finite (N-4). SOLVER =
+						   NG has no trial evaluations, so valid = FALSE
+						   would mean a call in a trial --  ------------- */
 
-					ExitOnError(rh, PRDRhoCheck(rh, atom, kr, &valid));
-					if (!valid)
-						Error(rh, ERROR_LEVEL_2, routineName,
-							  "rho of a PRD line is invalid in a trial evaluation");
+					RH_TRY_GOTO(result, cleanup, PRDRhoCheck(rh, atom, kr, &valid));
+					if (!valid) {
+						result = Fail(rh, RH_E_TRIAL, routineName,
+									  "rho of a PRD line is invalid in a trial evaluation");
+						goto cleanup;
+					}
 					snprintf(label, sizeof(label),
 							 "  PRD: iter #%d, atom %s, line %d,",
 							 line->Ng_prd->count - 1, atom->ID, kr);
@@ -160,11 +163,14 @@ void Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 		}
 		/* --- Solve transfer equation with fixed populations -- -------- */
 
-		solveSpectrum(rh, eval_operator = FALSE, redistribute = TRUE);
+		RH_TRY_GOTO(result, cleanup,
+					solveSpectrum(rh, eval_operator = FALSE, redistribute = TRUE, NULL));
 
 		if (drhomaxa < iterLimit) break;
 		niter++;
 	}
+cleanup:
 	free(old);
+	return result;
 }
 /* ------- end ---------------------------- Redistribute.c ---------- */

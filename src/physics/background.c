@@ -496,8 +496,9 @@ static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
 					}
 					/* --- Add opacity from molecular lines --   -------------- */
 
-					backgrflags = MolecularOpacity(rh, wavelength, nspect, mu, to_obs,
-												   chi, eta, chip);
+					if (MolecularOpacity(rh, wavelength, nspect, mu, to_obs, chi, eta, chip,
+										 &backgrflags) != RH_OK)
+						return;
 					if (backgrflags.hasline) {
 						rh->atmos.backgrflags[nspect].hasline = TRUE;
 						if (backgrflags.ispolarized) {
@@ -578,8 +579,9 @@ static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
 			}
 			/* --- Add opacity from molecular lines --       -------------- */
 
-			backgrflags = MolecularOpacity(rh, wavelength, nspect, 0, TRUE,
-										   chi, eta, NULL);
+			if (MolecularOpacity(rh, wavelength, nspect, 0, TRUE, chi, eta, NULL,
+								 &backgrflags) != RH_OK)
+				return;
 			if (backgrflags.hasline) {
 				rh->atmos.backgrflags[nspect].hasline = TRUE;
 				for (k = 0; k < rh->atmos.Nspace; k++) {
@@ -1063,7 +1065,7 @@ rh_status backgroundPrepare(RHState *rh)
 
 	RH_TRY(hydrogenPrepare(rh));
 	RH_TRY(metalPrepare(rh));
-	molecularPrepare(rh);
+	RH_TRY(molecularPrepare(rh));
 
 	/* --- Rayleigh scattering by H and He needs their ground level in
 		   the neutral stage --                          -------------- */

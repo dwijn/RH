@@ -76,28 +76,28 @@ int main(int argc, char *argv[])
 
 	readAtomicModels(rh);
 	readMolecularModels(rh);
-	SortLambda(rh);
+	ExitOnError(rh, SortLambda(rh));
 
 	getBoundary(rh, &rh->atmos, rh->geometry);
 
 	ExitOnError(rh, Background(rh, analyze_output = TRUE, equilibria_only = FALSE));
 
 	ExitOnError(rh, getProfiles(rh));
-	initSolution(rh);
-	initScatter(rh);
+	ExitOnError(rh, initSolution(rh));
+	ExitOnError(rh, initScatter(rh));
 
 	getCPU(rh, 1, TIME_POLL, "Total initialize");
 
 	/* --- Solve radiative transfer for active ingredients -- --------- */
 
-	Iterate(rh, rh->input.NmaxIter, rh->input.iterLimit);
+	ExitOnError(rh, Iterate(rh, rh->input.NmaxIter, rh->input.iterLimit));
 
 	ExitOnError(rh, adjustStokesMode(rh));
 
 	niter = 0;
 
 	while (niter < rh->input.NmaxScatter) {
-		deltaJ = solveSpectrum(rh, FALSE, FALSE);
+		ExitOnError(rh, solveSpectrum(rh, FALSE, FALSE, &deltaJ));
 		if (!rh->input.backgr_pol && deltaJ <= rh->input.iterLimit) break;
 
 		niter++;

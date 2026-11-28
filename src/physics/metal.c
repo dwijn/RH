@@ -10,12 +10,8 @@
 	   in the array metals (struct Atom *). Also opacity due to hydrogen
 	   bound-bound transitions is calculated in passive_bb.
 
-	   The routines duplicateLevel(active_atom, labeli) and
-	   duplicateLine(active_atom, labeli, labelj) are used to check
-	   whether the level labeli, or radiative transition between labeli
-	   and labelj, respectively, are part of the active set of
-	   transitions. In this way we try to prevent counting opacity twice,
-	   both in the active and the background transition.
+	   Active atoms are skipped: their transitions are in the active
+	   set, and their opacity is not counted twice.
 
 	   Global variables:
 		  atmos -- Atmos structure for atmospheric data.

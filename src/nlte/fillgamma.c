@@ -294,7 +294,7 @@ void addtoGamma(RHState *rh, int nspect, double wmu, double *I, double *Psi)
 				break;
 
 			default:
-				Error(rh, ERROR_LEVEL_1, routineName, "Invalid transition type");
+				RH_ASSERT(rh, FALSE, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 
@@ -331,7 +331,7 @@ void addtoGamma(RHState *rh, int nspect, double wmu, double *I, double *Psi)
 				break;
 
 			default:
-				Error(rh, ERROR_LEVEL_1, routineName, "Invalid transition type");
+				RH_ASSERT(rh, FALSE, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 
@@ -410,7 +410,7 @@ void addtoCoupling(RHState *rh, int nspect)
 				break;
 
 			default:
-				Error(rh, ERROR_LEVEL_1, routineName, "Invalid transition type");
+				RH_ASSERT(rh, FALSE, routineName, "Invalid transition type");
 				twohnu3_c2 = 0.0;
 			}
 			if (twohnu3_c2) {
