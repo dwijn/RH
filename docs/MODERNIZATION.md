@@ -23,8 +23,8 @@ upstream. Newest changes go at the top of the changelog.
 *Status on 2026-11-28.* The work is on the fork
 [dwijn/RH](https://github.com/dwijn/RH), integration branch `modernize`.
 Every change is a pull request, verified against upstream RH (`c95bdf6`)
-or against its base commit. 269 issues are logged; 182 are fixed and 5
-closed without a fix. Of the 82 open, 35 are on the wishlist.
+or against its base commit. 270 issues are logged; 182 are fixed and 5
+closed without a fix. Of the 83 open, 35 are on the wishlist.
 Plan steps 1–4 (crash fixes, build and hygiene, tests, the solver) are
 done: step 4 closed on 2026-11-23, its research items and the parts not
 needed now on the wishlist (§4). The library track (errors that return,
@@ -32,7 +32,7 @@ no globals; from step 7) is in its phase 3, phases 0 to 2 merged;
 then speed and memory.
 
 - **Wrong answers that looked right, also in upstream RH.**
-  - 118 of the problems found also exist upstream (§3.9), and 91 of them
+  - 119 of the problems found also exist upstream (§3.9), and 91 of them
     are fixed here.
   - **Formal solvers:**
     - 2-D and 3-D long characteristics stopped one section short (B-24):
@@ -540,6 +540,7 @@ SOLVER.md S-5, Results.
 | [B-86](https://github.com/dwijn/RH/issues/640) | low | Every line of a model atom with Barklem broadening reads a Barklem table again and never frees it: `getBarklemactivecross` calls `readBarklemTable` for each such line, which opens and parses the table file, and frees none of the four arrays (`neff1`, `neff2`, `cross`, `alpha`) on any path. A few kB per line, and one file read per line where one per table would do. Also upstream (`barklem.c:272-281`) | `src/physics/barklem.c:249-336` | code reading, independent review of Q-54, checked 2026-11-27 | open |
 | [B-87](https://github.com/dwijn/RH/issues/646) | low | `HYDROSTATIC = TRUE` with hydrogen not active is caught only after the first iteration: `iterateNg` checks that the first atom (hydrogen) is active after a full iteration (the formal solution, the rates and, with `SOLVE_NE = ITERATION`, a new background) and only then stops. The conflict is known as soon as the model atoms are read, and by the keyword-validation rule the run should stop at setup, before any work. (`HYDROSTATIC` is allowed only with `SOLVER = NG` in 1-D; `readInput` checks those two.) Also upstream (`iterate.c:124-129`) | `src/nlte/iterate.c:228-232` | independent review of Q-55, checked 2026-11-27 | open |
 | [B-88](https://github.com/dwijn/RH/issues/651) | medium | A message, warning or error before the log file is set crashes the program: `Log` and `Error` write to `rh->commandline.logfile`, which stays NULL until `setOptions` has parsed the command line and opened the log file (or chosen stderr). So every error of the command line ends in a segmentation fault without a message: an unknown option (`rhf1d -foo`), an option without its value (`rhf1d -input`), a log file that cannot be opened (`rhf1d -logfile /nonexistent/x`); exit status 139 instead of 70. Reproduced with rhf1d of `chrysalis` (ASan: SEGV in `vfprintf`); also upstream, where `commandline.logfile` is NULL until `setOptions` sets it (`error.c:38-56`, `options.c:54-61`) | `src/runtime/error.c:75-97`, `src/io/options.c:48-54` | Q-56 conversion, checked 2026-11-28 | open |
+| [B-89](https://github.com/dwijn/RH/issues/653) | medium | A long token in the keyword file or on the command line overflows a fixed buffer: `readValues` reads each keyword line with `sscanf(line, "%s = %s", keyword, value)` into `keyword[32]` and `value[160]` from a line of up to 512 characters, and `parse` copies an option's value with `strcpy` into `Option.value[160]`. A keyword name over 31 characters or a value (a file path) over 159 overruns the stack (ASan: stack-buffer-overflow in `sscanf`); a command-line value over 159 characters overwrites the next entry of the option table, and `rhf1d -input <a 205-character path>` dies with a segmentation fault (exit 139) when `parse` calls through the overwritten setter. Long paths in deep run directories reach this. Also upstream (`readvalue.c:83`, `parse.c:76`) | `src/io/readvalue.c:78`, `src/io/parse.c:70-71`, `src/include/inputs.h:15-16` | independent review of Q-56, reproduced 2026-11-28 | open |
 
 ### 3.2 Numerics and convergence
 
@@ -894,6 +895,7 @@ upstream issue or pull request once filed. Most severe first.
 | [B-86](https://github.com/dwijn/RH/issues/640) | low | Every line with Barklem broadening reads its Barklem table again and never frees it (`getBarklemactivecross`) | — | — |
 | [B-87](https://github.com/dwijn/RH/issues/646) | low | `HYDROSTATIC = TRUE` with hydrogen not active stops only after the first iteration (`iterateNg`) | — | — |
 | [B-88](https://github.com/dwijn/RH/issues/651) | medium | A command-line error (unknown option, missing value, log file that cannot be opened) crashes with a segmentation fault: the log file is still NULL | — | — |
+| [B-89](https://github.com/dwijn/RH/issues/653) | medium | A keyword name over 31 characters, or a keyword or command-line value over 159, overflows a fixed buffer (`readValues`, `parse`); a long `-input` path crashes | — | — |
 | [N-54](https://github.com/dwijn/RH/issues/498) | low | The height zero point at τ = 1 is interpolated linearly in τ and silently held at the table end when τ = 1 is outside the atmosphere | [#513](https://github.com/dwijn/RH/pull/513) | — |
 | [N-57](https://github.com/dwijn/RH/issues/501) | low | Feautrier's emergent I⁺ = 2P₀ − I⁻ can be negative with an irradiated top | — | — |
 | [N-58](https://github.com/dwijn/RH/issues/502) | low | The `THERMALIZED` boundary intensity B ∓ ΔB/Δτ can be negative over a thin or steep boundary interval | — | — |
