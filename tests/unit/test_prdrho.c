@@ -7,10 +7,10 @@
 	   For rho on a grid of wavelengths (and, with PRD_ANGLE_DEP, rays
 	   and directions) and locations, the test checks
 
-	   -- all rho positive and finite: TRUE, no stop, nothing recorded;
+	   -- all rho positive and finite: valid, RH_OK, nothing recorded;
 	   -- a zero, a negative value, a NaN and an infinity each: outside
-		  a trial evaluation of G the run stops (ERROR_LEVEL_2, in a
-		  child process); inside one the check returns FALSE,
+		  a trial evaluation of G PRDRhoCheck fails with RH_E_NUMERIC;
+		  inside one it returns RH_OK with valid FALSE,
 		  negTauFound is TRUE until negTauReset and the message names
 		  atom, line, wavelength index (and ray and direction),
 		  location and value, and says that a non-positive rho gives a
@@ -23,8 +23,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include "rh.h"
 #include "atom.h"
@@ -34,17 +32,6 @@
 #include "check.h"
 #include "negtau.h"
 #include "state.h"
-
-/* --- LeakSanitizer would report the buffers that Error() leaves in
-	   the child that it ends, and change its exit status -- -------- */
-
-static int in_child = 0;
-
-int __lsan_is_turned_off(void);
-int __lsan_is_turned_off(void)
-{
-	return in_child;
-}
 
 #define NLAMBDA 4
 #define NRAYS   2
@@ -60,30 +47,17 @@ static void reset_rho(void)
 	for (long n = 0; n < Nrow * NSPACE; n++) rho[0][n] = 1.0 + 0.1 * n;
 }
 
-static void run_stop(void)
+/* --- PRDRhoCheck outside a trial: its status and valid; the error
+	   is cleared --                                    -------------- */
+
+static rh_status outside_trial(bool_t *valid)
 {
-	PRDRhoCheck(rh, &atom, 0);
-}
+	rh_status status = PRDRhoCheck(rh, &atom, 0, valid);
 
-/* --- Run f in a child with its output discarded; 1 if it ended with
-	   RH's fatal exit status, 0 if not, -1 if fork or waitpid failed -- */
-
-static int is_fatal(void (*f)(void))
-{
-	pid_t pid;
-	int   status;
-
-	fflush(stdout);
-	fflush(stderr);
-	if ((pid = fork()) == 0) {
-		in_child = 1;
-		if (!freopen("/dev/null", "w", stdout) || !freopen("/dev/null", "w", stderr)) _exit(1);
-		rh->commandline.logfile = stderr;
-		f();
-		_exit(0);
-	}
-	if (pid < 0 || waitpid(pid, &status, 0) != pid) return -1;
-	return WIFEXITED(status) && WEXITSTATUS(status) == RH_EXIT_FATAL;
+	CHECK(status == RH_OK || (Failed(rh) && rh->error.code == status), "status %d not recorded",
+		  status);
+	ClearError(rh);
+	return status;
 }
 
 /* --- Put value at row, location k (and a second one at the end if
@@ -101,11 +75,12 @@ static void check_case(const char *name, long row, int k, double value, bool_t s
 	if (second) rho[Nrow - 1][NSPACE - 1] = -1.0;
 	saved = rho[row][k];
 
-	CHECK(is_fatal(run_stop) == 1, "%s: outside a trial the run does not stop (or fork failed)", name);
+	CHECK(outside_trial(&ok) == RH_E_NUMERIC && !ok, "%s: outside a trial PRDRhoCheck does not fail",
+		  name);
 
 	negTauReset(rh);
 	negTauTrial(rh, TRUE);
-	ok = PRDRhoCheck(rh, &atom, 0);
+	CHECK(PRDRhoCheck(rh, &atom, 0, &ok) == RH_OK, "%s: in a trial: status", name);
 	negTauTrial(rh, FALSE);
 	CHECK(!ok && negTauFound(rh), "%s: in a trial: ok %d, invalid %d", name, ok,
 		  negTauFound(rh));
@@ -129,7 +104,8 @@ static void check_case(const char *name, long row, int k, double value, bool_t s
 
 static void check_all(const char *tag, bool_t angle)
 {
-	char name[80], where[80];
+	char   name[80], where[80];
+	bool_t ok;
 
 	rh->input.PRD_angle_dep = (angle) ? PRD_ANGLE_DEP : PRD_ANGLE_AVER;
 	Nrow                    = (angle) ? 2L * NRAYS * NLAMBDA : NLAMBDA;
@@ -141,9 +117,10 @@ static void check_all(const char *tag, bool_t angle)
 	reset_rho();
 	negTauReset(rh);
 	negTauTrial(rh, TRUE);
-	CHECK(PRDRhoCheck(rh, &atom, 0) && !negTauFound(rh), "%s: positive rho rejected", tag);
+	CHECK(PRDRhoCheck(rh, &atom, 0, &ok) == RH_OK && ok && !negTauFound(rh),
+		  "%s: positive rho rejected", tag);
 	negTauTrial(rh, FALSE);
-	CHECK(is_fatal(run_stop) == 0, "%s: positive rho stops the run (or fork failed)", tag);
+	CHECK(outside_trial(&ok) == RH_OK && ok, "%s: positive rho fails outside a trial", tag);
 
 	/* --- With angle dependence row = 2 * (NRAYS * la + mu) + to_obs -- */
 

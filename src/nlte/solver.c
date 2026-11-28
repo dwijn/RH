@@ -342,7 +342,7 @@ static double prdSubIterations(RHState *rh, int Nsub)
 {
 	register int nact, kr;
 
-	bool_t      eval_operator, redistribute;
+	bool_t      eval_operator, redistribute, valid;
 	int         nsub;
 	long        N;
 	double     *old = NULL, drho, drhomax = 0.0;
@@ -368,9 +368,9 @@ static double prdSubIterations(RHState *rh, int Nsub)
 				memcpy(old, line->rho_prd[0], N * sizeof(double));
 
 				if (rh->input.PRD_angle_dep == PRD_ANGLE_DEP)
-					PRDAngleScatter(rh, line);
+					ExitOnError(rh, PRDAngleScatter(rh, line));
 				else
-					PRDScatter(rh, line);
+					ExitOnError(rh, PRDScatter(rh, line));
 				drho = PRDDamp(rh, line, old, N);
 				Message(rh, "  PRD: sub-iteration %d, atom %s, line %d,"
 							" delta = %6.4E\n",
@@ -380,7 +380,8 @@ static double prdSubIterations(RHState *rh, int Nsub)
 				/* --- rho <= 0 or not finite: stops the run, or at a
 					   trial point invalidates it (N-4) --  -------------- */
 
-				if (!PRDRhoCheck(rh, atom, kr)) break; /* G_eval gives up (N-4) */
+				ExitOnError(rh, PRDRhoCheck(rh, atom, kr, &valid));
+				if (!valid) break; /* G_eval gives up (N-4) */
 			}
 			if (negTauFound(rh)) break;
 		}
@@ -426,7 +427,10 @@ bool_t G_eval(RHState *rh, const double *x_in, double *x_out)
 			Atom *atom = rh->atmos.activeatoms[nact];
 
 			for (int kr = 0; kr < atom->Nline; kr++) {
-				if (atom->line[kr].PRD && !PRDRhoCheck(rh, atom, kr)) {
+				bool_t valid = TRUE;
+
+				if (atom->line[kr].PRD) ExitOnError(rh, PRDRhoCheck(rh, atom, kr, &valid));
+				if (!valid) {
 					rh->solver.Gcount++;
 					return FALSE;
 				}
@@ -438,7 +442,7 @@ bool_t G_eval(RHState *rh, const double *x_in, double *x_out)
 		   LTE populations, collision and fixed rates, chemical
 		   equilibrium, background opacities --        -------------- */
 
-	if (rh->input.solve_ne == ITERATION) BackgroundOfState(rh, FALSE);
+	if (rh->input.solve_ne == ITERATION) ExitOnError(rh, BackgroundOfState(rh, FALSE));
 
 	/* --- 1. Collisional and fixed rates into Gamma -- -------------- */
 
@@ -632,7 +636,7 @@ void iterateFixedPoint(RHState *rh, int NmaxIter, double iterLimit)
 	/* --- With ne in the state: the background of the final state, for
 		   the final formal solution and the output --   -------------- */
 
-	if (rh->input.solve_ne == ITERATION) BackgroundOfState(rh, TRUE);
+	if (rh->input.solve_ne == ITERATION) ExitOnError(rh, BackgroundOfState(rh, TRUE));
 
 	for (nact = 0; nact < rh->atmos.Nactiveatom; nact++) {
 		atom = rh->atmos.activeatoms[nact];
@@ -1461,7 +1465,7 @@ void iterateAnderson(RHState *rh, int NmaxIter, double iterLimit)
 				Ncarried_ok, Ncarried);
 	}
 
-	if (rh->input.solve_ne == ITERATION) BackgroundOfState(rh, TRUE);
+	if (rh->input.solve_ne == ITERATION) ExitOnError(rh, BackgroundOfState(rh, TRUE));
 
 	for (n = 0; n < rh->atmos.Nactiveatom; n++)
 		freeMatrix(rh, (void **) rh->atmos.activeatoms[n]->Gamma);
@@ -1847,7 +1851,7 @@ void iterateNewton(RHState *rh, int NmaxIter, double iterLimit)
 				ctx.Nbadtrial);
 	}
 
-	if (rh->input.solve_ne == ITERATION) BackgroundOfState(rh, TRUE);
+	if (rh->input.solve_ne == ITERATION) ExitOnError(rh, BackgroundOfState(rh, TRUE));
 
 	for (i = 0; i < rh->atmos.Nactiveatom; i++)
 		freeMatrix(rh, (void **) rh->atmos.activeatoms[i]->Gamma);

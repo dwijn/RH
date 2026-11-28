@@ -64,9 +64,9 @@ int main(int argc, char *argv[])
 
 	getBoundary(rh, &rh->atmos, rh->geometry);
 
-	Background(rh, analyze_output = FALSE, equilibria_only = FALSE);
+	ExitOnError(rh, Background(rh, analyze_output = FALSE, equilibria_only = FALSE));
 
-	getProfiles(rh);
+	ExitOnError(rh, getProfiles(rh));
 	initSolution(rh);
 	initScatter(rh);
 

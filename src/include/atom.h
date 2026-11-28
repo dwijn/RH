@@ -60,7 +60,6 @@ typedef struct MolTransition    MolTransition;
 typedef struct AtomicLine       AtomicLine;
 typedef struct ZeemanMultiplet  ZeemanMultiplet;
 typedef struct rhthread         rhthread;
-typedef struct Paschenstruct    Paschenstruct;
 
 /* --- Structure defines radiative transition --       -------------- */
 
@@ -204,6 +203,9 @@ typedef struct {
 	bool_t          zm_explicit;
 } RLK_level;
 
+RH_NODISCARD rh_status RLKdet_level(RHState *rh, char *label, RLK_level *level,
+									bool_t *determined);
+
 typedef struct {
 	bool_t       polarizable;
 	enum vdWaals vdwaals;
@@ -225,12 +227,6 @@ typedef struct {
 	double *neff1, *neff2, **cross, **alpha;
 } Barklemstruct;
 
-struct Paschenstruct {
-	int      Nj;
-	double  *eigenval;
-	double **C;
-};
-
 /* --- Associated function prototypes --               -------------- */
 
 void initSolution(RHState *rh);
@@ -242,23 +238,26 @@ void   OHCH_bf_check(RHState *rh);
 void   statEquil(RHState *rh, Atom *atom, int isum);
 double updatePopulations(RHState *rh, int niter);
 
-void   CollisionRate(RHState *rh, Atom *atom, FILE *atomFile);
-void   Damping(RHState *rh, AtomicLine *line, double *adamp);
-void   FixedRate(RHState *rh, Atom *atom);
-void   freeAtom(RHState *rh, Atom *atom);
-void   freeRateReports(Atom *atom);
-void   freeAtomicLine(RHState *rh, AtomicLine *line);
-void   freeAtomicContinuum(RHState *rh, AtomicContinuum *continuum);
-void   getfjk(RHState *rh, Element *element, double ne, int k, double *fjk, double *dfjk);
-void   getLambda(RHState *rh, AtomicLine *line);
-int    asymmetricBlends(RHState *rh, const double *extra, int Nextra);
-int    mirrorQuadrature(RHState *rh);
-void   getLambdaCont(AtomicContinuum *continuum, double lambdamin);
-double getwlambda_line(AtomicLine *line, int la);
-double getwlambda_cont(AtomicContinuum *continuum, int la);
-void   initAtom(Atom *atom);
-void   initAtomicLine(AtomicLine *line);
-void   initAtomicContinuum(AtomicContinuum *continuum);
+RH_NODISCARD rh_status CollisionRate(RHState *rh, Atom *atom, FILE *atomFile);
+RH_NODISCARD rh_status fone(RHState *rh, double x, double *f);
+RH_NODISCARD rh_status summers(RHState *rh, int i, int j, double nne, Atom *atom,
+							   double *factor);
+void                   Damping(RHState *rh, AtomicLine *line, double *adamp);
+RH_NODISCARD rh_status FixedRate(RHState *rh, Atom *atom);
+void                   freeAtom(RHState *rh, Atom *atom);
+void                   freeRateReports(Atom *atom);
+void                   freeAtomicLine(RHState *rh, AtomicLine *line);
+void                   freeAtomicContinuum(RHState *rh, AtomicContinuum *continuum);
+void                   getfjk(RHState *rh, Element *element, double ne, int k, double *fjk, double *dfjk);
+void                   getLambda(RHState *rh, AtomicLine *line);
+int                    asymmetricBlends(RHState *rh, const double *extra, int Nextra);
+int                    mirrorQuadrature(RHState *rh);
+void                   getLambdaCont(AtomicContinuum *continuum, double lambdamin);
+double                 getwlambda_line(AtomicLine *line, int la);
+double                 getwlambda_cont(AtomicContinuum *continuum, int la);
+void                   initAtom(Atom *atom);
+void                   initAtomicLine(AtomicLine *line);
+void                   initAtomicContinuum(AtomicContinuum *continuum);
 
 void   initZeeman(ZeemanMultiplet *zm);
 void   freeZeeman(ZeemanMultiplet *zm);
@@ -271,23 +270,23 @@ void zeroGammaThreadsMolecule(RHState *rh, Molecule *molecule);
 void mergeGammaThreads(RHState *rh, Atom *atom);
 void mergeGammaThreadsMolecule(RHState *rh, Molecule *molecule);
 
-void LTEpops(RHState *rh, Atom *atom, bool_t Debeye);
-void LTEpops_elem(RHState *rh, Element *element);
-void SetLTEQuantities(RHState *rh);
-void getProfiles(RHState *rh);
-void Profile(RHState *rh, AtomicLine *line);
-void readProfile(RHState *rh, AtomicLine *line, int lamu, float *phi);
-void writeProfile(RHState *rh, AtomicLine *line, int lamu, float *phi);
-void readAtom(RHState *rh, Atom *atom, char *atomFileName);
-void readPopulations(RHState *rh, Atom *atom);
-void SortLambda(RHState *rh);
-void Stark(RHState *rh, AtomicLine *line, double *GStark);
-void StarkLinear(RHState *rh, AtomicLine *line, double *GStark);
-void VanderWaals(RHState *rh, AtomicLine *line, double *GvdW);
-void writeAtom(RHState *rh, Atom *atom);
-void writePopulations(RHState *rh, Atom *atom);
-void zeroRates(RHState *rh, bool_t redistribute);
-void mergeRates(RHState *rh, bool_t redistribute);
+RH_NODISCARD rh_status LTEpops(RHState *rh, Atom *atom, bool_t Debeye);
+RH_NODISCARD rh_status LTEpops_elem(RHState *rh, Element *element);
+RH_NODISCARD rh_status SetLTEQuantities(RHState *rh);
+RH_NODISCARD rh_status getProfiles(RHState *rh);
+RH_NODISCARD rh_status Profile(RHState *rh, AtomicLine *line);
+void                   readProfile(RHState *rh, AtomicLine *line, int lamu, float *phi);
+void                   writeProfile(RHState *rh, AtomicLine *line, int lamu, float *phi);
+void                   readAtom(RHState *rh, Atom *atom, char *atomFileName);
+void                   readPopulations(RHState *rh, Atom *atom);
+void                   SortLambda(RHState *rh);
+void                   Stark(RHState *rh, AtomicLine *line, double *GStark);
+void                   StarkLinear(RHState *rh, AtomicLine *line, double *GStark);
+void                   VanderWaals(RHState *rh, AtomicLine *line, double *GvdW);
+void                   writeAtom(RHState *rh, Atom *atom);
+void                   writePopulations(RHState *rh, Atom *atom);
+void                   zeroRates(RHState *rh, bool_t redistribute);
+void                   mergeRates(RHState *rh, bool_t redistribute);
 
 bool_t readRadRate(RHState *rh, Atom *atom);
 bool_t writeRadRate(RHState *rh, Atom *atom);
@@ -296,11 +295,11 @@ bool_t writeCollisionRate(RHState *rh, Atom *atom);
 bool_t readDamping(RHState *rh, Atom *atom);
 bool_t writeDamping(RHState *rh, Atom *atom);
 
-bool_t readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs);
-bool_t getBarklemcross(RHState *rh, Barklemstruct *bs, RLK_Line *rlk);
-bool_t getBarklemactivecross(RHState *rh, AtomicLine *line);
-bool_t getBarklemExplicit(RHState *rh, AtomicLine *line);
-bool_t determinate_abo(RHState *rh, char *label, int *l);
+RH_NODISCARD rh_status readBarklemTable(RHState *rh, enum Barklemtype type, Barklemstruct *bs);
+bool_t                 getBarklemcross(RHState *rh, Barklemstruct *bs, RLK_Line *rlk);
+RH_NODISCARD rh_status getBarklemactivecross(RHState *rh, AtomicLine *line, bool_t *found);
+bool_t                 getBarklemExplicit(RHState *rh, AtomicLine *line);
+bool_t                 determinate_abo(RHState *rh, char *label, int *l);
 
 /* --- Associated function prototypes --               -------------- */
 
@@ -332,34 +331,33 @@ typedef struct {
 	bool_t dampingNoted;
 } RedistributeState;
 
-double GII(double adamp, double waveRatio, double q_emit, double q_abs);
-double RII(RHState *rh, double v_emit, double v_abs, double adamp, int mu1, int mu2);
-void   Redistribute(RHState *rh, int NmaxIter, double iterLimit);
-double PRDDamp(RHState *rh, AtomicLine *line, const double *old, long N);
-long   PRDRhoSize(RHState *rh, const AtomicLine *line);
-bool_t PRDRhoCheck(RHState *rh, const Atom *atom, int kr);
-void   PRDScatter(RHState *rh, AtomicLine *line);
-void   PRDAngleScatter(RHState *rh, AtomicLine *PRDline);
+double                 GII(double adamp, double waveRatio, double q_emit, double q_abs);
+double                 RII(RHState *rh, double v_emit, double v_abs, double adamp, int mu1, int mu2);
+void                   Redistribute(RHState *rh, int NmaxIter, double iterLimit);
+double                 PRDDamp(RHState *rh, AtomicLine *line, const double *old, long N);
+long                   PRDRhoSize(RHState *rh, const AtomicLine *line);
+RH_NODISCARD rh_status PRDRhoCheck(RHState *rh, const Atom *atom, int kr, bool_t *valid);
+RH_NODISCARD rh_status PRDScatter(RHState *rh, AtomicLine *line);
+RH_NODISCARD rh_status PRDAngleScatter(RHState *rh, AtomicLine *PRDline);
 
 /* --- Polarization related --                         -------------- */
 
-void   adjustStokesMode(RHState *rh);
-bool_t determinate(RHState *rh, char *label, double g, int *n, double *S, int *L,
-				   double *J);
-double effectiveLande(RHState *rh, AtomicLine *line);
-bool_t zeemanPolarizable(RHState *rh, Atom *atom, int i, int j, double g_Lande_eff);
-double Lande(double S, int L, double J);
-void   StokesProfile(AtomicLine *line);
-void   Zeeman(RHState *rh, AtomicLine *line);
-void   MolZeeman(RHState *rh, MolecularLine *mrt);
-double MolLande_eff(RHState *rh, MolecularLine *mrt);
-int    getOrbital(RHState *rh, char orbit);
-double ZeemanStrength(RHState *rh, double Ju, double Mu, double Jl, double Ml);
+RH_NODISCARD rh_status adjustStokesMode(RHState *rh);
+bool_t                 determinate(RHState *rh, char *label, double g, int *n, double *S, int *L,
+								   double *J);
+double                 effectiveLande(RHState *rh, AtomicLine *line);
+bool_t                 zeemanPolarizable(RHState *rh, Atom *atom, int i, int j, double g_Lande_eff);
+double                 Lande(double S, int L, double J);
+void                   StokesProfile(AtomicLine *line);
+RH_NODISCARD rh_status Zeeman(RHState *rh, AtomicLine *line);
+RH_NODISCARD rh_status MolZeeman(RHState *rh, MolecularLine *mrt);
+int                    getOrbital(RHState *rh, char orbit);
+double                 ZeemanStrength(RHState *rh, double Ju, double Mu, double Jl, double Ml);
 
-double w3js(RHState *rh, double j1, double j2, double j3,
-			double m1, double m2, double m3);
-double w6js(RHState *rh, double j1, double j2, double j3,
-			double J1, double J2, double J3);
+RH_NODISCARD rh_status w3js(RHState *rh, double j1, double j2, double j3, double m1,
+							double m2, double m3, double *w);
+RH_NODISCARD rh_status w6js(RHState *rh, double j1, double j2, double j3, double J1,
+							double J2, double J3, double *w);
 
 #endif /* !__ATOM_H__ */
 

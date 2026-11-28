@@ -853,7 +853,7 @@ void molecularPrepare(RHState *rh)
 					ratio = (w < 1.0) ? 1.0 / (1.0 - w) : 1.0E+300;
 					if (mrt->lambda0 / (1.0 + w) <= lamax &&
 						mrt->lambda0 * ratio >= lamin)
-						MolZeeman(rh, mrt);
+						ExitOnError(rh, MolZeeman(rh, mrt));
 				}
 			}
 		}

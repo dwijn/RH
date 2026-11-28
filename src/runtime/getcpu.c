@@ -53,7 +53,15 @@ void getCPU(RHState *rh, int level, enum CPUaction action, char *label)
 		return;
 	else {
 		CPUtime = clock();
-		RH_ASSERT(rh, CPUtime != (clock_t) -1, "getCPU", "Cannot poll resources");
+
+		/* --- The timing is optional output: switched off when the
+			   processor time is not available -- ---------------- */
+
+		if (CPUtime == (clock_t) -1) {
+			Warning(rh, "getCPU", "Cannot poll the processor time: timing (PRINT_CPU) switched off");
+			rh->stats.printCPU = FALSE;
+			return;
+		}
 
 		switch (action) {
 		case TIME_START:

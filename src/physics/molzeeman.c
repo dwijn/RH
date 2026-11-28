@@ -53,6 +53,9 @@ double MolZeemanStr(RHState *rh, double Ju, double Mu, double Jl, double Ml)
 	q  = (int) (Ml - Mu);
 	dJ = (int) (Jl - Ju);
 
+	/* --- MolZeeman checks dJ for each line (Q-54) -- --------------- */
+
+	RH_ASSERT(rh, dJ >= -1 && dJ <= 1, routineName, "Invalid dJ: %d", dJ);
 	switch (dJ) {
 	case 1:
 		switch (q) {
@@ -104,9 +107,6 @@ double MolZeemanStr(RHState *rh, double Ju, double Mu, double Jl, double Ml)
 			break;
 		}
 		break;
-
-	default:
-		Error(rh, ERROR_LEVEL_2, routineName, "Invalid dJ: %d", dJ);
 	}
 	/* --- The strengths are normalized already. --      -------------- */
 
@@ -148,64 +148,9 @@ double MolLande_b(double Lambda, double S, double N, double J)
 }
 /* ------- end ---------------------------- MolLande_b.c ------------ */
 
-/* ------- begin -------------------------- MolLande_eff.c ---------- */
-
-double MolLande_eff(RHState *rh, MolecularLine *mrt)
-{
-	const char      routineName[] = "MolLande_eff";
-	register double Ml, Mu;
-
-	double g_eff, Ju, Jl, norm, Nl, Nu, shift, strength, gLu, gLl;
-
-	norm  = 0.0;
-	g_eff = 0.0;
-
-	Jl = (mrt->gi - 1.0) / 2.0;
-	Ju = (mrt->gj - 1.0) / 2.0;
-
-	switch (mrt->Hundi) {
-	case CASE_A:
-		gLl = MolLande_a(mrt->Lambdai, mrt->Si, mrt->Omegai, Jl);
-		break;
-	case CASE_B:
-		Nl  = Jl - mrt->Si + (mrt->subi - 1);
-		gLl = MolLande_b(mrt->Lambdai, mrt->Si, Nl, Jl);
-		break;
-	default:
-		Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
-	}
-	switch (mrt->Hundj) {
-	case CASE_A:
-		gLu = MolLande_a(mrt->Lambdaj, mrt->Sj, mrt->Omegaj, Ju);
-		break;
-	case CASE_B:
-		Nu  = Ju - mrt->Sj + (mrt->subj - 1);
-		gLu = MolLande_b(mrt->Lambdaj, mrt->Sj, Nu, Ju);
-		break;
-	default:
-		Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
-	}
-
-	for (Ml = -Jl; Ml <= Jl; Ml++) {
-		for (Mu = -Ju; Mu <= Ju; Mu++) {
-			if ((Ml - Mu) == 1.0) {
-				shift    = gLl * Ml - gLu * Mu;
-				strength = MolZeemanStr(rh, Ju, Mu, Jl, Ml);
-
-				g_eff += shift * strength;
-				norm += strength;
-			}
-		}
-	}
-
-	return g_eff / norm;
-}
-
-/* ------- end ---------------------------- MolLande_eff.c ---------- */
-
 /* ------- begin -------------------------- MolZeeman.c ------------- */
 
-void MolZeeman(RHState *rh, MolecularLine *mrt)
+rh_status MolZeeman(RHState *rh, MolecularLine *mrt)
 {
 	const char routineName[] = "MolZeeman";
 
@@ -270,7 +215,8 @@ void MolZeeman(RHState *rh, MolecularLine *mrt)
 			gLl = MolLande_b(mrt->Lambdai, mrt->Si, Nl, Jl);
 			break;
 		default:
-			Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
+			/* --- readMolecule sets only CASE_A or CASE_B -- ------- */
+			RH_ASSERT(rh, FALSE, routineName, "Unsupported Hund's case: %d", mrt->Hundi);
 		}
 		switch (mrt->Hundj) {
 		case CASE_A:
@@ -281,7 +227,14 @@ void MolZeeman(RHState *rh, MolecularLine *mrt)
 			gLu = MolLande_b(mrt->Lambdaj, mrt->Sj, Nu, Ju);
 			break;
 		default:
-			Error(rh, ERROR_LEVEL_2, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
+			RH_ASSERT(rh, FALSE, routineName, "Unsupported Hund's case: %d", mrt->Hundj);
+		}
+		if ((int) (Jl - Ju) < -1 || (int) (Jl - Ju) > 1) {
+			free(mrt->zm);
+			mrt->zm = NULL;
+			return Fail(rh, RH_E_DATA, routineName,
+						"Molecule %s, line at %g nm: J changes from %g to %g, by more than 1",
+						mrt->molecule->ID, mrt->lambda0, Ju, Jl);
 		}
 		/* --- Determine the number of components --       -------------- */
 
@@ -325,5 +278,6 @@ void MolZeeman(RHState *rh, MolecularLine *mrt)
 				"Zeeman components, gL_eff = %7.4f\n",
 			mrt->molecule->ID,
 			lambda_air, zm->Ncomponent, mrt->g_Lande_eff);
+	return RH_OK;
 }
 /* ------- end ------------------------- MolZeeman.c ---------------- */

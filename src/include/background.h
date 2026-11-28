@@ -48,8 +48,8 @@ struct Linelist {
 
 /* --- Associated function prototypes --               -------------- */
 
-void ChemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit);
-void ChemicalEquilibriumOfState(RHState *rh, int NmaxIter, double iterLimit);
+RH_NODISCARD rh_status ChemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit);
+RH_NODISCARD rh_status ChemicalEquilibriumOfState(RHState *rh, int NmaxIter, double iterLimit);
 
 /* --- The chemical equilibrium of one location in log densities of the
 	   free nuclei (N-61, chemequil.c): Nn nuclei, Ns species with
@@ -64,10 +64,10 @@ typedef struct {
 	double **nu, *lnc, *n, *g, *du, *ut, *sc, **H;
 } ChemSystem;
 
-int    chemSolve(ChemSystem *cs, const double *a, double *u, int maxIter, double tol,
-				 double *res, double *step);
-void   BackgroundOfState(RHState *rh, bool_t write_analyze_output);
-double chemLastChangeReset(RHState *rh);
+int                    chemSolve(ChemSystem *cs, const double *a, double *u, int maxIter, double tol,
+								 double *res, double *step);
+RH_NODISCARD rh_status BackgroundOfState(RHState *rh, bool_t write_analyze_output);
+double                 chemLastChangeReset(RHState *rh);
 
 /* --- The state of the background opacities between calls, their
 	   parts of RHState (Q-46) --                      -------------- */
@@ -118,57 +118,58 @@ typedef struct {
 	double chemLastChange;
 } ChemEquilState;
 
-double Gaunt_bf(double lambda, double n_eff, int charge);
-double Gaunt_ff(RHState *rh, double lambda, int charge, double T);
-int    Gaunt_ff_readTable(const char *fileName, char *errmsg, size_t len);
-void   Gaunt_ff_freeTable(void);
-void   FMetals(RHState *rh, double *Fmetal);
-void   dFMetals(RHState *rh, double *dFdne);
-void   Hydrostatic(RHState *rh, int NmaxIter, double iterLimit);
+double                 Gaunt_bf(double lambda, double n_eff, int charge);
+RH_NODISCARD rh_status Gaunt_ff(RHState *rh, double lambda, int charge, double T, double *gff);
+int                    Gaunt_ff_readTable(const char *fileName, char *errmsg, size_t len);
+void                   Gaunt_ff_freeTable(void);
+void                   FMetals(RHState *rh, double *Fmetal);
+RH_NODISCARD rh_status dFMetals(RHState *rh, double *dFdne);
+void                   Hydrostatic(RHState *rh, int NmaxIter, double iterLimit);
 
-void   Background(RHState *rh, bool_t analyze_output, bool_t equilibria_only);
-void   backgrOpac(RHState *rh, int Nlambda, double *lambda);
-void   backgroundPrepare(RHState *rh);
-void   backgroundCleanup(RHState *rh);
-bool_t duplicateLevel(RHState *rh, Atom *atom, char *label);
-bool_t duplicateLine(RHState *rh, Atom *atom, char *labeli, char *labelj);
-void   readBackground(RHState *rh, int nspect, int mu, bool_t top_to_bottom);
-void   mapBackground(RHState *rh);
-void   unmapBackground(void);
-int    backgroundRecords(RHState *rh, int nspect);
-int    writeBackground(RHState *rh, int nspect, int mu, bool_t to_obs,
-					   double *chi_c, double *eta_c, double *sca_c,
-					   double *chip_c);
-void   writeBRS(RHState *rh);
-void   readBRS(RHState *rh);
+RH_NODISCARD rh_status Background(RHState *rh, bool_t analyze_output, bool_t equilibria_only);
+void                   backgrOpac(RHState *rh, int Nlambda, double *lambda);
+RH_NODISCARD rh_status backgroundPrepare(RHState *rh);
+void                   backgroundCleanup(RHState *rh);
+bool_t                 duplicateLevel(RHState *rh, Atom *atom, char *label);
+bool_t                 duplicateLine(RHState *rh, Atom *atom, char *labeli, char *labelj);
+void                   readBackground(RHState *rh, int nspect, int mu, bool_t top_to_bottom);
+void                   mapBackground(RHState *rh);
+void                   unmapBackground(void);
+int                    backgroundRecords(RHState *rh, int nspect);
+int                    writeBackground(RHState *rh, int nspect, int mu, bool_t to_obs,
+									   double *chi_c, double *eta_c, double *sca_c,
+									   double *chip_c);
+void                   writeBRS(RHState *rh);
+void                   readBRS(RHState *rh);
 
-void readKuruczLines(RHState *rh, char *fileName);
-int  rlk_ascend(const void *v1, const void *v2);
-void rlk_locate(int N, RLK_Line *lines, double lambda, int *low);
-void rlk_prepare(RHState *rh);
-void rlk_cleanup(RHState *rh);
+RH_NODISCARD rh_status readKuruczLines(RHState *rh, char *fileName);
+int                    rlk_ascend(const void *v1, const void *v2);
+void                   rlk_locate(int N, RLK_Line *lines, double lambda, int *low);
+RH_NODISCARD rh_status rlk_prepare(RHState *rh);
+void                   rlk_cleanup(RHState *rh);
 
-bool_t Hminus_bf(RHState *rh, double lambda, double *chi, double *eta);
-double Hminus_bf_sigma(double lambda);
-int    Hminus_bf_readTable(const char *fileName, char *errmsg, size_t len);
-void   Hminus_bf_freeTable(void);
-void   Hminus_bf_joins(double *short_ratio, double *long_ratio);
-bool_t Hminus_ff(RHState *rh, double lambda, double *chi);
-double Hminus_ff_kappa(double lambda, double theta);
-bool_t Hydrogen_bf(RHState *rh, double lambda, double *chi, double *eta);
-void   Hydrogen_ff(RHState *rh, double lambda, double *chi);
-bool_t H2minus_ff(RHState *rh, double lambda, double *chi);
-bool_t H2plus_ff(RHState *rh, double lambda, double *chi);
-void   hydrogenPrepare(RHState *rh);
-void   hydrogenCleanup(RHState *rh);
-bool_t Rayleigh(RHState *rh, double lambda, Atom *atom, double *chi);
-bool_t Rayleigh_H2(RHState *rh, double lambda, double *chi);
-void   Thomson(RHState *rh, double *chi);
-bool_t Metal_bf(RHState *rh, double lambda, int Nmetal, Atom *metals,
-				double *chi, double *eta);
-void   metalPrepare(RHState *rh);
-bool_t OH_bf_opac(RHState *rh, double lambda, double *chi, double *eta);
-bool_t CH_bf_opac(RHState *rh, double lambda, double *chi, double *eta);
+bool_t                 Hminus_bf(RHState *rh, double lambda, double *chi, double *eta);
+double                 Hminus_bf_sigma(double lambda);
+int                    Hminus_bf_readTable(const char *fileName, char *errmsg, size_t len);
+void                   Hminus_bf_freeTable(void);
+void                   Hminus_bf_joins(double *short_ratio, double *long_ratio);
+bool_t                 Hminus_ff(RHState *rh, double lambda, double *chi);
+double                 Hminus_ff_kappa(double lambda, double theta);
+bool_t                 Hydrogen_bf(RHState *rh, double lambda, double *chi, double *eta);
+RH_NODISCARD rh_status Hydrogen_ff(RHState *rh, double lambda, double *chi);
+bool_t                 H2minus_ff(RHState *rh, double lambda, double *chi);
+bool_t                 H2plus_ff(RHState *rh, double lambda, double *chi);
+RH_NODISCARD rh_status hydrogenPrepare(RHState *rh);
+void                   hydrogenCleanup(RHState *rh);
+RH_NODISCARD rh_status RayleighCheck(RHState *rh, const Atom *atom);
+bool_t                 Rayleigh(RHState *rh, double lambda, Atom *atom, double *chi);
+bool_t                 Rayleigh_H2(RHState *rh, double lambda, double *chi);
+void                   Thomson(RHState *rh, double *chi);
+bool_t                 Metal_bf(RHState *rh, double lambda, int Nmetal, Atom *metals,
+								double *chi, double *eta);
+RH_NODISCARD rh_status metalPrepare(RHState *rh);
+bool_t                 OH_bf_opac(RHState *rh, double lambda, double *chi, double *eta);
+bool_t                 CH_bf_opac(RHState *rh, double lambda, double *chi, double *eta);
 
 #endif /* !__BACKGROUND_H__ */
 

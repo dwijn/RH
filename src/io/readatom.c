@@ -266,7 +266,10 @@ void readAtom(RHState *rh, Atom *atom, char *atom_file)
 			line->cvdWaals[3] = line->cvdWaals[1] = 0.0;
 		} else if (strstr(vdWstr, "BARKLEM")) {
 			line->vdWaals = BARKLEM;
-			if (!getBarklemactivecross(rh, line)) {
+			bool_t found;
+
+			ExitOnError(rh, getBarklemactivecross(rh, line, &found));
+			if (!found) {
 				Warning(rh, routineName, "Line %3d -> %3d: cannot treat line "
 										 "with Barklem type broadening. Using UNSOLD.",
 						j, i);

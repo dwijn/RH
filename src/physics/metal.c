@@ -71,7 +71,7 @@ struct PassiveBBCache {
 
 /* ------- begin -------------------------- metalPrepare.c ---------- */
 
-void metalPrepare(RHState *rh)
+rh_status metalPrepare(RHState *rh)
 {
 	register int m, kr;
 
@@ -91,12 +91,12 @@ void metalPrepare(RHState *rh)
 			for (kr = 0; kr < metal->Ncont; kr++) {
 				continuum = metal->continuum + kr;
 				if (!continuum->hydrogenic && continuum->bftable.x == NULL)
-					ExitOnError(rh, pchipTableInit(rh, &continuum->bftable, continuum->Nlambda,
-												   continuum->lambda, continuum->alpha,
-												   PCHIP_LOGLOG));
+					RH_TRY(pchipTableInit(rh, &continuum->bftable, continuum->Nlambda,
+										  continuum->lambda, continuum->alpha, PCHIP_LOGLOG));
 			}
 		}
 	}
+	return RH_OK;
 }
 /* ------- end ---------------------------- metalPrepare.c ---------- */
 
@@ -161,10 +161,8 @@ bool_t Metal_bf(RHState *rh, double lambda, int Nmetal, struct Atom *metals,
 						alpha_la = continuum->alpha0 * CUBE(lambda / continuum->lambda0) *
 								   Gaunt_bf(lambda, n_eff, Z) / gbf_0;
 					} else {
-						if (continuum->bftable.x == NULL) {
-							Error(rh, ERROR_LEVEL_2, routineName, "Cross-section table not set up "
-																  "(call metalPrepare first)");
-						}
+						RH_ASSERT(rh, continuum->bftable.x != NULL, routineName,
+								  "Cross-section table not set up (call metalPrepare first)");
 						pchipTableEval(&continuum->bftable, 1, &lambda, &alpha_la);
 					}
 
@@ -206,8 +204,8 @@ void passiveBBCacheFree(PassiveBBCache *cache)
 	free(cache);
 }
 
-flags passive_bb(RHState *rh, PassiveBBCache *cache, double lambda, int nspect, int mu,
-				 bool_t to_obs, double *chi, double *eta, double *chip)
+rh_status passive_bb(RHState *rh, PassiveBBCache *cache, double lambda, int nspect, int mu,
+					 bool_t to_obs, double *chi, double *eta, double *chip, flags *result)
 {
 	const char   routineName[] = "passive_bb";
 	register int k, kr, l, m, nc;
@@ -291,7 +289,7 @@ flags passive_bb(RHState *rh, PassiveBBCache *cache, double lambda, int nspect, 
 					}
 					if (add_to_list) {
 						if (*Nlist == N_MAX_METAL_OVERLAP) {
-							Error(rh, ERROR_LEVEL_2, routineName, "Too many overlapping transitions");
+							return Fail(rh, RH_E_DATA, routineName, "Too many overlapping transitions");
 						}
 						/* --- Create a new entry in the list -- -------------- */
 
@@ -375,6 +373,7 @@ flags passive_bb(RHState *rh, PassiveBBCache *cache, double lambda, int nspect, 
 	for (l = 0; l < N_MAX_METAL_OVERLAP; l++)
 		if (linelist[l]) (*Nlist)++;
 
-	return backgrflags;
+	*result = backgrflags;
+	return RH_OK;
 }
 /* ------- end ---------------------------- passive_bb.c ------------ */

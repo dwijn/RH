@@ -134,8 +134,10 @@ void VanderWaals(RHState *rh, AtomicLine *line, double *GvdW)
 		break;
 
 	default:
-		Error(rh, ERROR_LEVEL_2, routineName, "Unknown method for van der Waals broadening %d, line %d -> %d",
-			  line->vdWaals, line->j, line->i);
+		/* --- readAtom sets only UNSOLD, RIDDER_RENSBERGEN or BARKLEM */
+		RH_ASSERT(rh, FALSE, routineName,
+				  "Unknown method for van der Waals broadening %d, line %d -> %d",
+				  line->vdWaals, line->j, line->i);
 	}
 	/* --- Multiply with the Hydrogen ground level population -- ------ */
 
@@ -168,7 +170,6 @@ void Stark(RHState *rh, AtomicLine *line, double *GStark)
 		   if line->cStark < 0 then Gamma = abs(line->cStark) * ne
 		   --                                            -------------- */
 
-	const char   routineName[] = "Stark";
 	register int k, ic;
 
 	int    Z;
@@ -198,10 +199,6 @@ void Stark(RHState *rh, AtomicLine *line, double *GStark)
 			 ((atom->stage[ic] < atom->stage[line->i] + 1) &&
 			  (ic < atom->Nlevel));
 			 ic++);
-		if (atom->stage[ic] == atom->stage[line->i]) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Cannot find overlying continuum for level %d",
-				  line->i);
-		}
 
 		if ((atom->E[ic] - atom->E[line->i]) <= 0.0 ||
 			(atom->E[ic] - atom->E[line->j]) <= 0.0) {
@@ -244,9 +241,10 @@ void StarkLinear(RHState *rh, AtomicLine *line, double *GStark)
 	double a1, C;
 	Atom  *atom = line->atom;
 
-	if (strstr(atom->ID, "H ") == NULL) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Model is not a hydrogen atom: %s", atom->ID);
-	}
+	/* --- Damping calls this only for hydrogen --       -------------- */
+
+	RH_ASSERT(rh, strstr(atom->ID, "H ") != NULL, routineName,
+			  "Model is not a hydrogen atom: %s", atom->ID);
 	/* --- Find principal quantum number of lower and upper level -- -- */
 
 	sscanf(atom->label[line->i], "H I %s", config);

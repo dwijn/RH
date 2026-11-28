@@ -223,7 +223,7 @@ static void iterateNg(RHState *rh, int NmaxIter, double iterLimit)
 		}
 
 		if (rh->input.solve_ne == ITERATION)
-			Background(rh, write_analyze_output = TRUE, equilibria_only = FALSE);
+			ExitOnError(rh, Background(rh, write_analyze_output = TRUE, equilibria_only = FALSE));
 
 		if (rh->atmos.hydrostatic) {
 			if (!rh->atmos.atoms[0].active) {

@@ -206,7 +206,7 @@ bool_t Hydrogen_bf(RHState *rh, double lambda, double *chi, double *eta)
 
 /* ------- begin -------------------------- Hydrogen_ff.c ----------- */
 
-void Hydrogen_ff(RHState *rh, double lambda, double *chi)
+rh_status Hydrogen_ff(RHState *rh, double lambda, double *chi)
 {
 	/* --- Hydrogen free-free opacity
 
@@ -226,11 +226,12 @@ void Hydrogen_ff(RHState *rh, double lambda, double *chi)
 
 	np = rh->atmos.H->n[rh->atmos.H->Nlevel - 1];
 	for (k = 0; k < Nspace; k++) {
-		stim   = 1.0 - exp(-hc_kla / rh->atmos.T[k]);
-		g_ff   = Gaunt_ff(rh, lambda, 1, rh->atmos.T[k]);
+		stim = 1.0 - exp(-hc_kla / rh->atmos.T[k]);
+		RH_TRY(Gaunt_ff(rh, lambda, 1, rh->atmos.T[k], &g_ff));
 		chi[k] = sigma / sqrt(rh->atmos.T[k]) * nu3 * rh->atmos.ne[k] *
 				 np[k] * stim * g_ff;
 	}
+	return RH_OK;
 }
 /* ------- end ---------------------------- Hydrogen_ff.c ----------- */
 
@@ -436,7 +437,7 @@ void Gaunt_ff_freeTable(void)
 }
 /* ------- end ---------------------------- Gaunt_ff_freeTable.c ---- */
 
-double Gaunt_ff(RHState *rh, double lambda, int charge, double T)
+rh_status Gaunt_ff(RHState *rh, double lambda, int charge, double T, double *gff)
 {
 	/* --- <g_ff> at lambda [nm] and temperature T [K] for an ion of
 		   charge Z. Needs the table (Gaunt_ff_readTable). -- ----- */
@@ -445,18 +446,16 @@ double Gaunt_ff(RHState *rh, double lambda, int charge, double T)
 	int        i0, j0, i, j;
 	double     x, y, wg[4], wu[4], sum = 0.0;
 
-	if (gff_lng == NULL) {
-		Error(rh, ERROR_LEVEL_2, routineName, "free-free Gaunt factor table not read "
-											  "(call hydrogenPrepare first)");
-	}
+	RH_ASSERT(rh, gff_lng != NULL, routineName,
+			  "free-free Gaunt factor table not read (call hydrogenPrepare first)");
 	x = (log10(SQ(charge) * E_RYDBERG / (KBOLTZMANN * T)) - gff_lg0) / gff_step;
 	y = (log10(HPLANCK * CLIGHT / (lambda * NM_TO_M * KBOLTZMANN * T)) -
 		 gff_lu0) /
 		gff_step;
 	if (!(x >= 0.0 && x <= gff_Ng - 1 && y >= 0.0 && y <= gff_Nu - 1)) {
-		Error(rh, ERROR_LEVEL_2, routineName, "lambda = %g nm, T = %g K, Z = %d outside the free-free "
-											  "Gaunt factor table",
-			  lambda, T, charge);
+		return Fail(rh, RH_E_NUMERIC, routineName, "lambda = %g nm, T = %g K, Z = %d outside the free-free "
+												   "Gaunt factor table",
+					lambda, T, charge);
 	}
 	i0 = gff_stencil(x, gff_Ng, wg);
 	j0 = gff_stencil(y, gff_Nu, wu);
@@ -466,7 +465,8 @@ double Gaunt_ff(RHState *rh, double lambda, int charge, double T)
 		for (i = 0; i < 4; i++) r += wg[i] * row[i];
 		sum += wu[j] * r;
 	}
-	return exp(sum);
+	*gff = exp(sum);
+	return RH_OK;
 }
 /* ------- end ---------------------------- Gaunt_ff.c -------------- */
 
@@ -732,10 +732,8 @@ bool_t Hminus_bf(RHState *rh, double lambda, double *chi, double *eta)
 
 	if (lambda <= 0.0 || lambda >= HMBF_LAMBDA0) return FALSE;
 
-	if (Hmbf_lambda == NULL) {
-		Error(rh, ERROR_LEVEL_2, routineName, "H-minus bound-free table not read "
-											  "(call hydrogenPrepare first)");
-	}
+	RH_ASSERT(rh, Hmbf_lambda != NULL, routineName,
+			  "H-minus bound-free table not read (call hydrogenPrepare first)");
 	alpha_bf = Hminus_bf_sigma(lambda);
 
 	hc_kla     = (HPLANCK * CLIGHT) / (KBOLTZMANN * NM_TO_M * lambda);
@@ -1014,10 +1012,8 @@ bool_t H2minus_ff(RHState *rh, double lambda, double *chi)
 	int    Nspace = rh->atmos.Nspace, index = 0;
 	double pe, lambda_index, kappa, *nH2, scale = 1.0;
 
-	if (rh->hydrogen.H2mff_theta_index == NULL) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Index table not set up "
-											  "(call hydrogenPrepare first)");
-	}
+	RH_ASSERT(rh, rh->hydrogen.H2mff_theta_index != NULL, routineName,
+			  "Index table not set up (call hydrogenPrepare first)");
 
 	if (lambda >= lambdaFF[NFF_H2 - 1]) {
 		lambda_index = NFF_H2 - 1;
@@ -1144,10 +1140,8 @@ bool_t H2plus_ff(RHState *rh, double lambda, double *chi)
 	int    Nspace = rh->atmos.Nspace, index = 0;
 	double lambda_index, kappa, *np;
 
-	if (rh->hydrogen.H2pff_temp_index == NULL) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Index table not set up "
-											  "(call hydrogenPrepare first)");
-	}
+	RH_ASSERT(rh, rh->hydrogen.H2pff_temp_index != NULL, routineName,
+			  "Index table not set up (call hydrogenPrepare first)");
 
 	if (lambda >= lambdaFF[NFF_H2P - 1]) {
 		lambda_index = NFF_H2P - 1;
@@ -1271,7 +1265,7 @@ double bilinear(int Ncol, int Nrow, const double *f, double x, double y)
 
 /* ------- begin -------------------------- hydrogenPrepare.c ------- */
 
-void hydrogenPrepare(RHState *rh)
+rh_status hydrogenPrepare(RHState *rh)
 {
 	/* --- One-time setup for the opacity routines above. After this
 		   they only read their tables, and can be called concurrently
@@ -1286,11 +1280,11 @@ void hydrogenPrepare(RHState *rh)
 
 	if (gff_lng == NULL &&
 		Gaunt_ff_readTable(rh->input.GauntFfData, msg, MAX_MESSAGE_LENGTH) != 0)
-		Error(rh, ERROR_LEVEL_2, routineName, "%s", msg);
+		return Fail(rh, RH_E_DATA, routineName, "%s", msg);
 	if (Hmbf_lambda == NULL) {
 		if (Hminus_bf_readTable(rh->input.HminusBfData, msg,
 								MAX_MESSAGE_LENGTH) != 0)
-			Error(rh, ERROR_LEVEL_2, routineName, "%s", msg);
+			return Fail(rh, RH_E_DATA, routineName, "%s", msg);
 		Hminus_bf_joins(&short_ratio, &long_ratio);
 		if (fabs(short_ratio - 1.0) > HMBF_JOIN_WARN ||
 			fabs(long_ratio - 1.0) > HMBF_JOIN_WARN) {
@@ -1302,6 +1296,7 @@ void hydrogenPrepare(RHState *rh)
 	}
 	H2minus_ff_prepare(rh);
 	H2plus_ff_prepare(rh);
+	return RH_OK;
 }
 /* ------- end ---------------------------- hydrogenPrepare.c ------- */
 

@@ -12,7 +12,8 @@
 		  with one message per record and run, and the rates elsewhere
 		  are unchanged;
 	   -- coefficients that cannot be right (not finite, negative
-		  energy, T1 > T2, ...) stop the run when read;
+		  energy, T1 > T2, ...) make CollisionRate fail with RH_E_DATA
+		  when read, and it frees what it holds;
 	   -- AR85-CHP takes the proton density from the last level of the
 		  hydrogen model, whatever its number of levels (it was level 5,
 		  a bound level of H_20 and beyond the array for fewer levels);
@@ -31,8 +32,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include "rh.h"
 #include "atom.h"
@@ -42,17 +41,6 @@
 #include "error.h"
 #include "check.h"
 #include "state.h"
-
-double summers(RHState *rh, int i, int j, double nne, struct Atom *atom);
-double fone(RHState *rh, double x);
-
-static int in_child = 0;
-
-int __lsan_is_turned_off(void);
-int __lsan_is_turned_off(void)
-{
-	return in_child;
-}
 
 /* --- Proton density that AR85-CHP uses: the last level of the hydrogen model --- */
 #define CHP_PROTONS 9e10
@@ -110,17 +98,19 @@ static const char *c_records =
 /* --- Run CollisionRate on a file with the records; the log goes to
 	   logPath (empty file when no message) -- ------------------- */
 
-static void run(const char *records)
+static rh_status run(const char *records)
 {
-	char   buf[4096];
-	FILE  *fp;
-	size_t n;
+	char      buf[4096];
+	FILE     *fp;
+	size_t    n;
+	rh_status status;
 
 	n = (size_t) snprintf(buf, sizeof(buf), "%sEND\n", records);
 	CHECK(n < sizeof(buf), "records too long");
-	fp = fmemopen(buf, n, "r");
-	CollisionRate(rh, &atom, fp);
+	fp     = fmemopen(buf, n, "r");
+	status = CollisionRate(rh, &atom, fp);
 	fclose(fp);
+	return status;
 }
 
 static char logText[8192];
@@ -133,7 +123,7 @@ static void run_logged(const char *records)
 	FILE  *old  = rh->commandline.logfile;
 
 	rh->commandline.logfile = log;
-	run(records);
+	CHECK(run(records) == RH_OK, "CollisionRate failed: %s", rh->error.message);
 	rh->commandline.logfile = old;
 	fclose(log);
 	snprintf(logText, sizeof(logText), "%s", buf);
@@ -152,22 +142,15 @@ static int count(const char *needle)
 	return n;
 }
 
-static int is_fatal(const char *records)
-{
-	pid_t pid;
-	int   status;
+/* --- The status of CollisionRate on records; the error is cleared -- */
 
-	fflush(stdout);
-	fflush(stderr);
-	if ((pid = fork()) == 0) {
-		in_child = 1;
-		if (!freopen("/dev/null", "w", stdout) || !freopen("/dev/null", "w", stderr)) _exit(1);
-		rh->commandline.logfile = stderr;
-		run(records);
-		_exit(0);
-	}
-	if (pid < 0 || waitpid(pid, &status, 0) != pid) return -1;
-	return WIFEXITED(status) && WEXITSTATUS(status) == RH_EXIT_FATAL;
+static rh_status status_of(const char *records)
+{
+	rh_status status = run(records);
+
+	CHECK(status == rh->error.code, "status %d, recorded %d", status, rh->error.code);
+	ClearError(rh);
+	return status;
 }
 
 static void set_temperatures(double Tlo, double Thi, int n)
@@ -282,8 +265,10 @@ int main(int argc, char **argv)
 		CHECK(count("negative contribution") == 1, "SHULL82 B = -3: messages: %d\n%s", count("negative contribution"), logText);
 		CHECK(strstr(logText, "SHULL82 0 3") != NULL && strstr(logText, "s^-1"), "SHULL82 message names the record and the unit");
 		for (int k = 0; k < NT; k++) {
-			double T      = rh->atmos.T[k];
-			double sm     = summers(rh, 0, 3, rh->atmos.ne[k], &atom);
+			double T  = rh->atmos.T[k];
+			double sm = 0.0;
+
+			CHECK(summers(rh, 0, 3, rh->atmos.ne[k], &atom, &sm) == RH_OK, "summers at T = %g", T);
 			double expect = sm * 1e-10 / T / sqrt(T) * exp(-1e4 / T) * (1.0 - 3.0 * exp(-1e5 / T));
 			expect        = (expect < 0.0) ? 0.0 : expect * rh->atmos.ne[k] * 1e-6; /* cm3 -> m3 */
 			CHECK(atom.C[0 * NLEVEL + 3][k] >= 0.0, "SHULL82: C[0][3] at T = %g: %g", T, atom.C[0 * NLEVEL + 3][k]);
@@ -361,7 +346,10 @@ int main(int argc, char **argv)
 			{1e5, 9.99990000199994e-6, 1.99988000719952e-10}};
 
 		for (size_t n = 0; n < sizeof(ref) / sizeof(ref[0]); n++) {
-			double x = ref[n][0], f = fone(rh, x), br = 1.0 + x - x * (2.0 + x) * f;
+			double x = ref[n][0], f = 0.0;
+
+			CHECK(fone(rh, x, &f) == RH_OK, "fone(%g)", x);
+			double br = 1.0 + x - x * (2.0 + x) * f;
 
 			CHECK_CLOSE(f, ref[n][1], (x <= 50.0) ? 2e-8 : 1e-15, 0.0, "fone(%g)", x);
 			if (x <= 1000.0)
@@ -462,30 +450,31 @@ int main(int argc, char **argv)
 
 	/* --- Read-time stops, and what is valid -- ------------------- */
 
-	CHECK(is_fatal("SHULL82 0 3 0 1e5 1e-13 0.5 1e-10 -3 1e4 1e5\n") == 0, "SHULL82 B = -3 is not a read-time error");
-	CHECK(is_fatal("SHULL82 0 3 0 1e5 1e-13 0.5 1e-10 nan 1e4 1e5\n") == 1, "SHULL82 NaN");
-	CHECK(is_fatal("SHULL82 0 3 -1e-9 1e5 1e-13 0.5 1e-10 0 1e4 1e5\n") == 1, "SHULL82 negative A");
-	CHECK(is_fatal("SHULL82 0 3 0 1e5 -1e-13 0.5 1e-10 0 1e4 1e5\n") == 0, "SHULL82 negative arad is left to the sum");
-	CHECK(is_fatal("SHULL82 0 3 0 0 1e-13 0.5 1e-10 0 -1e4 1e5\n") == 1, "SHULL82 negative T0 with adi");
-	CHECK(is_fatal("SHULL82 0 3 0 0 1e-13 0.5 0 0 -1e4 -1e5\n") == 0, "SHULL82 negative T0, T1 without adi");
-	CHECK(is_fatal("SHULL82 0 3 0 0 1e-13 0.5 1e-10 0 1e4 -1e5\n") == 0, "SHULL82 negative T1 with B = 0");
-	CHECK(is_fatal("BADNELL 0 3 2\n0 -1e4\n1e-8 1e-6\n") == 1, "BADNELL negative energy");
-	CHECK(is_fatal("BADNELL 0 3 2\n0 -1e4\n1e-8 0\n") == 0, "BADNELL negative energy, zero coefficient");
-	CHECK(is_fatal("BADNELL 0 3 2\n0 1e4\n1e-8 inf\n") == 1, "BADNELL infinite coefficient");
-	CHECK(is_fatal("BADNELL 0 3 0\n") == 1, "BADNELL no coefficients");
-	CHECK(is_fatal("BADNELL 0 3 -2\n") == 1, "BADNELL negative number of coefficients");
-	CHECK(is_fatal("AR85-CDI 0 3 1\n 0.0 1 1 1 1\n") == 1, "AR85-CDI zero shell energy");
-	CHECK(is_fatal("AR85-CDI 0 3 1\n 0.0 0 0 0 0\n") == 0, "AR85-CDI zero row");
-	CHECK(is_fatal("AR85-CDI 0 3 1\n 11.3 1 1 nan 1\n") == 1, "AR85-CDI NaN");
-	CHECK(is_fatal("AR85-CDI 0 3 0\n") == 1, "AR85-CDI no shells");
-	CHECK(is_fatal("AR85-CEA 0 3 -0.5\n") == 0, "AR85-CEA negative factor with a zero rate");
-	CHECK(is_fatal("AR85-CEA 0 3 nan\n") == 1, "AR85-CEA NaN");
-	CHECK(is_fatal("BURGESS 0 3 nan\n") == 1, "BURGESS NaN");
-	CHECK(is_fatal("SUMMERS 1.5\n") == 1, "SUMMERS above 1");
-	CHECK(is_fatal("SUMMERS -0.1\n") == 1, "SUMMERS below 0");
-	CHECK(is_fatal("SUMMERS 0.5\n") == 0, "SUMMERS 0.5");
-	CHECK(is_fatal("AR85-CHH 0 3 5e3 5e5 2.0 0.3 inf 0.1\n") == 1, "AR85-CHH infinite");
-	CHECK(is_fatal("AR85-CHH 0 3 5e3 5e5 2.0 0.3 0.2 0.1\n") == 0, "AR85-CHH valid record is not fatal");
+	CHECK(status_of("SHULL82 0 3 0 1e5 1e-13 0.5 1e-10 -3 1e4 1e5\n") == RH_OK, "SHULL82 B = -3 is not a read-time error");
+	CHECK(status_of("SHULL82 0 3 0 1e5 1e-13 0.5 1e-10 nan 1e4 1e5\n") == RH_E_DATA, "SHULL82 NaN");
+	CHECK(status_of("SHULL82 0 3 -1e-9 1e5 1e-13 0.5 1e-10 0 1e4 1e5\n") == RH_E_DATA, "SHULL82 negative A");
+	CHECK(status_of("SHULL82 0 3 0 1e5 -1e-13 0.5 1e-10 0 1e4 1e5\n") == RH_OK, "SHULL82 negative arad is left to the sum");
+	CHECK(status_of("SHULL82 0 3 0 0 1e-13 0.5 1e-10 0 -1e4 1e5\n") == RH_E_DATA, "SHULL82 negative T0 with adi");
+	CHECK(status_of("SHULL82 0 3 0 0 1e-13 0.5 0 0 -1e4 -1e5\n") == RH_OK, "SHULL82 negative T0, T1 without adi");
+	CHECK(status_of("SHULL82 0 3 0 0 1e-13 0.5 1e-10 0 1e4 -1e5\n") == RH_OK, "SHULL82 negative T1 with B = 0");
+	CHECK(status_of("BADNELL 0 3 2\n0 -1e4\n1e-8 1e-6\n") == RH_E_DATA, "BADNELL negative energy");
+	CHECK(status_of("BADNELL 0 3 2\n0 -1e4\n1e-8 0\n") == RH_OK, "BADNELL negative energy, zero coefficient");
+	CHECK(status_of("BADNELL 0 3 2\n0 1e4\n1e-8 inf\n") == RH_E_DATA, "BADNELL infinite coefficient");
+	CHECK(status_of("BADNELL 0 3 0\n") == RH_E_DATA, "BADNELL no coefficients");
+	CHECK(status_of("BADNELL 0 3 -2\n") == RH_E_DATA, "BADNELL negative number of coefficients");
+	CHECK(status_of("AR85-CDI 0 3 1\n 0.0 1 1 1 1\n") == RH_E_DATA, "AR85-CDI zero shell energy");
+	CHECK(status_of("AR85-CDI 0 3 1\n 0.0 0 0 0 0\n") == RH_OK, "AR85-CDI zero row");
+	CHECK(status_of("AR85-CDI 0 3 1\n 11.3 1 1 nan 1\n") == RH_E_DATA, "AR85-CDI NaN");
+	CHECK(status_of("AR85-CDI 0 3 0\n") == RH_E_DATA, "AR85-CDI no shells");
+	CHECK(status_of("AR85-CEA 0 3 -0.5\n") == RH_OK, "AR85-CEA negative factor with a zero rate");
+	CHECK(status_of("AR85-CEA 0 3 nan\n") == RH_E_DATA, "AR85-CEA NaN");
+	CHECK(status_of("BURGESS 0 3 nan\n") == RH_E_DATA, "BURGESS NaN");
+	CHECK(status_of("SUMMERS 1.5\n") == RH_E_DATA, "SUMMERS above 1");
+	CHECK(status_of("SUMMERS -0.1\n") == RH_E_DATA, "SUMMERS below 0");
+	CHECK(status_of("SUMMERS 0.5\n") == RH_OK, "SUMMERS 0.5");
+	CHECK(status_of("AR85-CHH 0 3 5e3 5e5 2.0 0.3 inf 0.1\n") == RH_E_DATA, "AR85-CHH infinite");
+	CHECK(status_of("AR85-CHH 0 3 5e3 5e5 2.0 0.3 0.2 0.1\n") == RH_OK, "AR85-CHH valid record is not fatal");
+	freeRateReports(&atom);
 
 	/* --- SHULL82 with T_col = 0 and A > 0: no collisional term, as before -- */
 

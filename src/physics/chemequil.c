@@ -121,12 +121,12 @@ double chemLastChangeReset(RHState *rh)
 
 /* ------- begin -------------------------- ChemicalEquilibrium.c --- */
 
-static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit,
-								bool_t ofState);
+static rh_status chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit,
+									 bool_t ofState);
 
-void ChemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit)
+rh_status ChemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit)
 {
-	chemicalEquilibrium(rh, NmaxIter, iterLimit, FALSE);
+	return chemicalEquilibrium(rh, NmaxIter, iterLimit, FALSE);
 }
 
 /* --- For the map G with ne in the state (S-2b, docs/SOLVER.md): a
@@ -137,9 +137,9 @@ void ChemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit)
 	   rescaled in place: only ntotal and the LTE populations follow the
 	   new equilibrium --                               -------------- */
 
-void ChemicalEquilibriumOfState(RHState *rh, int NmaxIter, double iterLimit)
+rh_status ChemicalEquilibriumOfState(RHState *rh, int NmaxIter, double iterLimit)
 {
-	chemicalEquilibrium(rh, NmaxIter, iterLimit, TRUE);
+	return chemicalEquilibrium(rh, NmaxIter, iterLimit, TRUE);
 }
 
 /* ------- begin -------------------------- chemSolve.c ------------- */
@@ -289,7 +289,7 @@ int chemSolve(ChemSystem *cs, const double *a, double *u, int maxIter,
 }
 /* ------- end ---------------------------- chemSolve.c ------------- */
 
-static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, bool_t ofState)
+static rh_status chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, bool_t ofState)
 {
 	const char   routineName[] = "ChemicalEquilibrium";
 	register int k, i, j, nu, pass;
@@ -299,6 +299,7 @@ static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, boo
 	double *a, *n, *u, *Phi, PhiHmin, fHmin, CI, res = 0.0, step = 0.0, sum, lnc,
 												 *fn0, fraction, *fjk = NULL, *dfjk = NULL;
 	ChemSystem cs;
+	rh_status  result = RH_OK;
 	Atom      *atom;
 	Molecule  *molecule;
 	Element  **nuclei;
@@ -327,18 +328,22 @@ static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, boo
 	/* --- Check that first Nucleus is hydrogen --       -------------- */
 
 	if (!strstr(nuclei[0]->ID, "H ")) {
-		Error(rh, ERROR_LEVEL_2, routineName, "First nucleus must be H not %s "
-											  "(check H2.molecule)",
-			  nuclei[0]->ID);
+		result = Fail(rh, RH_E_DATA, routineName, "First nucleus must be H not %s "
+												  "(check H2.molecule)",
+					  nuclei[0]->ID);
+		free(nuclei);
+		return result;
 	}
 
 	Nmaxstage = 0;
 	for (j = 0; j < Nnuclei; j++) {
 		if (nuclei[j]->model != NULL) {
 			if (nuclei[j]->model->stage[0] > 0) {
-				Error(rh, ERROR_LEVEL_2, routineName, "Model for element %s does not have a neutral stage\n"
-													  " needed for molecular formation\n",
-					  nuclei[j]->ID);
+				result = Fail(rh, RH_E_DATA, routineName, "Model for element %s does not have a neutral stage\n"
+														  " needed for molecular formation\n",
+							  nuclei[j]->ID);
+				free(nuclei);
+				return result;
 			}
 		} else
 			Nmaxstage = MAX(Nmaxstage, nuclei[j]->Nstage);
@@ -494,8 +499,10 @@ static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, boo
 					 NmaxIter, k, rh->atmos.T[k], rh->atmos.nHtot[k], rh->atmos.ne[k], res);
 			if (negTauInTrial(rh)) {
 				negTauInvalid(rh, msg + 3);
-			} else
-				Error(rh, ERROR_LEVEL_2, routineName, "%s", msg);
+			} else {
+				result = Fail(rh, RH_E_NUMERIC, routineName, "%s", msg);
+				goto cleanup;
+			}
 		}
 		for (i = 0; i < Nnuclei; i++) n[i] = cs.n[i];
 		for (i = 0; i < rh->atmos.Nmolecule; i++) n[Nnuclei + i] = cs.n[Nnuclei + 1 + i];
@@ -545,8 +552,11 @@ static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, boo
 		}
 	}
 
-	/* --- Clean up --                                   -------------- */
+	getCPU(rh, 3, TIME_POLL, "Chemical equilibrium");
 
+	/* --- Clean up, also after a failure --             -------------- */
+
+cleanup:
 	free(n);
 	free(a);
 	free(u);
@@ -569,7 +579,7 @@ static void chemicalEquilibrium(RHState *rh, int NmaxIter, double iterLimit, boo
 		free(fjk);
 		free(dfjk);
 	}
-	getCPU(rh, 3, TIME_POLL, "Chemical equilibrium");
+	return result;
 }
 /* ------- end ---------------------------- ChemicalEquilibrium.c --- */
 
@@ -632,9 +642,9 @@ double partfunction(RHState *rh, struct Molecule *molecule, double T)
 	case TSUJI_73:
 		break;
 	default:
-		Error(rh, ERROR_LEVEL_2, "partfunction", "Unknown method for calculation of partition function\n"
-												 "for molecule %s: %d",
-			  molecule->ID, molecule->fit);
+		RH_ASSERT(rh, FALSE, "partfunction", "Unknown method for calculation of partition function\n"
+											 "for molecule %s: %d",
+				  molecule->ID, molecule->fit);
 	}
 	return pf;
 }
@@ -691,9 +701,9 @@ static double lnEquilConstant(RHState *rh, struct Molecule *molecule, double T)
 		break;
 
 	default:
-		Error(rh, ERROR_LEVEL_2, "lnEquilConstant", "Unknown method for calculation of equilibrium constant\n"
-													"for molecule %s: %d",
-			  molecule->ID, molecule->fit);
+		RH_ASSERT(rh, FALSE, "lnEquilConstant", "Unknown method for calculation of equilibrium constant\n"
+												"for molecule %s: %d",
+				  molecule->ID, molecule->fit);
 	}
 	return lneqc;
 }
@@ -798,9 +808,9 @@ double equilconstant(RHState *rh, struct Molecule *molecule, double T)
 		break;
 
 	default:
-		Error(rh, ERROR_LEVEL_2, "equilconstant", "Unknown method for calculation of equilibrium constant\n"
-												  "for molecule %s: %d",
-			  molecule->ID, molecule->fit);
+		RH_ASSERT(rh, FALSE, "equilconstant", "Unknown method for calculation of equilibrium constant\n"
+											  "for molecule %s: %d",
+				  molecule->ID, molecule->fit);
 	}
 
 	return eqc * cgs_to_SI;

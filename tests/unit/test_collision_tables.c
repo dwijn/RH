@@ -48,7 +48,7 @@ static void run_logged(const char *records)
 	CHECK(n < sizeof(text), "%s", "records too long");
 	rh->commandline.logfile = log;
 	fp                      = fmemopen(text, n, "r");
-	CollisionRate(rh, &atom, fp);
+	CHECK(CollisionRate(rh, &atom, fp) == RH_OK, "CollisionRate failed: %s", rh->error.message);
 	fclose(fp);
 	rh->commandline.logfile = old;
 	fclose(log);

@@ -232,7 +232,7 @@ static void backgroundScratchFree(RHState *rh, BackgroundScratch *sc)
 	free(sc);
 }
 
-static int reserveRecords(RHState *rh, BackgroundJob *job, int nspect)
+static rh_status reserveRecords(RHState *rh, BackgroundJob *job, int nspect, int *first)
 {
 	const char routineName[] = "reserveRecords";
 
@@ -240,17 +240,18 @@ static int reserveRecords(RHState *rh, BackgroundJob *job, int nspect)
 	int       Nrec;
 
 	/* --- Reserve the records for a block of background data of
-		   wavelength nspect and return the number of the first. The
+		   wavelength nspect and give the number of the first. The
 		   counter is 64-bit, but atmos.backgrrecno is int. With one
 		   worker the blocks follow each other in wavelength order. -- */
 
 	Nrec  = backgroundRecords(rh, nspect);
 	recno = atomic_fetch_add(&job->backgrrecno, Nrec);
 	if (recno + Nrec > INT_MAX)
-		Error(rh, ERROR_LEVEL_2, routineName,
-			  "Record number of background data exceeds INT_MAX");
+		return Fail(rh, RH_E_INPUT, routineName,
+					"Record number of background data exceeds INT_MAX");
 
-	return (int) recno;
+	*first = (int) recno;
+	return RH_OK;
 }
 
 static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
@@ -258,7 +259,7 @@ static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
 	const char   routineName[] = "backgroundRange";
 	register int k, nspect, n, mu, to_obs;
 
-	int                index, recno, Nwrite, NrecStokes;
+	int                index, recno = 0, Nwrite, NrecStokes;
 	double             wavelength, Hmin_fudge, scatt_fudge, metal_fudge;
 	flags              backgrflags;
 	BackgroundJob     *job = (BackgroundJob *) arg;
@@ -273,6 +274,9 @@ static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
 		   *chi_c = sc->chi_c, *eta_c = sc->eta_c, *sca_c = sc->sca_c,
 		   *chip_c = sc->chip_c, *chi_ai = sc->chi_ai, *eta_ai = sc->eta_ai,
 		   *sca_ai = sc->sca_ai, *Bnu = sc->Bnu;
+
+	/* --- After a failure (recorded by Fail) the worker returns, and no
+		   more work is handed out --                      -------------- */
 
 	for (nspect = begin; nspect < end; nspect++) {
 		sc->Npending = 0;
@@ -340,7 +344,7 @@ static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
 				eta_ai[k] += eta[k];
 			}
 		}
-		Hydrogen_ff(rh, wavelength, chi);
+		if (Hydrogen_ff(rh, wavelength, chi) != RH_OK) return;
 		for (k = 0; k < rh->atmos.Nspace; k++) {
 			chi_ai[k] += chi[k];
 			eta_ai[k] += chi[k] * Bnu[k];
@@ -440,8 +444,9 @@ static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
 						   hydrogen) --                          -------------- */
 
 					if (rh->input.allow_passive_bb) {
-						backgrflags = passive_bb(rh, sc->passivecache, wavelength, nspect, mu,
-												 to_obs, chi, eta, chip);
+						if (passive_bb(rh, sc->passivecache, wavelength, nspect, mu, to_obs, chi, eta,
+									   chip, &backgrflags) != RH_OK)
+							return;
 						if (backgrflags.hasline) {
 							rh->atmos.backgrflags[nspect].hasline = TRUE;
 							if (backgrflags.ispolarized) {
@@ -523,15 +528,14 @@ static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
 							   as they did when the counter ran in
 							   wavelength order -- --------------------- */
 
-						recno = reserveRecords(rh, job, nspect);
+						if (reserveRecords(rh, job, nspect, &recno) != RH_OK) return;
 						for (n = 0; n < sc->Npending; n++)
 							rh->atmos.backgrrecno[sc->pending[n]] = recno;
 						sc->Npending                 = 0;
 						rh->atmos.backgrrecno[index] = recno;
 						Nwrite                       = writeBackground(rh, nspect, mu, to_obs,
 																	   chi_c, eta_c, sca_c, chip_c);
-						if (Nwrite != backgroundRecords(rh, nspect))
-							Error(rh, ERROR_LEVEL_2, routineName,
+						RH_ASSERT(rh, Nwrite == backgroundRecords(rh, nspect), routineName,
 								  "Reserved and written number of records differ");
 					} else
 						sc->pending[sc->Npending++] = index;
@@ -542,8 +546,9 @@ static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
 			   atomic lines (including hydrogen) --      -------------- */
 
 			if (rh->input.allow_passive_bb) {
-				backgrflags = passive_bb(rh, sc->passivecache, wavelength, nspect, 0,
-										 TRUE, chi, eta, NULL);
+				if (passive_bb(rh, sc->passivecache, wavelength, nspect, 0, TRUE, chi, eta, NULL,
+							   &backgrflags) != RH_OK)
+					return;
 				if (backgrflags.hasline) {
 					rh->atmos.backgrflags[nspect].hasline = TRUE;
 					for (k = 0; k < rh->atmos.Nspace; k++) {
@@ -584,11 +589,11 @@ static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
 			}
 			/* --- Store results --                          -------------- */
 
-			rh->atmos.backgrrecno[nspect] = reserveRecords(rh, job, nspect);
+			if (reserveRecords(rh, job, nspect, &recno) != RH_OK) return;
+			rh->atmos.backgrrecno[nspect] = recno;
 			Nwrite                        = writeBackground(rh, nspect, 0, 0,
 															chi_c, eta_c, sca_c, NULL);
-			if (Nwrite != backgroundRecords(rh, nspect))
-				Error(rh, ERROR_LEVEL_2, routineName,
+			RH_ASSERT(rh, Nwrite == backgroundRecords(rh, nspect), routineName,
 					  "Reserved and written number of records differ");
 		}
 	}
@@ -602,7 +607,7 @@ static void backgroundRange(RHState *rh, int begin, int end, int nt, void *arg)
 
 static bool_t fd_open = FALSE;
 
-static void backgroundOpacities(RHState *rh, bool_t write_analyze_output);
+static rh_status backgroundOpacities(RHState *rh, bool_t write_analyze_output);
 
 /* --- Background() runs more than once with SOLVE_NE = ITERATION, in
 	   hydrostatic equilibrium and in the map G with ne in the state:
@@ -618,7 +623,7 @@ static void closeBackgroundFile(RHState *rh)
 	}
 }
 
-static void computeBackground(RHState *rh, bool_t write_analyze_output, bool_t equilibria_only)
+static rh_status computeBackground(RHState *rh, bool_t write_analyze_output, bool_t equilibria_only)
 {
 	const char routineName[] = "Background";
 
@@ -634,12 +639,12 @@ static void computeBackground(RHState *rh, bool_t write_analyze_output, bool_t e
 		Solve_ne(rh, rh->atmos.ne, fromscratch);
 		rh->background.ne_iter++;
 	}
-	SetLTEQuantities(rh);
+	RH_TRY(SetLTEQuantities(rh));
 
 	if (rh->input.NonICE)
 		readMolecules(rh, MOLECULAR_CONCENTRATION_FILE);
 	else
-		ChemicalEquilibrium(rh, N_MAX_CHEM_ITER, CHEM_ITER_LIMIT);
+		RH_TRY(ChemicalEquilibrium(rh, N_MAX_CHEM_ITER, CHEM_ITER_LIMIT));
 
 	if (equilibria_only) {
 
@@ -647,7 +652,7 @@ static void computeBackground(RHState *rh, bool_t write_analyze_output, bool_t e
 			   chemical equilibrium leave here --          -------------- */
 
 		getCPU(rh, 2, TIME_POLL, "Total Background");
-		return;
+		return RH_OK;
 	}
 
 	/* --- Background() runs more than once with SOLVE_NE = ITERATION
@@ -659,32 +664,33 @@ static void computeBackground(RHState *rh, bool_t write_analyze_output, bool_t e
 	if (rh->input.old_background) {
 		if ((rh->atmos.fd_background =
 				 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s",
-				  rh->input.background_File);
+			return Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s",
+						rh->input.background_File);
 		}
 		fd_open = TRUE;
 		readBRS(rh);
 		mapBackground(rh);
-		return;
+		return RH_OK;
 	}
 
-	backgroundOpacities(rh, write_analyze_output);
+	return backgroundOpacities(rh, write_analyze_output);
 }
 
 /* ------- begin -------------------------- backgroundOpacities.c --- */
 
-static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
+static rh_status backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 {
 	const char   routineName[] = "Background";
 	register int nspect, n;
 
 	char          inputLine[MAX_LINE_SIZE];
 	bool_t        exit_on_EOF, do_fudge;
-	int           Nfudge, Nworker, chunk;
-	double       *thomson, *lambda_fudge = NULL, **fudge = NULL;
+	int           Nfudge, Nworker = 0, chunk;
+	double       *thomson = NULL, *lambda_fudge = NULL, **fudge = NULL;
 	Atom         *He;
-	FILE         *fp_fudge;
+	FILE         *fp_fudge = NULL;
 	BackgroundJob job;
+	rh_status     result = RH_OK;
 
 	/* --- The opacities, emissivities and scattering of the background
 		   at every wavelength, from the current ne, LTE populations and
@@ -693,7 +699,8 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 	closeBackgroundFile(rh);
 	getCPU(rh, 3, TIME_START, NULL);
 
-	do_fudge = FALSE;
+	job.scratch = NULL;
+	do_fudge    = FALSE;
 
 	if (strcmp(rh->input.fudgeData, "none")) {
 		do_fudge = TRUE;
@@ -702,7 +709,8 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 			   missing UV backround line haze --           -------------- */
 
 		if ((fp_fudge = fopen(rh->input.fudgeData, "r")) == NULL) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Unable to open input file %s", rh->input.fudgeData);
+			result = Fail(rh, RH_E_DATA, routineName, "Unable to open input file %s", rh->input.fudgeData);
+			goto failed;
 		}
 		Message(rh, "\n-Fudging background opacities with file\n  %s\n\n",
 				rh->input.fudgeData);
@@ -717,9 +725,10 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 
 		getLine(rh, fp_fudge, COMMENT_CHAR, inputLine, exit_on_EOF = TRUE);
 		if (sscanf(inputLine, "%d", &Nfudge) != 1 || Nfudge < 2) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Opacity fudge file %.200s: the first line must give the number"
-												  " of wavelengths, at least 2 (read \"%.40s\")",
-				  rh->input.fudgeData, inputLine);
+			result = Fail(rh, RH_E_DATA, routineName, "Opacity fudge file %.200s: the first line must give the number"
+													  " of wavelengths, at least 2 (read \"%.40s\")",
+						  rh->input.fudgeData, inputLine);
+			goto failed;
 		}
 		lambda_fudge = (double *) mallocOrAbort(Nfudge * sizeof(double));
 		fudge        = matrix_double(rh, 3, Nfudge);
@@ -729,33 +738,38 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 					   &fudge[0][n], &fudge[1][n], &fudge[2][n]) != 4 ||
 				!isfinite(lambda_fudge[n]) || !isfinite(fudge[0][n]) ||
 				!isfinite(fudge[1][n]) || !isfinite(fudge[2][n])) {
-				Error(rh, ERROR_LEVEL_2, routineName, "Opacity fudge file %.200s, wavelength %d of %d: need four"
-													  " numbers, wavelength and three factors minus 1 (read \"%.60s\")",
-					  rh->input.fudgeData, n + 1, Nfudge, inputLine);
+				result = Fail(rh, RH_E_DATA, routineName, "Opacity fudge file %.200s, wavelength %d of %d: need four"
+														  " numbers, wavelength and three factors minus 1 (read \"%.60s\")",
+							  rh->input.fudgeData, n + 1, Nfudge, inputLine);
+				goto failed;
 			}
 			for (int i = 0; i < 3; i++) {
 				if (fudge[i][n] < -1.0) {
-					Error(rh, ERROR_LEVEL_2, routineName, "Opacity fudge file %.200s, wavelength %g nm: value %g"
-														  " below -1 (the file gives factor - 1, and the factor"
-														  " multiplies an opacity: it must be >= 0)",
-						  rh->input.fudgeData, lambda_fudge[n], fudge[i][n]);
+					result = Fail(rh, RH_E_DATA, routineName, "Opacity fudge file %.200s, wavelength %g nm: value %g"
+															  " below -1 (the file gives factor - 1, and the factor"
+															  " multiplies an opacity: it must be >= 0)",
+								  rh->input.fudgeData, lambda_fudge[n], fudge[i][n]);
+					goto failed;
 				}
 			}
 			if (n >= 2 && (lambda_fudge[n] - lambda_fudge[n - 1]) *
 								  (lambda_fudge[1] - lambda_fudge[0]) <=
 							  0.0) {
-				Error(rh, ERROR_LEVEL_2, routineName, "Opacity fudge file %.200s: wavelengths must be strictly"
-													  " increasing or decreasing (%g nm after %g nm)",
-					  rh->input.fudgeData, lambda_fudge[n], lambda_fudge[n - 1]);
+				result = Fail(rh, RH_E_DATA, routineName, "Opacity fudge file %.200s: wavelengths must be strictly"
+														  " increasing or decreasing (%g nm after %g nm)",
+							  rh->input.fudgeData, lambda_fudge[n], lambda_fudge[n - 1]);
+				goto failed;
 			}
 		}
 		if (lambda_fudge[1] == lambda_fudge[0]) {
-			Error(rh, ERROR_LEVEL_2, routineName, "Opacity fudge file %.200s: wavelengths must be strictly"
-												  " increasing or decreasing (%g nm repeated)",
-				  rh->input.fudgeData, lambda_fudge[0]);
+			result = Fail(rh, RH_E_DATA, routineName, "Opacity fudge file %.200s: wavelengths must be strictly"
+													  " increasing or decreasing (%g nm repeated)",
+						  rh->input.fudgeData, lambda_fudge[0]);
+			goto failed;
 		}
 		for (n = 0; n < 3 * Nfudge; n++) fudge[0][n] += 1.0;
 		fclose(fp_fudge);
+		fp_fudge = NULL;
 	}
 
 	/* --- The temporary storage space is allocated per worker, further
@@ -798,7 +812,7 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 
 	if (!rh->background.rlk_read) {
 		rh->atmos.Nrlk = 0;
-		readKuruczLines(rh, rh->input.KuruczData);
+		RH_TRY_GOTO(result, failed, readKuruczLines(rh, rh->input.KuruczData));
 		if (rh->atmos.Nrlk > 0) {
 			qsort(rh->atmos.rlk_lines, rh->atmos.Nrlk, sizeof(RLK_Line), rlk_ascend);
 		}
@@ -849,16 +863,17 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 	if ((rh->atmos.fd_background =
 			 open(rh->input.background_File, O_RDWR | O_CREAT | O_TRUNC,
 				  PERMISSIONS)) == -1) {
-		Error(rh, ERROR_LEVEL_2, routineName, "Unable to open output file %s",
-			  rh->input.background_File);
+		result = Fail(rh, RH_E_DATA, routineName, "Unable to open output file %s",
+					  rh->input.background_File);
+		goto failed;
 	}
 	fd_open = TRUE;
 
 	/* --- One-time setup for the opacity routines called in the main
 		   loop, and the cache for passive_bb --         -------------- */
 
-	backgroundPrepare(rh);
-	if (rh->atmos.Nrlk > 0) rlk_prepare(rh);
+	RH_TRY_GOTO(result, failed, backgroundPrepare(rh));
+	if (rh->atmos.Nrlk > 0) RH_TRY_GOTO(result, failed, rlk_prepare(rh));
 
 	/* --- Go through the spectrum and add the different opacity and
 		   emissivity contributions. This is the main loop, over
@@ -889,7 +904,8 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 	atomic_init(&job.backgrrecno, 0);
 	for (n = 0; n < Nworker; n++) job.scratch[n] = backgroundScratchCreate(rh);
 
-	ExitOnError(rh, parallelForDynamic(rh, rh->spectrum.Nspect, chunk, Nworker, backgroundRange, &job));
+	RH_TRY_GOTO(result, failed,
+				parallelForDynamic(rh, rh->spectrum.Nspect, chunk, Nworker, backgroundRange, &job));
 
 	if (rh->atmos.Nrlk > 0) rlk_cleanup(rh);
 
@@ -971,6 +987,23 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 	mapBackground(rh);
 
 	getCPU(rh, 2, TIME_POLL, "Total Background");
+	return RH_OK;
+
+	/* --- After a failure: free and close what this call holds -- -- */
+
+failed:
+	if (fp_fudge != NULL) fclose(fp_fudge);
+	free(lambda_fudge);
+	if (fudge != NULL) freeMatrix(rh, (void **) fudge);
+	rlk_cleanup(rh);
+	backgroundCleanup(rh);
+	if (job.scratch != NULL) {
+		for (n = 0; n < Nworker; n++) backgroundScratchFree(rh, job.scratch[n]);
+		free(job.scratch);
+	}
+	free(thomson);
+	closeBackgroundFile(rh);
+	return result;
 }
 /* ------- end ---------------------------- backgroundOpacities.c --- */
 
@@ -984,7 +1017,7 @@ static void backgroundOpacities(RHState *rh, bool_t write_analyze_output)
 	   populations of active atoms are not rescaled. Analysis output
 	   (brs.out, metals.out, molecules.out) only if asked -- ------- */
 
-void BackgroundOfState(RHState *rh, bool_t write_analyze_output)
+rh_status BackgroundOfState(RHState *rh, bool_t write_analyze_output)
 {
 	register int n, k;
 
@@ -997,27 +1030,29 @@ void BackgroundOfState(RHState *rh, bool_t write_analyze_output)
 		for (k = 0; k < rh->atmos.Nspace; k++)
 			atom->ntotal[k] = atom->abundance * rh->atmos.nHtot[k];
 	}
-	SetLTEQuantities(rh);
-	ChemicalEquilibriumOfState(rh, N_MAX_CHEM_ITER, CHEM_ITER_LIMIT);
-	backgroundOpacities(rh, write_analyze_output);
+	RH_TRY(SetLTEQuantities(rh));
+	RH_TRY(ChemicalEquilibriumOfState(rh, N_MAX_CHEM_ITER, CHEM_ITER_LIMIT));
+	RH_TRY(backgroundOpacities(rh, write_analyze_output));
 	workAdd(rh, WORK_BACKGROUND, wallClock() - t_start);
+	return RH_OK;
 }
 
 /* --- Background() with its calls and wall time counted for the work
 	   statistics (S-1, SOLVER.md section 4.1) --       -------------- */
 
-void Background(RHState *rh, bool_t write_analyze_output, bool_t equilibria_only)
+rh_status Background(RHState *rh, bool_t write_analyze_output, bool_t equilibria_only)
 {
 	double t_start = wallClock();
 
-	computeBackground(rh, write_analyze_output, equilibria_only);
+	RH_TRY(computeBackground(rh, write_analyze_output, equilibria_only));
 	workAdd(rh, WORK_BACKGROUND, wallClock() - t_start);
+	return RH_OK;
 }
 /* ------- end ---------------------------- Background.c ------------ */
 
 /* ------- begin -------------------------- backgroundPrepare.c ----- */
 
-void backgroundPrepare(RHState *rh)
+rh_status backgroundPrepare(RHState *rh)
 {
 	/* --- One-time setup of the state that the continuum and passive
 		   line opacity routines would otherwise initialize lazily at
@@ -1026,9 +1061,16 @@ void backgroundPrepare(RHState *rh)
 		   Call after the atmosphere (T), the passive atoms, and the
 		   molecules are in place. --                  -------------- */
 
-	hydrogenPrepare(rh);
-	metalPrepare(rh);
+	RH_TRY(hydrogenPrepare(rh));
+	RH_TRY(metalPrepare(rh));
 	molecularPrepare(rh);
+
+	/* --- Rayleigh scattering by H and He needs their ground level in
+		   the neutral stage --                          -------------- */
+
+	RH_TRY(RayleighCheck(rh, rh->atmos.H));
+	if (rh->atmos.elements[1].model != NULL) RH_TRY(RayleighCheck(rh, rh->atmos.elements[1].model));
+	return RH_OK;
 }
 /* ------- end ---------------------------- backgroundPrepare.c ----- */
 

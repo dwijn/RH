@@ -96,6 +96,11 @@ int  ExitStatus(RHState *rh);
 	   RH_TRY(call)
 		   passes a failure of call on: returns its status from the
 		   function that contains it unless it is RH_OK.
+	   RH_TRY_GOTO(status, label, call)
+		   as RH_TRY, for a function that holds memory or files: stores
+		   the status of call in status and, unless it is RH_OK, jumps
+		   to label, where the function frees what it holds and returns
+		   status.
 	   ExitOnError(rh, status)
 		   for a caller not yet converted: when status is not RH_OK,
 		   prints the recorded error as Error() does and exits with
@@ -125,6 +130,12 @@ _Noreturn void AssertFailed(RHState *rh, const char *condition, const char *file
 		rh_status rh_try_status_ = (call); \
 		if (rh_try_status_ != RH_OK)       \
 			return rh_try_status_;         \
+	} while (0)
+
+#define RH_TRY_GOTO(status, label, call)  \
+	do {                                  \
+		if (((status) = (call)) != RH_OK) \
+			goto label;                   \
 	} while (0)
 
 #define RH_ASSERT(rh, condition, routineName, ...)             \

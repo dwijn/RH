@@ -28,9 +28,22 @@
 #include "atom.h"
 #include "constant.h"
 #include "background.h"
+#include "error.h"
 #include "check.h"
+#include "state.h"
 
 /* ------- begin -------------------------- at.c -------------------- */
+
+/* --- Gaunt_ff with its status checked --         -------------- */
+
+static double gaunt(double lambda, int Z, double T)
+{
+	double    g = 0.0;
+	rh_status s = Gaunt_ff(rh, lambda, Z, T, &g);
+
+	CHECK(s == RH_OK, "Gaunt_ff(%g nm, Z = %d, %g K): status %d", lambda, Z, T, s);
+	return g;
+}
 
 static double at(double lg2, double lu, int Z)
 {
@@ -39,7 +52,7 @@ static double at(double lg2, double lu, int Z)
 	double T      = SQ(Z) * E_RYDBERG / (KBOLTZMANN * pow(10.0, lg2));
 	double lambda = HPLANCK * CLIGHT / (pow(10.0, lu) * KBOLTZMANN * T) / NM_TO_M;
 
-	return Gaunt_ff(rh, lambda, Z, T);
+	return gaunt(lambda, Z, T);
 }
 /* ------- end ---------------------------- at.c -------------------- */
 
@@ -142,12 +155,24 @@ int main(void)
 
 	/* --- The mm (the expansion RH used gave 1 there) -- ---------- */
 
-	CHECK_CLOSE(Gaunt_ff(rh, 1.0E6, 1, 3000.0), 2.177, 2.0E-3, 0.0, "%s",
+	CHECK_CLOSE(gaunt(1.0E6, 1, 3000.0), 2.177, 2.0E-3, 0.0, "%s",
 				"1 mm, 3000 K");
-	CHECK_CLOSE(Gaunt_ff(rh, 1.0E6, 1, 1.0E4), 2.958, 2.0E-3, 0.0, "%s",
+	CHECK_CLOSE(gaunt(1.0E6, 1, 1.0E4), 2.958, 2.0E-3, 0.0, "%s",
 				"1 mm, 10^4 K");
-	CHECK_CLOSE(Gaunt_ff(rh, 3.0E6, 1, 1.0E4), 3.497, 2.0E-3, 0.0, "%s",
+	CHECK_CLOSE(gaunt(3.0E6, 1, 1.0E4), 3.497, 2.0E-3, 0.0, "%s",
 				"3 mm, 10^4 K");
+
+	/* --- Outside the table (log u = 14, the table ends at 13):
+		   RH_E_NUMERIC, recorded -- ---------------------------- */
+	{
+		double g = 0.0, T = 1.0E4,
+			   lambda = HPLANCK * CLIGHT / (1.0E14 * KBOLTZMANN * T) / NM_TO_M;
+
+		CHECK(Gaunt_ff(rh, lambda, 1, T, &g) == RH_E_NUMERIC && Failed(rh) &&
+				  rh->error.code == RH_E_NUMERIC,
+			  "%s", "log u = 14: not RH_E_NUMERIC");
+		ClearError(rh);
+	}
 
 	/* --- Synthetic table: bicubic in ln g is exact -- ------------ */
 

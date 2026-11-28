@@ -121,9 +121,9 @@ int main(int argc, char *argv[])
 		/* --- Case of angle-dependent background opacities -- ---------- */
 
 		strcpy(rh->input.background_File, rh->input.background_ray_File);
-		Background(rh, analyze_output = FALSE, equilibria_only = FALSE);
+		ExitOnError(rh, Background(rh, analyze_output = FALSE, equilibria_only = FALSE));
 	} else {
-		Background(rh, analyze_output = FALSE, equilibria_only = TRUE);
+		ExitOnError(rh, Background(rh, analyze_output = FALSE, equilibria_only = TRUE));
 
 		if ((rh->atmos.fd_background =
 				 open(rh->input.background_File, O_RDONLY, 0)) == -1) {
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 	}
 	convertScales(rh, &rh->atmos, rh->geometry);
 
-	getProfiles(rh);
+	ExitOnError(rh, getProfiles(rh));
 	initSolution(rh);
 	initScatter(rh);
 

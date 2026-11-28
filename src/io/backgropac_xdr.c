@@ -60,12 +60,12 @@ void backgrOpac(RHState *rh, int Nlambda, double *lambda)
 
 	if (rh->input.solve_ne) Solve_ne(rh, rh->atmos.ne, TRUE);
 
-	SetLTEQuantities(rh);
+	ExitOnError(rh, SetLTEQuantities(rh));
 
 	if (rh->input.NonICE)
 		readMolecules(rh, MOLECULAR_CONCENTRATION_FILE);
 	else
-		ChemicalEquilibrium(rh, N_MAX_CHEM_ITER, CHEM_ITER_LIMIT);
+		ExitOnError(rh, ChemicalEquilibrium(rh, N_MAX_CHEM_ITER, CHEM_ITER_LIMIT));
 
 	if (strcmp(rh->input.fudgeData, "none")) {
 		do_fudge = TRUE;
@@ -104,7 +104,7 @@ void backgrOpac(RHState *rh, int Nlambda, double *lambda)
 
 	He = (rh->atmos.elements[1].model) ? rh->atmos.elements[1].model : NULL;
 
-	backgroundPrepare(rh);
+	ExitOnError(rh, backgroundPrepare(rh));
 
 	/* --- Go through wavelengths one-by-one --          -------------- */
 
@@ -176,7 +176,7 @@ void backgrOpac(RHState *rh, int Nlambda, double *lambda)
 			write_contrib_xdr(&xdrs, "HYDROGEN_BF", type = ABSORPTION,
 							  rh->atmos.Nspace, chi);
 		}
-		Hydrogen_ff(rh, lambda[nspect], chi);
+		ExitOnError(rh, Hydrogen_ff(rh, lambda[nspect], chi));
 		write_contrib_xdr(&xdrs, "HYDROGEN_FF", type = ABSORPTION,
 						  rh->atmos.Nspace, chi);
 

@@ -100,7 +100,7 @@ void initSolution(RHState *rh)
 		/* --- Interpolation weights of rho and Jgas, unless they are
 			   computed when needed (PRDH_LIMIT_MEM) --  -------------- */
 
-		initPRDhTables(rh);
+		ExitOnError(rh, initPRDhTables(rh));
 	}
 
 	/* --- Allocate space for the emergent intensity --  -------------- */
