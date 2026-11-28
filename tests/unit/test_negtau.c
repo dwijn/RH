@@ -9,7 +9,8 @@
 	   from gdb), and both Bezier forms between the smallest and
 	   largest chi of the interval times its path length. After a
 	   detection negTauStop leaves a trial point to the solver and
-	   fails with RH_E_TRIAL outside a trial (Q-55).
+	   fails with RH_E_TRIAL outside a trial, with the detection
+	   reset (Q-55).
 	   --                                              -------------- */
 
 #include <math.h>
@@ -93,6 +94,7 @@ static void check_threshold(void)
 	negTauTrial(rh, FALSE);
 	CHECK(negTauStop(rh) == RH_E_TRIAL && Failed(rh) && rh->error.code == RH_E_TRIAL,
 		  "negTauStop outside a trial: not RH_E_TRIAL");
+	CHECK(!negTauFound(rh), "negTauStop failed and left the detection set");
 	ClearError(rh);
 	negTauReset(rh);
 	CHECK(!negTauFound(rh), "reset");

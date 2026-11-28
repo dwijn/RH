@@ -21,8 +21,8 @@
 
 	   The error paths of the wavelength grid (Q-55), in the process:
 	   getLambda with qcore <= 0, and SortLambda with a wavelength
-	   table that cannot be opened or is truncated, return RH_E_DATA
-	   and record it.
+	   table that cannot be opened, is truncated or has a negative
+	   count, return RH_E_DATA and record it.
 	   --                                              -------------- */
 
 #include <math.h>
@@ -101,6 +101,23 @@ static void check_errors(void)
 	snprintf(rh->input.wavetable_input, sizeof(rh->input.wavetable_input), "%s", path);
 	CHECK(SortLambda(rh) == RH_E_DATA && Failed(rh) && rh->error.code == RH_E_DATA,
 		  "SortLambda, truncated wavelength table: not RH_E_DATA");
+	ClearError(rh);
+
+	/* --- A negative count --                         ------------ */
+
+	fp    = fopen(path, "w");
+	Nwave = -1;
+	CHECK(fp != NULL, "cannot write %s", path);
+	if (fp == NULL) {
+		remove(path);
+		return;
+	}
+	xdrstdio_create(&xdrs, fp, XDR_ENCODE);
+	CHECK(xdr_int(&xdrs, &Nwave), "cannot write %s", path);
+	xdr_destroy(&xdrs);
+	fclose(fp);
+	CHECK(SortLambda(rh) == RH_E_DATA && Failed(rh) && rh->error.code == RH_E_DATA,
+		  "SortLambda, negative count in the wavelength table: not RH_E_DATA");
 	ClearError(rh);
 	remove(path);
 }

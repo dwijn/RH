@@ -326,11 +326,13 @@ rh_status negTauStop(RHState *rh)
 
 	/* --- Called by solveSpectrum after its threads have joined: fails
 		   with RH_E_TRIAL (the iterate is invalid, and no solver can
-		   reject it) unless a solver is evaluating a trial point -- */
+		   reject it) unless a solver is evaluating a trial point. The
+		   detection is reset when it fails --         -------------- */
 
 	if (!rh->negtau.detected.found || rh->negtau.trial) return RH_OK; /* (invalid only in a trial) */
 
 	negTauMessage(rh, what, sizeof(what));
+	negTauReset(rh);
 	return Fail(rh, RH_E_TRIAL, routineName, "\n  %s.\n  The formal solution would overflow there. A negative"
 											 " total opacity\n  comes from a strong inverted line (population"
 											 " inversion) in\n  the current populations (SOLVER.md, trap 5)",

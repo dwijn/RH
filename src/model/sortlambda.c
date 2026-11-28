@@ -66,6 +66,13 @@ rh_status SortLambda(RHState *rh)
 		xdrstdio_create(&xdrs, fp_wavetable, XDR_DECODE);
 
 		result = xdr_int(&xdrs, &Nwave);
+		if (result && Nwave < 0) {
+			xdr_destroy(&xdrs);
+			fclose(fp_wavetable);
+			return Fail(rh, RH_E_DATA, routineName,
+						"Wavelength table %s: negative number of wavelengths (%d)",
+						rh->input.wavetable_input, Nwave);
+		}
 		if (result) {
 			wavetable = (double *) mallocOrAbort(Nwave * sizeof(double));
 			result    = xdr_vector(&xdrs, (char *) wavetable, Nwave,

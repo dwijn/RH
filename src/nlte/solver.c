@@ -1110,7 +1110,10 @@ static rh_status errorEstimate(RHState *rh, ErrorTest *t, const double *gx, doub
 		negTauTrial(rh, TRUE);
 		status = G_eval(rh, y, gy, &Gok);
 		negTauTrial(rh, FALSE);
-		if (status != RH_OK) goto cleanup;
+		if (status != RH_OK) {
+			negTauReset(rh);
+			goto cleanup;
+		}
 		t->Geval++;
 		if (!Gok) break;
 		errorLogDiff(rh, gy, gx, D[j]);
@@ -1375,7 +1378,10 @@ rh_status iterateAnderson(RHState *rh, int NmaxIter, double iterLimit)
 		negTauTrial(rh, a->trial);
 		status = G_eval(rh, x, gx, &Gok);
 		negTauTrial(rh, FALSE);
-		if (status != RH_OK) goto cleanup;
+		if (status != RH_OK) {
+			negTauReset(rh);
+			goto cleanup;
+		}
 		if (!Gok) {
 			negTauMessage(rh, what, sizeof(what));
 			Message(rh, "\n -- Iteration %3d\n  Anderson: %s at the extrapolated point:"
@@ -1570,6 +1576,7 @@ static void fdProduct(void *vctx, const double *v, double *y)
 	status = G_eval(rh, c->xp, c->gp, &Gok);
 	if (status != RH_OK) {
 		negTauTrial(rh, FALSE);
+		negTauReset(rh);
 		c->status = status;
 		for (i = 0; i < rh->solver.Nstate; i++) y[i] = 0.0;
 		return;
@@ -1786,7 +1793,10 @@ rh_status iterateNewton(RHState *rh, int NmaxIter, double iterLimit)
 				negTauTrial(rh, TRUE);
 				status = G_eval(rh, xt, gt, &Gok);
 				negTauTrial(rh, FALSE);
-				if (status != RH_OK) goto cleanup;
+				if (status != RH_OK) {
+					negTauReset(rh);
+					goto cleanup;
+				}
 				Neval++;
 				if (!Gok) { /* negative opacity (N-40): halve */
 					Nhalve++;

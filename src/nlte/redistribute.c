@@ -89,8 +89,8 @@ rh_status Redistribute(RHState *rh, int NmaxIter, double iterLimit)
 			if (line->PRD && line->Ng_prd == NULL) {
 				NlamuL = PRDRhoSize(rh, line);
 				if (NlamuL > INT_MAX) {
-					return Fail(rh, RH_E_NUMERIC, routineName, "PRD line %d -> %d: %ld values of rho, too many for"
-															   " the Ng acceleration of the PRD iteration",
+					return Fail(rh, RH_E_INPUT, routineName, "PRD line %d -> %d: %ld values of rho, too many for"
+															 " the Ng acceleration of the PRD iteration",
 								line->j, line->i, NlamuL);
 				}
 				Nlamu = (int) NlamuL;
