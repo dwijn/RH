@@ -140,9 +140,8 @@ rh_status Fail(RHState *rh, rh_status code, const char *routineName,
 	text = formatMessage(buf, sizeof(buf), format, ap);
 	va_end(ap);
 
-	rh->error.code = code;
-	snprintf(rh->error.routine, sizeof(rh->error.routine), "%s",
-			 routineName ? routineName : "");
+	rh->error.code    = code;
+	rh->error.routine = strdup(routineName ? routineName : "");
 	rh->error.message = strdup(text);
 	freeMessage(text, buf);
 
@@ -158,9 +157,10 @@ bool_t Failed(RHState *rh)
 void ClearError(RHState *rh)
 {
 	free(rh->error.message);
-	rh->error.message    = NULL;
-	rh->error.code       = RH_OK;
-	rh->error.routine[0] = '\0';
+	free(rh->error.routine);
+	rh->error.message = NULL;
+	rh->error.routine = NULL;
+	rh->error.code    = RH_OK;
 	atomic_store(&rh->error.failState, 0);
 }
 /* ------- end ---------------------------- Fail.c ------------------ */
@@ -176,7 +176,7 @@ void ExitOnError(RHState *rh, rh_status status)
 	if (status == RH_OK) return;
 
 	if (atomic_load(&rh->error.failState) == 2)
-		terminate(rh, rh->error.routine,
+		terminate(rh, rh->error.routine ? rh->error.routine : "(no memory for the name)",
 				  rh->error.message ? rh->error.message : "(no memory for the message)");
 	else {
 		char text[MAX_MESSAGE_LENGTH];

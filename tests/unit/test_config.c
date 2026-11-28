@@ -16,8 +16,10 @@
 	   -- parse: an option without its required value returns
 		  RH_E_INPUT; with the value, it is stored;
 	   -- readInput: a keyword file that cannot be opened returns
-		  RH_E_DATA, one with an invalid value RH_E_INPUT (and is
-		  closed).
+		  RH_E_DATA; one with the required keywords and an invalid
+		  value returns the setter's RH_E_INPUT, one with a value that
+		  a check of readInput rejects (NG_ORDER < 0) that of
+		  readInput (and the file is closed).
 	   --                                              -------------- */
 
 #include <stdlib.h>
@@ -163,22 +165,38 @@ static void testParse(void)
 	CHECK(!strcmp(input, "my.input"), "parse: -input my.input gave \"%s\"", input);
 }
 
+/* --- The keywords that readInput requires, and NRAYS in 1-D -- ---- */
+
+#define REQUIRED                                                   \
+	"ATMOS_FILE = a\nABUND_FILE = b\nATOMS_FILE = c\n"             \
+	"MOLECULES_FILE = d\nI_SUM = 0\nN_MAX_ITER = 10\nJ_FILE = J\n" \
+	"BACKGROUND_FILE = bg\nSTARTING_J = NEW_J\n"                   \
+	"KURUCZ_PF_DATA = pf\nVMICRO_CHAR = 2.0\nNRAYS = 3\n"
+
 static void testReadInput(void)
 {
-	char  path[] = "test_config_XXXXXX";
+	char  path[] = "test_config_XXXXXX", path2[] = "test_config_XXXXXX";
 	FILE *fp;
 
 	snprintf(rh->commandline.keyword_input, sizeof(rh->commandline.keyword_input), "%s",
 			 "/nonexistent/keyword.input");
 	expectError(readInput(rh), RH_E_DATA, "readInput", "readInput, missing keyword file");
 
-	if ((fp = tempFile(path, "S_INTERPOLATION = S_PARABOLIC\n")) == NULL) return;
+	if ((fp = tempFile(path, REQUIRED "S_INTERPOLATION = S_PARABOLIC\n")) == NULL) return;
 	fclose(fp);
 	snprintf(rh->commandline.keyword_input, sizeof(rh->commandline.keyword_input), "%s", path);
-	CHECK(readInput(rh) == RH_E_INPUT && Failed(rh) && rh->error.code == RH_E_INPUT,
-		  "readInput, invalid keyword file: not RH_E_INPUT");
-	ClearError(rh);
+	expectError(readInput(rh), RH_E_INPUT, "set_S_Interpolation",
+				"readInput, S_INTERPOLATION = S_PARABOLIC");
 	remove(path);
+
+	if ((fp = tempFile(path2, REQUIRED "NG_ORDER = -1\n")) == NULL) return;
+	fclose(fp);
+	snprintf(rh->commandline.keyword_input, sizeof(rh->commandline.keyword_input), "%s", path2);
+	CHECK(readInput(rh) == RH_E_INPUT && rh->error.message &&
+			  strstr(rh->error.message, "NG_ORDER") != NULL,
+		  "readInput, NG_ORDER = -1: %s", rh->error.message ? rh->error.message : "no error");
+	expectError(RH_E_INPUT, RH_E_INPUT, "readInput", "readInput, NG_ORDER = -1");
+	remove(path2);
 }
 
 int main(void)

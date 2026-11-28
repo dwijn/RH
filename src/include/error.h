@@ -154,8 +154,8 @@ typedef struct {
 	int        exitFlags;
 	atomic_int failState;
 	rh_status  code;
-	char       routine[64];
-	char      *message; /* allocated by Fail, freed by ClearError */
+	char      *routine; /* allocated by Fail, freed by ClearError: */
+	char      *message; /* any length (argv[0] is a routine name) */
 } ErrorState;
 
 #endif /* !__ERROR_H__ */

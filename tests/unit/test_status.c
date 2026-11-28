@@ -203,6 +203,17 @@ int main(void)
 	CHECK(strlen(rh->error.message) == 5 * MAX_MESSAGE_LENGTH + 2, "long message length %zu",
 		  strlen(rh->error.message));
 	ClearError(rh);
+
+	/* --- A routine name longer than 64 characters, whole: the
+		   programs pass argv[0], a path, as the routine of checkNread
+		   (Q-56) --                                     -------------- */
+
+	longText[200] = '\0';
+	Fail(rh, RH_E_DATA, longText, "short");
+	CHECK(strcmp(rh->error.routine, longText) == 0, "long routine name length %zu",
+		  strlen(rh->error.routine));
+	ClearError(rh);
+	CHECK(rh->error.routine == NULL, "ClearError forgets the routine name");
 	free(longText);
 
 	/* --- RH_TRY --                                      -------------- */
